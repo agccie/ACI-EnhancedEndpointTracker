@@ -8,7 +8,7 @@ appLogDir="/var/log/ept/"
 ### install settings required for apache setup
 installDir="/var/www/$appName/"
 installLog="$startDir/setup.log"
-installUser="eptracker"
+installUser=`who am i | awk '{print $1}'`
 firstRun="/home/$installUser/firstRun.sh"
 
 # ensure user is running setup as root

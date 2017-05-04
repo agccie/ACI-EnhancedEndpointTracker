@@ -101,17 +101,8 @@ install_apache()
 
 install_mongodb()
 {
-    # add key and repository so we can install mongodb
-
-    # sets for ubuntu 15.04 which is deprecated
-    # https://docs.mongodb.com/master/tutorial/install-mongodb-on-ubuntu/#import-the-public-key-used-by-the-package-management-system
-    #apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 7F0CEB10
-    #echo "deb http://repo.mongodb.org/apt/ubuntu "$(lsb_release -sc)"/mongodb-org/3.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-3.0.list
-    #apt-get update
-    #apt-get install -y mongodb-org mongodb-clients
-
-    # ubuntu distribution should maintain a working mongdb
-    sudo apt-get install -y mongodb mongodb-clients
+    # ubuntu distribution (16.04+) should maintain a working mongdb
+    sudo apt-get install -y mongodb 
 }
 
 install_exim4()

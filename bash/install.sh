@@ -126,7 +126,7 @@ setup_logging()
 
     if [ ! -d "/etc/cron.minute" ] ; then
         echo "
-$appLogDir/ept/*.log {
+$appLogDir/*.log {
        size 50M
        rotate 10
        copytruncate

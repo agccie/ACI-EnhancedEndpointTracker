@@ -113,12 +113,39 @@ install_exim4()
     service exim4 restart
 }
 
+setup_logging()
+{
+    # setup logging directory
+    mkdir $appLogDir -p >> $installLog 2>&1
+    chown $installUser:www-data $appLogDir >> $installLog 2>&1
+    chmod 777 $appLogDir >> $installLog 2>&1
+    touch $appLogDir/ept.log >> $installLog 2>&1
+    touch $appLogDir/utils.log >> $installLog 2>&1
+    chmod 777 $appLogDir/* >> $installLog 2>&1
+    chown $installUser:www-data $appLogDir/* >> $installLog 2>&1
+
+    if [ ! -d "/etc/cron.minute" ] ; then
+        echo "
+$appLogDir/ept/*.log {
+       size 50M
+       rotate 10
+       copytruncate
+       compress
+       notifempty
+       missingok
+} " > /etc/logrotate.d/aci_app
+        mkdir -p /etc/cron.minute
+        cp /etc/cron.daily/logrotate /etc/cron.minute/
+        echo "* * * * *    root    test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.minute )" >> /etc/crontab
+    fi
+}
+
 install()
 {
     # install project dependences
     apt-get update >> $installLog 2>&1
     echo -n "."
-    apt-get install -y git vim >> $installLog 2>&1
+    apt-get install -y git vim logrotate cron >> $installLog 2>&1
     echo -n "."
     apt-get install -y python python-dev python-pip libffi-dev libssl-dev python-pip >> $installLog 2>&1
     echo -n "."
@@ -145,15 +172,7 @@ install()
     echo -n "."
     sudo apt-get install ntp -y >> $installLog 2>&1
     echo -n "."
-
-    # setup logging directory
-    mkdir $appLogDir -p >> $installLog 2>&1
-    chown $installUser:www-data $appLogDir >> $installLog 2>&1
-    chmod 777 $appLogDir >> $installLog 2>&1
-    touch $appLogDir/ept.log >> $installLog 2>&1
-    touch $appLogDir/utils.log >> $installLog 2>&1
-    chmod 777 $appLogDir/* >> $installLog 2>&1
-    chown $installUser:www-data $appLogDir/* >> $installLog 2>&1
+    setup_logging >> $installLog 2>&1
     echo -n "."
 
     # ensure permissions are still correct for installDir
@@ -204,11 +223,12 @@ create_firstRun()
     echo \"LOG_DIR=\\\"$appLogDir\\\"\" >> $installDir/instance/config.py
     echo \"LOG_ROTATE=0\" >> $installDir/instance/config.py
     echo \"EMAIL_SENDER=\\\"noreply@eptracker.app\\\"\" >> $installDir/instance/config.py
+    chown $installUser:www-data $installDir/instance/config.py
     " >> $firstRun
     echo '
     
     # guess IP
-    pintf=`ifconfig | egrep Ethernet | awk '{print $1}' | head -1`
+    pintf=`ifconfig | egrep Ethernet | awk '"'"'{print \$1}'"'"' | head -1`
     thisIp=`ifconfig $pintf | egrep -o "inet addr:[0-9\.]+" | egrep -o "[0-9\.]+"`
     if [[ $thisIp =~ ^[0-9\.]+ ]] ; then
         echo "

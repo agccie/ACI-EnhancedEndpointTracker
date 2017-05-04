@@ -176,7 +176,7 @@ def init_collection(**kwargs):
             files.append(jsfile)
 
         for f in files:
-            cmd = "mongoimport --db %s --collection %s --file %s" % (
+            cmd = "mongoimport --db %s --collection %s --file %s --jsonArray"%(
                     db_name, collection_name, f)
             try:
                 p = subprocess.Popen((cmd).split(" "), stdout=subprocess.PIPE,

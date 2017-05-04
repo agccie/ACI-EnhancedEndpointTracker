@@ -2,7 +2,7 @@
 
 startDir="`pwd`"
 ### app settings required for setup
-appGitUrl="http://gitlab.cisco.com/agossett/eptracker.git"
+appGitUrl="https://github.com/agccie/ACI-EnhancedEndpointTracker.git"
 appName="eptracker"
 appLogDir="/var/log/ept/"
 ### install settings required for apache setup

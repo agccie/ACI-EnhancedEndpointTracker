@@ -212,10 +212,8 @@ create_firstRun()
 
     # ensure app.wsgi is present for apache2
     cp $installDir/aci_app_store/Service/app.wsgi $installDir/app.wsgi
-    python $installDir/setup_db.py --no_verify
     chown $installUser:www-data $installDir/app.wsgi
     chmod 777 $appLogDir/*
-    sudo service apache2 restart
 
     # ensure proper environment variables are set for this VM
     mkdir -p $installDir/instance
@@ -223,7 +221,10 @@ create_firstRun()
     echo \"LOG_DIR=\\\"$appLogDir\\\"\" >> $installDir/instance/config.py
     echo \"LOG_ROTATE=0\" >> $installDir/instance/config.py
     echo \"EMAIL_SENDER=\\\"noreply@eptracker.app\\\"\" >> $installDir/instance/config.py
-    chown $installUser:www-data $installDir/instance/config.py
+    chown $installUser:www-data $installDir/instance -R
+
+    python $installDir/setup_db.py --no_verify
+    sudo service apache2 restart
     " >> $firstRun
     echo '
     

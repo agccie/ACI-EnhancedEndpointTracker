@@ -1,0 +1,341 @@
+
+{% extends "layout.html" %}
+{% block content %}
+
+    <!-- dataTable dependencies -->
+    <link rel="stylesheet" href="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.bootstrap.css') }}"> 
+    <link rel="stylesheet" href="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.responsive.css') }}"> 
+    <script src="{{ url_for('static',filename='lib/datatables-1.10.6/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.responsive.min.js') }}"></script>
+
+    {% if not config.get("LOGIN_ENABLED", 1) %}
+    <div class="alert alert-info">
+        <h4>Login is disabled for this application. All users are implicitly
+            permitted with full admin access.
+        </h4>
+    </div>
+    {% endif %}
+
+    <h3>
+        Users <span class="badge" data-bind="visible: !isLoading(), text: users().length"></span>
+    </h3>
+    <div class="alert alert-warning" data-bind="visible: (users().length<=0 && !isLoading())">
+        <h4>No Users.</h4>
+    </div>
+    <div data-bind="loadingWhen: isLoading()">
+        <div data-bind="visible: users().length>0">
+        <div class="table-responsive">
+            <table id="users" class="table table-condensed table-striped table-hover">
+                <thead>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Last Login</th>
+                    <th class="nosort">
+                        <button type="button" class="btn btn-primary" data-bind="click: new_user">
+                            <span class="glyphicon glyphicon-plus-sign"></span> New User
+                        </button>
+                    </th>
+                </thead>
+                <tbody data-bind="foreach: { data: users, as: 'user'}">
+
+                    <tr data-bind="attr:{id:user.username}">    
+                        <td><span data-bind="text: user.username"></span></td>
+                        <td><span data-bind="text: user.role_name"></span></td>
+                        <td><span data-bind="text: user.last_login_string"></span></td>
+                        <td>
+                            <button type="button" class="btn btn-danger btn-sm" data-bind="click: $root.edit_user">
+                                <span class="glyphicon glyphicon-edit"></span>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        </div>
+    </div>
+
+    <!-- user-form modal -->
+    <div class="modal fade" id="pageModal" tabindex="-1" role="dialog" aria-labelledby="pageModal" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span aria-hidden="true">&times;</span>
+                        <span class="sr-only">Close</span>
+                    </button>
+                     <h4 class="modal-title" data-bind="text: modal_form_title"></h4>
+                </div>
+                <div class="modal-body">
+                    <form role="form" class="form-horizontal">
+                        <input type="hidden" name="user_id" data-bind="value: modal_form_id" />
+                        <div class="alert alert-danger" role="alert" data-bind="visible: modal_form_error().length>0">
+                            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+                            <span class="sr-only">Error:</span>
+                            <span data-bind="text: modal_form_error"></span>
+                        </div>
+                        <div class="form-group" data-bind="css: modal_form_valid_username">
+                            <div class="col-sm-3"><label for="username">Username</label></div>
+                            <div class="col-sm-9">
+                            <input type="text" class="form-control" id="username" placeholder="Email Address or Username"
+                                data-bind="value: modal_form_username, disable: modal_form_id()>0">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="col-sm-3"><label for="role">Role</label></div>
+                            <div class="col-sm-9">
+                            <select class="form-control" id="role" data-bind="options: modal_form_role_types,
+                                                                              optionsText: 'name',
+                                                                              value: modal_form_role_selected"></select>
+                            </div>
+                        </div>
+                        <div class="form-group" data-bind="visible: modal_form_id()==0, css: modal_form_valid_password">
+                            <div class="col-sm-3"><label for="role">Password</label></div>
+                            <div class="col-sm-9">
+                            <input type="password" class="form-control" id="password1" placeholder="Password"
+                                data-bind="value: modal_form_password1">
+                            </div>
+                        </div>
+                        <div class="form-group" data-bind="visible: modal_form_id()==0, css: modal_form_valid_password">
+                            <div class="col-sm-3"></div>
+                            <div class="col-sm-9">
+                            <input type="password" class="form-control" id="password2" placeholder="Re-Type Password"
+                                data-bind="value: modal_form_password2">
+                            </div>
+                        </div>
+                        <div class="form-group" data-bind="visible: modal_form_id()>0">
+                            <div class="col-sm-3"><label for="role">Password</label></div>
+                            <div class="col-sm-9">
+                                <button type="button" class="btn btn-primary" data-bind="click: password_reset">
+                                    <span class="glyphicon glyphicon-lock"></span> Reset Password
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">
+                        <span class="glyphicon glyphicon-remove"></span> Close</button>
+                    </button>
+                    <button type="button" class="btn btn-danger" data-bind="visible: modal_form_id()>0, click: delete_user">
+                        <span class="glyphicon glyphicon-trash"></span> Delete
+                    </button>
+                    <button type="submit" class="btn btn-primary" data-bind="click: save_user">
+                        <span class="glyphicon glyphicon-ok"></span> Save changes</button>
+                </div>
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
+
+<script type="text/javascript">
+//html for saving forms
+var save_html =  "<h4><img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Saving...</h4>"
+var load_html =  "<h4><img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Loading...</h4>"
+var success_html = "<h4><span class=\"label label-success\"><span class=\"glyphicon glyphicon-ok-sign\"></span></span> Success!</h4>"
+function viewModel() {
+    var self = this;
+    self.users = ko.observableArray();
+    self.isLoading = ko.observable(true);
+    self.alert_html = ko.observable("");
+    self.delete_html = ko.observable("");
+    self.pending_delete_username = ko.observable("");
+    self.datatable = null;
+
+    var read_url = "{{ url_for('api.admin_read_users') }}";
+    $.getJSON(read_url, function(data){
+        self.isLoading(false);
+        for(var i=0;i<data.users.length;i++){
+            var l = new user();
+            l.fromJS(data.users[i])
+            self.users.push(l);
+        }
+        // build datatable now that table has been built 
+        self.datatable = build_datatable();
+
+    }).error(function(){
+        self.isLoading(false);
+        $("#alertModal").modal("show");
+        self.alert_html(get_error_html(err, read_url));
+    });
+
+    //handlers for creating/editing form
+    self.modal_form_submitted = ko.observable(0);
+    self.modal_form_error = ko.observable("");
+    self.modal_form_id = ko.observable(0);
+    self.modal_form_username = ko.observable("");
+    self.modal_form_role = ko.observable(0);
+    self.modal_form_password1 = ko.observable("");
+    self.modal_form_password2 = ko.observable("");
+    self.modal_form_title = ko.pureComputed(function(){
+        if(self.modal_form_id()>0) return "Update User";
+        return "New User";
+    });
+    self.modal_form_role_selected = ko.observable(roleOptions[ROLE_USER]);
+    self.modal_form_role_types = ko.observableArray();
+    for(var i=0; i<roleOptions.length; i++){
+        self.modal_form_role_types.push(roleOptions[i]);
+    }
+
+    //form validation
+    self.modal_form_valid_username = ko.computed(function(){
+        if(self.modal_form_submitted()>0){
+            if(self.modal_form_username().length == 0){
+                p_msg = "Enter a valid username or email"
+                if(self.modal_form_error().length==0){ self.modal_form_error(p_msg)}
+                return "has-error";
+            }
+        }
+        return "";
+    });
+
+    self.modal_form_valid_password = ko.computed(function(){
+        if(self.modal_form_submitted()>0 && self.modal_form_id()==0){
+            p = self.modal_form_password1()
+            if(p.length<8 || p.search(/[A-Z]/)<0 || p.search(/[a-z]/)<0 || p.search(/[0-9]/)<0){
+                p_msg = "Passwords require a combination of at least 8 characters.";
+                p_msg+= " Ensure you use an uppercase character, lowercase character, ";
+                p_msg+= "and a number.";
+                if(self.modal_form_error().length==0){ self.modal_form_error(p_msg)}
+                return "has-error"
+            }
+            else if(self.modal_form_password1() != self.modal_form_password2()){
+                p_msg = "Passwords do not match"
+                if(self.modal_form_error().length==0){ self.modal_form_error(p_msg)}
+                return "has-error"
+            }
+        }
+        return ""
+    });
+
+    //display new user form
+    self.new_user = function(){
+        self.modal_form_submitted(0);
+        self.modal_form_id(0);
+        self.modal_form_username("");
+        self.modal_form_password1("");
+        self.modal_form_password2("");
+        self.modal_form_role_selected(roleOptions[ROLE_USER]);
+        $("#pageModal").modal("show");
+    }
+    //display edit form
+    self.edit_user = function(user){
+        self.modal_form_submitted(0);
+        self.modal_form_error("");
+        self.modal_form_username(user.username());
+        self.modal_form_id(user.id());
+        self.modal_form_role_selected(roleOptions[user.role()]);
+        $("#pageModal").modal("show");
+    }
+
+    //save user (new or edited)
+    self.save_user = function(){
+        self.modal_form_error("");      //reset any errors
+        self.modal_form_submitted(0);   //toggle submitted value to re-run checks
+        self.modal_form_submitted(1); 
+        //no need to re-check, if error message is present then stop
+        if(self.modal_form_error().length>0){ 
+            return; 
+        }
+        //json to post to server
+        var json = {
+            username: self.modal_form_username(),
+            role: self.modal_form_role_selected().value
+        }
+        if(self.modal_form_id()==0){
+            json.password = self.modal_form_password1()
+        }
+
+        $("#pageModal").modal("hide");
+        self.alert_html(save_html);
+        $("#alertModal").modal("show");
+        var update_url = "{{ url_for('api.admin_create_user') }}";
+        update_url+= (self.modal_form_id()>0) ? "/"+self.modal_form_username():"";
+        json_post(update_url, json, function(data){
+            window.location.reload()
+        }).error(function(err){
+            self.alert_html(get_error_html(err, update_url));
+        });
+    }
+
+    //delete user
+    self.delete_user = function(){
+        self.pending_delete_username(self.modal_form_username());
+        $("#pageModal").modal("hide");
+        self.delete_html(get_confirm_delete_html(
+            self.pending_delete_username()
+        ));
+        $("#deleteModal").modal("show");
+    }
+    //delete user confirmed
+    self.delete_confirmed = function(){
+        self.alert_html(save_html);
+        $("#deleteModal").modal("hide");
+        $("#alertModal").modal("show");
+        var update_url = "{{ url_for('api.admin_create_user') }}";
+        update_url+= "/"+self.pending_delete_username();
+        json_delete(update_url, {}, function(data){
+            //try to remove user from observable array
+            var ucount = self.users().length;
+            self.users.remove(function(user){ 
+                // remove user with username equal to deleted username
+                if(user.username() == self.pending_delete_username()){
+                    //remove row from datatable
+                    if(self.datatable!= null){
+                        self.datatable.row("#"+self.pending_delete_username()).remove().draw(false);
+                    }
+                    return true;
+                }
+            });
+            $("#alertModal").modal("hide");
+            if(ucount == self.users().length){
+                //could not remove user from observable for some reason, reload page
+                window.location.reload()
+            }
+        }).error(function(err){
+            self.alert_html(get_error_html(err, update_url));
+        });
+    };
+
+    //get password reset link for this user
+    //(eventually we'll send the email to the user...)
+    self.password_reset = function(){
+        $("#pageModal").modal("hide");
+        self.alert_html(load_html);
+        $("#alertModal").modal("show");
+        var update_url = "{{ url_for('api.admin_create_user') }}";
+        update_url+= "/"+self.modal_form_username()+"/pwreset"
+        $.getJSON(update_url, function(data){
+            h = '<p>Click or share the link below to reset the password for '
+            h+= self.modal_form_username()+'</p>'
+            h+= '<form role="form" class="form-horizontal">'
+            h+= '<div class="form-group">'
+            h+= '<div class="col-sm-3"><label for="link">Reset Link</label></div>'
+            h+= '<div class="col-sm-9"><a href="'+data.url+'">'+data.url+'</a>'
+            h+= '</div></div>'
+            self.alert_html(h)
+        }).error(function(err){
+            self.alert_html(get_error_html(err, update_url));
+        });
+    }
+}
+ko.applyBindings(new viewModel());
+
+function build_datatable(){
+    //apply datatable magic...
+    return $("#users").DataTable({ 
+        responsive: true,
+        "dom": "f<t>p",
+        "iDisplayLength": 50,
+        "oLanguage": {
+            "sSearch": "Filter: "
+        },
+        //disable column sorting on columns with class 'nosort'
+        "columnDefs": [ {
+            "targets": 'nosort',
+            "orderable": false
+        }]
+    } ); 
+}
+</script>
+{% endblock %}

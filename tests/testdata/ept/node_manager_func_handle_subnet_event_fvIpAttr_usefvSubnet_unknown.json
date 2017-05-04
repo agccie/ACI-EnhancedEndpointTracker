@@ -1,0 +1,16 @@
+{
+    "imdata":[
+        {
+            "fvIpAttr":{
+                "attributes":{
+                    "dn":"uni/tn-ag/ap-app/epg-useg5/crtrn/ipattr-ip-fvIpAttr_usefvSubnet_unknown",
+                    "ip":"0.0.0.0",
+                    "name":"ip-fvIpAttr_usefvSubnet_unknown",
+                    "status":"created",
+                    "usefvSubnet": "yes"
+                }
+            }
+        }
+    ],
+    "_ts":1
+}

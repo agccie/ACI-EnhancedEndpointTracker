@@ -1,0 +1,250 @@
+{"########COMMENT": "ipv4/ipv6 BD exists and this IP is offsubnet"}
+{
+    "addr":"13.1.1.101",
+    "events":[
+        {
+            "addr":"13.1.1.101",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-3000000]/db-ep/ip-[13.1.1.101]",
+            "encap":"",
+            "flags":"ip",
+            "ifId":"tunnel5",
+            "pcTag":"16500",
+            "remote":"104",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1.0,
+            "vrf":"3000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"3000000"
+}
+{
+    "addr":"2001::13:1:1:101",
+    "events":[
+        {
+            "addr":"2001::13:1:1:101",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-3000000]/db-ep/ip-[2001::13:1:1:101]",
+            "encap":"",
+            "flags":"ip",
+            "ifId":"tunnel5",
+            "pcTag":"16500",
+            "remote":"104",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1.0,
+            "vrf":"3000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"3000000"
+}
+
+{"########COMMENT": "ipv4/ipv6 BD does not exist in ep_subnets"}
+{
+    "addr":"12.1.1.101",
+    "events":[
+        {
+            "addr":"12.1.1.101",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-3000000]/db-ep/ip-[12.1.1.101]",
+            "encap":"",
+            "flags":"ip",
+            "ifId":"tunnel5",
+            "pcTag":"16503",
+            "remote":"104",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1.0,
+            "vrf":"3000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"3000000"
+}
+{
+    "addr":"2001::12:1:1:101",
+    "events":[
+        {
+            "addr":"2001::12:1:1:101",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-3000000]/db-ep/ip-[2001::12:1:1:101]",
+            "encap":"",
+            "flags":"ip",
+            "ifId":"tunnel5",
+            "pcTag":"16503",
+            "remote":"104",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1.0,
+            "vrf":"3000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"3000000"
+}
+
+{"########COMMENT": "pcTag 'any' case"}
+{
+    "addr":"13.1.1.102",
+    "events":[
+        {
+            "addr":"13.1.1.102",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-3000000]/db-ep/ip-[13.1.1.102]",
+            "encap":"",
+            "flags":"ip",
+            "ifId":"tunnel5",
+            "pcTag":"any",
+            "remote":"104",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1.0,
+            "vrf":"3000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"3000000"
+}
+{
+    "addr":"2001::13:1:1:102",
+    "events":[
+        {
+            "addr":"2001::13.1.1.102",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-3000000]/db-ep/ip-[2001::13:1:1:102]",
+            "encap":"",
+            "flags":"ip",
+            "ifId":"tunnel5",
+            "pcTag":"any",
+            "remote":"104",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1.0,
+            "vrf":"3000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"3000000"
+}
+
+{"########COMMENT": "ipv4/ipv6 unable to match bd_vnid, epg-e3 pcTag 16502"}
+{
+    "addr":"13.1.1.103",
+    "events":[
+        {
+            "addr":"13.1.1.103",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-3000000]/db-ep/ip-[13.1.1.103]",
+            "encap":"",
+            "flags":"ip",
+            "ifId":"tunnel5",
+            "pcTag":"16502",
+            "remote":"104",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1.0,
+            "vrf":"3000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"3000000"
+}
+{
+    "addr":"2001::13:1:1:103",
+    "events":[
+        {
+            "addr":"2001::13:1:1:103",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-3000000]/db-ep/ip-[2001::13:1:1:103]",
+            "encap":"",
+            "flags":"ip",
+            "ifId":"tunnel5",
+            "pcTag":"any",
+            "remote":"104",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1.0,
+            "vrf":"3000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"3000000"
+}
+
+{"########COMMENT": "ipv4/ipv6 BD contains subnet, epg-e1 pcTag 165000"}
+{
+    "addr":"12.1.1.102",
+    "events":[
+        {
+            "addr":"12.1.1.102",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-3000000]/db-ep/ip-[12.1.1.102]",
+            "encap":"",
+            "flags":"ip",
+            "ifId":"tunnel5",
+            "pcTag":"16500",
+            "remote":"104",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1.0,
+            "vrf":"3000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"3000000"
+}
+{
+    "addr":"2001::12:1:1:102",
+    "events":[
+        {
+            "addr":"2001::12.1.1.101",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-3000000]/db-ep/ip-[2001::12:1:1:102]",
+            "encap":"",
+            "flags":"ip",
+            "ifId":"tunnel5",
+            "pcTag":"16500",
+            "remote":"104",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1.0,
+            "vrf":"3000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"3000000"
+}
+

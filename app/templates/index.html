@@ -1,0 +1,1225 @@
+{% extends "layout.html" %}
+{% block content %}
+
+    <!-- dataTable dependencies -->
+    <link rel="stylesheet" href="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.bootstrap.css') }}"> 
+    <link rel="stylesheet" href="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.responsive.css') }}"> 
+    <script src="{{ url_for('static',filename='lib/datatables-1.10.6/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='lib/select2-4.0.3/select2.min.js') }}"></script>
+<div>
+    <div data-bind="loadingWhen: !initialLoad()">
+        <h3>
+            Fabrics <span class="badge" data-bind="text: ep_settings().length"></span>
+            {% if g.user.role == g.ROLE_FULL_ADMIN %}
+            <button type="button" class="btn btn-primary pull-right" data-bind="click:new_form">
+                <span class="glyphicon glyphicon-plus-sign"></span> New Fabric
+            </button>
+            {% endif %}
+        </h3>
+        <div class="alert alert-warning" data-bind="visible: (ep_settings().length<=0 && !isLoading())">
+            <h4>No Fabrics Configured.</h4>
+        </div>
+        <div class="table-responsive" data-bind="visible: (ep_settings().length>0 || !initialLoad())">
+            <table id="ep_settings" class="table table-condensed table-striped table-hover">
+                <thead>
+                    <th class="nosort text-left col-xs-2 col-sm-2">
+                        <button type="button" class="btn btn-default" title="Refresh" data-bind="click: refresh_settings">
+                            <i class="glyphicon glyphicon-repeat"></i>
+                        </button>
+                    </th>
+                    <th class="col-xs-3 col-sm-3">Status</th>
+                    <th>Fabric</th>
+                    <th class="col-xs-1 col-sm-1 small">Active IPs</th>
+                    <th class="col-xs-1 col-sm-1 small">Active MACs</th>
+                    </th>
+                </thead>
+                <tbody data-bind="foreach: { data: ep_settings, as: 'setting'}">
+                    <tr data-bind="attr:{id:setting.fabric}, css: setting.css_fabric_warning">    
+                        <td class="text-left">
+                            {% if g.user.role == g.ROLE_FULL_ADMIN %}
+                            <button type="button" class="btn btn-primary" title="Restart" data-bind="click: $root.restartWorkers">
+                                <span class="glyphicon glyphicon-refresh"></span>
+                            </button>
+                            <button type="button" class="btn btn-danger" title="Stop" data-bind="click: $root.stopWorkers">
+                                <span class="glyphicon glyphicon-remove-sign"></span>
+                            </button>
+                            <button type="button" class="btn btn-default" title="Edit" data-bind="click: $root.update_form">
+                                <span class="glyphicon glyphicon-edit"></span>
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td data-bind="loadingWhen: $root.monitorLoading()">
+                            <button type="button" class="btn btn-default" title="Monitor Events" data-bind="click: $root.display_fabric_events">
+                                <span class="glyphicon glyphicon-hdd"></span>
+                            </button>
+                            <span class="small" data-bind="text: setting.s_status, css: setting.css_status"></span>
+                            <span class="small" data-bind="text: setting.s_status_description"></span>
+                        </td>
+                        <td><span class="small" data-bind="text: setting.fabric"></span>
+                            <span class="small" data-bind="visible: setting.fabric_warning().length>0">
+                                <br><span class="small" data-bind="text: setting.fabric_warning">
+                            </span>
+                        </td>
+                        <td data-bind="loadingWhen: $root.countLoading()"><span class="small" data-bind="text: setting.count_ip"></span></td>
+                        <td data-bind="loadingWhen: $root.countLoading()"><span class="small" data-bind="text: setting.count_mac"></span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Per-Fabric event history -->
+    <div class="table-responsive" data-bind="visible: display_fabric_events_open()" style="display:none">
+        <div class="bs-callout bs-callout-primary">
+            <button type="button" class="close" aria-label="Close" data-bind="click: close_fabric_events">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            <h4>Monitor Events for <strong><span data-bind="text: fabric_events_fabric"></span></strong></h4>
+            <h5>Event Count 
+                <span class="label label-default" data-bind="text: fabric_events_count"></span>
+                <span data-bind="visible: fabric_events_count() > fabric_events().length">
+                    limited to 
+                    <span class="label label-default" data-bind="text: fabric_events().length"></span>
+                </span>
+            </h5>
+            <table class="table table-sm" id="fabricEvents">
+                <thead>
+                    <tr>
+                        <th class="col-xs-3 col-sm-3">Time</th>
+                        <th class="col-xs-2 col-sm-2">Status</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody data-bind="foreach: { data: fabric_events, as: 'event'}">
+                    <tr>
+                        <td><span class="small" data-bind="text: event.ts"></span></td>
+                        <td><span class="small" data-bind="text: event.status, css: $root.fabric_status_css(event.status)"></span></td>
+                        <td><span class="small" data-bind="text: event.description"></span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Moves/Stale Overview -->
+    <div class="row" style="margin-top: 4rem" 
+        data-bind="visible: (ep_settings().length>0 && !display_fabric_events_open())" style="display: none">
+        <div class="col-sm-12">
+            <!-- Nav tabs -->
+            <ul class="nav nav-tabs" role="tablist">
+                <li role="presentation"><a href="#recentEvents" aria-controls="profile" role="tab" data-toggle="tab">Latest Endpoint Events</a></li>
+                <li role="presentation" class="dropdown active">
+                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">Endpoint Moves
+                    <span class="caret"></span></a>
+                    <ul class="dropdown-menu">
+                        <li role="presentation"><a href="#recentMoves" aria-controls="profile" role="tab" data-toggle="tab">Latest Moves</a></li>
+                        <li role="presentation" class="active"><a href="#topMoves" aria-controls="home" role="tab" data-toggle="tab">Top Moves</a></li>
+                   </ul>
+                </li>
+                <li role="presentation" class="dropdown">
+                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">Off-Subnet Endpoints
+                    <span class="caret"></span></a>
+                    <ul class="dropdown-menu">
+                        <li role="presentation"><a href="#recentOffsubnet" aria-controls="profile" role="tab" data-toggle="tab">Latest Off-Subnet Endpoints</a></li>
+                        <li role="presentation"><a href="#currentOffsubnet" aria-controls="profile" role="tab" data-toggle="tab">Currently Off-Subnet Endpoints</a></li>
+                    </ul>
+                </li>
+
+                <li role="presentation" class="dropdown">
+                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">Stale Endpoints
+                    <span class="caret"></span></a>
+                    <ul class="dropdown-menu">
+                        <li role="presentation"><a href="#recentStale" aria-controls="profile" role="tab" data-toggle="tab">Latest Stale Endpoints</a></li>
+                        <li role="presentation"><a href="#currentStale" aria-controls="profile" role="tab" data-toggle="tab">Currently Stale Endpoints</a></li>
+                    </ul>
+                </li>
+            </ul>
+
+           <!-- Tab panes -->
+            <div class="tab-content">
+                <div role="tabpanel" class="tab-pane active" id="topMoves" data-bind="loadingWhen: top_moves_loading()">
+                    <h4 class="text-center">
+                        <button type="button" class="btn btn-default pull-left" title="Refresh" data-bind="click: refresh_top_moves">
+                            <i class="glyphicon glyphicon-repeat"></i>
+                        </button>
+                        Top Endpoint Moves
+                    </h4>
+                    <div class="table-responsive" data-bind="visible: top_moves().length>0">
+                        <table class="table table-sm">
+                            <thead><tr>
+                                <th>Fabric</th>
+                                <th class="col-sm-1">Count</th>
+                                <th class="col-sm-1">Type</th>
+                                <th class="col-sm-3">Address</th>
+                                <th>VRF/BD</th>
+                            </tr></thead>
+                            <tbody data-bind="foreach: { data: top_moves, as: 'ep'}">
+                                <tr>    
+                                    <td><span data-bind="text: ep.fabric"></span></td>
+                                    <td><span data-bind="text: ep.count"></span></td>
+                                    <td class="small"><span data-bind="text: ep.type, css: ep.css_type"></span></td>
+                                    <td><a data-bind="text: ep.addr, attr: { href: endpoint_url }"></a></td>
+                                    <td><span data-bind="text: ep.s_vnid" class="label label-default"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-sm-8 col-sm-offset-2 alert alert-info" data-bind="visible: top_moves().length==0">
+                        <span>No endpoint moves detected.</span>
+                    </div>
+                </div>
+                <div role="tabpanel" class="tab-pane" id="recentMoves" data-bind="loadingWhen: recent_moves_loading()">
+                    <h4 class="text-center">
+                        <button type="button" class="btn btn-default pull-left" title="Refresh" data-bind="click: refresh_recent_moves">
+                            <i class="glyphicon glyphicon-repeat"></i>
+                        </button>
+                        Latest Endpoint Moves
+                    </h4>
+                    <div class="table-responsive" data-bind="visible: recent_moves().length>0">
+                        <table class="table table-sm">
+                            <thead><tr>
+                                <th class="col-sm-3">Time</th>
+                                <th>Fabric</th>
+                                <th class="col-sm-1">Type</th>
+                                <th class="col-sm-3">Address</th>
+                                <th>VRF/BD</th>
+                            </tr></thead>
+                            <tbody data-bind="foreach: { data: recent_moves, as: 'ep'}">
+                                <tr>    
+                                    <td><span data-bind="text: ep.s_ts"></span></td>
+                                    <td><span data-bind="text: ep.fabric"></span></td>
+                                    <td class="small"><span data-bind="text: ep.type, css: ep.css_type"></span></td>
+                                    <td><a data-bind="text: ep.addr, attr: { href: endpoint_url }"></a></td>
+                                    <td><span data-bind="text: ep.s_vnid" class="label label-default"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-sm-8 col-sm-offset-2 alert alert-info" data-bind="visible: recent_moves().length==0">
+                        <span>No endpoint moves detected.</span>
+                    </div>
+                </div>
+                <div role="tabpanel" class="tab-pane" id="recentStale" data-bind="loadingWhen: recent_stale_loading()">
+                    <h4 class="text-center">
+                        <button type="button" class="btn btn-default pull-left" title="Refresh" data-bind="click: refresh_recent_stale">
+                            <i class="glyphicon glyphicon-repeat"></i>
+                        </button>
+                        Latest Stale Endpoints
+                    </h4>
+                    <div class="table-responsive" data-bind="visible: recent_stale().length>0">
+                        <table class="table table-sm">
+                            <thead><tr>
+                                <th class="col-sm-3">Time</th>
+                                <th>Fabric</th>
+                                <th class="col-sm-1">Node</th>
+                                <th class="col-sm-1">Type</th>
+                                <th class="col-sm-3">Address</th>
+                                <th>VRF/BD</th>
+                            </tr></thead>
+                            <tbody data-bind="foreach: { data: recent_stale, as: 'ep'}">
+                                <tr>    
+                                    <td><span data-bind="text: ep.s_ts"></span></td>
+                                    <td><span data-bind="text: ep.fabric"></span></td>
+                                    <td><span data-bind="text: ep.s_node"></span></td>
+                                    <td class="small"><span data-bind="text: ep.type, css: ep.css_type"></span></td>
+                                    <td><a data-bind="text: ep.addr, attr: { href: endpoint_url }"></a></td>
+                                    <td><span data-bind="text: ep.s_vnid" class="label label-default"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-sm-8 col-sm-offset-2 alert alert-info" data-bind="visible: recent_stale().length==0">
+                        <span>No stale endpoints detected.</span>
+                    </div>
+                </div>
+                <div role="tabpanel" class="tab-pane" id="currentStale" data-bind="loadingWhen: current_stale_loading()">
+                    <h4 class="text-center">
+                        <button type="button" class="btn btn-default pull-left" title="Refresh" data-bind="click: refresh_current_stale">
+                            <i class="glyphicon glyphicon-repeat"></i>
+                        </button>
+                        Currently Stale Endpoints
+                    </h4>
+                    <div class="table-responsive" data-bind="visible: current_stale().length>0">
+                        <table class="table table-sm">
+                            <thead><tr>
+                                <th class="col-sm-3">Time</th>
+                                <th>Fabric</th>
+                                <th class="col-sm-1">Node</th>
+                                <th class="col-sm-1">Type</th>
+                                <th class="col-sm-3">Address</th>
+                                <th>VRF/BD</th>
+                            </tr></thead>
+                            <tbody data-bind="foreach: { data: current_stale, as: 'ep'}">
+                                <tr>    
+                                    <td><span data-bind="text: ep.s_ts"></span></td>
+                                    <td><span data-bind="text: ep.fabric"></span></td>
+                                    <td><span data-bind="text: ep.s_node"></span></td>
+                                    <td class="small"><span data-bind="text: ep.type, css: ep.css_type"></span></td>
+                                    <td><a data-bind="text: ep.addr, attr: { href: endpoint_url }"></a></td>
+                                    <td><span data-bind="text: ep.s_vnid" class="label label-default"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-sm-8 col-sm-offset-2 alert alert-info" data-bind="visible: current_stale().length==0">
+                        <span>No currently stale endpoints detected.</span>
+                    </div>
+                </div>
+
+               <div role="tabpanel" class="tab-pane" id="recentOffsubnet" data-bind="loadingWhen: recent_offsubnet_loading()">
+                    <h4 class="text-center">
+                        <button type="button" class="btn btn-default pull-left" title="Refresh" data-bind="click: refresh_recent_offsubnet">
+                            <i class="glyphicon glyphicon-repeat"></i>
+                        </button>
+                        Latest Off-Subnet Endpoints
+                    </h4>
+                    <div class="table-responsive" data-bind="visible: recent_offsubnet().length>0">
+                        <table class="table table-sm">
+                            <thead><tr>
+                                <th class="col-sm-3">Time</th>
+                                <th>Fabric</th>
+                                <th class="col-sm-1">Node</th>
+                                <th class="col-sm-1">Type</th>
+                                <th class="col-sm-3">Address</th>
+                                <th>VRF/BD</th>
+                            </tr></thead>
+                            <tbody data-bind="foreach: { data: recent_offsubnet, as: 'ep'}">
+                                <tr>    
+                                    <td><span data-bind="text: ep.s_ts"></span></td>
+                                    <td><span data-bind="text: ep.fabric"></span></td>
+                                    <td><span data-bind="text: ep.s_node"></span></td>
+                                    <td class="small"><span data-bind="text: ep.type, css: ep.css_type"></span></td>
+                                    <td><a data-bind="text: ep.addr, attr: { href: endpoint_url }"></a></td>
+                                    <td><span data-bind="text: ep.s_vnid" class="label label-default"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-sm-8 col-sm-offset-2 alert alert-info" data-bind="visible: recent_offsubnet().length==0">
+                        <span>No off-subnet endpoints detected.</span>
+                    </div>
+                </div>
+
+                <div role="tabpanel" class="tab-pane" id="currentOffsubnet" data-bind="loadingWhen: current_offsubnet_loading()">
+                    <h4 class="text-center">
+                        <button type="button" class="btn btn-default pull-left" title="Refresh" data-bind="click: refresh_current_offsubnet">
+                            <i class="glyphicon glyphicon-repeat"></i>
+                        </button>
+                        Currently Off-Subnet Endpoints
+                    </h4>
+                    <div class="table-responsive" data-bind="visible: current_offsubnet().length>0">
+                        <table class="table table-sm">
+                            <thead><tr>
+                                <th class="col-sm-3">Time</th>
+                                <th>Fabric</th>
+                                <th class="col-sm-1">Node</th>
+                                <th class="col-sm-1">Type</th>
+                                <th class="col-sm-3">Address</th>
+                                <th>VRF/BD</th>
+                            </tr></thead>
+                            <tbody data-bind="foreach: { data: current_offsubnet, as: 'ep'}">
+                                <tr>    
+                                    <td><span data-bind="text: ep.s_ts"></span></td>
+                                    <td><span data-bind="text: ep.fabric"></span></td>
+                                    <td><span data-bind="text: ep.s_node"></span></td>
+                                    <td class="small"><span data-bind="text: ep.type, css: ep.css_type"></span></td>
+                                    <td><a data-bind="text: ep.addr, attr: { href: endpoint_url }"></a></td>
+                                    <td><span data-bind="text: ep.s_vnid" class="label label-default"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-sm-8 col-sm-offset-2 alert alert-info" data-bind="visible: current_offsubnet().length==0">
+                        <span>No current off-subnet endpoint detected.</span>
+                    </div>
+                </div>
+
+
+                <div role="tabpanel" class="tab-pane" id="recentEvents" data-bind="loadingWhen: recent_ep_events_loading()">
+                    <h4 class="text-center">
+                        <button type="button" class="btn btn-default pull-left" title="Refresh" data-bind="click: refresh_ep_events">
+                            <i class="glyphicon glyphicon-repeat"></i>
+                        </button>
+                        Latest Endpoints Events
+                    </h4>
+                    <div class="table-responsive" data-bind="visible: recent_ep_events().length>0">
+                        <table class="table table-sm">
+                            <thead><tr>
+                                <th class="col-sm-3">Time</th>
+                                <th>Fabric</th>
+                                <th class="col-sm-1">Node</th>
+                                <th class="col-sm-1">Status</th>
+                                <th class="col-sm-1">Type</th>
+                                <th class="col-sm-3">Address</th>
+                                <th>VRF/BD</th>
+                            </tr></thead>
+                            <tbody data-bind="foreach: { data: recent_ep_events, as: 'ep'}">
+                                <tr>    
+                                    <td><span data-bind="text: ep.s_ts"></span></td>
+                                    <td><span data-bind="text: ep.fabric"></span></td>
+                                    <td><span data-bind="text: ep.s_node"></span></td>
+                                    <td class="small"><span data-bind="text: ep.status, css: ep.css_status"></span></td>
+                                    <td class="small"><span data-bind="text: ep.type, css: ep.css_type"></span></td>
+                                    <td><a data-bind="text: ep.addr, attr: { href: endpoint_url }"></a></td>
+                                    <td><span data-bind="text: ep.s_vnid" class="label label-default"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-sm-8 col-sm-offset-2 alert alert-info" data-bind="visible: recent_ep_events().length==0">
+                        <span>No stale endpoints events</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- page specific confirm modal -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" role="dialog" aria-labelledby="confirmModal" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <span data-bind="html: confirm_html"></span>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bind="click: confirm_confirmed">
+                        <span class="glyphicon glyphicon-ok"></span> Confirm
+                    </button>
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                </div>
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
+
+    <!-- user-form modal -->
+    <div class="modal fade" id="pageModal" tabindex="-1" role="dialog" aria-labelledby="pageModal" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span aria-hidden="true">&times;</span>
+                        <span class="sr-only">Close</span>
+                    </button>
+                     <h4 class="modal-title" data-bind="text: modal_form_title"></h4>
+                </div>
+                <div class="modal-body">
+                    <form role="form" class="form-horizontal">
+                        <div class="alert alert-danger" role="alert" data-bind="visible: modal_form_error().length>0">
+                            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+                            <span class="sr-only">Error:</span>
+                            <span data-bind="text: modal_form_error"></span>
+                        </div>
+                        <div class="form-group" data-bind="css: modal_form_valid_fabric">
+                            <label for="fabric" class="col-sm-4 control-label">Unique Fabric Name</label>
+                            <div class="col-sm-8">
+                                <input type="text" class="form-control"
+                                    data-bind="textInput: modal_form_data.fabric, enable: modal_form_new"
+                                    placeholder="Fabric Name" />
+                            </div>
+                        </div>
+                        <div class="form-group" data-bind="css: modal_form_valid_hostname">
+                            <label for="apic_hostname" class="col-sm-4 control-label">APIC Hostname</label>
+                            <div class="col-sm-8">
+                                <input type="text" class="form-control"
+                                    data-bind="textInput: modal_form_data.apic_hostname"
+                                    placeholder="APIC Hostname" />
+                            </div>
+                        </div>
+                        <div class="form-group" data-bind="css: modal_form_valid_credentials">
+                            <label for="apic_username" class="col-sm-4 control-label">APIC API Credentials</label>
+                            <div class="col-sm-4">
+                                <input type="text" class="form-control"
+                                    data-bind="textInput: modal_form_data.apic_username"
+                                    placeholder="APIC Username" />
+                            </div>
+                            <div class="col-sm-4">
+                                <input type="password" class="form-control"
+                                    data-bind="textInput: modal_form_data.apic_password"
+                                    placeholder="APIC Password" />
+                            </div>
+                        </div>
+                        <div class="form-group" data-bind="visible: aci_app">
+                            <div class="col-sm-4"></div>
+                            <div class="col-sm-8">
+                                <input type="text" class="form-control"
+                                    data-bind="textInput: modal_form_data.apic_cert"
+                                    placeholder="APIC Appcenter user private key file" />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="col-sm-4">
+                                <label for="ssh_username" class="control-label">Switch SSH Credentials</label>
+                                <p class="text-muted">SSH for clearing endpoints</p>
+                            </div>
+                            <div class="col-sm-4">
+                                <input type="text" class="form-control"
+                                    data-bind="textInput: modal_form_data.ssh_username"
+                                    placeholder="SSH Username" />
+                            </div>
+                            <div class="col-sm-4">
+                                <input type="password" class="form-control"
+                                    data-bind="textInput: modal_form_data.ssh_password"
+                                    placeholder="SSH Password" />
+                            </div>
+                            <div class="col-sm-4"></div>
+                            <div class="col-sm-8 small">
+                                <select class="form-control" data-bind="value: modal_form_data.ssh_access_method">
+                                    <option value="address">SSH to Switch TEP Address via APIC</option>
+                                    <option value="oobMgmtAddr">SSH to Switch Out-of-band Address</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="notify_options" class="col-sm-4 control-label">Notification Options</label>
+                            <div class="col-sm-8">
+                                <div class="row">
+                                    <div class="col-sm-7">
+                                        <input type="text" class="form-control"
+                                            data-bind="textInput: modal_form_data.syslog_server"
+                                            placeholder="Syslog Server Hostname" />
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <div class="input-group">
+                                            <input type="number" class="form-control"
+                                                min="1" max="65535"
+                                                data-bind="textInput: modal_form_data.syslog_port"
+                                                placeholder="Port" />
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div class="input-group">
+                                        <a class="btn btn-sm btn-default" data-toggle="collapse" href="#syslogDropDown" 
+                                            aria-expanded="false" aria-controls="syslogDropDown">
+                                            <i class="glyphicon glyphicon-chevron-down"></i>
+                                        </a>
+                                       </div>
+                                    </div>
+                                    <div class="collapse" id="syslogDropDown">
+                                        <div class="col-sm-12 text-muted">
+                                            Send syslog notification for the following endpoint events:
+                                        </div>
+                                        <div class="col-sm-3 checkbox">
+                                            <label for="notify_move_syslog">
+                                                <input type="checkbox" data-bind="checked: modal_form_data.notify_move_syslog">
+                                                Move
+                                            </label>
+                                        </div>
+                                        <div class="col-sm-3 checkbox">
+                                            <label for="notify_stale_syslog">
+                                                <input type="checkbox" data-bind="checked: modal_form_data.notify_stale_syslog">
+                                                Stale 
+                                            </label>
+                                        </div>
+                                        <div class="col-sm-6 checkbox">
+                                            <label for="notify_offsubnet_syslog">
+                                                <input type="checkbox" data-bind="checked: modal_form_data.notify_offsubnet_syslog">
+                                                Off-Subnet
+                                            </label>
+                                        </div>
+                                        <div class="col-sm-12 small text-muted">&nbsp</div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-10">
+                                        <input type="text" class="form-control"
+                                            data-bind="textInput: modal_form_data.email_address"
+                                            placeholder="Email Address" />       
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div class="input-group">
+                                        <a class="btn btn-sm btn-default" data-toggle="collapse" href="#emailDropDown" 
+                                            aria-expanded="false" aria-controls="emailDropDown">
+                                            <i class="glyphicon glyphicon-chevron-down"></i>
+                                        </a>
+                                       </div>
+                                    </div>
+                                    <div class="collapse" id="emailDropDown">
+                                        <div class="col-sm-12 text-muted">
+                                            Send email notification for the following endpoint events:
+                                        </div>
+                                        <div class="col-sm-3 checkbox">
+                                            <label for="notify_move_email">
+                                                <input type="checkbox" data-bind="checked: modal_form_data.notify_move_email">
+                                                Move
+                                            </label>
+                                        </div>
+                                        <div class="col-sm-3 checkbox">
+                                            <label for="notify_stale_email">
+                                                <input type="checkbox" data-bind="checked: modal_form_data.notify_stale_email">
+                                                Stale
+                                            </label>
+                                        </div>
+                                        <div class="col-sm-6 checkbox">
+                                            <label for="notify_offsubnet_email">
+                                               <input type="checkbox" data-bind="checked: modal_form_data.notify_offsubnet_email">
+                                              Off-Subnet
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="auto_options" class="col-sm-4 control-label">Remediate</label>
+                            <div class="row col-sm-8">
+                                <div class="col-sm-12 checkbox">
+                                    <label for="auto_clear_stale">
+                                        <input type="checkbox" data-bind="checked: modal_form_data.auto_clear_stale">
+                                            Automatically Clear Stale Endpoints
+                                        </label>
+                                </div>
+                                <div class="col-sm-12 checkbox">
+                                    <label for="auto_clear_offsubnet">
+                                        <input type="checkbox" data-bind="checked: modal_form_data.auto_clear_offsubnet">
+                                            Automatically Clear Off-Subnet Endpoints
+                                        </label>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">
+                        <span class="glyphicon glyphicon-remove"></span> Close</button>
+                    </button>
+                    <button type="button" class="btn btn-danger" data-bind="visible: !modal_form_new(), click: delete_form_entry">
+                        <span class="glyphicon glyphicon-trash"></span> Delete
+                    </button>
+                    <button type="submit" class="btn btn-primary" data-bind="click: submit_form">
+                        <span class="glyphicon glyphicon-ok"></span> Save changes</button>
+                </div>
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
+
+<script type="text/javascript">
+//html for saving forms
+var save_html =  "<h4><img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Saving...</h4>"
+var load_html =  "<h4><img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Loading...</h4>"
+var success_html = "<h4><span class=\"label label-success\"><span class=\"glyphicon glyphicon-ok-sign\"></span></span> Success!</h4>"
+var fabric_events_dt = undefined
+function viewModel() {
+    var self = this; 
+    self.aci_app = ko.observable(aci_app);  // global aci_app setting from common.js
+    self.initialLoad = ko.observable(false);
+    self.isLoading = ko.observable(false);
+    self.monitorLoading = ko.observable(false);
+    self.countLoading = ko.observable(false);
+    self.alert_html = ko.observable("");
+    self.delete_html = ko.observable("");
+    self.delete_confirmed = function(){};
+    self.confirm_html = ko.observable("");
+    self.confirm_confirmed = function(){};
+    self.pending_delete= ko.observable("");
+    self.ep_settings = ko.observableArray();
+    self.selected_fabric = ko.observable();
+    self.display_fabric_events_open = ko.observable(false);
+    self.fabric_events = ko.observableArray();
+    self.fabric_events_fabric = ko.observable();
+    self.fabric_events_count = ko.observable();
+    self.selected_fabric_events = ko.observable();
+    self.ep_vnids = {}  //json representation of all vnids
+
+    // top count/moves variables
+    self.top_moves = ko.observableArray();
+    self.top_moves_loading = ko.observable(false);
+    self.recent_moves = ko.observableArray();
+    self.recent_moves_loading = ko.observable(false);
+    self.recent_ep_events = ko.observableArray();
+    self.recent_ep_events_loading = ko.observable(false);
+    self.recent_stale = ko.observableArray(); 
+    self.recent_stale_loading = ko.observable(false);
+    self.current_stale = ko.observableArray(); 
+    self.current_stale_loading = ko.observable(false);
+    self.recent_offsubnet = ko.observableArray(); 
+    self.recent_offsubnet_loading = ko.observable(false);
+    self.current_offsubnet = ko.observableArray(); 
+    self.current_offsubnet_loading = ko.observable(false);
+
+    //get configured fabrics
+    self.refresh_fabric_monitors = function(){
+        //get queue data for each fabric
+        var url2 = "{{ url_for('api.ept_read_processes_count') }}";
+        self.monitorLoading(true);
+        json_get(url2, function(data){
+            self.monitorLoading(false);
+            for(var i in data.processes){
+                var fab = data.processes[i]["fabric"];
+                var count = data.processes[i]["count"];
+                //find ep_settings that corresponds to this fabric
+                for(var i=0; i<self.ep_settings().length; i++){
+                    if(self.ep_settings()[i].fabric() == fab){
+                        self.ep_settings()[i].processes(count);
+                        break;
+                    }
+                }
+            }
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url2));
+        });
+    };
+
+    //get total counts per fabric
+    self.refresh_fabric_counts = function(){
+        var url = "{{ url_for('api.ept_read_history_count') }}";
+        self.countLoading(true);
+        json_get(url, function(data){
+            self.countLoading(false);
+            for(var index in data.history){
+                var obj = data.history[index]
+                //find ep_settings that corresponds to this fabric
+                for(var i=0; i<self.ep_settings().length; i++){
+                    if(self.ep_settings()[i].fabric() == obj.fabric){
+                        self.ep_settings()[i].count_ip(obj.ip)
+                        self.ep_settings()[i].count_mac(obj.mac)
+                        break;
+                    }
+                }
+            }
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url));
+        });
+    }
+
+    //get top moves
+    self.refresh_top_moves = function(){
+        var url2 = "{{ url_for('api.ept_read_moves_top') }}";
+        self.top_moves_loading(true);
+        self.top_moves.removeAll();
+        var new_data = [];
+        json_get(url2, function(data){
+            self.top_moves_loading(false);
+            for (var n in data.top_events){
+                var obj = self.get_vnid_name(data.top_events[n])
+                var l = new eptTop()
+                l.fromJS(obj)
+                new_data.push(l);
+            }
+            self.top_moves(new_data);
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url2));
+        });
+    }
+
+    //get recent moves
+    self.refresh_recent_moves = function(){
+        var url2 = "{{ url_for('api.ept_read_moves_recent') }}";
+        self.recent_moves_loading(true);
+        self.recent_moves.removeAll();
+        var new_data = [];
+        json_get(url2, function(data){
+            self.recent_moves_loading(false);
+            for (var n in data.recent_events){
+                var obj = self.get_vnid_name(data.recent_events[n])
+                var l = new eptTop()
+                l.fromJS(obj);  
+                new_data.push(l);
+            }
+            self.recent_moves(new_data)
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url2));
+        });
+    }
+
+    //get recent stale events
+    self.refresh_recent_stale = function(){
+        var url3 = "{{ url_for('api.ept_read_stale_recent') }}";
+        self.recent_stale_loading(true);
+        self.recent_stale.removeAll();
+        var new_data = [];
+        json_get(url3, function(data){
+            self.recent_stale_loading(false);
+            for (var n in data.recent_events){
+                var obj = self.get_vnid_name(data.recent_events[n])
+                var l = new eptTop()
+                l.fromJS(obj)
+                new_data.push(l);
+            }
+            self.recent_stale(new_data)
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url3));
+        });
+    }
+
+    //get current stale events
+    self.refresh_current_stale = function(){
+        var url3 = "{{ url_for('api.ept_read_stale_current') }}";
+        self.current_stale_loading(true);
+        self.current_stale.removeAll();
+        var new_data = [];
+        json_get(url3, function(data){
+            self.current_stale_loading(false);
+            for (var n in data.current_stale){
+                var obj = self.get_vnid_name(data.current_stale[n])
+                var l = new eptTop()
+                l.fromJS(obj)
+                new_data.push(l);
+            }
+            self.current_stale(new_data);
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url3));
+        });
+    }
+
+    //get recent offsubnet events
+    self.refresh_recent_offsubnet = function(){
+        var url3 = "{{ url_for('api.ept_read_offsubnet_recent') }}";
+        self.recent_offsubnet_loading(true);
+        self.recent_offsubnet.removeAll();
+        var new_data = [];
+        json_get(url3, function(data){
+            self.recent_offsubnet_loading(false);
+            for (var n in data.recent_events){
+                var obj = self.get_vnid_name(data.recent_events[n])
+                var l = new eptTop()
+                l.fromJS(obj)
+                new_data.push(l);
+            }
+            self.recent_offsubnet(new_data);
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url3));
+        });
+    }
+
+    //get current offsubnet events
+    self.refresh_current_offsubnet = function(){
+        var url3 = "{{ url_for('api.ept_read_offsubnet_current') }}";
+        self.current_offsubnet_loading(true);
+        self.current_offsubnet.removeAll();
+        var new_data = [];
+        json_get(url3, function(data){
+            self.current_offsubnet_loading(false);
+            for (var n in data.current_offsubnet){
+                var obj = self.get_vnid_name(data.current_offsubnet[n])
+                var l = new eptTop()
+                l.fromJS(obj)
+                new_data.push(l);
+            }
+            self.current_offsubnet(new_data);
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url3));
+        });
+    }
+
+
+    //get top/recent events (in it's own function for direct refresh)
+    self.refresh_ep_events = function(){
+        var url4 = "{{ url_for('api.ept_read_history_recent') }}";
+        self.recent_ep_events.removeAll();
+        self.recent_ep_events_loading(true);
+        var new_data = [];
+        json_get(url4, function(data){
+            self.recent_ep_events_loading(false);
+            for (var n in data.recent_events){
+                var obj = self.get_vnid_name(data.recent_events[n])
+                var l = new eptTop()
+                l.fromJS(obj)
+                new_data.push(l);
+            }
+            self.recent_ep_events(new_data);
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url4));
+        });
+    }
+
+    // once self.selected_fabric_events is set, display it
+    self.refresh_fabric_events = function(){
+        if(!self.display_fabric_events_open()){return; }
+        destroy_datatable(fabric_events_dt);
+        self.fabric_events.removeAll();
+        //find eptSetting that maps to selected_fabric_events
+        for (var s in self.ep_settings()){
+            var obj = self.ep_settings()[s]
+            if(obj.fabric() == self.selected_fabric_events()){
+                self.fabric_events_count(obj.fabric_events_count())
+                self.fabric_events_fabric(obj.fabric())
+                var new_data = [];
+                for (var index in obj.fabric_events()){
+                    var n = obj.fabric_events()[index]
+                    var l = {
+                        "ts": timestamp_to_string(n["ts"]),
+                        "status": n["status"],
+                        "description": n["description"]
+                    }
+                    new_data.push(l);
+                }
+                self.fabric_events(new_data);
+                fabric_events_dt = build_datatable("fabricEvents", 0)
+                return;
+            }
+        }
+    }
+    // display history events for fabric monitor
+    self.display_fabric_events = function(obj){
+        self.selected_fabric_events(obj.fabric());
+        self.display_fabric_events_open(true);
+        self.refresh_fabric_events();
+    }
+    // close history events for fabric monitor
+    self.close_fabric_events = function(){
+        self.display_fabric_events_open(false);
+    }
+    self.fabric_status_css = function(status){
+        if(status.search(/restarting/i)>=0){
+            return "label label-danger";
+        }
+        else if(status.search(/starting/i)>=0){
+            return "label label-default";
+        }
+        else if(status.search(/running/i)>=0){
+            return "label label-success";
+        }
+        else if(status.search(/initial/i)>=0){
+            return "label label-default";
+        }
+        else if(status.search(/stop/i)>=0){
+            return "label label-default";
+        }
+        //don't expect any other status...
+        return "label label-danger";
+    }
+
+    // refresh objects dependent on settings
+    self.refresh_dependents = function() {
+        self.refresh_fabric_monitors()
+        self.refresh_fabric_events()
+        self.refresh_fabric_counts()
+    }
+    // refresh all objects
+    self.refresh_all = function() {
+        self.refresh_settings()
+        self.refresh_dependents()
+        self.refresh_top_moves()
+        self.refresh_recent_moves()
+        self.refresh_recent_stale()
+        self.refresh_current_stale()
+        self.refresh_recent_offsubnet()
+        self.refresh_current_offsubnet()
+        self.refresh_ep_events()
+    }
+
+    // get settings for each fabric
+    self.refresh_settings = function(){
+        var read_url = "{{ url_for('api.ept_read_settings') }}";
+        self.isLoading(true);
+        json_get(read_url, function(data){
+            self.isLoading(false);
+            self.ep_settings.removeAll();
+            for(var i=0;i<data.ep_settings.length;i++){
+                var l = new eptSetting();
+                l.fromJS(data.ep_settings[i])
+                self.ep_settings.push(l);
+            }
+            if(!self.initialLoad()){self.refresh_all();}
+            else{ self.refresh_dependents(); }
+            self.initialLoad(true);
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, read_url));
+        });
+    }
+
+    // receive an object that has 'fabric', 'vnid' attributes and
+    // add a vnid_name attribute
+    self.get_vnid_name = function(obj){
+        if(obj.hasOwnProperty("vnid_name") && obj["vnid_name"].length>0){return obj;}
+        obj["vnid_name"] = "";
+        if(obj.hasOwnProperty("fabric") && obj.hasOwnProperty("vnid")){
+            if(self.ep_vnids.hasOwnProperty(obj.fabric) && 
+                self.ep_vnids[obj.fabric].hasOwnProperty(obj.vnid)){
+                obj["vnid_name"] = self.ep_vnids[obj.fabric][obj.vnid]["name"]
+            }else{
+                obj["vnid_name"] = "vnid: "+obj.vnid
+            }
+        }
+        return obj;
+    }
+
+    //pull all vnid information first, and then refresh settings
+    self.isLoading(true);
+    var vnid_url = "{{ url_for('api.ept_read_vnids') }}";
+    json_get(vnid_url, function(data){
+        self.ep_vnids = {}
+        for(var i=0;i<data.ep_vnids.length;i++){
+            var obj = data.ep_vnids[i]
+            if(!self.ep_vnids.hasOwnProperty(obj.fabric)){
+                self.ep_vnids[obj.fabric] = {}
+            }
+            self.ep_vnids[obj.fabric][obj.vnid] = obj
+        }
+        //refresh settings now that ep_vnids has been built
+        self.refresh_settings()
+    }).error(function(err){
+        $("#alertModal").modal("show");
+        self.alert_html(get_error_html(err, vnid_url))
+    })
+
+    //handlers for creating/editing form
+    self.modal_form_submitted = ko.observable(0);
+    self.modal_form_error = ko.observable("");
+    self.modal_form_new = ko.observable(false);
+    self.modal_form_title = ko.pureComputed(function(){
+        if(self.modal_form_new()) return "New Fabric";
+        return "Update Fabric";
+    });
+    self.modal_form_data = new eptSetting();
+
+    //display new form
+    self.new_form = function(){
+        var obj = new eptSetting();
+        self.modal_form_new(true);
+        self.display_form(obj);
+    }
+    //display edit/update form
+    self.update_form = function(obj){
+        self.modal_form_new(false);
+        self.display_form(obj);
+    }
+    //display edit/update form
+    self.display_form = function(obj){
+        self.modal_form_submitted(0);
+        self.modal_form_error("");
+        for (var i in obj.attributes) {
+            var key = obj.attributes[i]
+            if(obj.hasOwnProperty(key) && self.modal_form_data.hasOwnProperty(key)){
+                self.modal_form_data[key](obj[key]());
+            }
+        }
+        $("#pageModal").modal("show");
+    }
+
+    //form validation 
+    self.modal_form_valid_fabric = ko.computed(function(){
+        if(self.modal_form_submitted()>0){
+            if(self.modal_form_data.fabric().length == 0){
+                self.modal_form_error("Unique fabric name is required")
+                return "has-error";
+            }
+        }
+        return "";
+    });
+    self.modal_form_valid_hostname = ko.computed(function(){
+        if(self.modal_form_submitted()>0){
+            if(self.modal_form_data.apic_hostname().length == 0){
+                self.modal_form_error("APIC hostname is required")
+                return "has-error";
+            }
+        }
+        return "";
+    });
+    self.modal_form_valid_credentials = ko.computed(function(){
+        if(self.modal_form_submitted()>0){
+            if(self.modal_form_data.apic_username().length == 0){
+                self.modal_form_error("APIC username is required")
+                return "has-error";
+            }
+        }
+        return "";
+    });
+
+    //submit form (new or edited)
+    self.submit_form = function(){
+        self.modal_form_error("");      //reset any errors
+        self.modal_form_submitted(0);   //toggle submitted value to re-run checks
+        self.modal_form_submitted(1); 
+        //no need to re-check, if error message is present then stop
+        if(self.modal_form_error().length>0){  return; }
+
+        //json to post to server
+        var json = self.modal_form_data.toPost()
+        $("#pageModal").modal("hide");
+        self.alert_html(save_html);
+        $("#alertModal").modal("show");
+        var update_url = "{{ url_for('api.ept_create_setting') }}";
+        update_url+= (self.modal_form_new()) ? "" : "/"+json["fabric"];
+        json_post(update_url, json, function(data){
+            self.refresh_settings()
+            self.modal_form_new(false);
+            var url = "/api/ept/settings/"+json["fabric"]+"/test";
+            self.alert_html(get_loading_html("Testing Credentials"));
+            json_post(url, {}, function(data){
+                $("#alertModal").modal("hide");
+                var apic = data.hasOwnProperty("apic")? data["apic"] : {"success":false,"details":"Unexpected json reply"}
+                var ssh = data.hasOwnProperty("ssh")? data["ssh"] : {"success":false,"details":"Unexpected json reply"}
+                if(apic.success && ssh.success){
+                    self.restart_monitor_prompt(json["fabric"]);
+                } else {
+                    var msg = "<div><h3><span class=\"label label-danger\">Wait!</span></h3> ";
+                    if(apic.success){
+                        msg+="<div><span class=\"label label-success\"><span class=\"glyphicon glyphicon-ok-sign\">"
+                        msg+="</span></span> APIC Credentials Success</div>"
+                    } else{
+                        msg+="<div><span class=\"label label-warning\"><span class=\"glyphicon glyphicon-warning-sign\">"
+                        msg+="</span></span> APIC Credentials Failed"
+                        msg+="<p class=\"text-muted small\">"+apic.details+"</p>"
+                        msg+="</div>"
+                    }
+                    if(ssh.success){
+                        msg+="<div><span class=\"label label-success\"><span class=\"glyphicon glyphicon-ok-sign\">"
+                        msg+="</span></span> Leaf SSH Credentials Success</div>"
+                    } else{
+                        msg+="<div><span class=\"label label-warning\"><span class=\"glyphicon glyphicon-warning-sign\">"
+                        msg+="</span></span> Leaf SSH Credentials Failed"
+                        msg+="<p class=\"text-muted small\">"+ssh.details+"</p>"
+                        msg+="</div>"   
+                    }
+                    msg+= "Reconfigure credentials for <strong>"+json["fabric"]+"</strong> now?"
+                    msg+= "</div>"
+                    self.confirm_html(msg)
+                    $("#confirmModal").modal("show");
+                    //restart workers confirmed
+                    self.confirm_confirmed = function(){
+                        $("#confirmModal").modal("hide");
+                        $("#pageModal").modal("show");
+                    }
+                }
+            }).error(function(err){
+                self.alert_html(get_error_html(err, update_url));
+            });
+        }).error(function(err){
+            self.alert_html(get_error_html(err, update_url));
+        });
+    }
+
+    self.restart_monitor_prompt = function(t_fabric){
+        var msg = "Your changes have successfully been saved.  However, "
+        msg+= "you must restart the fabric monitor for your changes to take effect."
+        msg+= "<br><br>Restart monitors for <strong>"+t_fabric+"</strong> now?"
+        var s = "<div><h3><span class=\"label label-info\">Wait!</span></h3> ";
+        s+= msg+"</div>";
+        self.confirm_html(s)
+        $("#confirmModal").modal("show");
+        //restart workers confirmed
+        self.confirm_confirmed = function(){
+            self.alert_html(get_loading_html("Restarting"));
+            $("#confirmModal").modal("hide");
+            $("#alertModal").modal("show");
+            var update_url = "/api/ept/restart/"+t_fabric;
+            json_post(update_url, {}, function(data){
+                self.alert_html(success_html);
+                self.refresh_settings()
+            }).error(function(err){
+                self.alert_html(get_error_html(err, update_url));
+            });
+        }
+    }
+
+    //delete form entry
+    self.delete_form_entry = function(){
+        self.pending_delete(self.modal_form_data.fabric());
+        $("#pageModal").modal("hide");
+        self.delete_html(get_confirm_html(
+            "Are you sure you want to delete fabric <strong>"+
+            self.pending_delete()+"</strong>? <br>Note, this action will also delete " +
+            "all associated endpoint history."
+        ));
+        $("#deleteModal").modal("show");
+    }
+    //delete confirmed
+    self.delete_confirmed = function(){
+        self.alert_html(get_loading_html("Deleting"));
+        $("#deleteModal").modal("hide");
+        $("#alertModal").modal("show");
+        var update_url = "{{ url_for('api.ept_create_setting') }}";
+        update_url+= "/"+self.pending_delete();
+        json_delete(update_url, {}, function(data){
+            self.alert_html(success_html);
+            //window.location.reload()
+            self.refresh_all()
+        }).error(function(err){
+            self.alert_html(get_error_html(err, update_url));
+        });
+    };
+
+    self.restartWorkers = function(setting) {
+        self.selected_fabric(setting.fabric())
+        $("#alertModal").modal("hide");
+        var msg = "Are you sure you want to <strong>restart</strong> monitors on fabric <strong>"+
+            self.selected_fabric() + "</strong>? "
+        self.confirm_html(get_confirm_html(msg));
+        $("#confirmModal").modal("show");
+
+        //restart workers confirmed
+        self.confirm_confirmed = function(){
+            self.alert_html(get_loading_html("Restarting"));
+            $("#confirmModal").modal("hide");
+            $("#alertModal").modal("show");
+            var update_url = "/api/ept/restart/"+self.selected_fabric();
+            json_post(update_url, {}, function(data){
+                self.alert_html(success_html);
+                //window.location.reload()
+                self.refresh_settings()
+            }).error(function(err){
+                self.alert_html(get_error_html(err, update_url));
+            });
+        }
+    }
+    self.stopWorkers = function(setting) {
+        self.selected_fabric(setting.fabric())
+        $("#alertModal").modal("hide");
+        var msg = "Are you sure you want to <strong>stop</strong> monitors on fabric <strong>"+
+            self.selected_fabric() + "</strong>?"
+        self.confirm_html(get_confirm_html(msg));
+        $("#confirmModal").modal("show");
+
+        //restart workers confirmed
+        self.confirm_confirmed = function(){
+            self.alert_html(get_loading_html("Stopping"));
+            $("#confirmModal").modal("hide");
+            $("#alertModal").modal("show");
+            var update_url = "/api/ept/stop/"+self.selected_fabric();
+            json_post(update_url, {}, function(data){
+                self.alert_html(success_html);
+                //window.location.reload()
+                self.refresh_settings()
+            }).error(function(err){
+                self.alert_html(get_error_html(err, update_url));
+            });
+        }
+    }
+}
+ko.applyBindings(new viewModel());
+
+function destroy_datatable(dt){
+    if(dt!=undefined){
+        dt.clear()
+        dt.destroy()
+    }
+}
+function build_datatable(id, order){
+    if(typeof order === "undefined"){ order = 1; }
+    //apply datatable magic...
+    return $("#"+id).DataTable({ 
+        responsive: true,
+        "dom": "f<t>p",
+        "iDisplayLength": 20,
+        "oLanguage": {
+            "sSearch": "Filter: "
+        },
+        "order": [[ order, "desc" ]],
+        //disable column sorting on columns with class 'nosort'
+        "columnDefs": [ {
+            "targets": 'nosort',
+            "orderable": false
+        }]
+    } ); 
+}
+
+</script>
+
+
+{% endblock %}

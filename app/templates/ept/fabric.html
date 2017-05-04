@@ -1,0 +1,130 @@
+
+{% extends "layout.html" %}
+{% block content %}
+
+    <!-- dataTable dependencies -->
+    <link rel="stylesheet" href="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.bootstrap.css') }}"> 
+    <link rel="stylesheet" href="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.responsive.css') }}"> 
+    <script src="{{ url_for('static',filename='lib/datatables-1.10.6/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.bootstrap.min.js') }}"></script>
+ 
+    <div data-bind="loadingWhen: isLoading()">
+    <h3>Fabric Nodes <span class="badge" data-bind="text: nodes().length"></span></h3>
+    <div class="table-responsive">
+        <table class="table" id="fabricNodes">
+            <thead><tr>
+                <th>Role</th>
+                <th>Fabric</th>
+                <th>Node ID</th>
+                <th>Name</th>
+                <th>TEP</th>
+                <th>vPC pair</th>
+            </tr></thead>
+            <tbody data-bind="foreach: { data: nodes, as: 'node'}">
+            <tr data-bind="attr:{id:node.id}">    
+                <td><span data-bind="text: node.role, css: node.css_role"></span></td>
+                <td><span data-bind="text: node.fabric"></span></td>
+                <td><span data-bind="text: node.id"></span></td>
+                <td><span data-bind="text: node.name"></span></td>
+                <td><span data-bind="text: node.address"></span></td>
+                <td><span data-bind="text: node.vpc_pair"></span></td>
+            </tr>
+            </tbody>
+        </table>    
+    </div>  
+    <h3>Fabric Tunnels <span class="badge" data-bind="text: tunnels().length"></span></h3>
+    <div class="table-responsive">
+        <table class="table" id="fabricTunnels">
+            <thead><tr>
+                <th>Status</th>
+                <th>Fabric</th>
+                <th>Src Node</th>
+                <th>Tunnel</th>
+                <th>Src TEP</th>
+                <th>Dst TEP</th>
+                <th>Type</th>
+            </tr></thead>
+            <tbody data-bind="foreach: { data: tunnels, as: 'tunnel'}">
+            <tr data-bind="attr:{id:node.id}">    
+                <td><span data-bind="text: tunnel.operSt, css:css_status"></span></td>
+                <td><span data-bind="text: tunnel.fabric"></span></td>
+                <td><span data-bind="text: tunnel.node"></span></td>
+                <td><span data-bind="text: tunnel.id"></span></td>
+                <td><span data-bind="text: tunnel.src"></span></td>
+                <td><span data-bind="text: tunnel.dest"></span></td>
+                <td><span data-bind="text: tunnel.type_str"></span></td>
+            </tr>
+            </tbody>
+        </table>    
+    </div>  
+
+
+
+<script type="text/javascript">
+//html for saving forms
+var save_html =  "<h4><img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Saving...</h4>"
+var load_html =  "<h4><img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Loading...</h4>"
+var success_html = "<h4><span class=\"label label-success\"><span class=\"glyphicon glyphicon-ok-sign\"></span></span> Success!</h4>"
+function viewModel() {
+    var self = this; 
+    self.isLoading = ko.observable(false);
+    self.alert_html = ko.observable("");
+    self.delete_html = ko.observable("");
+    self.delete_confirmed = function(){};
+    self.nodes = ko.observableArray();
+    self.tunnels = ko.observableArray();
+
+    var url = "{{ url_for('api.ept_read_nodes') }}";
+    $.getJSON(url, function(data){
+        self.isLoading(false);
+        for(var i=0;i<data.nodes.length;i++){
+            var l = new eptFabricNode();
+            l.fromJS(data.nodes[i])
+            self.nodes.push(l);
+        }
+        // build datatable now that table has been built 
+        build_datatable("fabricNodes");
+    }).error(function(err){
+        self.isLoading(false);
+        $("#alertModal").modal("show");
+        self.alert_html(get_error_html(err, url));
+    });
+
+    var url2 = "{{ url_for('api.ept_read_tunnels') }}";
+    $.getJSON(url2, function(data){
+        self.isLoading(false);
+        for(var i=0;i<data.tunnels.length;i++){
+            var l = new eptFabricTunnel();
+            l.fromJS(data.tunnels[i])
+            self.tunnels.push(l);
+        }
+        // build datatable now that table has been built 
+        build_datatable("fabricTunnels");
+    }).error(function(err){
+        self.isLoading(false);
+        $("#alertModal").modal("show");
+        self.alert_html(get_error_html(err, url));
+    });
+
+}
+ko.applyBindings(new viewModel());
+
+function build_datatable(id){
+    //apply datatable magic...
+    return $("#"+id).DataTable({ 
+        responsive: true,
+        "dom": "f<t>p",
+        "iDisplayLength": 20,
+        "oLanguage": {
+            "sSearch": "Filter: "
+        },
+        //disable column sorting on columns with class 'nosort'
+        "columnDefs": [ {
+            "targets": 'nosort',
+            "orderable": false
+        }]
+    } ); 
+}
+
+</script>
+{% endblock %}

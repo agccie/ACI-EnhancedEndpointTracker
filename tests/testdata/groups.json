@@ -1,0 +1,8 @@
+{"_id":{"$oid":"56ef5b2606a3111ed5063a05"},"owner":"admin","group":"F_group1","members":["F_user1"]}
+{"_id":{"$oid":"56ef5b2c06a3111ed5063a06"},"owner":"admin","group":"F_group2","members":["F_user2"]}
+{"_id":{"$oid":"56ef5b3906a3111ed5063a07"},"owner":"admin","group":"F_group3","members":["F_user3"]}
+{"_id":{"$oid":"56ef5b3d06a3111ed5063a08"},"owner":"admin","group":"F_group4","members":["F_user4"]}
+{"_id":{"$oid":"56ef5b4206a3111ed5063a09"},"owner":"admin","group":"F_group5","members":["F_user5"]}
+{"_id":{"$oid":"56ef5b4606a3111ed5063a0a"},"owner":"admin","group":"F_group6","members":["F_user6"]}
+{"_id":{"$oid":"56ef5b4a06a3111ed5063a0b"},"owner":"admin","group":"F_group7","members":["F_user7"]}
+{"_id":{"$oid":"56ef5b4e06a3111ed5063a0c"},"owner":"admin","group":"F_group8","members":["F_user8"]}

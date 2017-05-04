@@ -1,0 +1,134 @@
+
+{% extends "layout.html" %}
+{% block content %}
+
+    <h2 class="page-header">Settings</h2>
+    <div data-bind="loadingWhen: isLoading()">
+    <form class="form-horizontal" data-bind="submit: submitSettings">
+        <div class="form-group">
+            <label for="app_name" class="col-sm-2 control-label">Name</label>
+            <div class="col-sm-10">
+                <input type="text" class="form-control" 
+                    data-bind="textInput: app_name"
+                    placeholder="Application Name" />
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="fqdn" class="col-sm-2 control-label">FQDN</label>
+            <div class="col-sm-10">
+                <input type="text" class="form-control" 
+                    data-bind="textInput: fqdn"
+                    placeholder="Fully Qualified Domain Name" />
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+                <div class="checkbox">
+                    <label for="force_https">
+                        <input type="checkbox" data-bind="checked: force_https">
+                            Enable https redirect
+                            <p class="text-muted">
+                            Encrypt all application communication within https.
+                            Ensure that the webserver supports and is 
+                            configured for https before enabling this option.
+                            </p>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <!--div class="form-group">
+            <label for="sso_url" class="col-sm-2 control-label">SSO URL</label>
+            <div class="col-sm-10">
+                <input type="text" class="form-control" 
+                    data-bind="textInput: sso_url"
+                    placeholder="Single Sign On URL" />
+            </div>
+        </div-->
+        <div class="form-group">
+            <label for="pw_reset_timeout" class="col-sm-2 control-label">
+            PW Timeout
+            </label>
+            <div class="col-sm-10">
+                <div class="input-group">
+                    <input type="number" class="form-control" 
+                        min="1" max="31536000"
+                        data-bind="textInput: pw_reset_timeout"
+                        placeholder="Password Reset timeout (seconds)" />
+                    <span class="input-group-addon">seconds</span>
+                </div>
+                <p class="text-muted">
+                    Set the timeout for password reset keys. 
+                    <strong>Note</strong>, this applies only for local 
+                    password resets and is not relevant for SSO authentication
+                </p>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+                <button type="submit" class="btn btn-primary">
+                    <span class="glyphicon glyphicon-ok"></span> Save changes
+                </button>
+                <p class="text-info">
+                <strong>Note</strong>, site changes require a webserver 
+                restart to take affect.
+                </p>
+            </div>
+        </div>
+    </form>
+    </div>
+
+<script type="text/javascript">
+//html for saving forms
+var save_html =  "<h4><img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Saving...</h4>"
+var load_html =  "<h4><img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Loading...</h4>"
+var success_html = "<h4><span class=\"label label-success\"><span class=\"glyphicon glyphicon-ok-sign\"></span></span> Success!</h4>"
+function viewModel() {
+    var self = this; 
+    self.isLoading = ko.observable(true);
+    self.alert_html = ko.observable("");
+    self.delete_html = ko.observable("");
+    self.delete_confirmed = function(){};
+
+    var url = "{{ url_for('api.admin_read_config') }}";
+    self.app_name = ko.observable("");
+    self.force_https = ko.observable(false);
+    self.fqdn = ko.observable("");
+    self.sso_url = ko.observable("");
+    self.pw_reset_timeout = ko.observable();
+    $.getJSON(url, function(data){
+        self.isLoading(false);
+        var config_meta = ["app_name", "force_https", "fqdn", "sso_url", 
+            "pw_reset_timeout"]
+        for (var i in config_meta) {
+            var key = config_meta[i]
+            if(data.hasOwnProperty(key)){
+                self[key](data[key]);
+            }
+        }
+    }).error(function(err){
+        self.isLoading(false);
+        $("#alertModal").modal("show");
+        self.alert_html(get_error_html(err, url));
+    });
+
+    self.submitSettings = function() {
+        self.alert_html(save_html);
+        $("#alertModal").modal("show");
+        //json to post to server
+        var json = {
+            app_name: self.app_name(),
+            fqdn: self.fqdn(),
+            force_https: self.force_https(),
+            sso_url: self.sso_url(),
+            pw_reset_timeout: self.pw_reset_timeout()
+        };
+        json_post(url, json, function(data){
+            self.alert_html(success_html);
+        }).error(function(err){
+            self.alert_html(get_error_html(err, url));
+        });
+    }
+}
+ko.applyBindings(new viewModel());
+</script>
+{% endblock %}

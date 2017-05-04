@@ -1,0 +1,121 @@
+
+{% extends "layout.html" %}
+{% block content %}
+    <div class="short center-block" >
+        <h3 class="text-center"> Password Reset </h3>
+        <form role="form" class="form-horizontal">
+            <div class="alert alert-danger" role="alert" data-bind="visible: modal_form_error().length>0">
+                <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+                <span class="sr-only">Error:</span>
+                <span data-bind="text: modal_form_error"></span>
+            </div>
+            <div class="form-group" data-bind="css: modal_form_valid_username">
+                <div class="col-sm-3"><label for="username">Username</label></div>
+                <div class="col-sm-9">
+                <input type="text" class="form-control" id="username" placeholder="Email address or Username"
+                     data-bind="value: modal_form_username">
+                </div>
+            </div>
+            <div class="form-group" data-bind="css: modal_form_valid_password">
+                <div class="col-sm-3"><label for="role">Password</label></div>
+                <div class="col-sm-9">
+                <input type="password" class="form-control" id="password1" placeholder="Password"
+                     data-bind="value: modal_form_password1">
+                </div>
+            </div>
+            <div class="form-group" data-bind="css: modal_form_valid_password">
+                <div class="col-sm-3"></div>
+                <div class="col-sm-9">
+                <input type="password" class="form-control" id="password2" placeholder="Re-Type Password"
+                    data-bind="value: modal_form_password2">
+                </div>
+            </div>
+        </form>
+        <div class="text-center">
+            <button type="submit" class="btn btn-primary" data-bind="click: save">
+                Update Password
+            </button>
+        </div>
+    </div>
+
+<script type="text/javascript">
+//html for saving forms
+var pwreset_key = "{{ key }}"
+var save_html =  "<img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Saving..."
+var load_html =  "<img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Loading..."
+function viewModel() {
+    var self = this;
+    self.isLoading = ko.observable(true);
+    self.alert_html = ko.observable("");
+    self.delete_html = ko.observable("");
+    self.delete_confirmed = function(){};
+
+    self.modal_form_submitted = ko.observable(0);
+    self.modal_form_error = ko.observable("");
+    self.modal_form_username = ko.observable("");
+    self.modal_form_password1 = ko.observable("");
+    self.modal_form_password2 = ko.observable("");
+    
+    //form validation
+    self.modal_form_valid_username = ko.computed(function(){
+        if(self.modal_form_submitted()>0){
+            if(self.modal_form_username().length == 0){
+                p_msg = "Enter a valid username or email"
+                if(self.modal_form_error().length==0){ self.modal_form_error(p_msg)}
+                return "has-error";
+            }
+        }
+        return "";
+    });
+    self.modal_form_valid_password = ko.computed(function(){
+        if(self.modal_form_submitted()>0 ){
+            p = self.modal_form_password1()
+            if(p.length<8 || p.search(/[A-Z]/)<0 || p.search(/[a-z]/)<0 || p.search(/[0-9]/)<0){
+                p_msg = "Passwords require a combination of at least 8 characters.";
+                p_msg+= " Ensure you use an uppercase character, lowercase character, ";
+                p_msg+= "and a number.";
+                if(self.modal_form_error().length==0){ self.modal_form_error(p_msg)}
+                return "has-error"
+            }
+            else if(self.modal_form_password1() != self.modal_form_password2()){
+                p_msg = "Passwords do not match"
+                if(self.modal_form_error().length==0){ self.modal_form_error(p_msg)}
+                return "has-error"
+            }
+        }
+        return ""
+    });
+
+    self.save = function(){
+        self.modal_form_error("");      //reset any errors
+        self.modal_form_submitted(0);   //toggle submitted value to re-run checks
+        self.modal_form_submitted(1); 
+        //no need to re-check, if error message is present then stop
+        if(self.modal_form_error().length>0){ 
+            return; 
+        }
+
+        json = {
+            key: pwreset_key,
+            username: self.modal_form_username(),
+            password: self.modal_form_password1()
+        }
+
+        self.alert_html(save_html);
+        $("#alertModal").modal("show");
+        var url = "{{ url_for('api.admin_update_user_pwreset') }}";
+        json_post(url, json, function(data){
+            h = "<h3><span class=\"label label-success\"><strong>Success!</strong></span></h3>"
+            h+= "<p>Password successfully updated.  Click <a href=\"{{ url_for('auth.login') }}\">"
+            h+= "Here</a> to login.</p>"
+            self.alert_html(h)
+        }).error(function(err){
+            self.alert_html(get_error_html(err, url));
+        });
+
+    }
+}
+ko.applyBindings(new viewModel());
+</script>
+
+{% endblock %}

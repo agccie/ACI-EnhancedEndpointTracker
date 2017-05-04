@@ -1,0 +1,13 @@
+{
+    "imdata":[
+        {
+            "fvSubnet":{
+                "attributes":{
+                    "dn":"uni/tn-ag/BD-bd3/subnet-[10.4.1.1/24]",
+                    "status":"deleted"
+                }
+            }
+        }
+    ],
+    "_ts":1
+}

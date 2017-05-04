@@ -1,3 +1,16 @@
+# ignore python compiled files and vim swp files
+*.pyc
+*.swp
+*.DS_Store
+
+# ignore private instance configurations 
+instance/*
+
+# ignore packager files and Media vidoes
+aci_app_packager.log
+*.aci
+*.mp4
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -87,3 +100,4 @@ ENV/
 
 # Rope project settings
 .ropeproject
+

@@ -1,0 +1,22 @@
+{"events":[
+    {
+        "url":"/api/mo/uni/tn-ag/ctx-v1.json?page-size=75000&page=0",
+        "start": 0,
+        "event":{
+            "imdata":[
+                {
+                    "fvCtx":{
+                        "attributes":{
+                            "dn":"uni/tn-ag/ctx-v1",
+                            "name":"v1",
+                            "pcTag":"27",
+                            "scope":"2654208",
+                            "seg":"2654208"
+                        }
+                    }
+                }
+            ],
+            "totalCount": 1
+        }
+    }
+]}

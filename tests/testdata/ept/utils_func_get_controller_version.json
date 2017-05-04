@@ -1,0 +1,8 @@
+{"events":[
+    {
+        "url": "/api/class/firmwareCtrlrRunning.json?page-size=75000&page=0",
+        "start": 0,
+        "event":{"totalCount":"3","imdata":[{"firmwareCtrlrRunning":{"attributes":{"childAction":"","descr":"","dn":"topology/pod-1/node-1/sys/ctrlrfwstatuscont/ctrlrrunning","internalLabel":"3285fa9452a44245bcf9454faf471e713fb18798","lcOwn":"local","modTs":"2017-02-17T18:46:04.749-05:00","mode":"normal","status":"","tpmInUse":"no","ts":"2017-02-17T18:46:04.936-05:00","type":"controller","version":"2.2(1n)"}}},{"firmwareCtrlrRunning":{"attributes":{"childAction":"","descr":"","dn":"topology/pod-1/node-2/sys/ctrlrfwstatuscont/ctrlrrunning","internalLabel":"3285fa9452a44245bcf9454faf471e713fb18798","lcOwn":"local","modTs":"2017-02-17T18:54:12.473-05:00","mode":"normal","status":"","tpmInUse":"no","ts":"2017-02-17T18:54:12.650-05:00","type":"controller","version":"2.2(1n)"}}},{"firmwareCtrlrRunning":{"attributes":{"childAction":"","descr":"","dn":"topology/pod-1/node-3/sys/ctrlrfwstatuscont/ctrlrrunning","internalLabel":"3285fa9452a44245bcf9454faf471e713fb18798","lcOwn":"local","modTs":"2017-02-17T19:02:08.399-05:00","mode":"normal","status":"","tpmInUse":"no","ts":"2017-02-17T19:02:08.452-05:00","type":"controller","version":"2.2(1n)"}}}]}
+
+    }
+]}

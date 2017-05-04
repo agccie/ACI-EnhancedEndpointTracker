@@ -1,0 +1,26 @@
+{
+    "imdata":[
+        {
+            "epmIpEp":{
+                "attributes":{
+                    "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-2654208]/db-ep/ip-[10.1.3.106]",
+                    "status":"created",
+                    "addr":"10.1.3.106",
+                    "createTs":"2017-01-25T15:53:48.483-05:00",
+                    "name":"",
+                    "pcTag":"",
+                    "flags":"ip",
+                    "modTs":"never",
+                    "ifId":"tunnel4",
+                    "rn":"",
+                    "childAction":""
+                }
+            }
+        }
+    ],
+    "subscriptionId":[
+        "72057598352687113"
+    ],
+    "_ts":1485553835.35
+}
+

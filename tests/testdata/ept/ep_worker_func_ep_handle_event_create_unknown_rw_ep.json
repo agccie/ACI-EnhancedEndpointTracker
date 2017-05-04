@@ -1,0 +1,27 @@
+{
+    "imdata":[
+        {
+            "epmRsMacEpToIpEpAtt":{
+                "attributes":{
+                    "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-2654208]/bd-[vxlan-15007713]/vlan-[vlan-101]/db-ep/mac-00:00:00:00:00:aa/rsmacEpToIpEpAtt-[topology/pod-1/node-101/sys/ctx-[vxlan-2654208]/bd-[vxlan-15007713]/vlan-[vlan-101]/db-ep/ip-[10.1.3.111]]",
+                    "status":"created",
+                    "tDn":"topology/pod-1/node-101/sys/ctx-[vxlan-2654208]/bd-[vxlan-15007713]/vlan-[vlan-101]/db-ep/ip-[10.1.3.111]",
+                    "rType":"mo",
+                    "stateQual":"none",
+                    "tCl":"2266",
+                    "state":"formed",
+                    "forceResolve":"no",
+                    "modTs":"never",
+                    "tType":"name",
+                    "rn":"",
+                    "childAction":""
+                }
+            }
+        }
+    ],
+    "subscriptionId":[
+        "72057598352687113"
+    ],
+    "_ts":1485553835.35
+}
+

@@ -1,0 +1,17 @@
+{
+    "imdata":[
+        {
+            "epmIpEp":{
+                "attributes":{
+                    "dn":"topology/pod-1/node-103/sys/ctx-[vxlan-2654208]/db-ep/ip-[10.1.6.101]",
+                    "status":"deleted"
+                }
+            }
+        }
+    ],
+    "subscriptionId":[
+        "72057598352687113"
+    ],
+    "_ts":1485553835.35
+}
+

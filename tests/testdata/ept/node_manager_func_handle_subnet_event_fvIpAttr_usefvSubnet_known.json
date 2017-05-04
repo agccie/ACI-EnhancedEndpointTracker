@@ -1,0 +1,14 @@
+{
+    "imdata":[
+        {
+            "fvIpAttr":{
+                "attributes":{
+                    "dn":"uni/tn-ag/ap-app/epg-useg8/crtrn/ipattr-ip-fvIpAttr_usefvSubnet_known",
+                    "usefvSubnet":"yes",
+                    "status":"modified"
+                }
+            }
+        }
+    ],
+    "_ts":1
+}

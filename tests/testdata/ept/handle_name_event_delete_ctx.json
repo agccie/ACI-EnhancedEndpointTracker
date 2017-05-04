@@ -1,0 +1,10 @@
+{"events":[
+    {
+        "url":"/api/mo/uni/tn-ag/ctx-v2.json?page-size=75000&page=0",
+        "start": 0,
+        "event":{
+            "imdata":[],
+            "totalCount": 0
+        }
+    }
+]}

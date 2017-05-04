@@ -1,0 +1,71 @@
+
+<html>
+    <head>  
+        <title>EnhancedEndpointMonitor</title>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="">
+        <meta name="author" content="">
+        <link rel="stylesheet" href="./static/css/bootstrap.min.css">
+        <link rel="stylesheet" href="./static/css/styles.css">
+        <link rel="shortcut icon" href="./static/img/favicon.ico" />
+        <script src="./static/js/json2.js"></script>
+        <script src="./static/js/jquery-1.11.1.min.js"></script>
+        <script src="./static/js/js.cookie.js"></script>
+        <script src="./static/js/bootstrap.min.js"></script>
+        <script src="./static/js/knockout-3.2.0.js"></script>
+        <script src="./static/lib/momentjs/moment.min.js"></script>
+        <script src="./static/js/common.js"></script>
+    </head>
+    <body>
+
+    <!-- alert modal for general alerts (no user input required) -->
+    <div class="modal fade" id="alertModal" tabindex="-1" role="dialog" aria-labelledby="alertModal" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <span data-bind="html: alert_html"></span>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                </div>
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
+    <div id="main" class="container"></div>
+
+
+<script type="text/javascript">
+//html for saving forms
+var _refresh_occurred = false;
+function viewModel() {
+    var self = this; 
+    self.alert_html = ko.observable("");
+    self.alert_html(get_loading_html());
+    $("#alertModal").modal("show");
+    appTokenRefresh(function(){
+        // prevent cascading events - only perform backend check on first success
+        if(_refresh_occurred){ return ; }
+        _refresh_occurred = true;
+        
+        // single check without poll to see if app has started
+        var started = function(){ window.location = "./app.html"; }
+        var waiting = function(){
+            //wait until app has actually started before forwarding to app.html
+            self.alert_html(get_loading_html("Waiting for backend application to start. "+
+                "This can take up to 5 minutes on initial install")); 
+            pollAppStarted(started);
+        }
+        checkAppStarted(started, waiting).error(function(err){waiting();})
+        
+    }, function(err){
+        self.alert_html(get_error_html(err, "window parent 'message' event"));
+    });
+}
+ko.applyBindings(new viewModel());
+</script>
+
+</body>
+</html>

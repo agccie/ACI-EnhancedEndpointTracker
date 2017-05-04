@@ -1,0 +1,20 @@
+{"events":[
+    {
+        "url":"/api/mo/uni/tn-ag/ap-app/epg-e5.json?page-size=75000&page=0",
+        "start": 0,
+        "event":{
+            "imdata":[
+                {
+                    "fvAEPg":{
+                        "attributes":{
+                            "dn":"uni/tn-ag/ap-app/epg-e5",
+                            "pcTag":"60101",
+                            "scope":"2654208"
+                        }
+                    }
+                }
+            ],
+            "totalCount": 1
+        }
+    }
+]}

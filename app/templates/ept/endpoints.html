@@ -1,0 +1,968 @@
+
+{% extends "layout.html" %}
+{% block content %}
+
+    <!-- dataTable dependencies -->
+    <link rel="stylesheet" href="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.bootstrap.css') }}"> 
+    <link rel="stylesheet" href="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.responsive.css') }}"> 
+    <script src="{{ url_for('static',filename='lib/datatables-1.10.6/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='lib/datatables-1.10.6/dataTables.bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='lib/select2-4.0.3/select2.min.js') }}"></script>
+ 
+    <h3>Endpoint History</h3>
+    <div data-bind="loadingWhen: isLoading()">
+        <select class="form-control" id="searchBar"></select>
+        <p class="text-muted">Ex: 00:50:56:01:11:12, 10.1.1.101, or 2001:a::65</p>
+    </div>
+
+    <div class="table-responsive" data-bind="visible: ep_selected()" style="display:none">
+       <div data-bind="css: ep_bs_css">
+            <button type="button" class="close" aria-label="Close" data-bind="click: clear_selected">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            <h4>
+                <span data-bind="text: ep_type, css: ep_css_type"></span>
+                <span data-bind="text: ep_addr"></span>
+            </h4>
+            <div data-bind="visible: ep_current_stale().length>0 || ep_current_offsubnet().length>0">
+                <div data-bind="visible:ep_current_stale().length>0">
+                    <h5>
+                        <small>Currently <strong>stale</strong> on node </small>
+                        <strong>
+                            <span data-bind="text: ep_current_stale_str" class="label label-danger"></span>
+                        </strong>
+                    </h5>
+                </div>
+                <div data-bind="visible:ep_current_offsubnet().length>0">
+                    <h5>
+                        <small>Currently learned <strong>off-subnet</strong> on node </small>
+                        <strong>
+                            <span data-bind="text: ep_current_offsubnet_str" class="label label-danger"></span>
+                        </strong>
+                    </h5>
+                </div>
+            </div>
+            <h5 data-bind="visible: ep_local().length>0"> 
+                <div data-bind="foreach: { data: ep_local, as: 'ep'}">
+                    <div>
+                        <span class="text-muted">Local on node</span> <strong><span data-bind="text: ep.s_node, css: ep.css_type"></span></strong>
+                        <span class="text-muted">Flags</span> <strong><span data-bind="text: ep.flags, css: ep.css_type"></span></strong>
+                        <span class="text-muted">Interface</span> <strong><span data-bind="text: ep.s_ifId, css: ep.css_type"></span></strong>
+                        <span class="text-muted">Encap</span> <strong><span data-bind="text: ep.s_encap, css: ep.css_type"></span></strong>
+                        <span data-bind="visible: !ep.is_mac()">
+                            <span class="text-muted">Mac</span> <strong><a data-bind="text: ep.s_rw_mac, 
+                                attr:{href: $root.rw_mac_url(ep.rw_bd(),ep.rw_mac())}"></a></strong>
+                        </span>
+                        <span class="text-muted">EPG</span> <strong><span data-bind="text: ep.s_epg" class=""></span></strong>
+                    </div>
+                </div>
+            </h5>
+            <h5 data-bind="visible: ep_local().length==0">
+                <small>Not currently local on any node...</small>
+            </h5>
+
+            <span class="text-muted">Fabric</span> <strong><span data-bind="text: ep_fabric"></span></strong>, 
+            <span class="text-muted"><span data-bind="text: (ep_type()=='ip')?'VRF':'BD'"></span></span> 
+            <strong><span data-bind="text: ep_vnid_name" class=""></span></strong>
+            <span class="text-muted">VNID</span> <strong><span data-bind="text: ep_vnid"></span></strong>
+            <br>Total
+            Nodes <strong><span data-bind="text: ep_node_count"></span></strong>,
+            Moves <strong><span data-bind="text: ep_moves_count"></span></strong>,
+            Off-Subnet <strong><span data-bind="text: ep_offsubnet_count"></span></strong>,
+            Stale <strong><span data-bind="text: ep_stale_count"></span></strong>
+            <h4>
+                 <a class="btn btn-default" data-bind="attr: { href: ep_url } ">
+                    <i class="glyphicon glyphicon-link"></i>&nbsp
+                </a>
+                <button type="button" class="btn btn-default" data-bind="click: refresh_ep">
+                    <i class="glyphicon glyphicon-repeat"></i> Refresh
+                </button>
+                <a class="btn btn-default" data-bind="click: set_history, css: { active: history_selected()}">
+                    <i class="glyphicon glyphicon-hdd"></i> Per-Node History
+                </a>
+                <a class="btn btn-default" data-bind="click: set_moves, css: {active: moves_selected()}">
+                    <i class="glyphicon glyphicon-random"></i> Move Events
+                </a>
+                <a class="btn btn-default" data-bind="click: set_offsubnet, css: {active: offsubnet_selected()}">
+                    <i class="glyphicon glyphicon-share"></i> Off-Subnet Events
+                </a>
+                <a class="btn btn-default" data-bind="click: set_stale, css: {active: stale_selected()}">
+                    <i class="glyphicon glyphicon-warning-sign"></i> Stale Events
+                </a>
+                {% if g.user.role == g.ROLE_FULL_ADMIN %}
+                <a class="btn btn-default" data-bind="click: delete_confirm">
+                    <i class="glyphicon glyphicon-trash"></i> Delete Events
+                </a>
+                <a class="btn btn-danger" data-bind="click: clear_endpoint_confirm">
+                    <i class="glyphicon glyphicon-fire"></i> Clear Endpoint
+                </a>
+                {% endif %}
+            </h4>
+        </div>
+
+        <!-- endpoint history events -->
+        <div class="table-responsive" data-bind="loadingWhen: historyLoading(), visible: history_selected()" style="display:none">
+            <table class="table table-sm small" id="epHistory">
+                <thead><tr>
+                    <th>Node</th>
+                    <th>Time*</th>
+                    <th>Status</th>
+                    <th>Interface</th>
+                    <th>Encap</th>
+                    <th>pcTag</th>
+                    <th>EPG</th>
+                    <th>Flags</th>
+                    <th>Mac</th>
+                    <th>Remote Node</th>
+                </tr></thead>
+                <tbody data-bind="foreach: { data: ep_events, as: 'ep'}">
+                <tr>    
+                    <td>node-<span data-bind="text: ep.node"></span></td>
+                    <td><span data-bind="text: ep.s_ts"></span></td>
+                    <td><span data-bind="text: ep.status, css: ep.css_status"></span></td>
+                    <td><span data-bind="text: ep.s_ifId"></span></td>
+                    <td><span data-bind="text: ep.s_encap"></span></td>
+                    <td><span data-bind="text: ep.s_pcTag"></span></td>
+                    <td><span data-bind="text: ep.s_epg"></span></td>
+                    <td><span data-bind="text: ep.s_flags"></span></td>
+                    <td>
+                        <a data-bind="text:ep.s_rw_mac, css:ep.css_rw_mac, attr:{href: $root.rw_mac_url(ep.rw_bd(),ep.rw_mac())}"></a>
+                    </td>
+                    <td><span data-bind="text: ep.remote_node"></span></td>
+                </tr>
+                </tbody>
+            </table>    
+        </div>
+    
+        <!-- endpoint move events -->
+        <div class="table-responsive" data-bind="loadingWhen: movesLoading(), visible: moves_selected()" style="display:none">
+            <div class="col-sm-8 col-sm-offset-2 alert alert-info" data-bind="visible: ep_moves().length==0">
+                    <span>No move events detected for this endpoint</span>
+            </div>
+            <div data-bind="visible: ep_moves().length>0">
+                <!-- Nav tabs -->
+                <ul class="nav nav-tabs" role="tablist">
+                    <li role="presentation" class="active"><a href="#moveOverview" aria-controls="home" role="tab" data-toggle="tab">Overview</a></li>
+                    <li role="presentation"><a href="#moveDetail" aria-controls="profile" role="tab" data-toggle="tab">Detailed</a></li>
+                </ul>
+                <!-- Tab panes -->
+                <div class="tab-content">
+                    <div role="tabpanel" class="tab-pane active" id="moveOverview">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Move Description</th>
+                                </tr>
+                            </thead>
+                            <tbody data-bind="foreach: { data: ep_moves, as: 'ep'}">
+                                <tr>
+                                    <td><span data-bind="text: ep.s_ts"></span></td>
+                                    <td><span data-bind="text: ep.move_description"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div role="tabpanel" class="tab-pane" id="moveDetail">
+                        <table class="table table-sm small" id="epMoveDetail">
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                    <th colspan=6 class="text-center">Move Source</th>
+                                    <th colspan=6 class="text-center">Move Destination</th>
+                                </tr>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Node</th>
+                                    <th>Interface</th>
+                                    <th>Encap</th>
+                                    <th>pcTag</th>
+                                    <th>EPG</th>
+                                    <!--th>BD</th-->
+                                    <th>Mac</th>
+                                    <th>Node</th>
+                                    <th>Interface</th>
+                                    <th>Encap</th>
+                                    <th>pcTag</th>
+                                    <th>EPG</th>
+                                    <!--th>BD</th-->
+                                    <th>Mac</th>
+                                </tr>
+                            </thead>
+                            <tbody data-bind="foreach: { data: ep_moves, as: 'ep'}">
+                                <tr>
+                                    <td><span data-bind="text: ep.s_ts"></span></td>
+                                    <td data-bind="css:ep.diff('node')"><span data-bind="text: ep.s_src_node"></span></td>
+                                    <td data-bind="css:ep.diff('ifId')"><span data-bind="text: ep.s_src_ifId"></span></td>
+                                    <td data-bind="css:ep.diff('encap')"><span data-bind="text: ep.s_src_encap"></span></td>
+                                    <td data-bind="css:ep.diff('pcTag')"><span data-bind="text: ep.s_src_pcTag"></span></td>
+                                    <td data-bind="css:ep.diff('epg_name')"><span data-bind="text: ep.s_src_epg"></span></td>
+                                    <!--td data-bind="css:ep.diff('rw_bd')"><span data-bind="text: ep.s_src_rw_bd, css:ep.css_src_rw_bd"></span></td-->
+                                    <td data-bind="css:ep.diff('rw_mac')"><a data-bind="text: ep.s_src_rw_mac, css:ep.css_src_rw_mac,
+                                        attr:{href: $root.rw_mac_url(ep.src.rw_bd(),ep.src.rw_mac())}"></a></td>
+                                    <td data-bind="css:ep.diff('node')"><span data-bind="text: ep.s_dst_node"></span></td>
+                                    <td data-bind="css:ep.diff('ifId')"><span data-bind="text: ep.s_dst_ifId"></span></td>
+                                    <td data-bind="css:ep.diff('encap')"><span data-bind="text: ep.s_dst_encap"></span></td>
+                                    <td data-bind="css:ep.diff('pcTag')"><span data-bind="text: ep.s_dst_pcTag"></span></td>
+                                    <td data-bind="css:ep.diff('epg_name')"><span data-bind="text: ep.s_dst_epg"></span></td>
+                                    <!--td data-bind="css:ep.diff('rw_bd')"><span data-bind="text: ep.s_dst_rw_bd, css:ep.css_dst_rw_bd"></span></td-->
+                                    <td data-bind="css:ep.diff('rw_mac')"><a data-bind="text: ep.s_dst_rw_mac, css:ep.css_dst_rw_mac, 
+                                        attr:{href: $root.rw_mac_url(ep.dst.rw_bd(),ep.dst.rw_mac())}"></a></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- offsubnet endpoint events -->
+        <div class="table-responsive" data-bind="loadingWhen: offsubnetLoading(), visible: offsubnet_selected()" style="display:none">
+            <div class="col-sm-8 col-sm-offset-2 alert alert-info" data-bind="visible: ep_offsubnet().length==0">
+                    <span data-bind="visible: ep_current_offsubnet().length>0">
+                        This endpoint is currently marked as Off-Subnet but no Off-Subnet event has been added to the database.
+                        An event will be added if the endpoint remains Off-Subnet for the hold duration.
+                    </span>
+                    <span data-bind="visible: ep_current_offsubnet().length==0">
+                        No Off-Subnet events detected for this endpoint
+                    </span>
+            </div>
+            <div class="table-responsive" data-bind="visible: ep_offsubnet().length>0">
+                <table class="table table-sm small" id="epOffsubnet">
+                    <thead><tr>
+                        <th>Node</th>
+                        <th>Time*</th>
+                        <th>Interface</th>
+                        <th>Encap</th>
+                        <th>pcTag</th>
+                        <th>EPG</th>
+                        <th>Flags</th>
+                        <th>Mac</th>
+                        <th>Remote Node</th>
+                    </tr></thead>
+
+                <tbody data-bind="foreach: { data: ep_offsubnet, as: 'ep'}">
+                <tr>    
+                    <td>node-<span data-bind="text: ep.node"></span></td>
+                    <td><span data-bind="text: ep.s_ts"></span></td>
+                    <td><span data-bind="text: ep.s_ifId"></span></td>
+                    <td><span data-bind="text: ep.s_encap"></span></td>
+                    <td><span data-bind="text: ep.s_pcTag"></span></td>
+                    <td><span data-bind="text: ep.s_epg"></span></td>
+                    <td><span data-bind="text: ep.s_flags"></span></td>
+                    <td>
+                        <a data-bind="text:ep.s_rw_mac, css:ep.css_rw_mac, attr:{href: $root.rw_mac_url(ep.rw_bd(),ep.rw_mac())}"></a>
+                    </td>
+                    <td><span data-bind="text: ep.s_remote"></span></td>
+                </tr>
+                </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- stale endpoint events -->
+        <div class="table-responsive" data-bind="loadingWhen: staleLoading(), visible: stale_selected()" style="display:none">
+            <div class="col-sm-8 col-sm-offset-2 alert alert-info" data-bind="visible: ep_stale().length==0">
+                    <span data-bind="visible: ep_current_stale().length>0">
+                        This endpoint is currently marked as stale but no stale event has been added to the database.
+                        An event will be added if the endpoint remains stale for the hold duration.
+                    </span>
+                    <span data-bind="visible: ep_current_stale().length==0">
+                        No stale events detected for this endpoint
+                    </span>
+            </div>
+            <div class="table-responsive" data-bind="visible: ep_stale().length>0">
+                <table class="table table-sm small" id="epStale">
+                    <thead><tr>
+                        <th>Node</th>
+                        <th>Time*</th>
+                        <th>Interface</th>
+                        <th>Encap</th>
+                        <th>pcTag</th>
+                        <th>EPG</th>
+                        <th>Flags</th>
+                        <!--th>BD</th-->
+                        <th>Mac</th>
+                        <th>Remote Node</th>
+                        <th>Expected Remote Node</th>
+                    </tr></thead>
+
+                <tbody data-bind="foreach: { data: ep_stale, as: 'ep'}">
+                <tr>    
+                    <td>node-<span data-bind="text: ep.node"></span></td>
+                    <td><span data-bind="text: ep.s_ts"></span></td>
+                    <td><span data-bind="text: ep.s_ifId"></span></td>
+                    <td><span data-bind="text: ep.s_encap"></span></td>
+                    <td><span data-bind="text: ep.s_pcTag"></span></td>
+                    <td><span data-bind="text: ep.s_epg"></span></td>
+                    <td><span data-bind="text: ep.s_flags"></span></td>
+                    <!--td><span data-bind="text: ep.s_rw_bd, css:ep.css_rw_bd"></span></td-->
+                    <td>
+                        <a data-bind="text:ep.s_rw_mac, css:ep.css_rw_mac, attr:{href: $root.rw_mac_url(ep.rw_bd(),ep.rw_mac())}"></a>
+                    </td>
+                    <td><span data-bind="text: ep.s_remote"></span></td>
+                    <td><span data-bind="text: ep.s_expected_remote"></span></td>
+                </tr>
+                </tbody>
+                </table>
+            </div>
+        </div>
+    </div>  
+
+    <!-- page-specific user-form modal (stale confirm) -->
+    <div class="modal fade" id="clearEndpointModal" tabindex="-1" role="dialog" aria-labelledby="clearEndpointModal" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span aria-hidden="true">&times;</span>
+                        <span class="sr-only">Close</span>
+                    </button>
+                     <h4 class="modal-title" data-bind="text: modal_form_title"></h4>
+                </div>
+                <div class="modal-body">
+                    <form role="form" class="form-horizontal">
+                        <div class="alert alert-danger" role="alert" data-bind="visible: modal_form_error().length>0">
+                            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+                            <span class="sr-only">Error:</span>
+                            <span data-bind="text: modal_form_error"></span>
+                        </div>
+                        <div class="form-group" data-bind="css: modal_form_valid">
+                            <label for="fabric" class="col-sm-2 control-label">Nodes</label>
+                            <div class="col-sm-10">
+                                <select class="form-control" id="clearEndpointSelect" style="width:100%;" multiple="multiple">
+                                </select>
+                                <p class="text-muted">
+                                Choose from dropdown or manually specify list of nodes.<br>
+                                Ex. 101-105, 110, 112
+                                </p>
+                            </div>
+                        </div>
+
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">
+                        <span class="glyphicon glyphicon-remove"></span> Close</button>
+                    </button>
+                    <button type="submit" class="btn btn-danger" data-bind="click: clear_endpoint_confirmed">
+                        <span class="glyphicon glyphicon-fire"></span> Clear Endpoint</button>
+                </div>
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
+
+<script type="text/javascript">
+//html for saving forms
+var save_html =  "<h4><img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Saving...</h4>"
+var load_html =  "<h4><img src=\"{{ url_for('static',filename='img/loader.gif') }}\" /> Loading...</h4>"
+var success_html = "<h4><span class=\"label label-success\"><span class=\"glyphicon glyphicon-ok-sign\"></span></span> Success!</h4>"
+var user_fabric = "{{ user_fabric if user_fabric != None else '' }}"
+var user_vnid = "{{ user_vnid if user_vnid != None else '' }}"
+var user_addr = "{{ user_addr if user_addr != None else '' }}"
+var user_ep = get_url_param("ep")
+if(user_ep.length>0){
+    //expected in format of user provided endpoint via url param is '/fabric/vnid/addr'
+    user_ep = user_ep.replace(/^\/|\/$/g, '').split("/")
+    if(user_ep.length==3){
+        user_fabric = user_ep[0];
+        user_vnid = user_ep[1];
+        user_addr = user_ep[2];
+    }
+}
+var ep_history_dt = undefined
+var ep_stale_dt = undefined
+var ep_offsubnet_dt = undefined
+var ep_move_dt = undefined
+var vm = undefined
+var ep_vnids = {}
+var get_vnid_name = function(obj){return obj;}
+var select_stale_id = 0xffffffff
+var select_offsubnet_id = 0xfffffffe
+var select_all_nodes = 0
+function viewModel() {
+    var self = this; 
+    self.isLoading = ko.observable(false);
+    self.historyLoading = ko.observable(false);
+    self.movesLoading = ko.observable(false);
+    self.staleLoading = ko.observable(false);
+    self.offsubnetLoading = ko.observable(false);
+    self.alert_html = ko.observable("");
+    self.delete_html = ko.observable("");
+    self.delete_confirmed = function(){};
+    self.ep_events = ko.observableArray();
+    self.ep_moves = ko.observableArray();
+    self.ep_moves_count = ko.observable("-");
+    self.ep_stale = ko.observableArray();
+    self.ep_stale_count = ko.observable("-");
+    self.ep_offsubnet = ko.observableArray();
+    self.ep_offsubnet_count = ko.observable("-");
+    self.ep_node_count = ko.observable("-");
+    self.ep_fabric = ko.observable("");
+    self.ep_addr = ko.observable("");
+    self.ep_vnid = ko.observable("");
+    self.ep_vnid_name = ko.observable("");
+    self.ep_vnids = {}  //json representation of all vnids
+    self.ep_type = ko.observable("");
+    self.ep_local = ko.observableArray();
+    self.ep_current_stale = ko.observableArray();
+    self.ep_current_stale_str = ko.computed(function(){
+        var s="";
+        self.ep_current_stale().sort().forEach(function(item,index){
+            s+= item+", ";
+        });
+        return s.replace(/, $/,"");
+    })
+    self.ep_current_offsubnet = ko.observableArray();
+    self.ep_current_offsubnet_str = ko.computed(function(){
+        var s="";
+        self.ep_current_offsubnet().sort().forEach(function(item,index){
+            s+= item+", ";
+        });
+        return s.replace(/, $/,"");
+    })
+    self.ep_bs_css = ko.computed(function(){        
+        if(self.ep_current_stale().length>0 || self.ep_current_offsubnet().length>0){
+            return "bs-callout bs-callout-danger"
+        }
+        else if(self.ep_type()=="mac"){
+            return "bs-callout bs-callout-warning"
+        }
+        return "bs-callout bs-callout-primary"
+    });
+    self.ep_css_type = ko.computed(function(){
+        if(self.ep_current_stale().length>0 || self.ep_current_offsubnet().length>0){
+            return "label label-danger"
+        }
+        else if(self.ep_type()=="mac"){
+            return "label label-warning"
+        }   
+        return "label label-primary"
+    })
+    self.ep_selected = ko.observable(user_addr.length>0);
+    self.history_selected = ko.observable(true);
+    self.moves_selected = ko.observable(false);
+    self.stale_selected = ko.observable(false);
+    self.offsubnet_selected = ko.observable(false);
+    self.general_str = function(obj){
+        if(obj.length==0){ return "-";}
+        else if(obj == "any"){ return "-";}
+        else{ return ""+obj; }
+    }
+
+    // function in viewmodel to calculate rw_mac url
+    self.rw_mac_url = function(rw_bd, rw_mac){
+        if(rw_mac.length==0 || rw_bd.length==0 || self.ep_fabric().length==0){ return "" }
+        if(aci_app){
+            var link = "/"+self.ep_fabric()+"/"+rw_bd+"/"+rw_mac
+            return "/apps/"+aci_vendor+"_"+aci_appId+"/UIAssets/endpoints.html?ep="+link
+        }
+        return "/ept/"+self.ep_fabric()+"/"+rw_bd+"/"+rw_mac
+    };
+
+    // change which event type is displayed
+    self.set_history = function(){
+        self.history_selected(true);
+        self.moves_selected(false);
+        self.stale_selected(false);
+        self.offsubnet_selected(false);
+    }
+    self.set_moves = function(){
+        self.history_selected(false);
+        self.moves_selected(true);
+        self.stale_selected(false);
+        self.offsubnet_selected(false);
+    }
+    self.set_stale = function(){
+        self.history_selected(false);
+        self.moves_selected(false);
+        self.stale_selected(true);
+        self.offsubnet_selected(false);
+    }
+    self.set_offsubnet = function(){
+        self.history_selected(false);
+        self.moves_selected(false);
+        self.stale_selected(false);
+        self.offsubnet_selected(true);
+    }
+    self.refresh_ep = function(){
+        self.update_ep({
+            fabric: self.ep_fabric(),
+            vnid: self.ep_vnid(),
+            addr: self.ep_addr(),
+        })
+    }
+    self.ep_url = ko.computed(function(){
+        if(aci_app){
+            var ep = "/"+self.ep_fabric()+"/"+self.ep_vnid()+"/"+self.ep_addr()
+            return "/apps/"+aci_vendor+"_"+aci_appId+"/UIAssets/endpoints.html?ep="+ep
+        }
+        return "/ept/"+self.ep_fabric()+"/"+self.ep_vnid()+"/"+self.ep_addr()
+    });
+
+    // based on current flags, determine if endpoint is local
+    self.ep_is_local = function(flags){
+        var flags = flags.split(",")
+        for(var i in flags){
+            if(flags[i]=="local"){return true;}
+        }
+        return false
+    }
+
+    //fetch history, moves, and stale data for this endpoint
+    self.update_ep = function(ep){
+        //fetch history data
+        var url = "/api/ept/history/"+ep.fabric+"/vnid/"+ep.vnid+"/"+ep.addr
+        self.historyLoading(true);
+        self.ep_vnid(ep.vnid);
+        self.ep_addr(ep.addr);
+        self.ep_fabric(ep.fabric);
+        self.ep_vnid_name(self.get_vnid_name({"fabric":ep.fabric,"vnid":ep.vnid}))
+        if(self.ep_vnid_name().search(/vnid: /)>=0){
+            self.ep_vnid_name("-")
+        }
+        self.ep_selected(true);
+        destroy_datatable(ep_history_dt)
+        json_get(url, function(data){
+            self.historyLoading(false);
+            self.ep_events.removeAll();
+            self.ep_current_stale.removeAll();
+            self.ep_current_offsubnet.removeAll();
+            self.ep_node_count(0);
+            var new_data = [];
+            for (var n in data.ep_history){
+                for (var e in data.ep_history[n].events){
+                    var l = new eptHistory();
+                    l.fromJS(data.ep_history[n].events[e])
+                    l.node(data.ep_history[n].node)
+                    new_data.push(l)
+                }
+                self.ep_node_count(self.ep_node_count()+1);
+                //check each endpoint to determine if it is_stale is set
+                if(data.ep_history[n].is_stale){
+                    self.ep_current_stale.push(data.ep_history[n].node)
+                }
+                //check each endpoint to determine if it is_offsubnet is set
+                if(data.ep_history[n].is_offsubnet){
+                    self.ep_current_offsubnet.push(data.ep_history[n].node)
+                }
+            }
+            if(data.ep_history.hasOwnProperty(0)){
+                var n = data.ep_history[0]
+                if(n.hasOwnProperty("type")){ self.ep_type(n["type"])}
+            }
+            self.ep_events(new_data)
+            ep_history_dt = build_datatable("epHistory")
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url));
+        });
+
+        //get last local state
+        var url = "/api/ept/current/"+ep.fabric+"/"+ep.vnid+"/"+ep.addr
+        json_get(url, function(data){
+            self.ep_local.removeAll();
+            var new_data = [];
+            for (var n in data.local){
+                var l = new eptHistory();
+                l.fromJS(data.local[n]);
+                new_data.push(l);
+            }
+            self.ep_local(new_data);
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url));
+        });
+
+        //fetch move data
+        var url = "/api/ept/moves/"+ep.fabric+"/"+ep.vnid+"/"+ep.addr
+        self.movesLoading(true);
+        destroy_datatable(ep_move_dt)
+        json_get(url, function(data){
+            self.movesLoading(false);
+            self.ep_moves.removeAll();
+            var new_data = [];
+            for (var n in data.ep_move){
+                for (var e in data.ep_move[n].events){
+                    var l = new eptMove();
+                    l.fromJS(data.ep_move[n].events[e])
+                    new_data.push(l);
+                }
+            }
+            if(data.ep_move.hasOwnProperty(0)){
+                var n = data.ep_move[0]
+                if(n.hasOwnProperty("count")){ self.ep_moves_count(n["count"])}
+            }else{ self.ep_moves_count(0); } 
+            self.ep_moves(new_data); 
+            ep_move_dt = build_datatable("epMoveDetail", 0)
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url));
+        });
+
+        //fetch stale data
+        var url = "/api/ept/stale/"+ep.fabric+"/vnid/"+ep.vnid+"/"+ep.addr
+        destroy_datatable(ep_stale_dt)
+        self.staleLoading(true);
+        json_get(url, function(data){
+            self.staleLoading(false);
+            self.ep_stale.removeAll();
+            self.ep_stale_count(0)
+            var stale_count = 0
+            var new_data = [];
+            for (var n in data.ep_stale){
+                for (var e in data.ep_stale[n].events){
+                    var l = new eptStale();
+                    l.fromJS(data.ep_stale[n].events[e])
+                    l.node = data.ep_stale[n].node;
+                    new_data.push(l);
+                }   
+                if(data.ep_stale[n].hasOwnProperty("count")){
+                    stale_count+= data.ep_stale[n]["count"]
+                }
+            }
+            self.ep_stale_count(stale_count)
+            self.ep_stale(new_data)
+            ep_stale_dt = build_datatable("epStale")
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url));
+        });
+
+        //fetch offsubnet data
+        var url = "/api/ept/offsubnet/"+ep.fabric+"/vnid/"+ep.vnid+"/"+ep.addr
+        destroy_datatable(ep_offsubnet_dt)
+        self.offsubnetLoading(true);
+        json_get(url, function(data){
+            self.offsubnetLoading(false);
+            self.ep_offsubnet.removeAll();
+            self.ep_offsubnet_count(0)
+            var offsubnet_count = 0
+            var new_data = [];
+            for (var n in data.ep_offsubnet){
+                for (var e in data.ep_offsubnet[n].events){
+                    var l = new eptStale();     // same attributes as offSubnet
+                    l.fromJS(data.ep_offsubnet[n].events[e])
+                    l.node = data.ep_offsubnet[n].node;
+                    new_data.push(l);
+                }   
+                if(data.ep_offsubnet[n].hasOwnProperty("count")){
+                    offsubnet_count+= data.ep_offsubnet[n]["count"]
+                }
+            }
+            self.ep_offsubnet_count(offsubnet_count)
+            self.ep_offsubnet(new_data);
+            ep_offsubnet_dt = build_datatable("epOffsubnet")
+        }).error(function(err){
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, url));
+        });
+
+    }
+
+    self.clear_selected = function(){ 
+        self.ep_selected(false);
+    }
+
+    // receive an object that has 'fabric', 'vnid' attributes and
+    // add a vnid_name attribute
+    self.get_vnid_name = function(obj){
+        if(obj.hasOwnProperty("vnid_name")){return "";}
+        var vnid_name = "";
+        if(obj.hasOwnProperty("fabric") && obj.hasOwnProperty("vnid")){
+            if(self.ep_vnids.hasOwnProperty(obj.fabric) && 
+                self.ep_vnids[obj.fabric].hasOwnProperty(obj.vnid)){
+                vnid_name = self.ep_vnids[obj.fabric][obj.vnid]["name"]
+            }else{
+                vnid_name = "vnid: "+obj.vnid
+            }
+        }
+        return vnid_name
+    }
+    //update global get_vnid_name to point to this viewmodel get_vnid_name
+    get_vnid_name = self.get_vnid_name
+
+    //pull all vnid information first, and then refresh settings
+    self.isLoading(true);
+    var vnid_url = "{{ url_for('api.ept_read_vnids') }}";
+    json_get(vnid_url, function(data){
+        self.isLoading(false);
+        self.ep_vnids = {}
+        for(var i=0;i<data.ep_vnids.length;i++){
+            var obj = data.ep_vnids[i]
+            if(!self.ep_vnids.hasOwnProperty(obj.fabric)){
+                self.ep_vnids[obj.fabric] = {}
+            }
+            self.ep_vnids[obj.fabric][obj.vnid] = obj
+        }   
+        //update global ep_vnids to point to this viewmodel ep_vnids
+        ep_vnids = self.ep_vnids
+        //decide whether to display top or per-ep history
+        if(user_fabric.length>0 && user_vnid.length>0 && user_addr.length>0){
+            self.update_ep({fabric:user_fabric, vnid:user_vnid, addr:user_addr});
+        }else{
+            self.clear_selected();
+        }
+    }).error(function(err){
+        $("#alertModal").modal("show");
+        self.alert_html(get_error_html(err, vnid_url))
+    })
+
+
+    //delete form entry
+    self.delete_confirm = function(){
+        $("#deleteModal").modal("hide");
+        self.delete_html(get_confirm_html(
+            "Are you sure you want to delete all information for <strong>"+
+            self.ep_addr()+"</strong> from the local database? Note, "+
+            "this will not affect the endpoint state within the fabric."
+        ));
+        $("#deleteModal").modal("show");
+    }
+    //delete confirmed
+    self.delete_confirmed = function(){
+        self.alert_html(save_html);
+        $("#deleteModal").modal("hide");
+        $("#alertModal").modal("show");
+        var update_url = "/api/ept/"+self.ep_fabric()+"/"+self.ep_vnid()+"/"+self.ep_addr()
+        json_delete(update_url, {}, function(data){
+            window.location =  "{{ url_for('ept.endpoints') }}"
+        }).error(function(err){
+            self.alert_html(get_error_html(err, update_url));
+        });
+    };
+
+    //handlers for creating/editing form
+    self.modal_form_submitted = ko.observable(0);
+    self.modal_form_error = ko.observable("");
+    self.modal_form_new = ko.observable(false);
+    self.modal_form_title = ko.computed(function(){
+        return "Clear Endpoint: "+self.ep_addr();
+    })
+    self.modal_form_clear_nodes = ko.observableArray();
+    self.modal_form_valid = ko.computed(function(){
+        //acceptable values are 'all', 'stale', or node ranges
+        //xx - yy, zz
+        var css_val = ""
+        var error_val = ""
+        self.modal_form_clear_nodes().forEach(function(val){
+            if(val == select_stale_id || val == select_offsubnet_id || val == select_all_nodes){ return }
+            val.split(",").forEach(function(sub_val){
+                sub_val = sub_val.replace(/^[ ]*/, "")
+                sub_val = sub_val.replace(/[ ]*$/, "")
+                if(sub_val.search(/^[0-9]+([ ]*-[ ]*[0-9]+)?$/)<0){
+                    css_val = "has-error"
+                    error_val = "Invalid node range: "+val
+                }
+            })
+        })
+        self.modal_form_error(error_val);
+        return css_val
+    });
+
+    //clear form entry to confirm and choose nodes
+    self.clear_endpoint_confirm = function(){
+        self.modal_form_submitted(0);
+        self.modal_form_error("");
+        var select_data = [ 
+            {"id":select_all_nodes, "text":"All Leaf Nodes"}
+        ];
+        if(self.ep_current_stale().length>0){ 
+            select_data.push({"id":select_stale_id, "text":"Stale Nodes"});
+        }
+        if(self.ep_current_offsubnet().length>0){ 
+            select_data.push({"id":select_offsubnet_id, "text":"Off-Subnet Nodes"});
+        }
+        $("#clearEndpointSelect").val([]);
+        $("#clearEndpointSelect").select2({
+            allowClear: true,
+            placeholder: "Nodes",
+            escapeMarkup: function (markup) { return markup; }, // let our custom formatter work
+            tags: "true",
+            data: select_data,
+            templateSelection: function(obj){ return obj.text.replace(/  /g," ");}
+        }).on("change", function (evt) { 
+            //set val in clear_nodes observableArray
+            var vals = $("#clearEndpointSelect").select2("val")
+            if(vals != null && vals.length>0){self.modal_form_clear_nodes(vals)}
+            else{self.modal_form_clear_nodes.removeAll();}
+        })
+        $("#clearEndpointModal").modal("show");
+    }
+
+    //submit clear endpoint form
+    self.clear_endpoint_confirmed = function(){
+        if(self.modal_form_clear_nodes().length==0){
+            self.modal_form_error("No nodes selected");
+        }
+       //no need to re-check, if error message is present then stop
+        if(self.modal_form_error().length>0){  return; }
+
+        //build node list accounting for commas and ranges
+        var nodes = {}
+        self.modal_form_clear_nodes().forEach(function(n){ 
+            if(typeof n == "number"){nodes[n] = n;}
+            else{
+                n.split(",").forEach(function(sub_n){
+                    if(sub_n.search(/\-/)>=0){
+                        range_n = sub_n.split("-")
+                        if(range_n.length == 2){
+                            n1 = parseInt(range_n[0])
+                            n2 = parseInt(range_n[1])
+                            if(n2 < n1){ 
+                                n1 = parseInt(range_n[1]);
+                                n2 = parseInt(range_n[0]);
+                            }
+                            for(var i=n1; i<=n2; i++){ nodes[i] = i; }
+                        }
+                    }else{ nodes[parseInt(sub_n)] = parseInt(sub_n) }
+                });
+            }
+        });
+        // add current_stale nodes to 'nodes' object
+        if(nodes.hasOwnProperty(select_stale_id)){
+            self.ep_current_stale().forEach(function(tn){
+                nodes[tn] = tn;
+            });
+        }
+        // add current_stale nodes to 'nodes' object
+        if(nodes.hasOwnProperty(select_offsubnet_id)){
+            self.ep_current_offsubnet().forEach(function(tn){
+                nodes[tn] = tn;
+            });
+        }
+        // add all nodes to 'nodes' object (requires lookup)
+        if(nodes.hasOwnProperty(select_all_nodes)){
+            nodes[select_all_nodes] = select_all_nodes;
+        }
+
+        var update_url = "/api/ept/clear/"+self.ep_fabric()+"/"+self.ep_vnid()+"/"+self.ep_addr()
+        var json = {"nodes": [], "type":self.ep_type()}
+        for(var n in nodes){if(n!=select_offsubnet_id && n!=select_stale_id){json["nodes"].push(n);}}
+
+        $("#clearEndpointModal").modal("hide");
+        self.alert_html(get_loading_html("Clearing Endpoint"));
+        $("#alertModal").modal("show");
+        json_post(update_url, json, function(data){
+            var h = "<h4>Clear Endpoint <strong>"+self.ep_addr()+"</strong> Results</h4>"
+            for(var node in data){
+                var n = data[node];
+                if(n.hasOwnProperty("details") && n.hasOwnProperty("success")){
+                    if(n.success){
+                        h+="<div><span class=\"label label-success\"><span class=\"glyphicon glyphicon-ok-sign\"></span></span> Node-"+node+" Success</div>"
+                    }else{
+                        h+="<div><span class=\"label label-warning\"><span class=\"glyphicon glyphicon-warning-sign\"></span></span> Node-"+node+" Failed"
+                        h+="<p class=\"text-muted small\">"+n.details+"</p>"
+                        h+="</div>"
+                    }
+                }else{
+                    console.log("invalid response object to clear_endpoint: index("+n+")")
+                    console.log(data[node]);
+                }
+            }
+            self.alert_html(h);
+            $("#alertModal").modal("show");
+        }).error(function(err){
+            self.alert_html(get_error_html(err, update_url));
+        });
+    }
+}
+vm = new viewModel()
+ko.applyBindings(vm);
+
+function destroy_datatable(dt){
+    if(dt!=undefined){
+        dt.clear()
+        dt.destroy()
+    }
+}
+function build_datatable(id, order){
+    if(typeof order === "undefined"){ order = 1; }
+    //apply datatable magic...
+    return $("#"+id).DataTable({ 
+        responsive: true,
+        "dom": "f<t>p",
+        "iDisplayLength": 20,
+        "oLanguage": {
+            "sSearch": "Filter: "
+        },
+        "order": [[ order, "desc" ]],
+        //disable column sorting on columns with class 'nosort'
+        "columnDefs": [ {
+            "targets": 'nosort',
+            "orderable": false
+        }]
+    } ); 
+}
+
+//apply select2 operator on select box
+$(document).ready(function() {
+    var searchBar = $("#searchBar").select2({
+        allowClear: true,
+        placeholder: "Search MAC or IP address" ,
+        ajax: {
+            url: "{{ url_for('api.ept_read_history_search_params') }}",
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term, // search term
+                    page: params.page
+                };
+            },
+            processResults: function (data, params) {
+                // parse the results into the format expected by Select2
+                params.page = params.page || 1;
+                results = {}
+                aresults = []
+                for(var i=0; i<data.ep_history.length; i++){
+                    key = data.ep_history[i].fabric+","+data.ep_history[i].addr+","+data.ep_history[i].vnid
+                    if(key in results){ continue ; }
+                    results[key] = data.ep_history[i]
+                    results[key].id = key
+                    results[key].text = results[key].addr
+                    aresults.push(results[key])
+                }
+                return {
+                    results: aresults,
+                    pagination: {
+                        more: (params.page * 30) < results.length
+                    }
+                };
+            },
+            cache: true
+        },
+        escapeMarkup: function (markup) { return markup; }, // let our custom formatter work
+        minimumInputLength: 4,
+        templateResult: formatRepo, // omitted for brevity, see the source of this page
+        templateSelection: formatRepoSelection // omitted for brevity, see the source of this page
+    });
+    searchBar.on("select2:select", function (evt) { 
+        if (!evt) { return; } 
+        if (!evt.params || !evt.params.data){ return; }
+        vm.update_ep(evt.params.data);
+    });
+});
+
+function formatRepo (repo) {
+    if (repo.loading) return repo.text;
+    //map vnid to name if possible
+    var vnid_name = get_vnid_name(repo)
+    var label = (repo.type=="ip")? "label-primary": "label-warning";
+    var markup = "<div class=\"container-fluid\"><div class=\"row\">" +
+            "<span class=\"label "+label+"\">"+repo.fabric+"</span> " +
+            "<span class=\"label "+label+"\">"+repo.type+"</span> " +
+            "<span class=\"label label-default\">"+vnid_name+"</span> " +
+            "<span>"+repo.text+"</span> "+
+        "</div></div>"
+    return markup
+}
+
+function formatRepoSelection (repo) {
+    return repo.full_name || repo.text;
+}
+
+</script>
+{% endblock %}

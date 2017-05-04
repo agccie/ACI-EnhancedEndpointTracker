@@ -1,0 +1,20 @@
+{
+    "imdata":[
+        {
+            "epmMacEp":{
+                "attributes":{
+                    "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-2654208]/bd-[vxlan-15007713]/db-ep/mac-00:00:00:00:00:02",
+                    "status":"modified",
+                    "rn":"",
+                    "flags":"local,mac,vpc-attached",
+                    "childAction":""
+                }
+            }
+        }
+    ],
+    "subscriptionId":[
+        "72057598352687113"
+    ],
+    "_ts":1485553835.35
+}
+

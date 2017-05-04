@@ -1,0 +1,101 @@
+{"events":[
+    {
+        "url":"/api/class/epmMacEp.json?query-target-filter=eq(epmMacEp.addr,\"00:00:30:01:01:01\")&page-size=75000&page=0",
+        "start": 0,
+        "event":{
+            "imdata":[
+                {
+                    "epmMacEp":{
+                        "attributes":{
+                            "dn":"topology/pod-1/node-102/sys/ctx-[vxlan-2654208]/bd-[vxlan-15007713]/vlan-[vlan-101]/db-ep/mac-00:00:30:01:01:01",
+                            "createTs": "",
+                            "modTs": "",
+                            "addr":"00:00:30:01:01:01",
+                            "flags":"ip,local,peer-aged,mac,vpc-attached",
+                            "ifId":"po3",
+                            "pcTag":"49153"
+                        }   
+                    }
+                },
+                {
+                    "epmMacEp":{
+                        "attributes":{
+                            "dn":"topology/pod-1/node-103/sys/ctx-[vxlan-2654208]/bd-[vxlan-15007713]/db-ep/mac-00:00:30:01:01:01",
+                            "createTs": "",
+                            "modTs": "",
+                            "addr":"00:00:30:01:01:01",
+                            "flags":"mac",
+                            "ifId":"tunnel4",
+                            "pcTag":"49153"
+                        }   
+                    }
+                },
+                {
+                    "epmMacEp":{
+                        "attributes":{
+                            "dn":"topology/pod-1/node-104/sys/ctx-[vxlan-2654208]/bd-[vxlan-15007713]/db-ep/mac-00:00:30:01:01:01",
+                            "createTs": "",
+                            "modTs": "",
+                            "addr":"00:00:30:01:01:01",
+                            "flags":"mac",
+                            "ifId":"tunnel4",
+                            "pcTag":"49153"
+                        }   
+                    }
+                }
+            ],
+            "totalCount": 3
+        }
+    },
+    {
+        "url":"/api/mo/topology/pod-1/node-103/sys/ctx-[vxlan-2654208]/bd-[vxlan-15007713].json?page-size=75000&page=0",
+        "start": 0,
+        "event":{
+            "imdata":[
+                {
+                    "l2BD":{
+                        "attributes":{
+                            "accEncap":"unknown",
+                            "adminSt":"active",
+                            "bdDefDn":"uni/bd-[uni/tn-ag/BD-bd1]-isSvc-no",
+                            "bridgeMode":"mac",
+                            "childAction":"",
+                            "createTs":"2017-04-06T14:00:56.000-04:00",
+                            "ctrl":"",
+                            "dn":"topology/pod-1/node-103/sys/ctx-[vxlan-2654208]/bd-[vxlan-15007713]",
+                            "epMoveDetectMode":"",
+                            "epOperSt":"",
+                            "epUpSeqNum":"0",
+                            "fabEncap":"vxlan-15007713",
+                            "fwdCtrl":"mdst-flood",
+                            "fwdMode":"bridge,route",
+                            "hwId":"4",
+                            "hwResourceId":"512",
+                            "id":"7",
+                            "lcOwn":"local",
+                            "mcastAllow":"no",
+                            "mcastOperSt":"",
+                            "modTs":"2017-04-06T14:01:15.301-04:00",
+                            "mode":"CE",
+                            "monPolDn":"uni/tn-common/monepg-default",
+                            "multiDstPktAct":"bd-flood",
+                            "name":"ag:bd1",
+                            "operSt":"up",
+                            "pcTag":"16386",
+                            "qiqL2ProtTunMask":"",
+                            "qosPrio":"unspecified",
+                            "status":"",
+                            "type":"bd-regular",
+                            "unkMacUcastAct":"proxy",
+                            "unkMcastAct":"flood",
+                            "vlanmgrCfgFailedBmp":"",
+                            "vlanmgrCfgFailedTs":"00:00:00:00.000",
+                            "vlanmgrCfgState":"0"
+                        }
+                    }
+                }
+            ],
+            "totalCount": 1
+        }
+    }
+]}

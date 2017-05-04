@@ -1,0 +1,1 @@
+{"addr":"10.1.2.107","fabric":"fab2","node":"104","type":"ip","vnid":"2654208","events":[{"dn":"topology/pod-1/node-104/sys/ctx-[vxlan-2654208]/db-ep/ip-[10.1.2.107]","bd":"","rw_bd":"","remote":"103","addr":"10.1.2.107","expected_remote":6684773,"ts":1.478976635007416e+09,"pcTag":"49153","status":"created","vrf":"2654208","encap":"","flags":"ip","ifId":"tunnel5","rw_mac":""}]}

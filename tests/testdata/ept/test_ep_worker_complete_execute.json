@@ -1,0 +1,51 @@
+{"events":[
+    {
+        "url":"/api/class/epmIpEp.json?subscription=yes&page-size=100",
+        "start": 0,
+        "event":{
+            "imdata":[
+                {
+                    "epmIpEp":{
+                        "attributes":{
+                            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-2654208]/db-ep/ip-[10.1.6.107]",
+                            "status":"created",
+                            "addr":"10.1.6.107",
+                            "createTs":"2017-01-25T15:53:48.483-05:00",
+                            "name":"",
+                            "pcTag":"",
+                            "flags":"ip",
+                            "modTs":"never",
+                            "ifId":"tunnel5",
+                            "rn":"",
+                            "childAction":""
+                        }
+                    }
+                }
+            ],
+            "subscriptionId":[
+                "72057598352687113"
+            ],
+            "_ts":1485553835.35
+        }
+    },
+    {
+        "url":"/api/class/epmIpEp.json?subscription=yes&page-size=100",
+        "start": 0.3,
+        "event":{
+            "imdata":[
+                {
+                    "epmIpEp":{
+                        "attributes":{
+                            "dn":"topology/pod-1/node-102/sys/ctx-[vxlan-2654208]/db-ep/ip-[10.1.6.107]",
+                            "status":"deleted"
+                        }
+                    }
+                }
+            ],
+            "subscriptionId":[
+                "72057598352687113"
+            ],
+            "_ts":1485553835.35
+        }
+    }
+]}

@@ -1,0 +1,21 @@
+{
+    "imdata":[
+        {
+            "fabricNode":{
+                "attributes":{
+                    "dn":"topology/pod-1/node-101",
+                    "status":"modified",
+                    "adSt":"off",
+                    "fabricSt":"active",
+                    "modTs":"2017-03-19T01:04:13.099-04:00",
+                    "rn":"",
+                    "childAction":""
+                }
+            }
+        }
+    ],
+    "subscriptionId":[
+        "72057813098233861"
+    ],
+    "_ts":1
+}

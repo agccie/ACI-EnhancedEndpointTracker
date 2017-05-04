@@ -1,0 +1,13 @@
+{
+    "imdata":[
+        {
+            "fvIpAttr":{
+                "attributes":{
+                    "dn":"uni/tn-ag/ap-app/epg-useg6/crtrn/ipattr-ip-fvIpAttr_deleted",
+                    "status":"deleted"
+                }
+            }
+        }
+    ],
+    "_ts":1
+}

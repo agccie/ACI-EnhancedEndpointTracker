@@ -1,0 +1,37 @@
+{"events":[
+    {
+        "url":"/api/class/epmMacEp.json?query-target-filter=eq(epmMacEp.addr,\"aa:bb:cc:dd:ee:ff\")&page-size=75000&page=0",
+        "start": 0,
+        "event":{
+            "imdata":[
+                {
+                    "epmMacEp":{
+                        "attributes":{
+                            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-2654208]/bd-[vxlan-15728629]/vlan-[vlan-101]/db-ep/mac-aa:bb:cc:dd:ee:ff",
+                            "createTs": "",
+                            "modTs": "",
+                            "addr":"aa:bb:cc:dd:ee:ff",
+                            "flags":"ip,local,local-aged,mac,vpc-attached",
+                            "ifId":"po4",
+                            "pcTag":"49153"
+                        }   
+                    }
+                },
+                {
+                    "epmMacEp":{
+                        "attributes":{
+                            "dn":"topology/pod-1/node-102/sys/ctx-[vxlan-2654208]/bd-[vxlan-15728629]/vlan-[vlan-101]/db-ep/mac-aa:bb:cc:dd:ee:ff",
+                            "createTs": "",
+                            "modTs": "",
+                            "addr":"aa:bb:cc:dd:ee:ff",
+                            "flags":"ip,local,peer-aged,mac,vpc-attached",
+                            "ifId":"po3",
+                            "pcTag":"49153"
+                        }   
+                    }
+                }
+            ],
+            "totalCount": 2
+        }
+    }
+]}

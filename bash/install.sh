@@ -199,6 +199,7 @@ create_firstRun()
     sudo service apache2 restart
 
     # ensure proper environment variables are set for this VM
+    mkdir -p $installDir/instance
     echo \"\" > $installDir/instance/config.py
     echo \"LOG_DIR=\\\"$appLogDir\\\"\" >> $installDir/instance/config.py
     echo \"LOG_ROTATE=0\" >> $installDir/instance/config.py
@@ -207,7 +208,8 @@ create_firstRun()
     echo '
     
     # guess IP
-    thisIp=`ifconfig eth0 | egrep -o "inet addr:[0-9\.]+" | egrep -o "[0-9\.]+"`
+    pintf=`ifconfig | egrep Ethernet | awk '{print $1}' | head -1`
+    thisIp=`ifconfig $pintf | egrep -o "inet addr:[0-9\.]+" | egrep -o "[0-9\.]+"`
     if [[ $thisIp =~ ^[0-9\.]+ ]] ; then
         echo "
         Setup has completed! 
@@ -225,15 +227,15 @@ create_firstRun()
         echo "
         Setup has completed!
 
-        ERROR, unable to determine eth0 IP address. Either dhcp process failed
+        ERROR, unable to determine $pintf IP address. Either dhcp process failed
         or one or more networking settings are incorrect. Please verify the network 
         configuration along with any errors in the follow files:
             sudo vim /etc/networking/interfaces
             cat /var/log/syslog | egrep networking
         Once the configuration has been corrected, restart the networking process via:
             sudo service networking restart
-        Verify an IP address is assigned to eth0 via:
-            ifconfig eth0
+        Verify an IP address is assigned to $pintf via:
+            ifconfig $pintf
 
         Once an IP address is assigned, you can login to the web interface with username
         \"admin\" and the password you configured above at:

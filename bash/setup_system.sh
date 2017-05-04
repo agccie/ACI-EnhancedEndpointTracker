@@ -1,7 +1,8 @@
 #!/bin/bash
-username="eptracker"
+username=`who am i | awk '{print $1}'`
 ntpconfig="/etc/ntp.conf"
 ifconfig="/etc/network/interfaces"
+pintf=`ifconfig | egrep Ethernet | awk '{print $1}' | head -1`
 
 # ensure user is running setup as root
 if [ "$(whoami)" != "root" ]; then
@@ -92,8 +93,8 @@ setup_network()
         echo "auto lo" >> $ifconfig
         echo "iface lo inet loopback" >> $ifconfig
         echo "" >> $ifconfig
-        echo "auto eth0" >> $ifconfig
-        echo "iface eth0 inet dhcp" >> $ifconfig
+        echo "auto $pintf" >> $ifconfig
+        echo "iface $pintf inet dhcp" >> $ifconfig
     else
         while [[ 1 ]] ; do
             read -p "  IP Address             : " ipaddr
@@ -120,8 +121,8 @@ setup_network()
         echo "auto lo" >> $ifconfig
         echo "iface lo inet loopback" >> $ifconfig
         echo "" >> $ifconfig
-        echo "auto eth0" >> $ifconfig
-        echo "iface eth0 inet static" >> $ifconfig
+        echo "auto $pintf" >> $ifconfig
+        echo "iface $pintf inet static" >> $ifconfig
         
         if [[ $ipaddr =~ [0-9\.]+ ]] ; then
             echo "  address $ipaddr"  >> $ifconfig

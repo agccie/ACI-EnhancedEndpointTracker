@@ -9,7 +9,9 @@ def get_app_config(config_filename="config.py"):
     # returns only the app.config without creating full app
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object("config")
-    app.config.from_pyfile(config_filename) 
+    # pass if unable to load instance file
+    try: app.config.from_pyfile(config_filename) 
+    except IOError: pass
     # import private config when running in APP_MODE
     try: app.config.from_pyfile("/home/app/config.py", silent=True)
     except IOError: pass
@@ -19,7 +21,9 @@ def create_app(config_filename="config.py"):
 
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object("config")
-    app.config.from_pyfile(config_filename)
+    # pass if unable to load instance file
+    try: app.config.from_pyfile(config_filename)
+    except IOError: pass
     # import private config when running in APP_MODE
     try: app.config.from_pyfile("/home/app/config.py", silent=True)
     except IOError: pass

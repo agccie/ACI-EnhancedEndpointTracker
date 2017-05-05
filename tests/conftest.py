@@ -14,6 +14,15 @@ os.environ["MONGO_URI"] = "mongodb://localhost:27017/testdb?connectTimeoutMS=100
 os.environ["LOGIN_ENABLED"] = "1"
 tdir = "tests/testdata/"
 db_name = "testdb"
+db_version = 3
+
+# hack to determine if running mongo version 2 or 3
+try:
+    cmd = "mongo --version | egrep -o \"[0-9\.]+\" | egrep \"^2\" | wc -l"
+    o = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+    if o.strip() == "1": db_version = 2
+except subprocess.CalledProcessError as e:
+    print "failed to determine mongo version: %s" % e
 
 from app.models.users import Users
 from app.models.roles import Roles
@@ -176,13 +185,14 @@ def init_collection(**kwargs):
             files.append(jsfile)
 
         for f in files:
-            cmd = "mongoimport --db %s --collection %s --file %s --jsonArray"%(
+            cmd = "mongoimport --db %s --collection %s --file %s"%(
                     db_name, collection_name, f)
+            # need jsonArray only for mongo version 2
+            if db_version == 2: cmd+= " --jsonArray"
             try:
-                p = subprocess.Popen((cmd).split(" "), stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                p.wait()    # wait for child process to terminate
-            except Exception as e:
+                o = subprocess.check_output(cmd, shell=True,
+                    stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError as e:
                 raise Exception("import exception: %s, file:%s, cmd: %s" % (
                     e, f, cmd))
 

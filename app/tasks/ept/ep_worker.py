@@ -2026,7 +2026,7 @@ def clear_fabric_endpoint(db, fabric, key, onodes, batch_size=32, timeout=30):
     if config is None:
         emsg = "error accessing fabric '%s' settings"
         if all_nodes_set and len(nodes) == 0: nodes[""] = get_base("")
-        return set_node_error(nodes, emgs)
+        return set_node_error(nodes, emsg)
     if len(config["ssh_username"])==0 or len(config["ssh_password"])==0:
         emsg = "ssh credentials required to clear endpoints. Add the "
         emsg+= "appropriate credentials under the %s monitor settings"%(fabric)

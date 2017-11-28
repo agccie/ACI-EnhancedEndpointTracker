@@ -7,7 +7,13 @@ standalone application.
 ACI Application
 ^^^^^^^^^^^^^^^
 
-The most recent public release can be downloaded from `ACI AppCenter <https://aciappcenter.cisco.com/enhancedendpointtracker-2-2-1n.html>`_.  If you need to build the application from source, use the procedure below.
+The most recent public release can be downloaded from `ACI AppCenter <https://aciappcenter.cisco.com/enhancedendpointtracker-2-2-1n.html>`_.  After downloading the app, follow the directions for uploading and installing the app on the APIC:
+
+* `2.x Install Video Example <https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/2-x/App_Center/video/cisco_aci_app_center_overview.html>`_
+* `2.x Install Instructions <https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/2-x/App_Center/developer_guide/b_Cisco_ACI_App_Center_Developer_Guide/b_Cisco_ACI_App_Center_Developer_Guide_chapter_0110.html#d11320e518a1635>`_
+* `3.x Install Instructions <https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/2-x/App_Center/developer_guide/b_Cisco_ACI_App_Center_Developer_Guide/b_Cisco_ACI_App_Center_Developer_Guide_chapter_0110.html#d11320e725a1635>`_
+
+If you need to build the application from source, use the procedure below.
 
 Building ACI Application
 """"""""""""""""""""""""

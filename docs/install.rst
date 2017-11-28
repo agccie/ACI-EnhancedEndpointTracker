@@ -55,8 +55,82 @@ To build the application you'll need a development environment with git, python2
    UTC 2017-11-27 23:47:29.504     INFO         build.py:(236): packaged: ~/Cisco-EnhancedEndpointTracker-1.0.aci
 
 
-
 Standalone Application
 ^^^^^^^^^^^^^^^^^^^^^^
+The standalone application is one that runs on a dedicated host/VM and makes remote connections to the APIC opposed to running as a container on the APIC.  For large scale fabrics or development purposes, standalone is the recommended mode to run this application.
 
-TODO
+This application has primarily been developed and tested on Ubuntu host so that is recommended OS, however, any OS that supports the below requirements should work:
+
+- Flask with Python2.7
+- MongoDB
+- A webserver that can host flask applications
+- exim4 
+
+  * exim4 is used only for sending email alerts via **mail** command. Alternative programs may also be used.
+
+Easy Setup
+""""""""""
+The quickest way to get up and running is to spin up a host/VM/container and execute the install.sh script.  This will install and configure python, apache, mongo, exim4, along with appropriate python requirements, cron, ntp, and logrotate.  Additionally it will create a firstRun script that can be used to configure networking, ntp, and timezone for users unfamiliar with the OS.  Lastly, it will execute the initial db setup so the app is quickly up and running.
+
+1.  Install Ubuntu Server 16.04 on a host or VM with the recommended minimal sizing:
+  
+   * 2 vCPU
+   * 8G memory
+   * 40G harddisk
+
+2.  From the terminal, download and execute the install script.
+
+.. code-block:: bash
+
+   eptracker@ept-dev:~$ curl -sSl https://raw.githubusercontent.com/agccie/ACI-EnhancedEndpointTracker/master/bash/install.sh > install.sh
+   eptracker@ept-dev:~$ chmod 777 install.sh
+   eptracker@ept-dev:~$ sudo ./install.sh --install
+   [sudo] password for eptracker:
+   Installing ............
+
+   Install Completed. Please see /home/eptracker/setup.log for more details. Reload the
+   machine before using this application.
+
+   After reload, first time user should run the firstRun.sh script
+   in eptracker's home directory:
+      sudo /home/eptracker/firstRun.sh
+
+3.  After install, a firstRun script should be present in the install user's home directory.  Execute the firstRun script to configure the VM along with setting up the initial app database.
+
+.. code-block:: bash
+
+   # execute first-run
+   eptracker@ept-dev:~$ sudo /home/eptracker/firstRun.sh
+    
+    Setting up system
+    <snip>
+    
+    Setting up application
+    Enter admin password:
+    Re-enter password   :
+    
+            Setup has completed!
+            You can now login to the web interface with username "admin" and the
+            password you just configured at:
+                https://192.168.5.231/
+    
+    
+            It is recommended to reload the VM before proceeding.
+            Reload now? [yes/no ] yes
+    Reloading ...
+
+
+4.  Now that the host/VM has all dependencies installed and configured and the database has been setup, access the VM web interface.
+
+.. note:: The source code is available at /var/www/eptracker.  The apache module has been configured to service this directory.  Any change to the python source code may require both python worker and apache to be restarted.  
+
+.. code-block:: bash
+
+    eptracker@ept-dev:/var/www/eptracker$ ./bash/workers.sh -ka
+    stopping all fabrics
+    eptracker@ept-dev:/var/www/eptracker$ sudo service apache2 restart
+
+
+Manual Setup
+""""""""""""
+TODO - (review the /bash/install.sh script for example on install python and all dependencies) 

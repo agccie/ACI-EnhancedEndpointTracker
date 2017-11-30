@@ -5,6 +5,7 @@
 
 # ignore private instance configurations 
 instance/*
+app.wsgi
 
 # ignore packager files and Media vidoes
 aci_app_packager.log

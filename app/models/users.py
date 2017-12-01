@@ -14,6 +14,9 @@ class Users(Rest):
     # module level logger
     logger = logging.getLogger(__name__)
 
+    # reserved usernames
+    RESERVED = [ "root", "local" ]
+
     # meta data and type that are exposed via read/write with type and defaults
     META = {
         "username":     {"type": str,"default":"","read":True,"write":False},
@@ -46,10 +49,16 @@ class Users(Rest):
     def get_id(self): return self.username
 
     def _auto_create(self):
-        """ add a new user to database based on valid authentication """
+        """ add a new user to database based on valid authentication 
+            return True on success else False
+        """
 
         self.logger.debug("auto-create for user:%s,role:%s" % (
             self.username,self.role))
+        if self.username in Users.RESERVED:
+            self.logger.warning("User \%s\" is a reserved username" %(
+                self.username))
+            return False
         if not Roles.valid(self.role):
             self.logger.warning("Invalid value for role '%s'" % self.role)
             self.role = Roles.get_default()
@@ -63,9 +72,12 @@ class Users(Rest):
                 "role": self.role,
                 "groups": groups
             })
+            return True
         except DuplicateKeyError as e:
             self.logger.warning("User \"%s\" already exists"%self.username)
-        return None
+        except Exception as e:
+            self.logger.warning("Failed to create user: %s" % e)
+        return False
 
     @classmethod
     def create(cls):
@@ -80,8 +92,9 @@ class Users(Rest):
         role = data.get("role", Users.META["role"]["default"])
         if not Roles.valid(role): abort(400, "Invalid role: %s" % role)
 
-        # block 'root' user from being created
-        if username=="root": abort(400, "invalid username \"%s\"" % username)
+        # block reserved users from being created
+        if username in Users.RESERVED:
+            abort(400, "Username \"%s\" is reserved" % username)
 
         # find groups that user may already be a member of
         groups = Users.find_groups(username)
@@ -102,19 +115,39 @@ class Users(Rest):
     def read(cls, username=None):
         """ api call - read one or more groups """
 
-        if username is not None: read_one = ("username", username)
+        if username is not None: 
+            # hide reserved users
+            read_one = ("username", username)
+            if username in Users.RESERVED: 
+                abort(404, "%s(%s) not found" % read_one)
         else: read_one = None
 
-        return Rest.read.__func__(cls, current_app.mongo.db.users,
+        ret = Rest.read.__func__(cls, current_app.mongo.db.users,
             rule_dn = "/users/",
             filter_rule_base = "/users/",
             filter_rule_key = "username",
             read_one = read_one
         )
 
+        # hide reserved users
+        if "users" in ret and len(ret["users"])>0:
+            remove = []
+            for u in ret["users"]:
+                if "username" in u and u["username"] in Users.RESERVED:
+                    remove.append(u)
+            for u in remove: ret["users"].remove(u)
+    
+        # return filtered results
+        return ret
+            
+
     @classmethod
     def update(cls, username):
         """ api call - update user """
+
+        # block reserved users
+        if username in Users.RESERVED:
+            abort(400, "Username \"%s\" is reserved" % username)
 
         # pre-processing custom attributes
         data = get_user_data([])
@@ -141,6 +174,10 @@ class Users(Rest):
     @classmethod
     def delete(cls, username):
         """ api call - delete user """
+
+        # block reserved users
+        if username in Users.RESERVED:
+            abort(400, "Username \"%s\" is reserved" % username)
 
         # do not allow user to delete reserved values
         data = get_user_data([], relaxed=True)
@@ -211,7 +248,11 @@ class Users(Rest):
         # if user does not exist, create it with random local password
         if u is None:
             u = Users({"username":username, "password":random_str()})
-            u._auto_create()
+            if not u._auto_create():
+                if username in Users.RESERVED:
+                    abort(400, "Username \"%s\" is reserved" % username)
+                else:
+                    abort(500, "Failed to create user session")
         login_user(u, remember=remember)
         current_app.mongo.db.users.update_one({"username":u.username},{
             "$set": {"last_login": time.time()}

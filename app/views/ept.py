@@ -37,30 +37,49 @@ def endpoints_single(fabric, vnid, addr):
 
 ##### POST controls #####
 
-def ept_restart(fabric):
+def ept_restart(fabric, reason="User triggered restart"):
     """ restarts all ept queue processes for fabric by invoking bash script
         (very messy...)
+
+        Args:
+            fabric(str): fabric name
+            reason(str): restart reason
         
         Returns:
             successs(bool): successfully restarted ept workers
     """
     if not g.user.is_authenticated: abort(401, "Unauthorized")
     if g.user.role != Roles.FULL_ADMIN: abort(403)
+
+    data = get_user_data(["reason"], relaxed=True)
+    if "reason" in data: reason = data["reason"]
+
     from ..tasks.ept import utils as ept_utils
-    success = ept_utils.restart_fabric(fabric, reason="User triggered restart")
+    success = ept_utils.restart_fabric(fabric, reason=reason,
+                                    rest=False)
     if not success: abort(500, "failed to restart fabric")
     return jsonify({"success":True})
 
-def ept_stop(fabric):
-    """ stop/kill all ept workers for fabric and clear queues
+def ept_stop(fabric, reason="User triggered stop"):
+    """ stop/kill all ept queue processes for fabric by invoking bash script
+        (very messy...)
         
+        Args:
+            fabric(str): fabric name
+            reason(str): restart reason
+
         Returns:
             successs(bool): successfully stopped ept workers
     """
     if not g.user.is_authenticated: abort(401, "Unauthorized")
     if g.user.role != Roles.FULL_ADMIN: abort(403)
+
+    data = get_user_data(["reason"], relaxed=True)
+    if "reason" in data: reason = data["reason"]
+
     from ..tasks.ept import utils as ept_utils
-    success = ept_utils.stop_fabric(fabric, reason="User triggered stop")
+    success = ept_utils.stop_fabric(fabric, reason=reason,
+                                    rest=False)
     if not success: abort(500, "failed to stop fabric")
     return jsonify({"success":True})
 

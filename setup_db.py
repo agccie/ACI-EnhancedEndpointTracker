@@ -1,12 +1,13 @@
 
-import sys, os, subprocess, re, getpass, argparse, logging
+import sys, os, subprocess, re, getpass, argparse, logging, uuid
 from app.tasks.ept import utils as ept_utils
+
 from app.tasks.tools.acitoolkit.acisession import Session
 from app.models.users import Users
 from app.models.roles import Roles
 from app.models.settings import Settings
 from app.models.ept import EP_Settings
-from app.models.utils import force_attribute_type
+from app.models.utils import (force_attribute_type, aes_encrypt)
 from pymongo import IndexModel
 from pymongo.errors import DuplicateKeyError
 
@@ -240,6 +241,7 @@ def db_setup(args):
         db.ep_offsubnet.create_indexes([IndexModel(i) for i in history_indexes])
         
         # insert default settings
+        lpass = "%s"%uuid.uuid4()
         c = {}
         for attr in Settings.META:
             c[attr] = Settings.META[attr]["default"]
@@ -247,11 +249,21 @@ def db_setup(args):
         c["force_https"] = not args.no_https
         c["sso_url"] = args.sso_url
         c["fqdn"] = fqdn
+        c["lpass"] = aes_encrypt(lpass, ekey = app.config["EKEY"],
+                        eiv = app.config["EIV"])
         result = db.settings.insert_one(c)
 
-        # insert default admin user
+        # insert local user
+        db.users.insert_one({
+                "username": "local",
+                "password": Users.hash_pass(lpass),
+                "role": Roles.FULL_ADMIN,
+                "groups": [],
+        })
+
+        # insert default admin user along with reserved local user
         try:
-            result = db.users.insert_one({
+            db.users.insert_one({
                 "username": args.username,
                 "password": Users.hash_pass(pwd),
                 "role": Roles.FULL_ADMIN,

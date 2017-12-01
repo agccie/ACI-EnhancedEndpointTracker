@@ -4,7 +4,7 @@
 """
 
 import logging, logging.handlers, json, re, time, dateutil.parser, datetime
-import subprocess, os, signal, sys, traceback
+import subprocess, os, signal, sys, traceback, requests
 try: import cPickle as pickle
 except ImportError: import pickle
 from pymongo import UpdateOne, InsertOne
@@ -419,6 +419,27 @@ def bulk_update(table, bulk_updates, **kwargs):
 #
 ###############################################################################
 
+def get_lpass():
+    """ get local user password for REST calls against local API 
+        return string decrypted password on success else return None
+    """
+    from ...models import utils as mutils
+    app = get_app()
+    mongo = app.mongo
+    try:
+        with app.app_context():
+            ekey = app.config["EKEY"]
+            eiv = app.config["EIV"]
+            db = app.mongo.db
+            s = db.settings.find_one({})
+            if s is None or "lpass" not in s:
+                logger.error("settings not found")
+                return None
+            return mutils.aes_decrypt(s["lpass"], ekey=ekey, eiv=eiv)
+    except Exception as e:
+        logger.error("exception occurred\n%s" % traceback.format_exc())
+    return None
+
 def get_apic_config(fabric):
     # get apic configurations from database along with decrypted password
     # if controllers are present in ep_nodes, return them as well
@@ -822,25 +843,62 @@ def subscribe(fabric, **kwargs):
 #
 ###############################################################################
 
-def fabric_action(fabric, action, reason=""):
-    """ call external ./bash/workers script to force app workers to
-        stop, start, restart.  
+def rest_fabric_action(fabric, action, reason):
+    """ perform POST to localhost for fabric action and return True on success,
+        else return False.
+            action = "start", "stop", "restart"
+                * start will use 'restart' API
+    """
+    logger.debug("perform rest fabric action '%s' fabric '%s'"%(action,fabric))
+
+    if action not in ["start","stop","restart"]:
+        logger.error("invalid fabric action '%s'" % action)
+        return False
+    if action == "start": action = "restart"
+    
+    lpass = get_lpass()
+    if lpass is None: 
+        logger.error("failed to determine local password")
+        return False
+
+    app = get_app()
+    headers = {"content-type":"application/json"}
+    s = requests.Session()
+    base_url = app.config.get("PROXY_URL", "http://localhost")
+    if "http" not in base_url: base_url = "http://%s" % base_url
+
+    # login as local user and then perform post
+    url = "%s/api/login" % base_url
+    data = {"username":"local", "password":lpass}
+    r = s.post(url, verify=False, data=json.dumps(data), headers=headers)
+    if r.status_code != 200:
+        logger.error("failed local login: %s" % r.text)
+        return False
+    
+    # send fabric action post
+    url = "%s/api/ept/%s/%s" % (base_url, action, fabric)
+    data = {"reason": reason}
+    r = s.post(url, verify=False, data=json.dumps(data), headers=headers)
+    if r.status_code != 200:
+        logger.error("failed to perform fabric action: %s" % r.text)
+        return False
+
+    # give it at least 5 seconds after action is called
+    pause = 5
+    logger.debug("rest_fabric_action pausing for %s seconds" % pause)
+    time.sleep(pause)
+   
+    # assume success
+    return True
+    
+def fabric_action(fabric, action, reason="", rest=True):
+    """ perform fabric action using bash script (/bash/workers) or rest API
+        If rest action fails, then try local bash action
+
         a little danagerous since relying on triggering bash script...
         return False if error raised from shell, else return True
     """
 
-    # don't perform operations in simulation mode
-    if SIMULATION_MODE:
-        logger.debug("fabric_action:%s in simulation mode" % action)
-        return True
-
-    # get absolute path for top of app
-    p = os.path.realpath(__file__)
-    p = os.path.abspath(os.path.join(p, os.pardir))
-    p = os.path.abspath(os.path.join(p, os.pardir))
-    p = os.path.abspath(os.path.join(p, os.pardir))
-    p = os.path.abspath(os.path.join(p, os.pardir))
-    os.chdir(p)
     if fabric is None or len(fabric)==0:
         logger.error("invalid fabric name: %s" % fabric)
         return False
@@ -860,37 +918,53 @@ def fabric_action(fabric, action, reason=""):
     else:
         logger.error("invalid fabric action '%s'" % action)
         return False
-    try:
-        logger.debug("out:\n%s" % subprocess.check_output(cmd, shell=True, 
-            stderr=subprocess.STDOUT))
-    except subprocess.CalledProcessError as e:
-        logger.warn("error executing worker.sh:\n%s" % e)
-        logger.warn("stderr:\n%s" % e.output)
-        return False
+
+    # don't perform operations in simulation mode
+    if SIMULATION_MODE:
+        logger.debug("fabric_action:%s in simulation mode" % action)
+        return True
+
+    # rest action first if enabled else call bash script
+    if rest and rest_fabric_action(fabric, action, reason): return True
+    else:
+        # get absolute path for top of app
+        p = os.path.realpath(__file__)
+        p = os.path.abspath(os.path.join(p, os.pardir))
+        p = os.path.abspath(os.path.join(p, os.pardir))
+        p = os.path.abspath(os.path.join(p, os.pardir))
+        p = os.path.abspath(os.path.join(p, os.pardir))
+        os.chdir(p)
+        try:
+            logger.debug("out:\n%s" % subprocess.check_output(cmd, shell=True, 
+                stderr=subprocess.STDOUT))
+        except subprocess.CalledProcessError as e:
+            logger.warn("error executing worker.sh:\n%s" % e)
+            logger.warn("stderr:\n%s" % e.output)
+            return False
 
     # add 'ing' to have states: starting, restarting, stopping
     add_fabric_event(fabric, status_str, reason)
     return True
 
-def start_fabric(fabric, reason=""):
+def start_fabric(fabric, reason="", rest=True):
     """ start a fabric monitor
         return True on success else returns False
     """
-    return fabric_action(fabric, "start", reason)
+    return fabric_action(fabric, "start", reason, rest)
 
-def restart_fabric(fabric, reason=""):
+def restart_fabric(fabric, reason="", rest=True):
     """ restart a fabric monitor
         return True on success else returns False
     """
     if len(reason) == 0: reason = "unknown restart reason"
-    return fabric_action(fabric, "restart", reason)
+    return fabric_action(fabric, "restart", reason, rest)
 
-def stop_fabric(fabric, reason=""):
+def stop_fabric(fabric, reason="", rest=True):
     """ stop a fabric monitor
         return True on success else returns False
     """
     if len(reason) == 0: reason = "unknown stop reason"
-    return fabric_action(fabric, "stop", reason)
+    return fabric_action(fabric, "stop", reason, rest)
 
 def get_fabric_processes():
     """ get number of processes for each active fabric monitors

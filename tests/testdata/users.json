@@ -1,4 +1,5 @@
 {"_id":{"$oid":"56ef56e606a3111d8e510de6"},"username":"admin","role":0,"groups":[],"password":"$2b$12$uKhPByFa94z/DgcoDWz8Zuj90KV/5o4D0f.yHtOAZFovLzIAqzr86","nickname":"admin"}
+{"_id":{"$oid":"56ef575f06a3111d9e507b1e"},"username":"local","password":"$2b$12$Py7FvUKaLs0EGUYycYfAnenB7vwoC2irocXgPNwnjHVFx4.ZHqCo2","role":0,"groups":[]}
 {"_id":{"$oid":"56ef56fa06a3111d9e507b14"},"username":"agossett","password":"$2b$12$MEXmeYA9heOWWRnjMxW4RumiPLbamAZCSdFKVLu78XJcYfCvMkuqm","role":0,"groups":[]}
 {"_id":{"$oid":"56ef571d06a3111d9e507b15"},"username":"delete_user","password":"$2b$12$dZmvtnGX7yaX6gLhFu0B4OYtIM05GYbdLrWJZ3GmmeCCgZ8wawK5m","role":1,"groups":[]}
 {"_id":{"$oid":"56ef572506a3111d9e507b16"},"username":"G_user1","password":"$2b$12$3hM3TI.66DN7tehCSOn4S.E6aVHLRevi58DR/CeBsuK.24ZjFkMj2","role":1,"groups":[]}

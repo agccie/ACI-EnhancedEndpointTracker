@@ -108,6 +108,18 @@ def get_test_json(filename=None):
     with open(filename, "r") as f:
         return json.load(f)
 
+def test_utils_get_lpass(app):
+    # ensure lpass is return and get requests against api is successful with 
+    # local user
+    lpass = ept_utils.get_lpass()
+    assert lpass is not None
+    c = app.test_client()
+    response = c.post("/api/login", data=json.dumps({
+        "username": "local",
+        "password": lpass
+    }), content_type="application/json")
+    assert response.status_code == 200  
+
 def test_ep_subscriber_stage_ep_history_db(app):
     # only a few checks performed during stage_ep_history
     #   1) example of endpoint in history that is NOT returned on refresh query

@@ -109,7 +109,6 @@ def start_fabric(fabrics):
     if not validate_fabric([fabric]):
         logger.debug("can't start unknown fabric: %s" % fabric)
         return False
-
         
     # check if fabric is already running
     tf = fabric.replace(".", "\.").replace("-","\-")
@@ -197,6 +196,7 @@ def get_fabric_pids(fabric):
         if len(pid)>0:
             try: fpids.append(int(pid))
             except ValueError as e: logger.error("invalid pid: %s" % pid)
+
     if mypid in fpids: fpids.remove(mypid)
     return fpids
 
@@ -267,7 +267,7 @@ def get_args():
     return args
 
 if __name__ == "__main__":
-    
+
     # get args from user
     args = get_args()
     if args.get_fabrics:

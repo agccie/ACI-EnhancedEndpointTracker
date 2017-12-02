@@ -82,8 +82,11 @@ def app_get_fabric_domain(hostname, apic_username, apic_cert):
             if "infraCont" in i and "attributes" in i["infraCont"]:
                 attr = i["infraCont"]["attributes"]
                 if "fbDmNm" in attr:
-                    logger.debug("fabric domain is: %s" % attr["fbDmNm"])
-                    return attr["fbDmNm"]
+                    fd = re.sub(" ","", attr["fbDmNm"])
+                    fd = re.sub("[^a-zA-Z0-9\-\.:_]","", fd)
+                    logger.debug("fabric domain is: %s (clean: %s)" % (
+                        attr["fbDmNm"], fd))
+                    return fd
                 else:
                     logger.warn("fbDmNm not in attributes: %s" % attr)
         logger.warn("no valid infraCont/fbDmNm found")
@@ -142,10 +145,13 @@ def apic_app_init(args):
             for a in EP_Settings.META:
                 attr = override.get(a, None)
                 if attr is not None:
-                    # use override value
-                    update[a] = force_attribute_type(a, 
-                        EP_Settings.META[a]["type"],
-                        attr, control=EP_Settings.META[a])
+                    # use override value (best effort)
+                    try:
+                        update[a] = force_attribute_type(a, 
+                            EP_Settings.META[a]["type"],
+                            attr, control=EP_Settings.META[a])
+                    except Exception as e:
+                        update[a] = EP_Settings.META[a]["default"]
                 else:
                     # use default value
                     update[a] = EP_Settings.META[a]["default"]

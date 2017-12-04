@@ -35,6 +35,19 @@
                     </label>
                 </div>
             </div>
+            <div class="col-sm-offset-2 col-sm-10">
+                <div class="checkbox">
+                    <label for="pw_strength_check">
+                        <input type="checkbox" data-bind="checked: pw_strength_check">
+                            Enable Password Strength Check
+                            <p class="text-muted">
+                            Password strength check enforces local user passwords to have 
+                            a mix of numbers, uppercase, and lowercase characters along with
+                            a minimum length of 8 characters.
+                            </p>
+                    </label>
+                </div>
+            </div>
         </div>
         <!--div class="form-group">
             <label for="sso_url" class="col-sm-2 control-label">SSO URL</label>
@@ -94,11 +107,12 @@ function viewModel() {
     self.force_https = ko.observable(false);
     self.fqdn = ko.observable("");
     self.sso_url = ko.observable("");
+    self.pw_strength_check = ko.observable(true);
     self.pw_reset_timeout = ko.observable();
     $.getJSON(url, function(data){
         self.isLoading(false);
         var config_meta = ["app_name", "force_https", "fqdn", "sso_url", 
-            "pw_reset_timeout"]
+            "pw_reset_timeout", "pw_strength_check"]
         for (var i in config_meta) {
             var key = config_meta[i]
             if(data.hasOwnProperty(key)){
@@ -120,7 +134,8 @@ function viewModel() {
             fqdn: self.fqdn(),
             force_https: self.force_https(),
             sso_url: self.sso_url(),
-            pw_reset_timeout: self.pw_reset_timeout()
+            pw_reset_timeout: self.pw_reset_timeout(),
+            pw_strength_check: self.pw_strength_check()
         };
         json_post(url, json, function(data){
             self.alert_html(success_html);

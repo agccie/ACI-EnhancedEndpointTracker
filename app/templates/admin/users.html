@@ -142,21 +142,43 @@ function viewModel() {
     self.pending_delete_username = ko.observable("");
     self.datatable = null;
 
-    var read_url = "{{ url_for('api.admin_read_users') }}";
-    $.getJSON(read_url, function(data){
-        self.isLoading(false);
-        for(var i=0;i<data.users.length;i++){
-            var l = new user();
-            l.fromJS(data.users[i])
-            self.users.push(l);
-        }
-        // build datatable now that table has been built 
-        self.datatable = build_datatable();
 
-    }).error(function(){
+    // read users after settings has been read
+    self.read_users = function(){
+        var read_url = "{{ url_for('api.admin_read_users') }}";
+        $.getJSON(read_url, function(data){
+            self.isLoading(false);
+            for(var i=0;i<data.users.length;i++){
+                var l = new user();
+                l.fromJS(data.users[i])
+                self.users.push(l);
+            }
+            // build datatable now that table has been built 
+            self.datatable = build_datatable();
+
+        }).error(function(){
+            self.isLoading(false);
+            $("#alertModal").modal("show");
+            self.alert_html(get_error_html(err, read_url));
+        });
+    }
+
+    // read subset of global settings first
+    var url = "{{ url_for('api.admin_read_config') }}";
+    self.pw_strength_check = ko.observable(true);
+    $.getJSON(url, function(data){
+        var config_meta = ["pw_strength_check"]
+        for (var i in config_meta) {
+            var key = config_meta[i]
+            if(data.hasOwnProperty(key)){
+                self[key](data[key]);
+            }
+        }
+        self.read_users()
+    }).error(function(err){
         self.isLoading(false);
         $("#alertModal").modal("show");
-        self.alert_html(get_error_html(err, read_url));
+        self.alert_html(get_error_html(err, url));
     });
 
     //handlers for creating/editing form
@@ -192,7 +214,8 @@ function viewModel() {
     self.modal_form_valid_password = ko.computed(function(){
         if(self.modal_form_submitted()>0 && self.modal_form_id()==0){
             p = self.modal_form_password1()
-            if(p.length<8 || p.search(/[A-Z]/)<0 || p.search(/[a-z]/)<0 || p.search(/[0-9]/)<0){
+            if(self.pw_strength_check() && (
+                p.length<8 || p.search(/[A-Z]/)<0 || p.search(/[a-z]/)<0 || p.search(/[0-9]/)<0)){
                 p_msg = "Passwords require a combination of at least 8 characters.";
                 p_msg+= " Ensure you use an uppercase character, lowercase character, ";
                 p_msg+= "and a number.";

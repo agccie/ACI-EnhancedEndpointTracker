@@ -62,14 +62,19 @@ def setup_logger(logger, fname="utils.log", quiet=False):
         
     app = get_app()
     logger.setLevel(app.config["LOG_LEVEL"])
-    if app.config["LOG_ROTATE"]:
-        logger_handler = logging.handlers.RotatingFileHandler(
-            "%s/%s"%(app.config["LOG_DIR"],fname),
-            maxBytes=app.config["LOG_ROTATE_SIZE"], 
-            backupCount=app.config["LOG_ROTATE_COUNT"])
-    else:
-        logger_handler = logging.FileHandler(
-            "%s/%s"%(app.config["LOG_DIR"],fname))
+    try:
+        if app.config["LOG_ROTATE"]:
+            logger_handler = logging.handlers.RotatingFileHandler(
+                "%s/%s"%(app.config["LOG_DIR"],fname),
+                maxBytes=app.config["LOG_ROTATE_SIZE"], 
+                backupCount=app.config["LOG_ROTATE_COUNT"])
+        else:
+            logger_handler = logging.FileHandler(
+                "%s/%s"%(app.config["LOG_DIR"],fname))
+    except IOError as e:
+        sys.stderr.write("failed to open logger handler: %s, resort stdout" % e)
+        logger_handler = logging.StreamHandler(sys.stdout)
+    
     fmt ="%(process)d||%(asctime)s.%(msecs).03d||%(levelname)s||%(filename)s"
     fmt+=":(%(lineno)d)||%(message)s"
     logger_handler.setFormatter(logging.Formatter(

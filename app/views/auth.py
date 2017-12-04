@@ -52,14 +52,14 @@ def before_request():
             abort(403, MSG_403)
         elif not current_app.config.get("LOGIN_ENABLED", True) and \
             not g.user.is_authenticated:
-            # auto-login user as admin if login is disabled
-            g.user = Users.load_user("admin")
+            # auto-login user as local if login is disabled
+            g.user = Users.load_user("local")
             if g.user is None:
-                # manually add user to database if not previously present
-                g.user = Users({"username":"admin", "role": Roles.FULL_ADMIN,
-                    "password":"cisco"})
-                g.user._auto_create()
-            Users.start_session("admin")
+                # setup local user
+                from ..models.users import setup_local
+                setup_local(current_app)
+                g.user = Users({"username":"local", "role": Roles.FULL_ADMIN})
+            Users.start_session("local")
 
 @login_manager.user_loader
 def load_user(username):

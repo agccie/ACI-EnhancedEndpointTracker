@@ -88,17 +88,22 @@ class EP_Settings(Rest):
             "type":bool,"default":True,"read":True,"write":True
         },
         "max_ep_events":{
-            "type":int,"default":64,"read":True,"write":False,
+            "type":int,"default":64,"read":True,"write":True,
             "min_val":1, "max_val":1024
         },
         "max_workers":{
-            "type":int,"default":6,"read":True,"write":False,
+            "type":int,"default":6,"read":True,"write":True,
             "min_val":1, "max_val":128
         },
         "max_jobs":{
-            "type":int,"default":65536,"read":True,"write":False,
-            "min_val":1024, "max_val":65536
+            "type":int,"default":65536,"read":True,"write":True,
+            "min_val":1024, "max_val":1048576
         },
+        "max_startup_jobs":{
+            "type":int,"default":65536,"read":True,"write":True,
+            "min_val":1024, "max_val":1048576
+        },
+
         "fabric_events": {
             "type":list, "default":[],"read":True,"write":False
         },
@@ -106,7 +111,8 @@ class EP_Settings(Rest):
             "type":int,"default":0,"read":True, "write":False
         },
         "max_fabric_events": {
-            "type":int,"default":1024,"read":True, "write":True
+            "type":int,"default":1024,"read":True, "write":True,
+            "min_val":1, "max_val":1048576
         },
         "trust_subscription": {
             "type":str,"default":"auto","read":True, "write":True,

@@ -196,16 +196,16 @@
                     <a class="dropdown-toggle" data-toggle="dropdown" href="#">Off-Subnet Endpoints
                     <span class="caret"></span></a>
                     <ul class="dropdown-menu">
-                        <li role="presentation"><a href="#recentOffsubnet" aria-controls="profile" role="tab" data-toggle="tab">Latest Off-Subnet Endpoints</a></li>
                         <li role="presentation"><a href="#currentOffsubnet" aria-controls="profile" role="tab" data-toggle="tab">Currently Off-Subnet Endpoints</a></li>
+                        <li role="presentation"><a href="#recentOffsubnet" aria-controls="profile" role="tab" data-toggle="tab">Historical Off-Subnet Events</a></li>
                     </ul>
                 </li>
                 <li role="presentation" class="dropdown">
                     <a class="dropdown-toggle" data-toggle="dropdown" href="#">Stale Endpoints
                     <span class="caret"></span></a>
                     <ul class="dropdown-menu">
-                        <li role="presentation"><a href="#recentStale" aria-controls="profile" role="tab" data-toggle="tab">Latest Stale Endpoints</a></li>
                         <li role="presentation"><a href="#currentStale" aria-controls="profile" role="tab" data-toggle="tab">Currently Stale Endpoints</a></li>
+                        <li role="presentation"><a href="#recentStale" aria-controls="profile" role="tab" data-toggle="tab">Historical Stale Endpoint Events</a></li>
                     </ul>
                 </li>
             </ul>
@@ -275,7 +275,7 @@
                         <button type="button" class="btn btn-default pull-left" title="Refresh" data-bind="click: refresh_recent_stale">
                             <i class="glyphicon glyphicon-repeat"></i>
                         </button>
-                        Latest Stale Endpoints
+                        Historical Stale Endpoint Events
                     </h4>
                     <div class="table-responsive" data-bind="visible: recent_stale().length>0">
                         <table class="table table-sm">
@@ -340,7 +340,7 @@
                         <button type="button" class="btn btn-default pull-left" title="Refresh" data-bind="click: refresh_recent_offsubnet">
                             <i class="glyphicon glyphicon-repeat"></i>
                         </button>
-                        Latest Off-Subnet Endpoints
+                        Historical Off-Subnet Events
                     </h4>
                     <div class="table-responsive" data-bind="visible: recent_offsubnet().length>0">
                         <table class="table table-sm">

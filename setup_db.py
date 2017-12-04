@@ -241,7 +241,7 @@ def db_setup(args):
         db.ep_history.create_indexes([IndexModel(i) for i in history_indexes])
         db.ep_stale.create_indexes([IndexModel(i) for i in history_indexes])
         db.ep_moves.create_indexes([IndexModel(i) for i in history_indexes])
-        db.ep_vnid.create_indexes([IndexModel(i) for i in vnid_indexes]) 
+        db.ep_vnids.create_indexes([IndexModel(i) for i in vnid_indexes]) 
         db.ep_epgs.create_indexes([IndexModel(i) for i in vnid_indexes])
         db.ep_subnets.create_indexes([IndexModel(i) for i in subnet_indexes])
         db.ep_offsubnet.create_indexes([IndexModel(i) for i in history_indexes])

@@ -46,7 +46,7 @@ Controlling the Monitors
 
 Once the fabric has been configured, you can view and control the status from the home page.  Use the following buttons to control the fabric:
 
-- |Start| Start/Restart the monitors for the fabric
+- |ReStart| Start/Restart the monitors for the fabric
 - |Stop| Stop the monitors for the fabric
 - |Edit| Edit the fabric monitor settings
 - |Refresh| Refresh the status of all fabric monitors along with Top and Recent events

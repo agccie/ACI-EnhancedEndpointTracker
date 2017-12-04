@@ -59,7 +59,6 @@ Fabric Monitor History
 The fabric monitor can be manually started or restarted.  In addition, the monitor may restart if a new node comes online, a threshold such as max_jobs is exceeded, or a worker process has crashed.  The history of restart events can be seen by clicking the |History| button.  For example:
 
 .. image:: screenshot-monitor-history.png
-   :width: 80
 
 
 Fabric Overview
@@ -83,7 +82,6 @@ The fabric overview can be seen on the home page as soon as one or monitors are 
 
 
 .. image:: screenshot-latest-events.png
-   :width: 80
 
 
 

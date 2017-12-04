@@ -100,7 +100,7 @@ class EP_Settings(Rest):
             "min_val":1024, "max_val":1048576
         },
         "max_startup_jobs":{
-            "type":int,"default":200000,"read":True,"write":True,
+            "type":int,"default":65536,"read":True,"write":True,
             "min_val":1024, "max_val":1048576
         },
 

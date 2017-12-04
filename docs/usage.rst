@@ -62,6 +62,32 @@ The fabric monitor can be manually started or restarted.  In addition, the monit
    :width: 80
 
 
+Fabric Overview
+---------------
+
+The fabric overview can be seen on the home page as soon as one or monitors are configured. The overview contains the last **50** records for the following events:
+
+- ``Latest Endpoint Events`` - Each time an endpoint is created, deleted, or modified on a node the corresponding record will be created in the ``ep_history`` table.  The most recent events are displayed here.  
+
+- ``Latest Moves`` - On each endpoint event, if ``analyze_move`` is enabled, a move analysis is performed.  If the node, ifId, encap, pcTag, rw_bd, or rw_mac has changed between the last two local events, and the move is not a duplicate of the previous move, then a new entry is added to the ``ep_moves`` table.  The most recent moves from the ``ep_moves`` table are displayed here.  
+
+- ``Top Moves`` - Each entry added to the ``ep_moves`` table has a corresponding count.  The entries in the ``ep_moves`` table with the highest count are displayed here.
+
+- ``Currently Off-Subnet Endpoints`` - On each IP endpoint event, if ``analyze_offsubnet`` is enabled, then analysis is performed to determine if endpoint is off-subnet.  This is done by mapping the pcTag to bd_vnid via the ``ep_epgs`` table and then checking the IP against list of subnets for the corresponding bd_vnid in the ``ep_subnets`` table. If the IP is determined to be off-subnet, then entry is marked with ``is_offsubnet`` flag in the ``ep_history`` table.  A job is added to the watch queue to ensure endpoint is still off-subnet after the transitory_offsubnet_time (30 seconds).  If the ``is_offsubnet`` flag has not been cleared, then an ``ep_offsubnet`` table.  The entries in the ``ep_history`` table with ``is_offsubnet`` flag set to True are display via ``Currently Off-Subnet Endpoints``
+
+- ``Historical Off-Subnet Events`` - This displays the latest IP endpoints added to the ``ep_offsubnet`` table.
+
+- ``Currently Stale Endpoints`` - On each endpoint event, if ``analyze_stale`` is enabled, then analysis is performed to determine if the endpoint is stale on any node.  This is performed by determining which node has learned the endpoint as a local entry (aware of vpc VTEP logic) and checking each node with an remote entry (XR) and ensuring it points back to the correct node.  If the XR entry points to proxy or points to a node which has an XR bounce entry, this is also considered a correct learn.  If the analysis determines the endpoint is stale, the ``is_stale`` flag is set in the ``ep_history`` table.  A job is added to the watch queue to ensure the endpoint is still stale after the transitory_stale_time (30 seconds) or transitory_xr_stale_time (300 seconds) for entries that should be deleted from fabric.  If the ``is_stale`` flag after the holdtime, then an entry is added to the ``ep_stale`` table.  The entries in the ``ep_history`` table with ``is_stale`` flag set to True are displayed via ``Currently Stale Endpoints``.
+
+- ``Historical Stale Endpoint Events`` - This displays the latest endpoints added to the ``ep_stale`` table.
+
+
+.. image:: screenshot-latest-events.png
+   :width: 80
+
+
+
+
 
 
 .. |Restart| image:: button-restart.png

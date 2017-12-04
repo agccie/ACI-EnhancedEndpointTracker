@@ -4,15 +4,19 @@ Usage
 
 Fabric Monitor Settings
 -----------------------
-The application can be configured to monitor multiple ACI fabrics.  You can setup a fabric to monitor by clicking on the ``New Fabric`` button on the home page and then fill out the form.  For existing monitors, you can click the fabric |Edit| button.
+The application can be configured to monitor multiple ACI fabrics.  You can setup a fabric to monitor by clicking on the **New Fabric** button on the home page and then fill out the form.  For existing monitors, you can click the fabric |Edit| button.
 
 The options for each monitor are below:
 
 - ``Unique Fabric Name`` The fabric name is used locally by endpoint tracker to distinguish between multiple fabrics. It must be a string between 1 and 64 characters and cannot be changed once configured. A short name such as **fab1** and **fab2** is recommended.
+
 - ``APIC Hostname`` The hostname or IP address of a single APIC in the cluster. The application will use this IP to discover all other APICs in the cluster. If the initial APIC becomes unreachable, the other discovered APICs will automatically be used. Only out-of-band IPv4 address is currently supported for dynamic discovery of other APICs.
+
 - ``APIC Credentials`` APIC username and password. User must have admin read access.
+
 - ``Switch SSH Credentials`` Currently there is no API to clear an endpoint from a leaf. This application will SSH to the leaf and manually clear the endpoint.  A username and password with ssh access to the leaf is only required if you need to clear endpoints within the app. The application can be set to ssh to the leaf TEP via the APIC or SSH directly to the switch out-of-band address.
-- ``Notification Options`` The application can send syslog or email notifications for different events. At this time only one syslog server and one email address can be provided. If no value is configured then the application will not send any notification.  Click the |Down| button to select which types of notifications to be sent for each notification method:
+
+- The ``Notification Options`` The application can send syslog or email notifications for different events. At this time only one syslog server and one email address can be provided. If no value is configured then the application will not send any notification.  Click the |Down| button to select which types of notifications to be sent for each notification method:
     * Endpoint Move
     * Endpoint is becomes Stale on one or more leaves
     * An off-subnet endpoint is learned
@@ -22,6 +26,7 @@ The options for each monitor are below:
     * Automatically clear off-subnet endpoints
 
 - ``Advanced Settings`` Click the |Down| button for advanced settings. Generally these settings do not need to be changed unless needed for high scale environments.
+
     * perform endpoint move analysis
     * perform endpoint stale analysis
     * perform endpoint off-subnet analysis
@@ -47,27 +52,27 @@ Once the fabric has been configured, you can view and control the status from th
 
 .. |Restart| image:: button-restart.png
    :align: middle
-   :width: 12
+   :width: 30
 
 .. |Stop| image:: button-stop.png
    :align: middle
-   :width: 12
+   :width: 30
 
 .. |Refresh| image:: button-refresh.png
    :align: middle
-   :width: 12
+   :width: 30
 
 .. |History| image:: button-history.png
    :align: middle
-   :width: 12
+   :width: 30
 
 .. |Edit| image:: button-edit.png
    :align: middle
-   :width: 12
+   :width: 30
 
 .. |Down| image:: button-down.png
    :align: middle
-   :width: 12
+   :width: 30
 
 
 

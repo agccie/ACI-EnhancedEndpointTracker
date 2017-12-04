@@ -225,7 +225,7 @@ setup_app() {
     # execute setup_db script in conditional mode to setup database
     # if not previously setup.
     APP_USERNAME=${APP_VENDOR}_${APP_APPID}
-    SETUP_ARGS="--conditional --no_verify --no_https --username=admin2 --password=cisco"
+    SETUP_ARGS="--conditional --no_verify --no_https --username=admin --password=cisco"
     echo "$(date) python $SRC_DIR/setup_db.py $SETUP_ARGS " >> $LOG_FILE 2>> $LOG_FILE
     sudo -u www-data python $SRC_DIR/setup_db.py $SETUP_ARGS >> $LOG_FILE 2>> $LOG_FILE
     if [ "$?" == "1" ] ; then

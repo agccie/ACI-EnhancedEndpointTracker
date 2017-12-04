@@ -369,3 +369,26 @@ class Users(Rest):
                 "$pullAll": {"groups": groups}
             })               
             return r.matched_count
+
+
+def setup_local(app):
+    """ setup local user - creates a random password and adds as encrypted
+        value to settings and adds 'local' user to users database
+    """
+    import uuid
+    from utils import aes_encrypt
+    lpass = "%s"%uuid.uuid4()
+    lpass_encrypt = aes_encrypt(lpass, ekey = app.config["EKEY"],
+                                eiv = app.config["EIV"])
+    
+    with app.app_context():
+        db = app.mongo.db
+        # add encrypted lpass to global settings
+        db.settings.update_one({}, {"$set":{"lpass":lpass_encrypt}})
+
+        # update/upsert local user
+        r = db.users.update_one({"username":"local"}, {"$set":{
+                "password": Users.hash_pass(lpass),
+                "role": Roles.FULL_ADMIN,
+                "groups": []
+            }},upsert=True)

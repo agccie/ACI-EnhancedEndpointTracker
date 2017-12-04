@@ -16,3 +16,5 @@ Features include:
 - Automatically clear off-subnet endpoints
 - Automatically clear stale endpoints
 - Manually clear an endpoint through the GUI on user-selected nodes
+
+This application uses Flask, MongoDB, and KnockoutJS

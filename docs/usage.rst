@@ -41,13 +41,27 @@ The options for each monitor are below:
 
 .. warning:: There is a 2G memory set on the docker container while running in ``app-mode``.  Increasing the default max_jobs or max_startup_jobx can cause the application to crash.  If fabric scale requires higher thresholds, consider moving application from ``app-mode`` to standalone mode.  
 
+Controlling the Monitors
+------------------------
+
 Once the fabric has been configured, you can view and control the status from the home page.  Use the following buttons to control the fabric:
 
-- |ReStart| Start/Restart the monitors for the fabric
+- |Start| Start/Restart the monitors for the fabric
 - |Stop| Stop the monitors for the fabric
 - |Edit| Edit the fabric monitor settings
 - |Refresh| Refresh the status of all fabric monitors along with Top and Recent events
 - |History| View history events of the fabric monitor.
+
+
+Fabric Monitor History
+-----------------------
+
+The fabric monitor can be manually started or restarted.  In addition, the monitor may restart if a new node comes online, a threshold such as max_jobs is exceeded, or a worker process has crashed.  The history of restart events can be seen by clicking the |History| button.  For example:
+
+.. image:: screenshot-monitor-history.png
+   :width: 80
+
+
 
 
 .. |Restart| image:: button-restart.png

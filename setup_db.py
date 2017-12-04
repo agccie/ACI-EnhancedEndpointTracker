@@ -1,13 +1,13 @@
 
-import sys, os, subprocess, re, getpass, argparse, logging, uuid
+import sys, os, subprocess, re, getpass, argparse, logging
 from app.tasks.ept import utils as ept_utils
 
 from app.tasks.tools.acitoolkit.acisession import Session
-from app.models.users import Users
+from app.models.users import (Users, setup_local)
 from app.models.roles import Roles
 from app.models.settings import Settings
 from app.models.ept import EP_Settings
-from app.models.utils import (force_attribute_type, aes_encrypt)
+from app.models.utils import force_attribute_type
 from pymongo import IndexModel
 from pymongo.errors import DuplicateKeyError
 
@@ -82,8 +82,11 @@ def app_get_fabric_domain(hostname, apic_username, apic_cert):
             if "infraCont" in i and "attributes" in i["infraCont"]:
                 attr = i["infraCont"]["attributes"]
                 if "fbDmNm" in attr:
-                    logger.debug("fabric domain is: %s" % attr["fbDmNm"])
-                    return attr["fbDmNm"]
+                    fd = re.sub(" ","", attr["fbDmNm"])
+                    fd = re.sub("[^a-zA-Z0-9\-\.:_]","", fd)
+                    logger.debug("fabric domain is: %s (clean: %s)" % (
+                        attr["fbDmNm"], fd))
+                    return fd
                 else:
                     logger.warn("fbDmNm not in attributes: %s" % attr)
         logger.warn("no valid infraCont/fbDmNm found")
@@ -142,10 +145,13 @@ def apic_app_init(args):
             for a in EP_Settings.META:
                 attr = override.get(a, None)
                 if attr is not None:
-                    # use override value
-                    update[a] = force_attribute_type(a, 
-                        EP_Settings.META[a]["type"],
-                        attr, control=EP_Settings.META[a])
+                    # use override value (best effort)
+                    try:
+                        update[a] = force_attribute_type(a, 
+                            EP_Settings.META[a]["type"],
+                            attr, control=EP_Settings.META[a])
+                    except Exception as e:
+                        update[a] = EP_Settings.META[a]["default"]
                 else:
                     # use default value
                     update[a] = EP_Settings.META[a]["default"]
@@ -241,7 +247,6 @@ def db_setup(args):
         db.ep_offsubnet.create_indexes([IndexModel(i) for i in history_indexes])
         
         # insert default settings
-        lpass = "%s"%uuid.uuid4()
         c = {}
         for attr in Settings.META:
             c[attr] = Settings.META[attr]["default"]
@@ -249,17 +254,10 @@ def db_setup(args):
         c["force_https"] = not args.no_https
         c["sso_url"] = args.sso_url
         c["fqdn"] = fqdn
-        c["lpass"] = aes_encrypt(lpass, ekey = app.config["EKEY"],
-                        eiv = app.config["EIV"])
         result = db.settings.insert_one(c)
 
-        # insert local user
-        db.users.insert_one({
-                "username": "local",
-                "password": Users.hash_pass(lpass),
-                "role": Roles.FULL_ADMIN,
-                "groups": [],
-        })
+        # setup local user
+        setup_local(app)
 
         # insert default admin user along with reserved local user
         try:

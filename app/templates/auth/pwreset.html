@@ -50,6 +50,24 @@ function viewModel() {
     self.delete_html = ko.observable("");
     self.delete_confirmed = function(){};
 
+    // read subset of global settings first
+    var url = "{{ url_for('api.admin_read_config') }}";
+    self.pw_strength_check = ko.observable(true);
+    $.getJSON(url, function(data){
+        var config_meta = ["pw_strength_check"]
+        for (var i in config_meta) {
+            var key = config_meta[i]
+            if(data.hasOwnProperty(key)){
+                self[key](data[key]);
+            }
+        }
+        self.read_users()
+    }).error(function(err){
+        self.isLoading(false);
+        $("#alertModal").modal("show");
+        self.alert_html(get_error_html(err, url));
+    });
+
     self.modal_form_submitted = ko.observable(0);
     self.modal_form_error = ko.observable("");
     self.modal_form_username = ko.observable("");
@@ -70,7 +88,8 @@ function viewModel() {
     self.modal_form_valid_password = ko.computed(function(){
         if(self.modal_form_submitted()>0 ){
             p = self.modal_form_password1()
-            if(p.length<8 || p.search(/[A-Z]/)<0 || p.search(/[a-z]/)<0 || p.search(/[0-9]/)<0){
+            if(self.pw_strength_check() && (
+                p.length<8 || p.search(/[A-Z]/)<0 || p.search(/[a-z]/)<0 || p.search(/[0-9]/)<0)){
                 p_msg = "Passwords require a combination of at least 8 characters.";
                 p_msg+= " Ensure you use an uppercase character, lowercase character, ";
                 p_msg+= "and a number.";

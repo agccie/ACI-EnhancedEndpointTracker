@@ -332,9 +332,12 @@ function eptSetting(){
     self.auto_clear_offsubnet = ko.observable(false);
     self.analyze_move = ko.observable(true);
     self.analyze_stale = ko.observable(true);
+    self.analyze_offsubnet = ko.observable(true);
     self.max_ep_events = ko.observable(64);
     self.max_jobs = ko.observable(65536);
+    self.max_startup_jobs = ko.observable(200000);
     self.max_workers = ko.observable(6);
+    self.max_fabric_events = ko.observable(1024);
     self.processes = ko.observable(-1);  // running state of pariticular fabric
     self.count_mac = ko.observable("0"); // number of macs in this fabric's history
     self.count_ip = ko.observable("0");  // number of ip's in this fabric's history
@@ -351,7 +354,8 @@ function eptSetting(){
         "notify_stale_email", "notify_stale_syslog",
         "notify_offsubnet_email", "notify_offsubnet_syslog",
         "analyze_move", "analyze_stale", "analyze_offsubnet",
-        "auto_clear_stale", "auto_clear_offsubnet"
+        "auto_clear_stale", "auto_clear_offsubnet",
+        "max_ep_events", "max_jobs", "max_startup_jobs", "max_workers", "max_fabric_events"
     ]
 
     //return json containing this objects current attributes

@@ -20,6 +20,8 @@ class Settings(Rest):
         "sso_url":      {"type":str, "default":"", "read":True, "write":True},
         "pw_reset_timeout": {"type": int, "default": 86400, "read":True,
                         "write":True},
+        "pw_strength_check": {"type":bool, "default":False, "read":True, 
+                            "write":True},
         # encrypted local user password for backend API calls
         "lpass":        {"type":str,"default":"","read":False,"write":False},
     }

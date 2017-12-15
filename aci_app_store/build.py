@@ -33,6 +33,8 @@ def getargs():
         help="docker image name or path to .tgz file")
     parser.add_argument("--key", action="store", dest="key", default=None,
         help="private key used to sign application")
+    parser.add_argument("--video", action="store", dest="video", default=None,
+        help="path to video file")
 
     args = parser.parse_args()
 
@@ -103,7 +105,7 @@ if __name__ == "__main__":
     # pull/copy src code into Service
     if os.path.isdir(args.src):
         logger.debug("copying existing src from: %s" % args.src)
-        run_command("cp -rfv %s/* %s" % (args.src, bdir)) 
+        run_command("cp -rpfv %s/* %s" % (args.src, bdir)) 
     else:
         logger.debug("pulling git repository: 'git clone %s %s"%(args.src,tdir))
         run_command("git clone %s %s" % (args.src, bdir))
@@ -135,6 +137,24 @@ if __name__ == "__main__":
         if os.path.exists("%s/%s" % (app_dir, d)):
             run_command("mv %s/%s/* %s/%s/" % (app_dir,d, tdir,d))
 
+    # handle video option
+    if args.video is not None:
+        logger.debug("checking for video file: %s" % args.video)
+        if os.path.isfile("%s" % args.video):
+            fname = args.video.split("/")[-1]
+            if re.search("\.mp4$", fname) is None:
+                logger.warn("invalid video (must be .mp4): %s" % fname)
+            else:
+                vdir = "%s/Media/IntroVideo" % tdir
+                if not os.path.exists(vdir):
+                    logger.debug("creating video directory: %s" % vdir)
+                    run_command("mkdir -p %s" % vdir)
+                logger.debug("copying %s to %s" % (args.video,vdir))
+                run_command("cp %s %s/%s" % (args.video, vdir, fname))
+                run_command("chmod 777 %s/%s" % (vdir, fname))
+        else:
+            logger.warn("video file does not exists: %s" % args.video)
+
     # fixup static/js/common.js and static/css/styles.css files
     logger.debug("using sed to overwrite styles.css and common.js")
     updates = [
@@ -148,7 +168,7 @@ if __name__ == "__main__":
 
     # copy over static files to UIAssets
     if os.path.exists("%s/Service/app/static" % tdir):
-        run_command("cp -rfv %s/Service/app/static/* %s/UIAssets/static/" % (
+        run_command("cp -rpfv %s/Service/app/static/* %s/UIAssets/static/" % (
             tdir,tdir))
 
     # remove aci_app_store directory

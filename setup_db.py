@@ -179,7 +179,7 @@ def db_exists():
         collections = db.collection_names()
         logger.debug("current collections: %s" % collections)
         if len(collections)>0 and (
-            "ep_settings" in collections or "users" in collections or \
+            "ep_settings" in collections and "users" in collections and \
             "settings" in collections):
             return True
     return False

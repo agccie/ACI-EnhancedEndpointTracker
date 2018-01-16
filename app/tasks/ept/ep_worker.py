@@ -18,6 +18,7 @@ ept_utils.setup_logger(logger)
 # various epm merge/move/change attributes
 epm_change_fields =["flags","ifId","pcTag","bd","vrf","encap","remote",
                     "rw_bd","rw_mac"]
+epm_calculated_fields = ["expected_remote"]
 epm_sub1_change_fields = ["flags","ifId","pcTag","bd","vrf","encap","remote"]
 epm_sub2_change_fields = ["rw_bd", "rw_mac"]
 epm_rs_merge_fields=["bd", "vrf", "pcTag", "flags", "encap", "ifId", "remote",
@@ -1195,6 +1196,11 @@ class EPWorker(object):
             local_node = "0"
             for node in nodes:
                 state = nodes[node]
+                # skip analysis for cached endpoints
+                if "cached" in state["flags"]:
+                    logger.debug("skip analysis on %s with cached flag: %s"%(
+                        node, state["flags"]))
+                    continue
                 state["expected_remote"] = local_node
                 logger.debug("(no local) stale on %s to %s" % (
                     node, get_node_string(state["remote"])))
@@ -1210,8 +1216,16 @@ class EPWorker(object):
                 if ept_utils.ep_is_local(state["flags"]): continue
                 # check that remote entry is pointing to correct node
                 if state["remote"] == local_node: continue
-                # if flag is bounce-to-proxy, then endpoint is ok on this node
-                if "bounce-to-proxy" in state["flags"]: continue
+                # skip analysis for cached endpoints
+                if "cached" in state["flags"]:
+                    logger.debug("skip analysis on %s with cached flag: %s"%(
+                        node, state["flags"]))
+                    continue
+                # if flag is bounce-to-proxy or simply 'proxy' then ok
+                if "proxy" in state["flags"]:
+                    logger.debug("skip analysis on %s with proxy flag: %s" % (
+                        node, state["flags"]))
+                    continue
 
                 # map remote node id to 1 or 2 nodes (incase 'remote' is vpc id)
                 # and check ALL have correct pointer
@@ -1683,9 +1697,20 @@ class EPWorker(object):
                     old_j = self.watched[n.keystr]
                     if "ts" in old_j.data and "ts" in n.data and \
                         old_j.data["ts"]==n.data["ts"]:
-                        logger.debug("ignoring %s for existing entry" % (
-                            watch_name))
-                        continue
+                        # check for changes in calculated indexes which may not
+                        # have resulted in modified ts change
+                        skip = True
+                        for _f in epm_calculated_fields:
+                            if _f in old_j.data and _f in n.data and \
+                                old_j.data[_f]!=n.data[_f]:
+                                logger.debug("%s changed from %s to %s" % (
+                                    _f, old_j.data[_f], n.data[_f]))
+                                skip = False
+                                break
+                        if skip:
+                            logger.debug("ignoring %s for existing entry" % (
+                                watch_name))
+                            continue
                 # overwrite or create new watch_event entry
                 self.watched[n.keystr] = n
                 logger.debug("added %s with execute_ts:%f (%s sec)" % (n, 

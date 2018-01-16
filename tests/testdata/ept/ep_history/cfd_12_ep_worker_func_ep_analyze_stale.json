@@ -1,0 +1,73 @@
+{
+    "addr":"40.1.1.102",
+    "events":[
+        {
+            "addr":"40.1.1.102",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-4000000]/db-ep/ip-[40.1.1.102]",
+            "encap":"",
+            "flags":"cached,ip,span",
+            "ifId":"unspecified",
+            "pcTag":"49153",
+            "remote":"",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1479134648,
+            "vrf":"4000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"4000000"
+}
+
+{
+    "addr":"40.1.1.103",
+    "events":[
+        {
+            "addr":"40.1.1.103",
+            "bd":"",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-4000000]/db-ep/ip-[40.1.1.103]",
+            "encap":"",
+            "flags":"cached,ip,span",
+            "ifId":"unspecified",
+            "pcTag":"49153",
+            "remote":"",
+            "rw_bd":"",
+            "rw_mac":"",
+            "status":"created",
+            "ts":1479134648,
+            "vrf":"4000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"101",
+    "type":"ip",
+    "vnid":"4000000"
+}
+{
+    "addr":"40.1.1.103",
+    "events":[
+        {
+            "addr":"40.1.1.103",
+            "bd":"41000000",
+            "dn":"topology/pod-1/node-101/sys/ctx-[vxlan-4000000]/bd-[vxlan-41000000]/vlan-[vlan-101]/db-ep/ip-[40.1.1.103]",
+            "encap":"vlan-101",
+            "flags":"ip,local",
+            "ifId":"eth1/5",
+            "pcTag":"49153",
+            "remote":"",
+            "rw_bd":"41000000",
+            "rw_mac":"00:00:00:0a:0a:0a",
+            "status":"created",
+            "ts":1479134648,
+            "vrf":"4000000"
+        }
+    ],
+    "fabric":"fab2",
+    "node":"102",
+    "type":"ip",
+    "vnid":"4000000"
+}

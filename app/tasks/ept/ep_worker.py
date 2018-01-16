@@ -18,6 +18,7 @@ ept_utils.setup_logger(logger)
 # various epm merge/move/change attributes
 epm_change_fields =["flags","ifId","pcTag","bd","vrf","encap","remote",
                     "rw_bd","rw_mac"]
+epm_calculated_fields = ["expected_remote"]
 epm_sub1_change_fields = ["flags","ifId","pcTag","bd","vrf","encap","remote"]
 epm_sub2_change_fields = ["rw_bd", "rw_mac"]
 epm_rs_merge_fields=["bd", "vrf", "pcTag", "flags", "encap", "ifId", "remote",
@@ -1683,9 +1684,20 @@ class EPWorker(object):
                     old_j = self.watched[n.keystr]
                     if "ts" in old_j.data and "ts" in n.data and \
                         old_j.data["ts"]==n.data["ts"]:
-                        logger.debug("ignoring %s for existing entry" % (
-                            watch_name))
-                        continue
+                        # check for changes in calculated indexes which may not
+                        # have resulted in modified ts change
+                        skip = True
+                        for _f in epm_calculated_fields:
+                            if _f in old_j.data and _f in n.data and \
+                                old_j.data[_f]!=n.data[_f]:
+                                logger.debug("%s changed from %s to %s" % (
+                                    _f, old_j.data[_f], n.data[_f]))
+                                skip = False
+                                break
+                        if skip:
+                            logger.debug("ignoring %s for existing entry" % (
+                                watch_name))
+                            continue
                 # overwrite or create new watch_event entry
                 self.watched[n.keystr] = n
                 logger.debug("added %s with execute_ts:%f (%s sec)" % (n, 

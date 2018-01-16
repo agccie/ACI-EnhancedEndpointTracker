@@ -78,9 +78,36 @@ def test_cfd_14_ep_worker_func_watch_stale(app):
     assert len(dut.watched)==1
     assert execute_ts != wjob.execute_ts
     assert wjob.data["expected_remote"] == "103"
-    
+
+def test_cfd_12_ep_worker_func_ep_analyze_stale_no_local(app):
+    # issue #12
+    # ignore stale analysis for cached ep and proxy
+    # ip: (4000000/41000000/40.1.1.102) is not in the fabric
+    key = {
+        "addr": "40.1.1.102",
+        "vnid": "4000000",
+        "type": "ip",
+        "fabric": test_fabric,
+    }
+    dut = get_worker()
+    dut.stale_double_check = False  # don't double-refresh data
+    updates = dut.ep_analyze_stale(key)
+    assert len(updates) == 0
+
+def test_cfd_12_ep_worker_func_ep_analyze_stale_local(app):
+    # issue #12
+    # ignore stale analysis for cached ep and proxy
+    # ip: (4000000/41000000/40.1.1.103) is local on node-102 but cached on 101
+    key = {
+        "addr": "40.1.1.103",
+        "vnid": "4000000",
+        "type": "ip",
+        "fabric": test_fabric,
+    }
+    dut = get_worker()
+    dut.stale_double_check = False  # don't double-refresh data
+    updates = dut.ep_analyze_stale(key)
+    assert len(updates) == 0
+
 
     
-
-
-

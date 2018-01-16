@@ -1196,6 +1196,11 @@ class EPWorker(object):
             local_node = "0"
             for node in nodes:
                 state = nodes[node]
+                # skip analysis for cached endpoints
+                if "cached" in state["flags"]:
+                    logger.debug("skip analysis on %s with cached flag: %s"%(
+                        node, state["flags"]))
+                    continue
                 state["expected_remote"] = local_node
                 logger.debug("(no local) stale on %s to %s" % (
                     node, get_node_string(state["remote"])))
@@ -1211,8 +1216,16 @@ class EPWorker(object):
                 if ept_utils.ep_is_local(state["flags"]): continue
                 # check that remote entry is pointing to correct node
                 if state["remote"] == local_node: continue
-                # if flag is bounce-to-proxy, then endpoint is ok on this node
-                if "bounce-to-proxy" in state["flags"]: continue
+                # skip analysis for cached endpoints
+                if "cached" in state["flags"]:
+                    logger.debug("skip analysis on %s with cached flag: %s"%(
+                        node, state["flags"]))
+                    continue
+                # if flag is bounce-to-proxy or simply 'proxy' then ok
+                if "proxy" in state["flags"]:
+                    logger.debug("skip analysis on %s with proxy flag: %s" % (
+                        node, state["flags"]))
+                    continue
 
                 # map remote node id to 1 or 2 nodes (incase 'remote' is vpc id)
                 # and check ALL have correct pointer

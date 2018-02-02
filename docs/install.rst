@@ -54,7 +54,7 @@ Easy Setup
 """"""""""
 The quickest way to get up and running is to spin up a host/VM/container and execute the install.sh script.  This will install and configure python, apache, mongo, exim4, along with appropriate python requirements, cron, ntp, and logrotate.  Additionally it will create a ``firstRun`` script that can be used to configure networking, ntp, and timezone for users unfamiliar with the OS.  Lastly, it will execute the initial db setup.
 
-1.  Install Ubuntu Server 16.04 on a host or VM with the recommended minimal sizing:
+1.  Install `Ubuntu Server 16.04 <https://www.ubuntu.com/download/server>`_ on a host or VM with the recommended minimal sizing:
   
    * 4 vCPU
    * 8G memory

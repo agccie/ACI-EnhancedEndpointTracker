@@ -81,7 +81,6 @@ The quickest way to get up and running is to spin up a host/VM/container and exe
 
 .. code-block:: 
 
-   # execute first-run
    eptracker@ept-dev:~$ sudo /home/eptracker/firstRun.sh
     
     Setting up system
@@ -102,7 +101,7 @@ The quickest way to get up and running is to spin up a host/VM/container and exe
     Reloading ...
 
 
-4.  Now that the host/VM has all dependencies installed and configured and the database has been setup, access the VM web interface.
+4.  Setup is complete, the application can now be managed through the web interface.
 
 .. note:: The source code is available at /var/www/eptracker.  The apache module has been configured to service this directory.  Any change to the python source code may require both python worker and apache to be restarted.  
 

@@ -42,7 +42,7 @@ The standalone application is one that runs on a dedicated host/VM and makes rem
 
 A `pre-built OVA <https://cisco.box.com/s/6us23gzr8nwplrmtjmpp5xaos1wywa22>`_ is available. After first boot of the OVA, execute the ``firstRun.sh`` script as described in step 3 of `Easy Setup`_. The default credentials for the OVA are:
 
-.. code-block:: 
+.. code-block:: bash
 
   username: eptracker
   password: cisco
@@ -62,7 +62,7 @@ The quickest way to get up and running is to spin up a host/VM/container and exe
 
 2.  From the terminal, download and execute the install script.
 
-.. code-block:: 
+.. code-block:: bash
 
    eptracker@ept-dev:~$ curl -sSl https://raw.githubusercontent.com/agccie/ACI-EnhancedEndpointTracker/master/bash/install.sh > install.sh
    eptracker@ept-dev:~$ chmod 777 install.sh
@@ -79,7 +79,7 @@ The quickest way to get up and running is to spin up a host/VM/container and exe
 
 3.  After install, a ``firstRun`` script should be present in the install user's home directory.  Execute the firstRun script to configure the VM along with setting up the initial app database.
 
-.. code-block:: 
+.. code-block:: bash
 
    eptracker@ept-dev:~$ sudo /home/eptracker/firstRun.sh
     
@@ -105,7 +105,7 @@ The quickest way to get up and running is to spin up a host/VM/container and exe
 
 .. note:: The source code is available at /var/www/eptracker.  The apache module has been configured to service this directory.  Any change to the python source code may require both python worker and apache to be restarted.  
 
-.. code-block:: 
+.. code-block:: bash
 
     eptracker@ept-dev:/var/www/eptracker$ ./bash/workers.sh -ka
     stopping all fabrics
@@ -136,7 +136,7 @@ To build the application you'll need a development environment with git, python2
 .. warning:: Build process does not currently work on MAC OS due to incompatibility with sed program.
    It has successfully been performed on Ubuntu 16.04 and will likely work on other linux OS.
 
-.. code-block:: 
+.. code-block:: bash
 
    # install via apt-get, yum, dnf, etc...
    root@ept-dev:~# apt-get install -y git python-pip zip

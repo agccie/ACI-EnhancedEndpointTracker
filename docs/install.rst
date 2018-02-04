@@ -9,7 +9,7 @@ on stateful applications.  As a result, it may not be possible to run this as an
 app on an APIC with a large number of endpoints.
 
 As a best practice, it is recommended to deploy this app in standalone mode if
-the total number of per-node endpoints exceeds 65K.  You can determine the per-node
+the total number of per-node endpoints exceeds ``65K``.  You can determine the per-node
 endpoint count via the following moquery on the APIC:
 
 .. code-block:: bash

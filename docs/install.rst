@@ -14,7 +14,7 @@ endpoint count via the following moquery on the APIC:
 
 .. code-block:: bash
 
-    apic# moquery -c epmDb -x rsp-subtree-class="epmIpEp,epmMacEp,epmRsMacEpToIpEpAtt" -x rsp-subtree-include="count"
+    apic# moquery -c epmDb -x query-target=subtree -x target-subtree-class=epmIpEp,epmMacEp,epmRsMacEpToIpEpAtt -x rsp-subtree-include=count
 
 If you have deployed the application on the APIC and it is exceeding the 
 memory limits, you may see the symptoms below. **Note, there will be no impact**

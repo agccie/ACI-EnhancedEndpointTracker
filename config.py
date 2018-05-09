@@ -40,7 +40,7 @@ LOG_ROTATE_COUNT = os.environ.get("LOG_ROTATE_COUNT", 3)
 LOGIN_ENABLED = bool(int(os.environ.get("LOGIN_ENABLED",1)))
 
 # url for proxy function
-PROXY_URL = os.environ.get("PROXY_URL", "http://127.0.0.1:80/")
+PROXY_URL = os.environ.get("PROXY_URL", "https://127.0.0.1:443/")
 
 # simulate apic connection and callbacks
 SIMULATION_MODE = bool(int(os.environ.get("SIMULATION_MODE",0)))

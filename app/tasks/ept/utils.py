@@ -869,16 +869,36 @@ def rest_fabric_action(fabric, action, reason):
     app = get_app()
     headers = {"content-type":"application/json"}
     s = requests.Session()
-    base_url = app.config.get("PROXY_URL", "http://localhost")
-    if "http" not in base_url: base_url = "http://%s" % base_url
+    base_url = app.config.get("PROXY_URL", "https://localhost")
+    if "http" not in base_url: base_url = "https://%s" % base_url
 
     # login as local user and then perform post
     url = "%s/api/login" % base_url
     data = {"username":"local", "password":lpass}
-    r = s.post(url, verify=False, data=json.dumps(data), headers=headers)
-    if r.status_code != 200:
-        logger.error("failed local login: %s" % r.text)
-        return False
+    logger.debug("attempting login local POST %s" % url)
+    try:
+        r = s.post(url, verify=False, data=json.dumps(data), headers=headers,
+                    allow_redirects=False)
+    except Exception as e:
+        logger.error("failed to perform local login: %s" % e)
+        r = None
+    if r is None or r.status_code != 200:
+        # for 302 redirect or simply timeout, retry on http as default attempt
+        # is on https
+        base_url = re.sub("^https","http", base_url, count=0)
+        base_url = re.sub(":443", ":80", base_url, count=0)
+        url = "%s/api/login" % base_url
+        logger.debug("attempting second login local POST %s" % url)
+        try:
+            r = s.post(url,verify=False,data=json.dumps(data),headers=headers,
+                    allow_redirects=False)
+            if r.status_code != 200:
+                logger.error("failed local login: %s" % r.text)
+                return False
+        except Exception as e:
+            logger.error("faied to perform local login: %s" % e)
+            return False
+    logger.debug("local login success")
     
     # send fabric action post
     url = "%s/api/ept/%s/%s" % (base_url, action, fabric)

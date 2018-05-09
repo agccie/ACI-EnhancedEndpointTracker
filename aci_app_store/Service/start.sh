@@ -99,6 +99,7 @@ setup_environment() {
     echo "LOG_ROTATE=0" >> $CONFIG_FILE
     echo "LOGIN_ENABLED=0" >> $CONFIG_FILE
     echo "ACI_APP_MODE=1" >> $CONFIG_FILE
+    echo "PROXY_URL=\"http://127.0.0.1:80/\"" >> $CONFIG_FILE
     # update iv and ev against seed
     echo "" > $PRIVATE_CONFIG
     if [ -s "$CRED_DIR/plugin.key" ] && [ -s "$CRED_DIR/plugin.crt" ] ; then

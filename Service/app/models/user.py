@@ -255,8 +255,9 @@ class User(Rest):
 
         # on successfully login, start user session
         if success:
-            u.last_login = time.time()
-            u.save()
+            if not force:
+                u.last_login = time.time()
+                u.save()
             login_user(u, remember=True)
         return success
 

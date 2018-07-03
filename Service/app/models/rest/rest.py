@@ -275,6 +275,8 @@ class Rest(object):
                                 /api/user/username-<username>/groups-<group>
                             without keyed_path enabled the dn would be:
                                 /api/user/<username>/<groups>
+            "dn":           bool, (default true) include a distinguished name (dn) property in read
+                            requests for an object
             "read_role":    int, role required to perform read operations
                                  default Role.USER
             "write_role":   int, role required to perform write operations
@@ -455,6 +457,7 @@ class Rest(object):
     ACCESS_DEF = {
         "expose_id": False,
         "keyed_path": True,
+        "dn": True,
         "read_role": Role.USER,
         "write_role": Role.FULL_ADMIN,
         "execute_role": Role.FULL_ADMIN,
@@ -506,6 +509,10 @@ class Rest(object):
     _key_swag_path = ""
     _swagger = {}       # dict of endpoints types added during registration
                         # used only by swagger docs
+    _dn_path = ""       # when dn is enabled on object, this is fmt string used for dn.  I.e.,
+                        #   /base/uname-%s/group-%s
+    _dn_attributes = [] # when dn is enabled on object, this is fmt attribute names used for dn:
+                        #   ['username', 'group'] for substituting /base/uname-%s/group-%s
 
     operator_reg= "^[ ]*(?P<op>[a-z]+)[ ]*\((?P<data>.+)\)[ ]*$" 
     operand_reg = '^(?P<delim>[ ]*,?[ ]*)('
@@ -695,6 +702,9 @@ class Rest(object):
             if d not in cls.META_ACCESS: 
                 cls._access[d] = copy.copy(cls.ACCESS_DEF[d])
             else: cls._access[d] = cls.META_ACCESS[d]
+        # no support for expose_id with parent dependency
+        if cls._dependency.parent is not None and cls._access["expose_id"]:
+            raise Exception("no support for expose_id with dependencies")
 
         def init_attribute(attr, sub=False):
             base = {}
@@ -1070,6 +1080,7 @@ class Rest(object):
                     err = "invalid operand or unbalanced parenthesis"
                     raise ValueError(err)
             return operands
+
             
         def parse_operator(fs):
             # receives a filter string (fs) and returns mongo filter json
@@ -1216,10 +1227,14 @@ class Rest(object):
                 if k not in keys:
                     abort(500, "missing required parent key '%s'" % k)
                 pkeys[k] = keys[k]
-            # TODO  - this syntax is probably wrong
-            p = cls.load(**pkeys)
+            p = parent.load(**pkeys)
             if not p.exists():
-                abort(400, "'%s' parent object('%s') does not exist" % (classname, pkeys))
+                okeys = []
+                for attr in parent._attributes:
+                    if parent._attributes[attr].get("key",False):
+                        okeys.append("%s=%s" % (attr, obj.get(attr, "")))
+                okeys = ",".join(okeys)
+                abort(400, "parent (%s) does not exist" % okeys)
 
 
         # before create callback
@@ -1643,7 +1658,7 @@ class Rest(object):
         """
         cls.init()
         classname = cls._classname
-        cls.logger.debug("%s delete request kwargs: %s"%(classname,kwargs))
+        cls.logger.debug("%s delete request filters:%s, kwargs: %s",classname,_filters,kwargs)
         collection = get_db()[classname]
 
         # calling function can override filter logic by provided _filters arg

@@ -1,71 +1,94 @@
-
+<!DOCTYPE html>
 <html>
-    <head>  
-        <title>EnhancedEndpointMonitor</title>
+    <head>
         <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="description" content="">
-        <meta name="author" content="">
-        <link rel="stylesheet" href="./static/css/bootstrap.min.css">
-        <link rel="stylesheet" href="./static/css/styles.css">
-        <link rel="shortcut icon" href="./static/img/favicon.ico" />
-        <script src="./static/js/json2.js"></script>
-        <script src="./static/js/jquery-1.11.1.min.js"></script>
-        <script src="./static/js/js.cookie.js"></script>
-        <script src="./static/js/bootstrap.min.js"></script>
-        <script src="./static/js/knockout-3.2.0.js"></script>
-        <script src="./static/lib/momentjs/moment.min.js"></script>
-        <script src="./static/js/common.js"></script>
+        <meta name="locale" content="US">
+        <meta name="language" content="en">
+        <meta name="country" content="US">
+        <meta name="HandheldFriendly" content="True">
+        <meta name="MobileOptimized" content="320">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <link type="text/css" rel="stylesheet" href="css/cui-1.3.1-official/css/cui-standard.min.css">
+        <script type='text/javascript' src='js/lib/jquery-3.1.1.min.js'></script>
+        <script type='text/javascript' src='js/lib/json2.js'></script>
+        <script type='text/javascript' src='js/lib/js.cookie.js'></script>
+        <script type='text/javascript' src='js/lib/knockout-3.4.2.js'></script>
+        <script type='text/javascript' src='js/lib/moment.min.js'></script>
+        <script type='text/javascript' src='js/common.js'></script>
     </head>
-    <body>
-
-    <!-- alert modal for general alerts (no user input required) -->
-    <div class="modal fade" id="alertModal" tabindex="-1" role="dialog" aria-labelledby="alertModal" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-body">
-                    <span data-bind="html: alert_html"></span>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                </div>
-            </div><!-- /.modal-content -->
-        </div><!-- /.modal-dialog -->
-    </div><!-- /.modal -->
-
-    <div id="main" class="container"></div>
-
-
-<script type="text/javascript">
-//html for saving forms
-var _refresh_occurred = false;
-function viewModel() {
-    var self = this; 
-    self.alert_html = ko.observable("");
-    self.alert_html(get_loading_html());
-    $("#alertModal").modal("show");
-    appTokenRefresh(function(){
-        // prevent cascading events - only perform backend check on first success
-        if(_refresh_occurred){ return ; }
-        _refresh_occurred = true;
+    <script type='text/javascript'>
+       
+        $().ready(function(){
+            var _refresh_occurred = false;
+            showInfoModal("loading...")
+            appTokenRefresh(function(){
+                // prevent cascading events - only perform backend check on first success
+                if(_refresh_occurred){ return ; }
+                _refresh_occurred = true;
         
-        // single check without poll to see if app has started
-        var started = function(){ window.location = "./app.html"; }
-        var waiting = function(){
-            //wait until app has actually started before forwarding to app.html
-            self.alert_html(get_loading_html("Waiting for backend application to start. "+
-                "This can take up to 5 minutes on initial install")); 
-            pollAppStarted(started);
-        }
-        checkAppStarted(started, waiting).error(function(err){waiting();})
-        
-    }, function(err){
-        self.alert_html(get_error_html(err, "window parent 'message' event"));
-    });
-}
-ko.applyBindings(new viewModel());
-</script>
+                // single check without poll to see if app has started
+                var started = function(){ window.location = "./app.html"; }
+                var waiting = function(js, status_code, status_text){
+                    //wait until app has actually started before forwarding to app.html
+                    var msg="Waiting for token"
+                    if(status_code!=500 && js!==undefined && "error" in js){msg=js["error"]} 
+                    else if(status_code!=500){msg=status_text}
+                    showInfoModal(msg)
+                }
+                pollAppStatus(started, waiting)
+            }, function(err){
+                showAlertModal("window error: "+err)
+            });
+        })
+    </script>
 
-</body>
+    
+    <body class="cui">
+    
+    <!-- single modal backdrop required -->
+    <div class="modal-backdrop hide"></div>
+
+    <!-- common alert modal -->
+    <div class="modal modal-alert modal--small hide">
+        <div class="modal__dialog">
+            <div class="modal__content">
+                <div class="modal__body">
+                    <div class="alert alert--warning">
+                        <div class="alert__icon icon-warning-outline"></div>
+                        <div class="alert__message text-left">
+                            <div class="half-margin-top">
+                                <span class="text-large text-warning">Warning</span>
+                                <p id="modal-alert-content"></p>
+                            </div>
+                            <div class="text-center base-margin-top">
+                                <button class="btn btn--small btn--gray-ghost" onclick="hideModal()">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- common info modal -->
+    <div class="modal modal-info modal--large hide">
+        <div class="modal__dialog">
+            <div class="modal__content">
+                <div class="modal__body">
+                    <div class='text-center'> 
+                        <h4>Loading</h4>
+                        <div class='text-small loading-dots loading-dots--info'>
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal__footer">
+                    <p class="text-left" id="modal-info-content"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    </body>
 </html>

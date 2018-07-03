@@ -1,17 +1,16 @@
 
-from flask import current_app, Blueprint, render_template
+from flask import current_app, Blueprint
 base = Blueprint("base", __name__)
 
-from flask_login import (login_required, current_user)
-from flask import jsonify, redirect, request, abort, g, make_response
+from flask import jsonify, redirect, abort, g, make_response, request
 from werkzeug.exceptions import BadRequest
-from ..models.roles import Roles
+from ..models.rest import Role
 import json, re, requests
 
+# redirect for base folder to UIAssets folder
 @base.route("/")
-@login_required
-def index():
-    return render_template("index.html")
+def base_redirect():
+    return redirect("/UIAssets/", code=302)
 
 ##############################################################################
 # proxy API, imported by api module
@@ -34,7 +33,7 @@ def aci_app_proxy():
             json for proxies to api else text response from proxy
     """
     if not g.user.is_authenticated: abort(401, "Unauthorized")
-    if g.user.role != Roles.FULL_ADMIN: abort(403)
+    if g.user.role != Role.FULL_ADMIN: abort(403)
    
     # args can be provided via params or post data.  If both are provided
     # then post data will be preferred
@@ -83,6 +82,9 @@ def aci_app_proxy():
             cookies=request.cookies,headers=header)
     elif method == "post":
         r = requests.post(url, verify=False, data=data, params=params,
+            cookies=request.cookies,headers=header)
+    elif method == "patch":
+        r = requests.patch(url, verify=False, data=data, params=params,
             cookies=request.cookies,headers=header)
     elif method == "delete":
         r = requests.delete(url, verify=False, data=data, params=params,

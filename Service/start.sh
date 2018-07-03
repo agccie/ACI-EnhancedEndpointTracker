@@ -1,292 +1,290 @@
 #!/bin/bash
 
-# APP name
-APP_VENDOR="Cisco"
-APP_APPID="EnhancedEndpointTracker"
+# startup script for app_mode on APIC or standalone application
+# this script is responsible for starting up following background services:
+#   1) apache2
+#   2) cron     (required for logrotate)
+#   3) mongo
+#
 
-# ACI App start.sh required for starting components within container
-SRC_DIR="/home/app/src/Service"
-DATA_DIR="/home/app/data"
-LOG_DIR="/home/app/log"
-CRED_DIR="/home/app/credentials"
-PRIVATE_CONFIG="/home/app/config.py"
+# start.sh will be executed from either base of project or from ./bash directory
+# force it to always be base of project
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"
+SCRIPT_DIR=`echo $SCRIPT_DIR | sed -e 's/bash\/$//'`
+
+# this variables should already be set within container but creating defaults 
+# just in case
+APP_MODE=${APP_MODE:-0}
+APP_DIR=${APP_DIR:-/home/app}
+DATA_DIR=${DATA_DIR:-/home/app/data}
+LOG_DIR=${LOG_DIR:-/home/app/log}
+SRC_DIR="$APP_DIR/src/Service"
+CRED_DIR="$APP_DIR/credentials"
+PRIVATE_CONFIG="$APP_DIR/config.py"
 LOG_FILE="$LOG_DIR/start.log"
-STARTED_FILE="$DATA_DIR/.started"
+STARTED_FILE="$APP_DIR/.started"
+STATUS_FILE="$APP_DIR/.status"
+MONGO_CONFIG="/etc/mongod.conf"
+MONGO_MAX_WAIT_COUNT=50
 
-# Logging levels for reference
+# required services to start
+ALL_SERVICES=(
+    "cron" 
+    "apache2"
+    "mongodb"
+)
+
+# python logging levels integers for reference
 LOGGING_LEVEL_DEBUG=10
 LOGGING_LEVEL_INF0=20
 LOGGING_LEVEL_WARN=30
 LOGGING_LEVEL_ERROR=40
 LOGGING_LEVEL_CRITICAL=50
 
-exit_script(){
-    # force script to exit after timeout
-    TIMEOUT=10
-    echo "$(date) exit in $TIMEOUT seconds" >> $LOG_FILE
-    sleep $TIMEOUT
+# log message to stdout and to logfile
+function log(){
+    ts=`date '+%Y-%m-%dT%H:%M:%S'`
+    echo "$ts $@"
+    if [ "$LOG_FILE" ] ; then
+        echo "$ts $@" >> $LOG_FILE 2> /dev/null
+    fi
+}
+
+# update value in status file 
+# this is a single line file with a description of the current startup status
+function set_status(){
+    ts=`date '+%Y-%m-%dT%H:%M:%S'`
+    log "status: $1"
+    if [ "$STATUS_FILE" ] ; then
+        echo "($ts) $1" > $STATUS_FILE 2> /dev/null
+    fi
+}
+
+# force script to exit after timeout
+function exit_script(){
+    local timeout=10
+    log "exiting in $timeout seconds"
+    sleep $timeout
+    log "exit"
     exit 1
 }
 
-setup_directories() {
-    # required dictories for logging and database datastore
-    mkdir $LOG_DIR/ept/ -p
-    mkdir $LOG_DIR/mongo/ -p
-    mkdir $LOG_DIR/apache2/ -p
-    mkdir $DATA_DIR/db -p    
-    
-    chown mongodb:mongodb $DATA_DIR/db -R
-    chown mongodb:mongodb $LOG_DIR/mongo/ -R
-    chown www-data:www-data $LOG_DIR/ept -R
-    chown www-data:www-data $LOG_DIR/apache2 -R
-}
+# required dictories for logging and database datastore
+function setup_directories() {
+    set_status "setting up backend directories"
 
-setup_logrotate() {
-    # setup logrotate for apache, mongo, and ept files
-    echo "
-$LOG_DIR/apache2/*.log {
-    missingok
-    rotate 10
-    size 5M
-    compress
-    delaycompress
-    notifempty
-    sharedscripts
-    postrotate
-                if /etc/init.d/apache2 status > /dev/null ; then \\
-                    /etc/init.d/apache2 reload > /dev/null; \\
-                fi;
-    endscript
-    prerotate
-        if [ -d /etc/logrotate.d/httpd-prerotate ]; then \\
-            run-parts /etc/logrotate.d/httpd-prerotate; \\
-        fi; \\
-    endscript
-}
+    # if base directories do not exists, then something has gone terribly wrong...
+    critical=( $APP_DIR $LOG_DIR $DATA_DIR $SRC_DIR )
+    for d in "${critical[@]}" ; do
+        if [ ! -d $d ] ; then
+            set_status "error: required directory $d not found"
+            exit_script
+        fi
+        log "directory $d found"
+    done
 
-$LOG_DIR/mongo/*.log {
-       size 5M
-       rotate 10
-       copytruncate
-       delaycompress
-       compress
-       notifempty
-       missingok
-}
-
-$LOG_DIR/ept/*.log {
-       size 50M
-       rotate 10
-       copytruncate
-       compress
-       notifempty
-       missingok
-}
-
-" > /etc/logrotate.d/aci_app
-
-}
-
-setup_environment() {
-    # setup app required environment variables
-    CONFIG_FILE="$SRC_DIR/instance/config.py"
-    echo "" > $CONFIG_FILE
-    echo "EMAIL_SENDER=\"noreply@aci.app\"" >> $CONFIG_FILE
-    echo "LOG_DIR=\"$LOG_DIR/ept/\"" >> $CONFIG_FILE
-    echo "LOG_LEVEL=$LOGGING_LEVEL_DEBUG" >> $CONFIG_FILE
-    # log rotate built into docker environment, therefore,
-    # disable python log rotate
-    echo "LOG_ROTATE=0" >> $CONFIG_FILE
-    echo "LOGIN_ENABLED=0" >> $CONFIG_FILE
-    echo "ACI_APP_MODE=1" >> $CONFIG_FILE
-    echo "PROXY_URL=\"http://127.0.0.1:80/\"" >> $CONFIG_FILE
-    # update iv and ev against seed
-    echo "" > $PRIVATE_CONFIG
-    if [ -s "$CRED_DIR/plugin.key" ] && [ -s "$CRED_DIR/plugin.crt" ] ; then
-        KEY=`cat $CRED_DIR/plugin.key $CRED_DIR/plugin.crt | md5sum | egrep -o "^[^ ]+"`
-        echo "EKEY=\"$KEY\"" >> $PRIVATE_CONFIG
+    if [ ! -d $DATA_DIR/db ] ; then
+        log "create $DATA_DIR/db"
+        mkdir -p $DATA_DIR/db
+        chown mongodb:mongodb $DATA_DIR/db -R
     fi
-    if [ -s "$CRED_DIR/plugin.key" ] ; then
-        EIV=`cat $CRED_DIR/plugin.key | md5sum | egrep -o "^[^ ]+"`
-        echo "EIV=\"$EIV\"" >> $PRIVATE_CONFIG
+    if [ ! -d $LOG_DIR/mongo ] ; then
+        log "create $LOG_DIR/mongo"
+        mkdir -p $LOG_DIR/mongo/
+        chown mongodb:mongodb $LOG_DIR/mongo/ -R
     fi
+    if [ ! -d $LOG_DIR/apache2 ] ; then
+        log "create $LOG_DIR/apache2"
+        mkdir -p $LOG_DIR/apache2/ 
+        chown www-data:www-data $LOG_DIR/apache2 -R
+    fi
+    # backend scripts run under www-data user and write directly to LOG_DIR
+    chown www-data:www-data $LOG_DIR/*.log
+    chmod 777 $LOG_DIR/*.log
+    chmod 777 $LOG_DIR
 }
 
-ALL_RUNNING=1
-IS_RUNNING=0
-check_service() {
-    # set global IS_RUNNING to 1 if process is running
-    COUNT=`ps -ef | egrep $1 | egrep -v grep | wc -l`
-    if [ "$COUNT" -ge "1" ] ; then
-        echo "$(date) service $1 is running" >> $LOG_FILE
-        IS_RUNNING=1
+#  check if provided service is running.  return 1 (error) if not running
+function service_is_running(){
+    # if no service provided then return error
+    local service=$1
+    if [ ! "$service" ] ; then return 1 ; fi
+    local count=`ps -ef | egrep $service | egrep -v grep | wc -l`
+    if [ "$count" -ge "1" ] ; then
+        log "service $service is running"
+        return 0
     else
-        echo "$(date) service $1 is NOT running" >> $LOG_FILE
-        IS_RUNNING=0
+        log "service $service is NOT running"
+        return 1
     fi
 }
 
-recover_service() {
-    # perform recovery operations for services that support recovery
-    SERVICE=$1
-    echo "$(date) attempting recovery for service $SERVICE" >> $LOG_FILE
-    if [ "$SERVICE" == "mongodb" ] ; then
-        mongod --repair --dbpath $DATA_DIR/db >> $LOG_FILE 2>> $LOG_FILE
-        service $SERVICE start >> $LOG_FILE 2>> $LOG_FILE
-        check_service $SERVICE
-        if [ "$IS_RUNNING" == "0" ] ; then
-            # one last attempt, remove local db copy and lock file
-            rm -fv $DATA_DIR/db/mongod.lock >> $LOG_FILE 2>> $LOG_FILE
-            rm -rfv $DATA_DIR/db/local\.* >> $LOG_FILE 2>> $LOG_FILE
-            rm -rfv $DATA_DIR/db/journal* >> $LOG_FILE 2>> $LOG_FILE
-            chown mongodb:mongodb $DATA_DIR/db -R >> $LOG_FILE 2>> $LOG_FILE
-            service $SERVICE start >> $LOG_FILE 2>> $LOG_FILE
-        fi
-    else
-        echo "$(date) no recovery mechanism for service $SERVICE"
+# start a particular service and return error code on failure
+function start_service(){
+    local service=$1
+    local sleep_time=5
+    if [ ! "$service" ] ; then return 1 ; fi
+    set_status "starting service $service"
+    log `service $service start 2>&1`
+    # wait a few seconds before checking service is running
+    log "pause $sleep_time seconds before checking service status"
+    sleep $sleep_time
+    if ! service_is_running $service ; then
+        set_status "failed to start service $service"
+        return 1
     fi
-}
-
-start_service() {
-    # start a service with restart and recover if it fails on start
-    # if it can't be started, set ALL_RUNNING to 0
-    SERVICE=$1
-    echo "$(date) starting service $SERVICE" >> $LOG_FILE
-    service $SERVICE start >> $LOG_FILE 2>> $LOG_FILE
-    check_service $SERVICE
-    if [ "$IS_RUNNING" == "0" ] ; then
-        echo "$(date) restarting service $SERVICE" >> $LOG_FILE
-        service $SERVICE restart >> $LOG_FILE 2>> $LOG_FILE
-        check_service $SERVICE
-        if [ "$IS_RUNNING" == "0" ] ; then
-            echo "$(date) failed to restart service $SERVICE" >> $LOG_FILE
-            recover_service $SERVICE 
-            check_service $SERVICE
-            if [ "$IS_RUNNING" == "0" ] ; then
-                echo "$(date) recover service $SERVICE failed" >> $LOG_FILE
-                ALL_RUNNING=0
-            fi
+    # for mongo, ensure we can connect to the db
+    if [ "$service" == "mongodb" ] ; then
+        if ! mongodb_accept_connections ; then
+            return 1
         fi
     fi
+    return 0
 }
 
-start_services() {
-    # start required services
-    CRON=`which cron`
-    echo "$(date) starting cron: $CRON" >> $LOG_FILE
-    $CRON >> $LOG_FILE 2>>$LOG_FILE
-    start_service "apache2" 
-    start_service "mongodb"
-    start_service "exim4"
-}
-
-BASH=`which bash`
-MAX_WAIT_COUNT=200
-WAIT_TIME=3
-wait_for_mongo() {
-    # after creating a new database or on initial boot/restart
-    # mongo may be rebuilding journal/database which prevents it from
-    # accepting new connections. If mongo is running, wait until it 
-    # accepts the new connection
-    echo "$(date) ensuring mongo is ready to accept database connections" >> $LOG_FILE
-    i="0"
-    while [ $i -lt "$MAX_WAIT_COUNT" ] ; do
-        echo "$(date) mongodb check count: $i" >> $LOG_FILE
-        check_service "mongodb"
-        if [ "$IS_RUNNING" == "0" ] ; then
-            echo "$(date) mongodb is not running! Trying to restart it..." >> $LOG_FILE
-            start_service "mongodb"
-            if [ "$ALL_RUNNING" == "0" ] ; then
-                echo "$(date) failed to restarting mongodb, exiting..." >> $LOG_FILE
-                exit_script 
-            fi
-        fi
-        CMD="$BASH $SRC_DIR/bash/workers.sh -db"
-        echo "$(date) checking db connection: $CMD" >> $LOG_FILE
-        sudo -u www-data $CMD >> $LOG_FILE 2>> $LOG_FILE
-        if [ "$?" == "0" ] ; then
-            echo "$(date) successfully connected to mongodb" >> $LOG_FILE
-            return
+# start required backend services and check status to ensure successfully started
+function start_all_services(){
+    set_status "starting all services"
+    for s in "${ALL_SERVICES[@]}" ; do
+        if ! start_service $s ; then
+            if [ "$s" == "mongodb" ] ; then
+                if ! mongodb_reconfigure_and_restart ; then exit_script ; fi
+            else
+                exit_script
+            fi 
         else
-            echo "$(date) failed to connect to mongodb" >> $LOG_FILE
+            log "successfully started service $s"
         fi
-        echo "$(date) mongodb is not ready, sleeping for $WAIT_TIME seconds" >> $LOG_FILE
-        sleep $WAIT_TIME
+    done
+}
+
+# multiple problems with mongodb in app mode and interaction with glusterfs
+# if mongo fails to start use the below recovery method to move mongo off of
+# glusterfs.  Note, all previous database data is lost when this occurs AND new
+# data is not persisted if app is moved to different APIC 
+function mongodb_reconfigure_and_restart(){
+    set_status "attempting mongodb remediation"
+    if [ "$APP_MODE" == "0" ] ; then
+        log "recovery only supported in app mode, aborting..."
+        return 1        
+    fi
+    log `service mongodb force-stop 2>&1`
+    DATA_DIR="/data/"
+    log `rm -rf $DATA_DIR`
+    mkdir -p $DATA_DIR
+    chmod 777 $DATA_DIR
+    setup_directories
+    log `sed -i '/  dbPath:/c\  dbPath: \/data\/db' $MONGO_CONFIG 2>&1`
+    start_service "mongodb"
+    return "$?"
+}
+
+# ensure mongo db is accepting new connections.  It may take a few minutes on 
+# slow filesystems when allocating db chunks or rebuilding from journaling
+function mongodb_accept_connections(){
+    local wait_time=3
+    local i="0"
+    local cmd="cd $SCRIPT_DIR ; python -m app.models.aci.worker --check_db"
+    while [ $i -lt "$MONGO_MAX_WAIT_COUNT" ] ; do
+        set_status "checking mongodb is accepting connections $i/$MONGO_MAX_WAIT_COUNT"
+        log "command: $cmd"
+        if su - -s /bin/bash www-data -c "$cmd" ; then
+            log "successfully connected to database"
+            return 0
+        else
+            log "failed to connected to database"
+        fi
+        log "mongodb is not ready, sleeping for $wait_time seconds"
+        sleep $wait_time
         i=$[$i+1]
     done 
-
-    echo "$(date) failed to connect to mongodb after max($i) iterations" >> $LOG_FILE
-    exit_script
+    set_status "failed to connect to mongodb after $i attempts"
+    return 1
 }
 
-setup_app() {
-    # pause to ensure mongo is ready to accept connections
-    wait_for_mongo
+# setup app required environment variables
+function create_app_config_file() {
+    set_status "creating app config_file"
 
-    # execute setup_db script in conditional mode to setup database
-    # if not previously setup.
-    APP_USERNAME=${APP_VENDOR}_${APP_APPID}
-    SETUP_ARGS="--conditional --no_verify --no_https --username=admin --password=cisco"
-    echo "$(date) python $SRC_DIR/setup_db.py $SETUP_ARGS " >> $LOG_FILE 2>> $LOG_FILE
-    sudo -u www-data python $SRC_DIR/setup_db.py $SETUP_ARGS >> $LOG_FILE 2>> $LOG_FILE
-    if [ "$?" == "1" ] ; then
-        echo "$(date) An error occurred during setup_db" >> $LOG_FILE
+    local instance_config="$SRC_DIR/instance"
+    local config_file="$instance_config/config.py"
+    if [ ! -d $instance_config ] ; then 
+        mkdir -p $instance_config
+    fi
+    
+    # app mode specific settings
+    if [ "$APP_MODE" == "1" ] ; then
+        echo "" > $config_file
+        echo "LOG_DIR=\"$LOG_DIR/\"" >> $config_file
+        echo "LOG_ROTATE=0" >> $config_file
+        echo "ACI_APP_MODE=1" >> $config_file
+        # update iv and ev against seed
+        echo "" > $PRIVATE_CONFIG
+        if [ -s "$CRED_DIR/plugin.key" ] && [ -s "$CRED_DIR/plugin.crt" ] ; then
+            KEY=`cat $CRED_DIR/plugin.key $CRED_DIR/plugin.crt | md5sum | egrep -o "^[^ ]+"`
+            echo "EKEY=\"$KEY\"" >> $PRIVATE_CONFIG
+        fi
+        if [ -s "$CRED_DIR/plugin.key" ] ; then
+            EIV=`cat $CRED_DIR/plugin.key | md5sum | egrep -o "^[^ ]+"`
+            echo "EIV=\"$EIV\"" >> $PRIVATE_CONFIG
+        fi
+    fi
+    chmod 755 $config_file
+
+}
+
+# execute db init scripts
+function init_db() {
+    set_status "initializing db"
+
+    local setup_args=""
+    local cmd=""
+    # app mode specific settings
+    if [ "$APP_MODE" == "1" ] ; then
+        setup_args="--apic_app_init --no_https"
+    fi
+    cmd="python $SCRIPT_DIR/setup_db.py $setup_args"
+    log "command: $cmd"
+    if su - -s /bin/bash www-data -c "$cmd" ; then
+        log "successfully initialized db"
+    else
+        set_status "error: failed to initialize db"
         exit_script
     fi
 
-    # pause again since database setup my trigger file preallocator to restart
-    wait_for_mongo
+}
 
-    # separate script to perform apic_app_init
-    SETUP_ARGS="--apic_app_username=$APP_USERNAME --apic_app_init"
-    echo "$(date) python $SRC_DIR/setup_db.py $SETUP_ARGS " >> $LOG_FILE 2>> $LOG_FILE
-    sudo -u www-data python $SRC_DIR/setup_db.py $SETUP_ARGS >> $LOG_FILE 2>> $LOG_FILE
-    if [ "$?" == "1" ] ; then
-        echo "$(date) An error occurred during apic_app_init" >> $LOG_FILE
-        exit_script
-    fi
+# main container startup
+function main(){
+    log "======================================================================"
+    set_status "restarting"
+    log "======================================================================"
+    log `rm -f $STARTED_FILE 2>&1`
 
-    # start all configured fabrics
-    sudo -u www-data /bin/bash $SRC_DIR/bash/workers.sh -s all "Triggered by APIC start.sh"  >> $LOG_FILE 2>> $LOG_FILE
-    if [ "$?" == "1" ] ; then
-        echo "$(date) An error occurred starting workers - contining anyways" >> $LOG_FILE
-    fi
-
-    # just in case any directories have incorrect permission from setup, rewrite them
+    # setup required directories with proper write access and custom app config
     setup_directories
-}
+    start_all_services
+    create_app_config_file
+    init_db
 
-run() {
-    # successfully started at this point
-    echo "$(date) set started flag" >> $LOG_FILE
-    touch $STARTED_FILE >> $LOG_FILE 2>> $LOG_FILE
+    log `touch $STARTED_FILE 2>&1`
+    set_status "running"
 
-    # app expects start.sh to run as a daemon process
-    # for now we only use it to start services so just need to keep
-    # it alive in big while loop
-    while true; do sleep 60 ; done
-}
+    # conditionally start all fabric monitors
+    local cmd="cd $SCRIPT_DIR"
+    cmd="$cmd ; python -m app.models.aci.worker --all_start --all_conditional" 
+    log "command: $cmd"
+    if ! su - -s /bin/bash www-data -c "$cmd" ; then
+        log "failed to start fabric monitors"
+    fi
 
-echo "======================================================================" >> $LOG_FILE
-echo "$(date) Restarting... " >> $LOG_FILE
-echo "======================================================================" >> $LOG_FILE
-echo "$(date) === clear started flag " >> $LOG_FILE
-rm $STARTED_FILE >> $LOG_FILE 2>> $LOG_FILE
-echo "$(date) === setup directories " >> $LOG_FILE
-setup_directories
-echo "$(date) === setting up environment variables" >> $LOG_FILE
-setup_environment
-echo "$(date) === setup logrotate" >> $LOG_FILE
-setup_logrotate
-echo "$(date) === starting services" >> $LOG_FILE
-start_services
-if [ "$ALL_RUNNING" == "0" ] ; then
-    echo "$(date) One or more services failed to start..." >> $LOG_FILE
+    # sleep forever
+    log "sleeping..."
+    sleep infinity 
+    set_status "error: bash sleep killed"
     exit_script
-fi
-echo "$(date) pausing 10 seconds to ensure all services initialize" >> $LOG_FILE
-sleep 10
-echo "$(date) === setting up app" >> $LOG_FILE
-setup_app
-echo "$(date) === Running" >> $LOG_FILE
-run
+}
+
+
+# execute main 
+main

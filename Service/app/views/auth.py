@@ -3,14 +3,14 @@ from flask import current_app, Blueprint, render_template
 auth_prefix = "/auth"
 auth = Blueprint("auth", __name__, url_prefix=auth_prefix)
 
-from flask import Flask, jsonify, flash, redirect, url_for
-from flask import request, make_response, g, url_for, abort, session
-from flask_login import (LoginManager, login_required, login_user,
-    current_user, logout_user)
+from flask import Flask, jsonify, flash, redirect
+from flask import request, make_response, g, abort
+from flask_login import (LoginManager, login_required, current_user)
 
-from ..models.users import Users
-from ..models.roles import Roles
-from ..models.utils import MSG_403
+from ..models.user import User
+from ..models.rest import Role
+from ..models.utils import MSG_403, get_user_data
+import re
 
 # setup login manager
 login_manager = LoginManager()
@@ -18,13 +18,14 @@ login_manager = LoginManager()
 # since this is a blueprint, use record_once instead of login_manager.init_app
 @auth.record_once
 def on_load(state):
-    # setup login manager login_view
     login_manager.login_view = "%s/login/" % auth_prefix
     login_manager.login_message = ""
     login_manager.init_app(state.app)
 
 @auth.before_app_request
 def before_request():
+    #from ..models.utils import list_routes
+    #list_routes(current_app)
     # force everything over HTTPS if enabled
     if current_app.config.get("force_https", False):
         fwd_proto = request.headers.get("x-forwarded-proto",None)
@@ -35,87 +36,22 @@ def before_request():
             if re.search("^http:", request.url) is not None:
                 return redirect(request.url.replace("http:","https:", 1))
 
-    # set global object various configs
-    g.app_name = current_app.config.get("app_name", "AppName1")
-
     # set global object 'g.user' based off current user session
-    g.ROLE_FULL_ADMIN = Roles.FULL_ADMIN
+    g.ROLE_FULL_ADMIN = Role.FULL_ADMIN
     g.user = current_user
     if g.user is not None:
-        if hasattr(g.user, 'role') and g.user.role == Roles.BLACKLIST:
-            Users.logout()
+        if hasattr(g.user, 'role') and g.user.role == Role.BLACKLIST:
+            User.logout()
             abort(403, MSG_403)
         elif not current_app.config.get("LOGIN_ENABLED", True) and \
             not g.user.is_authenticated:
             # auto-login user as local if login is disabled
-            g.user = Users.load_user("local")
-            if g.user is None:
-                # setup local user
-                from ..models.users import setup_local
-                setup_local(current_app)
-                g.user = Users({"username":"local", "role": Roles.FULL_ADMIN})
-            Users.start_session("local")
+            User.login("local", "password", force=True)
+            g.user = User.load(username="local")
 
 @login_manager.user_loader
 def load_user(username):
-    return Users.load_user(username)
-
-@auth.route("/login", methods=["GET", "POST"])
-@auth.route("/login/", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        if Users.login(
-            username = request.form['username'],
-            password = request.form['password'],
-            remember = True):
-            return redirect(request.args.get("next") or "/")
-        else:
-            flash("The email or password you entered is incorrect.")
-            return render_template("auth/login.html")
-
-    return render_template("auth/login.html")
-
-@auth.route("/logout")
-@auth.route("/logout/")
-def logout():
-    Users.logout()
-    return render_template("auth/logout.html")
-
-@auth.route("/pwreset/<string:key>", methods=["GET"])
-def pwreset(key):
-    return render_template("auth/pwreset.html", key=key)
-
-##############################################################################
-# Auth API, imported by api module
-##############################################################################
-
-def api_login():
-    """ login to application and create session cookie.  Note, if sso
-        authentication is enabled, then this function is not required. Simply
-        provided the sso cookie and the application will authenticate it.
-        Args:
-            username(str): application username
-            password(str): application password
-        Returns:
-            success(bool): successfully login
-    """
-    data = request.json
-    if not data: abort(400, "Invalid JSON provided")
-    if "username" not in data:
-        abort(400, "Required parameter \"username\" not provided")
-    if "password" not in data:
-        abort(400, "Required parameter \"password\" not provided")
-
-    if Users.login(
-        username = data["username"],
-        password = data["password"],
-        remember = True):
-        return jsonify({"success": True})
-    else:
-        abort(401, "Authentication Failed")
-
-def api_logout():
-    """ logout of application and delete session """
-    Users.logout()
-    return jsonify({"success": True})
+    u = User.load(username=username)
+    if not u.exists(): return None
+    return u
 

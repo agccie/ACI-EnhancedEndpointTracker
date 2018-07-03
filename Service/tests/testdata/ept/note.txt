@@ -1,2 +1,0 @@
-# remove mongo _id objects from test files
-find ./*.json | xargs sed -i -E 's/"_id":\{[^\}]+\},//g'

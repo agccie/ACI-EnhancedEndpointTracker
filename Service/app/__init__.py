@@ -1,5 +1,4 @@
 from flask import Flask, g, abort
-from flask.ext.pymongo import PyMongo
 from flask_login import (LoginManager, login_required, login_user, 
     current_user, logout_user)
 from flask import request, make_response, render_template, jsonify
@@ -28,33 +27,42 @@ def create_app(config_filename="config.py"):
     try: app.config.from_pyfile("/home/app/config.py", silent=True)
     except IOError: pass
 
-    # register dependent applications
-    app.mongo = PyMongo(app)
-
-    # setup application settings from database
+    # import model objects (which auto-register with api)
     from .models.settings import Settings
-    c = Settings.init_settings(app)
-    if c is not None:
-        for attr in c:
-            app.config[attr] = c[attr]
+    from .models.user import User
+    from .models.rest.swagger.docs import Docs
+    from .models.aci.fabric import Fabric
+    from .models.aci.tenants import Tenant
+    from .models.aci.app_status import AppStatus
+
+    # init application config from Settings
+    # with app.app_context():
+    #    s = Settings.load()
+    #    for attr in s._attributes:
+    #        if hasattr(s, attr): app.config[attr] = getattr(s, attr)
+
+    # auto-register api objects
+    from .views.api import api
+    from .models.rest import register
+    register(api)
 
     # register blueprints
-    from .views.api import api
     from .views.auth import auth
-    from .views.admin import admin
-    from .views.ept import ept
     from .views.base import base
     from .views.doc import doc
-    
     app.register_blueprint(base)
     app.register_blueprint(auth) # auth has fixed url_prefix
     app.register_blueprint(api, url_prefix="/api")
     app.register_blueprint(doc, url_prefix="/docs")
-    app.register_blueprint(admin, url_prefix="/admin")
-    app.register_blueprint(ept, url_prefix="/ept")
 
     # register error handlers
     register_error_handler(app)
+    
+    # if cors is enabled, add to entire app
+    if app.config.get("ENABLE_CORS", False):
+        from flask_cors import CORS
+        CORS(app, supports_credentials=True, automatic_options=True)
+
     return app
 
 
@@ -77,21 +85,8 @@ def register_error_handler(app):
             len(error.description)>0:
             text = error.description
 
-        # if error was not from api or proxy then render template, 
-        # else return json
-        if re.search("/api/", request.url) is None and \
-            re.search("/proxy(.json)?$", request.url) is None:
-            template = {
-                400: "errors/400_invalid_request.html",
-                401: "errors/401_unauthorized.html",
-                403: "errors/403_forbidden.html",
-                404: "errors/404_not_found.html",
-                405: "errors/405_method_not_allowed.html",
-                500: "errors/500_internal_error.html"
-            }.get(code, "errors/500_internal_error.html")
-            return render_template(template, description=text), code    
-        else:
-            return make_response(jsonify({"error":text}), code)
+        # return json for all errors for now...
+        return make_response(jsonify({"error":text}), code)
 
     for code in (400,401,403,404,405,500):
         app.errorhandler(code)(error_handler)
@@ -107,6 +102,5 @@ def basic_auth():
         if hasattr(g.user, "is_authenticated") and hasattr(g.user, "role"):
             if g.user.is_authenticated and g.user.role == g.ROLE_FULL_ADMIN:
                 return
-
-    abort(403, " ")
+    abort(403, "")
 

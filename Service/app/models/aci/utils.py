@@ -202,16 +202,16 @@ def get_apic_session(fabric, subscription_enabled=False):
         in setting, try to connect to any other discovered apic within 
         controllers.
 
-        fabric can be a Fabrics object or string for fabric name
+        fabric can be a Fabric object or string for fabric name
 
         Returns None on failure
     """
-    from .fabrics import Fabrics
+    from .fabric import Fabric
     from .tools.acitoolkit.acisession import Session
      
     logger.debug("get_apic_session for fabric: %s", fabric)
-    if isinstance(fabric, Fabrics): aci = fabric
-    else: aci = Fabrics.load(fabric=fabric)
+    if isinstance(fabric, Fabric): aci = fabric
+    else: aci = Fabric.load(fabric=fabric)
         
     if not aci.exists(): 
         logger.warn("fabric %s not found", fabric)
@@ -270,14 +270,14 @@ def get_ssh_connection(fabric, pod_id, node_id, session=None):
         selected controller. 
         None returned on error
 
-        fabric can be a Fabrics object or string for fabric name
+        fabric can be a Fabric object or string for fabric name
     """
 
     from .tools.connection import Connection
-    from .fabrics import Fabrics
+    from .fabric import Fabric
 
-    if isinstance(fabric, Fabrics): f = fabric
-    else: f = Fabrics.load(fabric=fabric)
+    if isinstance(fabric, Fabric): f = fabric
+    else: f = Fabric.load(fabric=fabric)
     if not f.exists():
         logger.warn("unknown fabric: %s", fabric)
         return

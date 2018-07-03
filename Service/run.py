@@ -1,7 +1,6 @@
-
 # for local testing, when running in prod will use app.wsgi
 from app import create_app
-from app.tasks.ept.utils import setup_logger
+from app.models.utils import setup_logger
 
 import logging, sys
 logger = setup_logger(logging.getLogger("app"),stdout=True, quiet=True)

@@ -64,6 +64,9 @@ LOG_ROTATE = bool(int(os.environ.get("LOG_ROTATE", 0)))
 LOG_ROTATE_SIZE = os.environ.get("LOG_ROTATE_SIZE", 26214400)
 LOG_ROTATE_COUNT = os.environ.get("LOG_ROTATE_COUNT", 3)
 
+# start all configured monitors when container starts
+AUTO_START_MONITOR = bool(int(os.environ.get("AUTO_START_MONITOR",1)))
+
 # app info
 APP_VERSION = os.environ.get("APP_VERSION", app_vars["APP_VERSION"])
 APP_ID = os.environ.get("APP_ID", app_vars["APP_ID"])
@@ -75,15 +78,4 @@ APP_VENDOR_DOMAIN = os.environ.get("APP_VENDOR_DOMAIN",
 ACI_APP_MODE = bool(int(os.environ.get("ACI_APP_MODE",0)))
 ACI_STARTED_FILE = os.environ.get("STARTED_FILE","/home/app/.started")
 ACI_STATUS_FILE = os.environ.get("STATUS_FILE","/home/app/.status")
-
-
-# default sender for email notifications
-EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "")
-
-# enable/disable login for application. when login is disabled users are
-# automatically allowed admin access
-LOGIN_ENABLED = bool(int(os.environ.get("LOGIN_ENABLED",1)))
-
-# simulate apic connection and callbacks for tests
-SIMULATION_MODE = bool(int(os.environ.get("SIMULATION_MODE",0)))
 

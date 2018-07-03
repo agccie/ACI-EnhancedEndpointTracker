@@ -251,9 +251,8 @@ def list_routes(app, api=False):
             options[arg] = "[{0}]".format(arg)
 
         methods = ','.join(rule.methods)
-        url = url_for(rule.endpoint, **options)
-        line = urllib.unquote("{:50s} {:20s} {}".format(rule.endpoint, methods, url))
-        output.append(line)
+        l = "{:50s} {:30s} {}".format(rule.endpoint, methods, rule)
+        if l not in output: output.append(l)
     
     routes = sorted(output)
 

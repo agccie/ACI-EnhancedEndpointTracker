@@ -10,6 +10,7 @@
     ],
     "contact":{
         "contact-email":"aciappcenter-support@external.cisco.com ",
+        "contact-phone":"555-123-4567",
         "contact-url":"https://github.com/agccie/ACI-EnhancedEndpointTracker"
     },
     "iconfile":"aci-app-logo.png",

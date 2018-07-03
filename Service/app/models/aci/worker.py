@@ -26,11 +26,9 @@ def db_is_alive():
     return False
 
 def start_monitor(fabric):
-    """ start fabric monitor """
-    from .nodes import NodeSubscriber
-    s = NodeSubscriber(fabric)
-    s.subscribe()
-    # subscription dies then some error occurred
+    """ start fabric monitor 
+        TODO....
+    """
     return False
 
 def stop_monitor(fabric):
@@ -63,11 +61,11 @@ def stop_all_monitor(conditional):
 def execute_all_monitor(action):
     # start or stop all monitors via provided via rest interface
     # this function returns once start/stop is triggered in background
-    from .fabrics import (Fabrics, rest_fabric_action)
+    from .fabric import (Fabric, rest_fabric_action)
 
     if action != "start": action = "stop"
     reason = "%s all fabrics" % action
-    all_fabrics = Fabrics.read(_filters={})
+    all_fabrics = Fabric.read(_filters={})
     if "objects" in all_fabrics and len(all_fabrics["objects"])>0:
         for f in all_fabrics["objects"]:
             logger.debug("starting fabric %s", f["fabric"])

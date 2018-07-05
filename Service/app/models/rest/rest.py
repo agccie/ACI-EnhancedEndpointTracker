@@ -15,17 +15,11 @@ from swagger.common import (swagger_create, swagger_read, swagger_update,
 root = RestDependency(None)
 registered_classes = {}     # all register classes indexed by classname
 
-
-def api_register(path=None, root_path=None, parent=None):
+def api_register(path=None,  parent=None):
     """ register REST class with API.  options:
             path    custom api path relative to api blueprint. if not set then 
                     path is set to classname. I.e., if class is Bar in package
                     Foo, then classname is set to <api-blueprint>/foo/bar
-
-            root_path   by default the keyed_path is appended to 'path' value. For objects with no
-                    parent it might be undesirable to include path/classname for the keyed_path.
-                    Set an optional root_path string to change the keyed_path. This is only used by
-                    classes without parent
 
             parent  classname of parent object. When parent is set then key path
                     is relative to parent and keys are inherited from parent.
@@ -41,34 +35,48 @@ def api_register(path=None, root_path=None, parent=None):
             not exist. Similarly, if parent is deleted, then all child objects
             are deleted.
     """
+    global root
     def decorator(cls):
         # stage for registration 
         _cname = cls.__name__.lower()
         if _cname not in registered_classes: 
             # create dependency node for class
-            node = RestDependency(cls, root_path=root_path, path=path)
+            node = RestDependency(cls, path=path)
             if parent is None: root.add_child(node)
             else: 
-                node.set_parent_classname(parent)
                 root.add_loose(node)
+                node.set_parent_classname(parent)
             registered_classes[_cname] = cls
         return cls
     return decorator
 
-def register(api):
+def register(api, uni=True):
     """ register routes for each class with provided api blueprint
         and build per-object swagger definition
     """
 
     # first handle object dependencies sitting in RestDependency root
+    global root
     root.build()
+    if uni:
+        from .universe import Universe
+        uni_node = root.find_classname("universe")
+        children = [c for c in root.children]
+        for c in children:
+            if c is uni_node: continue
+            root.remove_child(c)
+            uni_node.add_child(c)
+            c.set_parent_classname("universe")
+        root = uni_node
     for node in root.get_ordered_objects():
         c = node.obj
+        c.logger.debug("*"*80)
         c._dependency = node
-        c.init()
+        c.init(force=True)
         parent = None
         if node.parent is not None and node.parent.obj is not None:
             parent = node.parent.obj
+            c.logger.debug("parent: %s" , parent._classname)
         keys = {}   # dict of keys per key_index
         for attr in c._attributes:
             if c._attributes[attr]["key"] and (parent is None or \
@@ -96,7 +104,9 @@ def register(api):
         # build list of keys sorted first by index
         key_string = [] 
         for _index in sorted(keys):
-            key_string+= [keys[_index][attr] for attr in sorted(keys[_index])]
+            for attr in sorted(keys[_index]):
+                c._dn_attributes.append(attr)
+                key_string.append(keys[_index][attr])
         key_string = "/".join(key_string)
 
         # create CRUD rules with default paths
@@ -104,23 +114,16 @@ def register(api):
         path = "/%s" % "/".join(c._classname.split("."))
         if parent is None:
             if len(key_string)>0:
-                if node.root_path is not None and len(node.root_path)>0:
-                    key_path = "%s/%s" % (node.root_path, key_string)
-                else:
-                    key_path = "%s/%s" % (path, key_string)
+                key_path = "%s/%s" % (path, key_string)
             else:
-                if node.root_path is not None and len(node.root_path)>0:
-                    key_path = node.root_path
-                else:
-                    key_path = path
+                key_path = path
         else:
             key_path = "%s/%s" % (parent._key_path, key_string)
+            c._dn_attributes = parent._dn_attributes + c._dn_attributes
         # remove duplicate slashes from all paths
         path = re.sub("//","/", path)
         key_path = re.sub("//","/", key_path)
         key_swag_path = re.sub("<[a-z]+:([^>]+)>",r"{\1}", key_path)
-        c._key_path = key_path
-        c._key_swag_path = key_swag_path
         c._swagger = {}
 
         # add create path
@@ -136,16 +139,29 @@ def register(api):
         if c._access["expose_id"]: 
             key_path = "%s/%s" % (key_path, "<string:_id>")
             key_swag_path = re.sub("<[a-z]+:([^>]+)>",r"{\1}", key_path)
+            c._dn_attributes.append("_id")
+           
+        # set final _key_path and _key_swag_path along with calculated _dn_path
+        c._key_path = key_path
+        c._key_swag_path = key_swag_path
+        c._dn_path = re.sub("{.+?}","{}", c._key_swag_path)
+
+        c.logger.debug("%s, dn: %s, attributes: %s", c._classname, c._dn_path, c._dn_attributes)
+
+        keyed = lambda cls: (key_path is not None and \
+                                len(cls._keys)>0 or c._access["expose_id"])
+        bulk = lambda cls: (key_path!=path or \
+                                (len(cls._keys)==0 and not cls._access["expose_id"]))
 
         # add read paths
         if c._access["read"]:
-            if key_path is not None:
+            if keyed(c):
                 endpoint = "%s_read" % c.__name__.lower()
                 api.add_url_rule(key_path, endpoint, c.api_read,methods=["GET"])
                 c.logger.debug("registered read path: GET %s" % key_path)
                 swagger_read(c, key_swag_path, bulk=False)
 
-            if c._access["bulk_read"] and key_path!=path:
+            if c._access["bulk_read"] and bulk(c):
                 endpoint = "%s_bulk_read" % c.__name__.lower()
                 api.add_url_rule(path,endpoint, c.api_read, methods=["GET"])
                 c.logger.debug("registered bulk read path: GET %s" % path)
@@ -153,7 +169,7 @@ def register(api):
 
         # add update paths
         if c._access["update"]:
-            if key_path is not None:
+            if keyed(c):
                 endpoint = "%s_update" % c.__name__.lower()
                 api.add_url_rule(key_path,endpoint,c.api_update,
                     methods=["PATCH","PUT"])
@@ -161,7 +177,7 @@ def register(api):
                     key_path))
                 swagger_update(c, key_swag_path, bulk=False)
 
-            if c._access["bulk_update"] and key_path!=path:
+            if c._access["bulk_update"] and bulk(c):
                 endpoint = "%s_bulk_update" % c.__name__.lower()
                 api.add_url_rule(path,endpoint,c.api_update,
                     methods=["PATCH","PUT"])
@@ -171,14 +187,14 @@ def register(api):
 
         # add delete paths
         if c._access["delete"]:
-            if key_path is not None:
+            if keyed(c):
                 endpoint = "%s_delete" % c.__name__.lower()
                 api.add_url_rule(key_path,endpoint,c.api_delete,
                     methods=["DELETE"])
                 c.logger.debug("registered delete path: DELETE %s"%key_path)
                 swagger_delete(c, key_swag_path, bulk=False)
 
-            if c._access["bulk_delete"] and key_path!=path:
+            if c._access["bulk_delete"] and bulk(c):
                 endpoint = "%s_bulk_delete" % c.__name__.lower()
                 api.add_url_rule(path,endpoint,c.api_delete,methods=["DELETE"])
                 c.logger.debug("registered bulk delete path: DELETE %s"%path)
@@ -220,7 +236,6 @@ def register(api):
             if len(summary) == 0: summary = r["function"].__doc__
             swag_rpath = re.sub("<[a-z]+:([^>]+)>",r"{\1}", rpath)
             swagger_generic_path(c,swag_rpath,methods[0],summary)
-
 
 
 class Rest(object):
@@ -636,7 +651,7 @@ class Rest(object):
         return keys
 
     @classmethod
-    def load(cls, **kwargs):
+    def load(cls, _rsp_include="self", **kwargs):
         """ initialize an instance of the rest object where all Meta values
             are object attributes.  Value is found by performing read for 
             provided keys.  If more than one object is found than the first
@@ -644,12 +659,15 @@ class Rest(object):
             have default values.
             This function sets the _exists flag to true for the instantiated
             object if found
+
+            set _rsp_include to [self, children, subtree] to build children objects
         """
+
         obj = cls(**kwargs)
         db_obj = {}
         try:
             kwargs["__read_all"] = True
-            ret = cls.read(**kwargs)
+            ret = cls.read(_params=_params, **kwargs)
             if "objects" in ret and isinstance(ret["objects"], list) and \
                 len(ret["objects"])>0 and cls._classname in ret["objects"][0]:
                 db_obj = ret["objects"][0][cls._classname]
@@ -666,6 +684,7 @@ class Rest(object):
                 obj._original_attributes[attr] = copy.deepcopy(db_obj[attr])
                 # update return object with db value if not in kwargs
                 if attr not in kwargs: setattr(obj, attr, db_obj[attr])
+            
         if cls._access["expose_id"] and "_id" in db_obj:
             setattr(obj, "_id", db_obj["_id"])
         return obj
@@ -684,13 +703,17 @@ class Rest(object):
         return v
 
     @classmethod
-    def init(cls):
+    def init(cls, force=False):
         """ update class _access and _attributes based on meta data """
-        if cls._class_init: return
+        if cls._class_init and not force: return
         cls._class_init = True
         cls._access = {}
         cls._attributes = {}
         cls._keys = []
+        cls._dn_attributes = []
+        cls._dn_path = ""
+        cls._key_path = ""
+        cls._key_swag_path = ""
         if cls._dependency.path is None:
             cls._classname = re.sub("_",".", cls.__name__).lower()
         else:
@@ -702,9 +725,6 @@ class Rest(object):
             if d not in cls.META_ACCESS: 
                 cls._access[d] = copy.copy(cls.ACCESS_DEF[d])
             else: cls._access[d] = cls.META_ACCESS[d]
-        # no support for expose_id with parent dependency
-        if cls._dependency.parent is not None and cls._access["expose_id"]:
-            raise Exception("no support for expose_id with dependencies")
 
         def init_attribute(attr, sub=False):
             base = {}
@@ -764,6 +784,9 @@ class Rest(object):
                             cls._classname, k))
                     cls._attributes[k] = copy.deepcopy(parent._attributes[k])
             cls._keys = parent._keys + cls._keys
+
+        # dn is disabled if class does not have any keys
+        if len(cls._keys)==0: cls._access["dn"] = False
 
 
     @classmethod
@@ -1307,6 +1330,10 @@ class Rest(object):
                 include     : comma separated list of attributes to include in 
                               each object. By default, all attributes are 
                               returned
+                rsp-include : [self, children, subtree] where default is 'self'.  If 'children' is
+                              set then all child objects of this object are returned.  If 
+                              'subtree' is set, then full subtree is returned (i.e., children, 
+                              grand-children, etc...)
             
             Return dict of with following attributes:
                 count:      total number of objects matching query
@@ -1314,7 +1341,8 @@ class Rest(object):
         """
         cls.init()
         classname = cls._classname
-        #cls.logger.debug("%s read request kwargs: %s"%(classname,kwargs))
+        #cls.logger.debug("%s read request [p,f,k] [%s,%s,%s]",classname,_params,_filters,kwargs)
+        print("%s read request [p,f,k] [%s,%s,%s]",classname,_params,_filters,kwargs)
         collection = get_db()[classname]
 
         # return attribute value independent of whether read is true or false
@@ -1364,6 +1392,12 @@ class Rest(object):
         if page*pagesize > cls.MAX_RESULT_SIZE:
             abort(400, "result size of page(%s)*page-size(%s) exceeds max %s"%(
                 page, pagesize, cls.MAX_RESULT_SIZE))
+
+        # validate rsp_include values
+        rsp_include = _params.get("rsp-include", "self")
+        if rsp_include not in ["self", "children", "subtree"]:
+            abort(400, 
+                "invalid rsp-include '%s', expect either self, children, or subtree" % rsp_include)
 
         # before read callback
         if callable(cls._access["before_read"]):
@@ -1437,7 +1471,32 @@ class Rest(object):
                             obj[v] = aes_decrypt(obj[v])
                 if cls._access["expose_id"] and "_id" in r:
                     obj["_id"] = "%s"%ObjectId(r["_id"])
+                if cls._access["dn"]:
+                    _vars = [obj.get(attr,"") for attr in cls._dn_attributes]
+                    obj["dn"] = cls._dn_path.format(*_vars)
                 ret["objects"].append({cls._classname: obj})
+
+            # for rsp_include children/subtree need to perform recursive call on child objects
+            if rsp_include != "self":
+                child_rsp_include = "self" if rsp_include == "children" else "subtree"
+                child_params = {"rsp-include": child_rsp_include}
+                if cls._dependency is not None and len(cls._dependency.children)>0:
+                    for obj in ret["objects"]:
+                        obj = obj[cls._classname]
+                        obj["children"] = []
+                        child_filters = {}
+                        for attr in obj:
+                            if attr in cls._keys: child_filters[attr] = obj[attr]
+                        for n in cls._dependency.children:
+                            if n.obj is not None:
+                                #cls.logger.debug("sub-read for child %s: (%s) %s", 
+                                #                    n.obj._classname, child_params, child_filters)
+                                try:
+                                    cret = n.obj.read(_params=child_params, _filters=child_filters)
+                                    if "objects" in cret:
+                                        obj["children"].append(cret["objects"])
+                                except Exception as e:
+                                    cls.logger.debug("subreadtraceback: %s", traceback.format_exc())
 
         # perform 404 check for read_one scenario
         if read_one and ret["count"] == 0:

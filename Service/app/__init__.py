@@ -32,7 +32,7 @@ def create_app(config_filename="config.py"):
     from .models.user import User
     from .models.rest.swagger.docs import Docs
     from .models.aci.fabric import Fabric
-    from .models.aci.tenants import Tenant
+    from .models.aci.tenants import Tenant, BridgeDomain
     from .models.aci.app_status import AppStatus
 
     # init application config from Settings

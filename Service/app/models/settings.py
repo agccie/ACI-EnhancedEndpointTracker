@@ -9,6 +9,7 @@ class Settings(Rest):
     META_ACCESS = {
         "create": False,
         "delete": False,
+        "bulk_update": True,    # no keys or _id requires bulk update
     }
 
     META = {

@@ -4,13 +4,12 @@ import sys
 class RestDependency(object):
     """ object dependency tree """
 
-    def __init__(self, obj, path=None, root_path=None):
+    def __init__(self, obj, path=None):
         self.obj = obj
         if self.obj is not None: 
             self.classname = self.obj.__name__.lower()
         else:
             self.classname = None
-        self.root_path = root_path
         self.path = path
         self.parent = None
         self.parent_classname = None
@@ -44,9 +43,16 @@ class RestDependency(object):
     def add_child(self, node):
         """ add node to children list """
         assert isinstance(node, RestDependency)
-        if node not in self.children: 
+        if node not in self.children:
             self.children.append(node)
         if node.parent is None: node.parent = self
+
+    def remove_child(self, node):
+        """ remove node from children list """
+        assert isinstance(node, RestDependency)
+        if node in self.children:
+            self.children.remove(node)
+            node.parent = None
 
     def find_classname(self, classname):
         """ walk children to find node holding corresponding Rest obj
@@ -85,6 +91,7 @@ class RestDependency(object):
         objs = []
         if self.obj is not None: objs.append(self)
         for c in self.children:
-            objs+= c.get_ordered_objects()
+            ch = c.get_ordered_objects()
+            objs+= ch
         return objs
 

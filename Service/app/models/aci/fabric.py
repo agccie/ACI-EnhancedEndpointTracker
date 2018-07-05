@@ -204,7 +204,7 @@ def before_fabric_delete(filters, **kwargs):
     stop_monitor(fabric)
     return filters
 
-@api_register(root_path="/")
+@api_register(path="/fabric")
 class Fabric(Rest):
     """ ACI Fabric REST class """
 

@@ -2,7 +2,7 @@
 import sys, os, subprocess, re, uuid, getpass, argparse, logging, traceback
 
 from app.models.utils import get_app
-from app.models.rest import (registered_classes, Role)
+from app.models.rest import (registered_classes, Role, Universe)
 from app.models.user import User
 from app.models.settings import Settings
 from app.models.utils import (setup_logger, get_db)
@@ -188,6 +188,10 @@ def db_setup(args):
         if len(indexes)>0:
             logger.debug("creating indexes for %s: %s",c._classname,indexes)
             db[c._classname].create_index(indexes, unique=True)
+
+    # if uni is enabled then required before any other object is created
+    uni = Universe.load()
+    uni.save()
         
     # insert settings with user provided values 
     lpass = "%s"%uuid.uuid4()

@@ -111,6 +111,24 @@ The quickest way to get up and running is to spin up a host/VM/container and exe
     stopping all fabrics
     eptracker@ept-dev:/var/www/eptracker$ sudo service apache2 restart
 
+Upgrading
+"""""""""
+
+If you have downloaded the OVA you may want to upgrade the source code to the most recent release to get all recent fixes/features. To do so, simply perform a git pull on the source directory and restart apache.  For example:
+
+.. code-block:: bash
+
+    eptracker@eptracker:~$ cd /var/www/eptracker/
+    eptracker@eptracker:/var/www/eptracker$ git remote -v
+    origin	https://github.com/agccie/ACI-EnhancedEndpointTracker.git (fetch)
+    origin	https://github.com/agccie/ACI-EnhancedEndpointTracker.git (push)
+
+    eptracker@eptracker:/var/www/eptracker$ git reset --hard
+    <output omitted>
+    eptracker@eptracker:/var/www/eptracker$ git pull origin master
+    <output omitted>
+
+    eptracker@eptracker:/var/www/eptracker$ sudo service apache2 restart
 
 Manual Setup
 """"""""""""

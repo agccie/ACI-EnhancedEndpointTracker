@@ -1172,7 +1172,7 @@ class Rest(object):
         """
         cls.init()
         classname = cls._classname
-        cls.logger.debug("%s create request", classname)
+        #cls.logger.debug("%s create request", classname)
         collection = get_db()[classname]
         callback_kwargs = {
             "api": kwargs.get("_api", False),

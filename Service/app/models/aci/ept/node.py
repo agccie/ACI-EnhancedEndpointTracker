@@ -33,7 +33,7 @@ class eptNode(Rest):
             "type":str, 
             "description": "node name as seen in fabric node vector",
         },
-        "oobMgmtAddr": {
+        "oob_addr": {
             "type": str,
             "description": "node out-of-band management address",
         },
@@ -46,13 +46,9 @@ class eptNode(Rest):
             "values": ["controller", "leaf", "spine", "vpc"],
             "description": "node role to differentiate between controllers, leafs, and spines",
         },
-        "address": {
+        "addr": {
             "type": str,
             "description": "32-bit physical TEP ipv4 address of node",
-        },
-        "systemUptime": {
-            "type": str,
-            "description": "uptime in format hours:minutes:seconds",
         },
         "nodes": {
             "type": list,
@@ -60,11 +56,11 @@ class eptNode(Rest):
             "default": [],
             "subtype": dict,
             "meta": {
-                "id": {
+                "node": {
                     "type": int,
                     "description": "node-id of node in this vpc domain",
                 },
-                "peerIp": {
+                "addr": {
                     "type": str,
                     "description": "physical TEP address of node in this vpc domain",
                 },

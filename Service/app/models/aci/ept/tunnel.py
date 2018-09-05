@@ -1,6 +1,5 @@
 from ...rest import Rest
 from ...rest import api_register
-from ...rest import api_callback
 from .common import get_ipv4_string
 import logging
 
@@ -37,18 +36,21 @@ class eptTunnel(Rest):
             "description": "32-bit TEP source ipv4 address",
             "default": "0.0.0.0",   # default is only used for swagger docs example fields
         },
-        "operSt": {
+        "status": {
             "type": str,
-            "description": "tunnel interface operational status (generally 'up' or 'down')",
+            "description": "tunnel interface operational status (up or down)",
         },
-        "tType": {
+        "encap": {
             "type": str,
-            "description": "tunnel encapsulation type (ivxlan, vxlan, etc...)",
+            "description": "tunnel encapsulation type (ivxlan, vxlan, etc from tunnelIf tType)",
         },
-        "type": {
+        "flags": {
             "type": str,
-            "description": "tunnel type flags",
+            "description": "tunnel type flags (from tunnelIf 'type' field)",
+        },
+        "ts": {
+            "type": float,
+            "description": "epoch timestamp the object was created or updated",
         },
     }
-
 

@@ -1,6 +1,8 @@
 from ...rest import Rest
+from ...rest import api_callback
 from ...rest import api_register
 import logging
+import time
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -33,3 +35,9 @@ class eptVpc(Rest):
         },
     }
 
+    @classmethod
+    @api_callback("before_create")
+    def before_vpc_create(cls, data):
+        """ set create time on object """
+        data["ts"] = time.time()
+        return data

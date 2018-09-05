@@ -18,7 +18,7 @@ class eptEpg(Rest):
     }
 
     META = {
-        "vrf_vnid": {
+        "vrf": {
             "type": int,
             "key": True,
             "key_index": 1,
@@ -38,7 +38,7 @@ class eptEpg(Rest):
             "type": str,
             "description": "EPG name corresponding to provided vnid and pctag",
         },
-        "bd_vnid": {
+        "bd": {
             "type": int,
             "description": "BD vnid for this epg",
         },

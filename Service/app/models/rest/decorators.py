@@ -392,11 +392,8 @@ def register(api, uni=True):
         c._dn_path = re.sub("{.+?}","{}", c._key_swag_path)
 
         #c.logger.debug("%s, dn: %s, attributes: %s", c._classname, c._dn_path, c._dn_attributes)
-
-        keyed = lambda cls: (key_path is not None and \
-                                len(cls._keys)>0 or c._access["expose_id"])
-        bulk = lambda cls: (key_path!=path or \
-                                (len(cls._keys)==0 and not cls._access["expose_id"]))
+        keyed = lambda cls: (key_path is not None and len(cls._keys)>0 or c._access["expose_id"])
+        bulk = lambda cls: (key_path!=path or (len(cls._keys)==0 and not cls._access["expose_id"]))
 
         # add read paths
         if c._access["read"]:

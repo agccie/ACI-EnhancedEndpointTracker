@@ -47,8 +47,8 @@ class eptNode(Rest):
             "description": "node role to differentiate between controllers, leafs, and spines",
         },
         "address": {
-            "type": int,
-            "description": "32-bit physical TEP address of node",
+            "type": str,
+            "description": "32-bit physical TEP ipv4 address of node",
         },
         "systemUptime": {
             "type": str,

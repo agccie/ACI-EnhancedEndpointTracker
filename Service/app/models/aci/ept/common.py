@@ -14,21 +14,12 @@ logger = logging.getLogger(__name__)
 ###############################################################################
 
 def api_read_format_addr(data):
-    """ if addr in obj and type in object, convert to mac/ipv4/ipv6 string. If events in object
-        and rw_mac in the event, convert to mac string
-    """
+    """ If events in object and rw_mac in the event, convert to mac string """
     if "objects" not in data: return data
     for obj in data["objects"]:
         if type(obj) is dict and len(obj)>0:
             o = obj[obj.keys()[0]]
             if type(o) is dict:
-                if "addr" in o and "type" in o:
-                    if o["type"] == "mac":
-                        o["addr"] = get_mac_string(o["addr"])
-                    elif o["type"] == "ipv4":
-                        o["addr"] = get_ipv4_string(o["addr"])
-                    elif o["type"] == "ipv6":
-                        o["addr"] = get_ipv6_string(o["addr"])
                 if "events" in o and len(o["events"])>0:
                     events = []
                     for event in o["events"]:

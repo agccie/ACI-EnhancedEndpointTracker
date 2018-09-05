@@ -24,25 +24,28 @@ class Fabric(Rest):
             "default":"", 
             "key_sn": "fb",
             "regex":"^[a-zA-Z0-9\-\.:_]{1,64}$",
+            "description": "fabric name",
         },
         "apic_username":{
             "type":str, 
             "default":"admin",
-            "regex":"^[a-zA-Z0-9\-_\.@]{1,128}$"
+            "regex":"^[a-zA-Z0-9\-_\.@]{1,128}$",
+            "description": "APIC username",
         },
         "apic_password":{
             "type": str, 
             "default": "",
             "read": False,
             "encrypt": True,
+            "description": "APIC password for token based authentication",
         },
         "apic_hostname":{
             "type":str, 
-            "default":"",
+            "description": "APIC hostname or IP address",
         },
         "apic_cert": {
             "type":str,
-            "default":"",
+            "description": "path to APIC private-key for cert-based authentication",
         },
         "ssh_username":{
             "regex":"^[a-zA-Z0-9\-_\.@]{0,128}$",
@@ -54,11 +57,11 @@ class Fabric(Rest):
             "read": False,
             "description": "password for ssh access to switch",
         },
-        # dynamically discovered inband/outofband address
         "controllers": {
             "type":list,
             "subtype": str,
             "write": False,
+            "description": "dynamically discovered out-of-band or inband ipv4 management addresses",
         },
         # history of events with most recent event at the beginning
         "events": {
@@ -83,8 +86,7 @@ class Fabric(Rest):
         },
         "event_count": {
             "type": int,
-            "description": "total number of fabric monitoring events that have \
-                            occurred",
+            "description": "total number of fabric monitoring events that have occurred",
             "write": False,
             "default": 0,
         },

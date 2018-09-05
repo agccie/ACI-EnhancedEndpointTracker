@@ -86,8 +86,7 @@ def swagger_generic_path(cls, path, method, summary, args=None, ret=None, authen
     for match in re.finditer("/([^-]+\-)?{(?P<a>[^}]+)}", path):
         if match.group("a") in cls._attributes:
             path_params.append(match.group("a"))
-    cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls,
-        paths=path_params)
+    cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls, paths=path_params)
 
     # build requestBody schema if args are provided
     if args is not None and type(args) is list and len(args)>0:
@@ -174,12 +173,10 @@ def swagger_read(cls, path, bulk=False):
         }
     if bulk:
         cls._swagger[path][op]["summary"] = "bulk read %s" % cls._classname
-        cls._swagger[path][op]["parameters"] = build_swagger_parameters(
-            cls, full=True, query=True)
+        cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls, full=True, query=True)
     else:
         cls._swagger[path][op]["summary"] = "read %s" % cls._classname
-        cls._swagger[path][op]["parameters"] = build_swagger_parameters(
-            cls, path=True)
+        cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls, path=True)
 
     swagger_desc = "list of %s objects" % cls._classname
     gr = copy.deepcopy(generic_read)
@@ -215,12 +212,10 @@ def swagger_update(cls, path, bulk=False):
     }
     if bulk:
         cls._swagger[path][op]["summary"] = "bulk update %s" % cls._classname
-        cls._swagger[path][op]["parameters"] = build_swagger_parameters(
-            cls, query=True)
+        cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls, query=True)
     else:
         cls._swagger[path][op]["summary"] = "update %s" % cls._classname
-        cls._swagger[path][op]["parameters"] = build_swagger_parameters(
-            cls, path=True)
+        cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls, path=True)
 
 def swagger_delete(cls, path, bulk=False):
     # add swagger doc to class object for delete operation
@@ -236,12 +231,10 @@ def swagger_delete(cls, path, bulk=False):
     }
     if bulk:
         cls._swagger[path][op]["summary"] = "bulk delete %s" % cls._classname
-        cls._swagger[path][op]["parameters"] = build_swagger_parameters(
-            cls, query=True)
+        cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls, query=True)
     else:
         cls._swagger[path][op]["summary"] = "delete %s" % cls._classname
-        cls._swagger[path][op]["parameters"] = build_swagger_parameters(
-            cls, path=True)
+        cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls, path=True)
 
 
 def build_swagger_attribute(attr):
@@ -343,7 +336,7 @@ def build_swagger_parameters(cls, path=False,query=False,full=False,paths=[]):
                 "in": "path",
                 "name": a,
                 "required": True,
-                "description": attr.get("description", ""),
+                "description": attr.get("description", "").strip(),
                 "schema": build_swagger_attribute(attr)
             })
         if cls._access["expose_id"]: 

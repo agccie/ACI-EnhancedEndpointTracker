@@ -40,14 +40,17 @@ def create_app(config_filename="config.py"):
     from .models.user import User
 
     # ept objects
+    from .models.aci.ept.epg import eptEpg
     from .models.aci.ept.history import eptHistory
     from .models.aci.ept.move import eptMove
     from .models.aci.ept.node import eptNode
     from .models.aci.ept.offsubnet import eptOffSubnet
     from .models.aci.ept.settings import eptSettings
     from .models.aci.ept.stale import eptStale
+    from .models.aci.ept.subnet import eptSubnet
     from .models.aci.ept.tunnel import eptTunnel
     from .models.aci.ept.vnid import eptVnid
+    from .models.aci.ept.vpc import eptVpc
 
     # auto-register api objects
     from .views.api import api

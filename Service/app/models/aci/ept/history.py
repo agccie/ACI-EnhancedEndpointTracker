@@ -21,11 +21,11 @@ class eptHistory(Rest):
 
     META = {
         "addr": {
-            "type": int,
+            "type": str,
             "default": "0.0.0.0",   # default is only used for swagger docs example fields
             "description": """
-            for endpoints of type IPv4 this is 32-bit integer value, for endpoints of type IPv6 this
-            is 64-bit integer vaue, and for endpoints of type mac this is 48-bit mac address
+            for endpoints of type ipv4 this is 32-bit ipv4 address, for endpoints of type ipv6 this
+            is 64-bit ipv6 address, and for endpoints of type mac this is 48-bit mac address
             """,
         },
         "vnid": {
@@ -118,7 +118,7 @@ class eptHistory(Rest):
     @classmethod
     @api_callback("after_read")
     def after_history_read(cls, data, api):
-        """ convert address to mac, ipv4, or ipv6 string on API read.  Also convert event rw_mac """
+        """ convert event rw_mac """
         if not api: return data
         return api_read_format_addr(data)
 

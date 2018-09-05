@@ -2,14 +2,21 @@
 from flask import current_app, Blueprint
 base = Blueprint("base", __name__)
 
-from flask import jsonify, redirect, abort, g, make_response, request
+from flask import jsonify, redirect, abort, g, make_response, request, send_from_directory
 from werkzeug.exceptions import BadRequest
-from ..models.rest import Role
-import json, re, requests
+from werkzeug.utils import secure_filename
+from ..models.rest import (Role,Rest)
+import json, re, requests, logging, traceback, os, uuid, shutil
+
+logger = logging.getLogger(__name__)
 
 # redirect for base folder to UIAssets folder
 @base.route("/")
 def base_redirect():
+    # check status and only if 200 (ready) redirect to UIAssets
+    from ..models.app_status import AppStatus
+    (ready, status) = AppStatus.check_status()
+    if not ready: return abort(503, status)
     return redirect("/UIAssets/", code=302)
 
 ##############################################################################
@@ -32,7 +39,7 @@ def aci_app_proxy():
         Returns:
             json for proxies to api else text response from proxy
     """
-    if not g.user.is_authenticated: abort(401, "Unauthorized")
+    Rest.authenticated()
     if g.user.role != Role.FULL_ADMIN: abort(403)
    
     # args can be provided via params or post data.  If both are provided
@@ -81,8 +88,29 @@ def aci_app_proxy():
         r = requests.get(url, verify=False, data=data, params=params,
             cookies=request.cookies,headers=header)
     elif method == "post":
-        r = requests.post(url, verify=False, data=data, params=params,
-            cookies=request.cookies,headers=header)
+        if len(request.files)>0:
+            files = {}
+            tmp_dir = "%s/%s" % (current_app.config["TMP_DIR"], uuid.uuid4())
+            tmp_dir = os.path.realpath(tmp_dir)
+            try:
+                if not os.path.isdir(tmp_dir): os.makedirs(tmp_dir)
+                for f in request.files:
+                    tmp_file = "%s/%s" % (tmp_dir, secure_filename(request.files[f].filename))
+                    request.files[f].save(tmp_file)
+                    files[f] = open(tmp_file, "rb")
+                    logger.debug("proxy file %s from %s", f, tmp_file)
+
+                # perform post preserving only cookies and override header content type
+                r = requests.post(url, verify=False, params=params, cookies=request.cookies,
+                        files=files)
+            except Exception as e:
+                logger.debug("Traceback:\n%s", traceback.format_exc())
+                abort(500, "failed to proxy uploaded file: %s" % e)
+            finally:
+                if os.path.exists(tmp_dir): shutil.rmtree(tmp_dir)
+        else:
+            r = requests.post(url, verify=False, data=data, params=params,
+                cookies=request.cookies,headers=header)
     elif method == "patch":
         r = requests.patch(url, verify=False, data=data, params=params,
             cookies=request.cookies,headers=header)
@@ -101,6 +129,26 @@ def aci_app_proxy():
             if "error" in js: text = js["error"] 
         except Exception as e: pass
         abort(r.status_code, text)
+
+    # support proxy of downloaded file
+    if "Content-Disposition" in r.headers:
+        reg = "^attachment; filename=\"?(?P<fname>[^\"]+)\"?"
+        r1 = re.search(reg, r.headers["Content-Disposition"], re.IGNORECASE)
+        if r1 is not None:
+            tmp_file = "%s/%s/%s" % (current_app.config["TMP_DIR"], uuid.uuid4(), r1.group("fname"))
+            tmp_file = os.path.realpath(tmp_file)
+            tmp_dir = os.path.dirname(tmp_file)
+            logger.debug("proxying file %s through tmp file %s", r1.group("fname"), tmp_file)
+            try:
+                if not os.path.isdir(tmp_dir): os.makedirs(tmp_dir)
+                with open(tmp_file, "wb") as f: f.write(r.content)
+                return send_from_directory(tmp_dir, tmp_file.split("/")[-1], as_attachment = True)
+            except Exception as e:
+                logger.error("Traceback:\n%s", traceback.format_exc())
+                abort(500, "proxy download failed: %s" % e)
+            finally:
+                if os.path.exists(tmp_dir): shutil.rmtree(tmp_dir)
+
     if is_json:
         try: return jsonify(r.json())
         except Exception as e:

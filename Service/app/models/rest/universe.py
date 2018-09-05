@@ -4,8 +4,9 @@ this allows a user to read all objects/config from the API in single call which 
 may not be desirable
 """
 
+from . import api_register
+from . import Rest
 import logging
-from .rest import (Rest, api_register)
 
 # module level logging
 logger = logging.getLogger(__name__)

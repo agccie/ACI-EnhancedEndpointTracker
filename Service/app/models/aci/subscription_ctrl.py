@@ -17,6 +17,8 @@ class SubscriptionCtrl(object):
 
     def __init__(self, fabric, interests, **kwargs):
         """
+            fabric (str or instance of Fabric object)
+
             {
                 "classname": {          # classname in which to subscribe
                     "handler": <func>   # callback function for object event
@@ -168,7 +170,12 @@ class SubscriptionCtrl(object):
             return
 
         for cname in self.interests:
-            url = "/api/class/%s.json?subscription=yes&page-size=100" % cname
+            # assume user knows what they are doing here - if only_new is True then return set is
+            # limited to first 10.  Else, page-size is set to maximum
+            if self.only_new:
+                url = "/api/class/%s.json?subscription=yes&page-size=10" % cname
+            else:
+                url = "/api/class/%s.json?subscription=yes&page-size=75000" % cname
             self.interests[cname]["url"] = url
             resp = self.session.subscribe(url, only_new=self.only_new)
             if resp is None or not resp.ok:
@@ -219,6 +226,8 @@ class SubscriptionCtrl(object):
             try:
                 urls = self.session.subscription_thread._subscriptions.keys()
                 for url in urls:
+                    if "?" in url: url = "%s&page-size=1" % url
+                    else: url = "%s?page-size=1" % url
                     logger.debug("close subscription url: %s", url)
                     self.session.unsubscribe(url)
                 self.session.close()

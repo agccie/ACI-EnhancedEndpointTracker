@@ -1,208 +1,12 @@
 
-import logging, json, requests, re, time
+import logging, json, requests, re, time, os, traceback
 from flask import jsonify, g, abort, current_app
-from ..rest import (Rest, api_register)
+from ..rest import (Rest, Role, api_register, api_route, api_callback)
 from . import utils as aci_utils
-from ..utils import (get_app, get_user_data)
+from ..utils import (get_app, get_app_config, get_user_data)
 
 # module level logging
 logger = logging.getLogger(__name__)
-
-def verify_credentials(fabric, internal=False):
-    """ check that current APIC credentials are valid.  set internal flag to 
-        True to return original dict instead of Flask json response
-        returns:
-            success: boolean,
-            apic_error: str,
-            switch_error: str
-    """
-    import os, re
-    if not g.user.is_authenticated: abort(401, "Unauthorized")
-
-    session = None
-    ret = {
-        "apic_error": "Not tested",
-        "switch_error": "Not tested",
-        "success": False,
-    }
-    def fail(apic="", switch=""):
-        if len(apic)>0: ret["apic_error"] = apic
-        if len(switch)>0: ret["switch_error"] = switch
-        if session is not None: session.close()
-        if internal: return ret
-        else: return jsonify(ret)
-
-    # verify valid configuration in settings
-    fab = Fabric.load(fabric=fabric)
-    if not fab.exists(): return fail(apic="Fabric %s not found" % fabric)
-    if current_app.config["ACI_APP_MODE"] and len(fab.apic_cert)>0:
-        if not os.path.exists(fab.apic_cert):
-            return fail(apic="Certificate file not found")
-    elif len(fab.apic_password) == 0:
-        # password requried in non-cert mode
-        return fail(apic="No apic password configured")
-    if len(fab.apic_username)==0:
-        return fail(apic="No apic username configured")
-
-    # connect to the APIC
-    session = aci_utils.get_apic_session(fabric)
-    if session is None: return fail(apic="Failed to connect to APIC")
-    ret["apic_error"] = ""
-
-    # attempt ssh connection to first leaf found in fabricNode
-    fabricNodes = aci_utils.get_class(session, "fabricNode")
-    if fabricNodes is None or len(fabricNodes)==0:
-        return fail(switch="unable to get list of nodes in fabric")
-    attributes = aci_utils.get_attributes(data=fabricNodes)
-    if attributes is None or len(attributes)==0:
-        return fail(switch="unable to parse fabricNodes results")
-    reg = "topology/pod-(?P<pod_id>[0-9]+)/node-(?P<node_id>[0-9]+)"
-    (pod_id, node_id) = (0,0)
-    for a in attributes:
-        if a["role"] == "leaf" and a["fabricSt"] == "active":
-            r1 = re.search(reg, a["dn"])
-            if r1 is None:
-                logger.warn("failed to parse leaf dn: %s", a["dn"])
-                continue
-            (pod_id, node_id) = (r1.group("pod_id"), r1.group("node_id"))
-            break
-    if pod_id == 0 or node_id == 0:
-        return fail(switch="no active leaf found within fabric")
-    if aci_utils.get_ssh_connection(fab, pod_id, node_id, session) is None:
-        return fail(switch="failed to establish ssh connection to leaf %s" % (
-                        "topology/pod-%s/node-%s" % (pod_id, node_id)))
-    ret["switch_error"] = ""
-
-    if session is not None: session.close()
-    ret["success"] = True
-    if internal: return ret
-    else: return jsonify(ret)
-
-def update_apic_controllers(fabric):
-    """ connect to apic and get list of other active controllers in cluster and
-        add them to fabric settings cluster_ips.  For simplicity, will add only
-        IPv4 oob and inb mgmt addresses (if not 0) with preference for oob.
-
-        returns:
-            success: boolean,
-            error: str
-    """
-    ret = {"error": "Not tested","success": False}
-    def fail(msg=""):
-        if len(msg)>0: ret["error"] = msg
-        return jsonify(ret)
-        
-    f = Fabric.load(fabric=fabric)
-    if not f.exists(): return fail("fabric %s does not exists in db" % fabric)
-
-    session = aci_utils.get_apic_session(fabric)
-    if session is None: return fail("unable to connect to apic")
-   
-    objects = aci_utils.get_class(session, "topSystem")
-    if objects is None: return fail("unable to read topSystem")
-
-    try:
-        controllers = []
-        for o in objects:
-            attr = o.values()[0]["attributes"]
-            if "role" in attr and attr["role"] == "controller":
-                if "state" in attr and attr["state"] == "in-service":
-                    if "oobMgmtAddr" in attr and attr["oobMgmtAddr"]!="0.0.0.0":
-                        if attr["oobMgmtAddr"] not in controllers:
-                            controllers.append(attr["oobMgmtAddr"])
-                    if "inbMgmtAddr" in attr and attr["inbMgmtAddr"]!="0.0.0.0":
-                        if attr["inbMgmtAddr"] not in controllers:
-                            controllers.append(attr["inbMgmtAddr"])
-        if len(controllers) == 0:
-            return fail("unable to find any additional controllers")
-
-        # update database with new controller info
-        if f.controllers != controllers:
-            f.controllers = controllers
-            if not f.save():
-                return fail("unable to save result to database")
-                
-    except Exception as e:
-        return fail("unexpected error: %s" % e)
-
-    ret["error"] = ""
-    ret["success"] = True
-    return jsonify(ret)
-
-def start_monitor(fabric):
-    """ start monitor for provided fabric as background task. 
-        args:
-            reason: str 
-        returns:
-            success: boolean,
-            error: str
-    """
-    if not g.user.is_authenticated: abort(401, "Unauthorized")
-    reason = get_user_data().get("reason", "API fabric start")
-    ret = {
-        "success": False,
-        "error": ""
-    }
-    # first verify monitor is not currently running
-    status = get_fabric_status(fabric, internal=True)
-    if status["status"] == "running":
-        ret["error"] = "fabric monitor for '%s' is already running" % fabric
-        return jsonify(ret)
-    js = verify_credentials(fabric, internal=True)
-    logger.debug("js -> %s" % js)
-    if not js["success"]: 
-        ret["error"] = "verify credentails failed (either rest API or ssh)"
-        return jsonify(ret)
-    if not start_fabric(fabric, reason, rest=False):
-        ret["error"] = "failed to start fabric"
-        return jsonify(ret)
-    ret["success"] = True
-    return jsonify(ret)
-
-def stop_monitor(fabric):
-    """ stop monitor """
-    if not g.user.is_authenticated: abort(401, "Unauthorized")
-    reason = get_user_data().get("reason", "API fabric stop")
-
-    ret = {
-        "success": False,
-        "error": ""
-    }
-    if not stop_fabric(fabric, reason, rest=False):
-        ret["error"] = "failed to stop fabric"
-        return jsonify(ret)
-    ret["success"] = True
-    return jsonify(ret)
-
-def get_fabric_status(fabric, internal=False):
-    """ get current fabric status (running/stopped). set internal flag to true
-        to return original dict instead of Flask json response
-        returns:
-            status: running|stopped
-    """ 
-    if not g.user.is_authenticated: abort(401, "Unauthorized")
-    fab = Fabric.load(fabric=fabric)
-    if not fab.exists(): abort(404, "fabric '%s' not found" % fabric)
-
-    ret = {"status": "unknown"}
-    processes = get_fabric_processes()
-    if fabric in processes and len(processes[fabric])>0:
-        ret["status"] = "running"
-    else:
-        ret["status"] = "stopped"
-    if internal: return ret
-    else: return jsonify(ret)
-
-def before_fabric_delete(filters, **kwargs):
-    """ before fabric delete, ensure that fabric monitor is stopped.  This only
-        supports single delete (no bulk delete).  
-    """
-    fabric = kwargs.get("fabric", None)
-    if fabric is None:
-        logger.warn("skipping before delete operation on bulk delete")
-        return filters
-    stop_monitor(fabric)
-    return filters
 
 @api_register(path="/fabric")
 class Fabric(Rest):
@@ -211,39 +15,7 @@ class Fabric(Rest):
     logger = logger
     # meta data and type that are exposed via read/write 
     META_ACCESS = {
-        "before_delete": before_fabric_delete,
-        "routes": [
-            {
-                "path": "verify",
-                "keyed_url": True,
-                "methods": ["POST"],
-                "function": verify_credentials
-            },
-            {
-                "path": "controllers",
-                "keyed_url": True,
-                "methods": ["POST"],
-                "function": update_apic_controllers
-            },
-            {
-                "path": "start",
-                "keyed_url": True,
-                "methods": ["POST"],
-                "function": start_monitor
-            },
-            {
-                "path": "stop",
-                "keyed_url": True,
-                "methods": ["POST"],
-                "function": stop_monitor
-            },
-            {
-                "path": "status",
-                "keyed_url": True,
-                "methods": ["GET"],
-                "function": get_fabric_status
-            },
-        ]
+        "default_role": Role.FULL_ADMIN
     }
     META = {
         "fabric":{
@@ -323,7 +95,186 @@ class Fabric(Rest):
             "max": 8192,
             "default": 1024,
         },
+
+        # reference attributes only
+        "status": {
+            "reference": True,
+            "type": str,
+            "values": ["running", "stopped"],
+            "description": "current monitor operational status for provided fabric",
+            "default": "unknown",
+        },
+        "reason": {
+            "reference": True,
+            "type": str,
+            "description": "reason for starting or stopping fabric monitor",
+            "default": "",
+        },
     }
+
+    @classmethod
+    @api_callback("before_delete")
+    def before_fabric_delete(cls, filters):
+        """ before fabric delete, ensure that fabric monitor is stopped.  This only supports single 
+            single delete (no bulk delete).  
+        """
+        if "fabric" not in filters:
+            cls.logger.warn("skipping before delete operation on bulk delete")
+            return filters
+        f = Fabric.load(fabric=filters["fabric"])
+        f.stop_fabric_monitor()
+        return filters
+
+    @api_route(path="status", methods=["GET"], swag_ret=["status"], role=Role.USER)
+    def get_fabric_status(self):
+        """ get current fabric status (running/stopped) """
+        status = "unknown"
+        processes = get_fabric_processes()
+        if self.fabric in processes and len(processes[self.fabric])>0:
+            status = "running"
+        else:
+            status = "stopped"
+        return jsonify({"status":status})
+
+    @api_route(path="stop", methods=["POST"], swag_ret=["success", "error"])
+    def stop_fabric_monitor(self, reason=""):
+        """ stop fabric monitor """
+        ret = {"success": False, "error": ""}
+        if not stop_fabric(self.fabric, reason, rest=False):
+            ret["error"] = "failed to stop fabric"
+        else: ret["success"] = True
+        return jsonify(ret)
+
+    @api_route(path="start", methods=["POST"], swag_ret=["success", "error"])
+    def start_fabric_monitor(self, reason=""):
+        """ start fabric monitor """
+        ret = {"success": False, "error": ""}
+        # ensure fabric is not currently running
+        processes = get_fabric_processes()
+        if self.fabric in processes and len(processes[self.fabric])>0:
+            ret["error"] = "fabric monitor for '%s' is already running" % self.fabric
+        # verify credentials
+        elif not start_fabric(self.fabric, reason, rest=False):
+            ret["error"] = "failed to start fabric monitor"
+        else:
+            ret["success"] = True
+        return jsonify(ret)
+
+    @api_route(path="verify", methods=["POST"], swag_ret=["success","apic_error","ssh_error"])
+    def verify_credentials(self):
+        """ verify credentials to access APIC API and switch via SSH """
+
+        ret = {"success": False, "apic_error": "", "ssh_error": ""}
+        (success, error) = self.verify_apic_credentials()
+        if not success: 
+            ret["apic_error"] = error
+            ret["ssh_error"] = "not tested"
+            return jsonify(ret)
+        (success, error) = self.verify_ssh_credentials()
+        if not success:
+            ret["ssh_error"] = error
+            return jsonify(ret)
+        ret["success"] = True
+        return jsonify(ret)
+
+    def verify_apic_credentials(self):
+        """ verify current APIC credentials are valid. 
+            Return tuple (success boolean, error description)
+        """
+        # validate inputs
+        app_config = get_app_config()
+        if len(self.apic_username) == 0:
+            return (False, "no apic username configured")
+        if app_config["ACI_APP_MODE"] and len(self.apic_cert) > 0:
+            if not os.path.exists(self.apic_cert):
+                return (False, "certificate file not found")
+        elif len(self.apic_password) == 0:
+            return (False, "no apic password configured")
+
+        # attempt to connect to the APIC
+        session = aci_utils.get_apic_session(self)
+        if session is None:
+            return (False, "failed to connect or authenticate to APIC")
+
+        # always close session before returning success
+        session.close()
+        return (True, "")
+
+    def verify_ssh_credentials(self):
+        """ verify current ssh credentials are valid and we can connect to a leaf
+            Return tuple (success boolean, error description)
+        """
+        session = aci_utils.get_apic_session(self)
+        if session is None:
+            return (False, "failed to connect or authenticate to APIC")
+        # use API to get first active leaf to test ssh connectivity 
+        fabricNodes = aci_utils.get_class(session, "fabricNode")
+        if fabricNodes is None or len(fabricNodes)==0:
+            return (False, "unable to get list of nodes in fabric")
+        attributes = aci_utils.get_attributes(data=fabricNodes)
+        if attributes is None or len(attributes)==0:
+            return (False, "unable to parse fabricNodes results")
+        reg = "topology/pod-(?P<pod_id>[0-9]+)/node-(?P<node_id>[0-9]+)"
+        (pod_id, node_id) = (0,0)
+        for a in attributes:
+            if a["role"] == "leaf" and a["fabricSt"] == "active":
+                r1 = re.search(reg, a["dn"])
+                if r1 is None:
+                    self.logger.warn("failed to parse leaf dn: %s", a["dn"])
+                    continue
+                (pod_id, node_id) = (r1.group("pod_id"), r1.group("node_id"))
+                break
+        if pod_id == 0 or node_id == 0:
+            return (False, "no active leaf found within fabric")
+
+        # finally, test ssh connectivity to leaf
+        if aci_utils.get_ssh_connection(self, pod_id, node_id, session) is None:
+            return (False, "failed to establish ssh connection to leaf %s" % (
+                            "topology/pod-%s/node-%s" % (pod_id, node_id))
+                    )
+        # always close session before returning success
+        session.close()
+        return (True, "")
+
+    @api_route(path="controllers", methods=["POST"], swag_ret=["success", "error"])
+    def get_apic_controllers(self):
+        """ Connect to APIC and build list of other active controllers in cluster. At this time, 
+            only IPv4 oob and inb mgmt addresses are used with preference given to oob address.
+        """
+        ret = {"success": False, "error": ""}
+        session = aci_utils.get_apic_session(self)
+        if session is None: 
+            ret["error"] = "unable to connect to apic"
+            return jsonify(ret)
+        objects = aci_utils.get_class(session, "topSystem")
+        if objects is None:
+            ret["error"] = "failed to read topSystem"
+            return jsonify(ret)
+        try:
+            controllers = []
+            for o in objects:
+                attr = o.values()[0]["attributes"]
+                if "role" in attr and attr["role"] == "controller":
+                    if "state" in attr and attr["state"] == "in-service":
+                        if "oobMgmtAddr" in attr and attr["oobMgmtAddr"]!="0.0.0.0":
+                            if attr["oobMgmtAddr"] not in controllers:
+                                controllers.append(attr["oobMgmtAddr"])
+                        if "inbMgmtAddr" in attr and attr["inbMgmtAddr"]!="0.0.0.0":
+                            if attr["inbMgmtAddr"] not in controllers:
+                                controllers.append(attr["inbMgmtAddr"])
+            if len(controllers) == 0:
+                ret["error"] = "unable to find any active controllers"
+                return jsonify(ret)
+            self.controllers = controllers
+            if not self.save():
+                ret["error"] = "unable to save results to database"
+                return jsonify(ret)
+        except Exception as e:
+            self.logger.debug("Traceback:\n%s", traceback.format_exc())
+            abort(500, "unexpected error occurred: %s" % e)
+        # successful update
+        ret["success"] = True
+        return jsonify(ret)
 
 
 ###############################################################################

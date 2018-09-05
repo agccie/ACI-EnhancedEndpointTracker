@@ -141,9 +141,7 @@ def db_exists():
     logger.debug("checking if db exists")
     collections = get_db().collection_names()
     logger.debug("current collections: %s" % collections)
-    if len(collections)>0 and (
-        "aci.fabrics" in collections and "users" in collections and \
-        "settings" in collections):
+    if len(collections)>0 and ("user" in collections and "settings" in collections):
         return True
     return False
 
@@ -180,11 +178,13 @@ def db_setup(args):
         # drop existing collection
         logger.debug("dropping collection %s" % c._classname)
         db[c._classname].drop()
-        # create unique indexes for collection
+        # create unique indexes for collection if expose_id is disabled
+        # (else mongo _id is only unique key required)
         indexes = []
-        for a in c._attributes:
-            if c._attributes[a].get("key", False): 
-                indexes.append((a,DESCENDING))
+        if not c._access["expose_id"]:
+            for a in c._attributes:
+                if c._attributes[a].get("key", False): 
+                    indexes.append((a,DESCENDING))
         if len(indexes)>0:
             logger.debug("creating indexes for %s: %s",c._classname,indexes)
             db[c._classname].create_index(indexes, unique=True)

@@ -27,7 +27,7 @@ def db_is_alive():
 
 def start_monitor(fabric):
     """ start fabric monitor 
-        TODO....
+        TODO.... This is specific to your app..
     """
     return False
 

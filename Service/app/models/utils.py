@@ -3,6 +3,7 @@ from flask import request
 import random, string, time, logging, re, sys, json, datetime, traceback
 from pymongo import MongoClient
 from flask_bcrypt import generate_password_hash
+import dateutil.parser
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -11,7 +12,8 @@ logger = logging.getLogger(__name__)
 MSG_403 = "Sorry old chap, this is a restricted area..."
 
 # track app so we don't need to create it multiple times
-_g_app = None       
+_g_app = None  
+_g_app_config = None
 _g_db = None
 def get_app():
     global _g_app
@@ -23,16 +25,22 @@ def get_app():
 
 def get_app_config():
     # return config dict from app
-    app = get_app()
-    if hasattr(app, "config"): return app.config
-    return {}
+    global _g_app_config
+    if _g_app_config is None:
+        # dynamically import app config at first call
+        from .. import create_app_config
+        _g_app_config = create_app_config("config.py")
+    return _g_app_config
 
-def get_db():
-    # return instance of mongo db
+def get_db(uniq=False, overwrite_global=False):
+    # return instance of mongo db, set uniq to True to always return a uniq db connection
+    # set uniq to True and overwrite_global to True to force new global db as well
     global _g_db
-    if _g_db is None:
+    if _g_db is None or uniq:
         config = get_app_config()
         db = config.get("MONGO_DBNAME", "devdb")
+        if config.get("MONGO_WRITECONCERN", 0) == 0: w = 0
+        else: w = 1
         uri = "mongodb://%s:%s/%s?" % (
             config.get("MONGO_HOST","localhost"),
             config.get("MONGO_PORT", 27017),
@@ -47,8 +55,9 @@ def get_db():
             uri+= "socketTimeoutMS=%s&" % config["MONGO_SOCKET_TIMEOUT_MS"]
         uri = re.sub("[\?&]+$","",uri)
         logger.debug("starting mongo connection: %s", uri)
-        client = MongoClient(uri) 
-        _g_db = client[db]
+        client = MongoClient(uri, w=w)
+        if _g_db is None or overwrite_global: _g_db = client[db]
+        return client[db]
     return _g_db
 
 ###############################################################################
@@ -68,19 +77,19 @@ def setup_logger(logger, fname="utils.log", quiet=False, stdout=False,
         for h in list(old_logger.handlers): old_logger.removeHandler(h)
         old_logger.addHandler(logging.NullHandler())
 
-    app = get_app()
-    logger.setLevel(app.config["LOG_LEVEL"])
+    app_config = get_app_config()
+    logger.setLevel(app_config["LOG_LEVEL"])
     try:
         if stdout:
             logger_handler = logging.StreamHandler(sys.stdout)
-        elif app.config["LOG_ROTATE"]:
+        elif app_config["LOG_ROTATE"]:
             logger_handler = logging.handlers.RotatingFileHandler(
-                "%s/%s"%(app.config["LOG_DIR"],fname),
-                maxBytes=app.config["LOG_ROTATE_SIZE"], 
-                backupCount=app.config["LOG_ROTATE_COUNT"])
+                "%s/%s"%(app_config["LOG_DIR"],fname),
+                maxBytes=app_config["LOG_ROTATE_SIZE"], 
+                backupCount=app_config["LOG_ROTATE_COUNT"])
         else:
             logger_handler = logging.FileHandler(
-                "%s/%s"%(app.config["LOG_DIR"],fname))
+                "%s/%s"%(app_config["LOG_DIR"],fname))
     except IOError as e:
         sys.stderr.write("failed to open logger handler: %s, resort stdout\n"%e)
         logger_handler = logging.StreamHandler(sys.stdout)
@@ -124,6 +133,20 @@ def get_user_params():
         for k in request.args:
             ret[k] = request.args.get(k)
         return ret
+    except Exception as e: return {}
+
+def get_user_headers():
+    """ return dict of user headers in http request """
+    try:
+        if not request.headers: return {}
+        return request.headers
+    except Exception as e: return {}
+
+def get_user_cookies():
+    """ return dict of user cookies indexed by cookie name """
+    try:
+        if not request.cookies: return {}
+        return request.cookies
     except Exception as e: return {}
 
 def hash_password(p):

@@ -28,8 +28,3 @@ class Role(object):
     @staticmethod
     def get_default(): return Role.USER
 
-def api_read_roles():
-    """ return mapping of role value to role name """
-    return jsonify(Role.ROLES_STR)
-
-

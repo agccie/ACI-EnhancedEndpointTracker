@@ -2,153 +2,19 @@
 from flask import abort, g, current_app, jsonify
 from flask_login import (login_user, logout_user)
 from utils import  MSG_403
-import uuid, time, json, logging
+from .rest import (Rest, Role, api_register, api_route, api_callback)
+from .utils import get_user_data, get_user_params, get_user_headers, get_user_cookies
+from .settings import Settings
 
-from .rest import Role
-from .rest import (Rest, api_register)
-from .utils import get_user_data
+import base64
+import json
+import logging
+import os
+import time
+import uuid
 
 # module level logger
 logger = logging.getLogger(__name__)
-
-def before_create(data, **kwargs):
-    # only perform check on api calls
-    if not kwargs.get("_api", False): return data
-    # ensure username is not a reserved username
-    if "username" in data and data["username"] in User.RESERVED:
-        abort(400, "Username \"%s\" is reserved" % data["username"])
-    return data
-
-def after_read(results, **kwargs):
-    # only perform check on api calls
-    if not kwargs.get("_api", False): return results
-    # remove reserved usernames from results
-    if "objects" not in results or "count" not in results: return results
-    count = results["count"]
-    objects = []
-    for o in results["objects"]:
-        if "username" in o["user"] and o["user"]["username"] in User.RESERVED:
-            count-= 1
-        else: objects.append(o)
-    if count < 0: count = 0
-    return {"count": count, "objects": objects}
-
-def before_update(filters, update, **kwargs):
-    # only perform check on api calls
-    if not kwargs.get("_api", False): return (filters, update)
-
-    # block user from updating reserved users
-    admin = (g.user.role == Role.FULL_ADMIN)
-    if "username" in filters:
-        if filters["username"] in User.RESERVED:
-            abort(400, "Username \"%s\" is reserved and cannot be updated" %(
-                filters["username"]))
-        elif not admin and g.user.username != filters["username"]:
-            abort(403, MSG_403)
-    else:
-        if not admin:
-            # for non-admin users, filter must include their username
-            filters["username"] = g.user.username
-        else:
-            # else add filter blocking updates to reserved usernames
-            filters["username"] = {"$nin":User.RESERVED}
-    return (filters, update)
-
-def before_delete(filters, **kwargs):
-    # only perform check on api calls
-    if not kwargs.get("_api", False): return filters
-
-    # block user from deleting reserved users or deleting themself
-    admin = (g.user.role == Role.FULL_ADMIN)
-    if not admin: abort(403, MSG_403)
-    username = g.user.username
-    if "username" in filters:
-        if filters["username"] in User.RESERVED:
-            abort(400, "Username \"%s\" is reserved and cannot be updated" %(
-                filters["username"]))
-        elif username is not None and username == filters["username"]:
-            abort(400, "User \"%s\" cannot delete user \"%s\"" % (
-                filters["username"], filters["username"]))
-    else:
-        # else add filter blocking updates to reserved usernames and local user
-        filters["username"] = {"$nin":User.RESERVED}
-        if username is not None: filters["username"]["$nin"].append(username)
-    return filters
-
-def api_logout():
-    """ logout current user """
-    logout_user()
-    return jsonify({"success": True})
-
-def api_login():
-    """ login to application and create session cookie.  
-        Args:
-            username(str): application username
-            password(str): application password
-        Returns:
-            success(bool): successfully login
-    """
-    data = get_user_data()
-    if not data: abort(400, "Invalid JSON provided")
-    if "username" not in data:
-        abort(400, "Required parameter \"username\" not provided")
-    if "password" not in data:
-        abort(400, "Required parameter \"password\" not provided")
-
-    if User.login(username = data["username"],password = data["password"]):
-        return jsonify({"success": True})
-    else:
-        abort(401, "Authentication Failed")
-
-def api_get_password_reset_key(username):
-    """ get a temporary password reset link for user. The reset link can only
-        be requested by users with admin privilege or for current_user's
-        username
-
-        Returns:
-            key(str): password reset key
-    """
-    User.authorized() 
-    key = User.get_password_reset_key(username)
-    return jsonify({
-        "key": "%s" % key
-    })
-
-def api_password_reset():
-    """ reset user password
-
-        Args:
-            username(str): username
-            password(str): new password for user
-            password_reset_key(str): password reset key for user
-
-        Returns:
-            success(bool): successfully updated
-    """
-    # only allowed non-authenticated request
-    data = get_user_data()
-    for a in ["username", "password", "password_reset_key"]:
-        if a not in data:
-            abort(400, "missing required attribute %s" % a)
-    User.password_reset(data["username"], data["password"], 
-        data["password_reset_key"])
-
-    # no error implies successful reset
-    return jsonify({"success": True}) 
-
-def setup_local(app):
-    """ setup local user - creates a random password and adds as encrypted
-        value to settings and adds 'local' user to users database
-    """
-    from .settings import Settings
-    lpass = "%s"%uuid.uuid4()
-    with app.app_context():
-        u = User(username="local", role=Role.FULL_ADMIN)
-        u.password = lpass
-        u.save()
-        s = Settings()
-        s.lpass = lpass
-        s.save()
 
 @api_register()
 class User(Rest):
@@ -159,34 +25,10 @@ class User(Rest):
     RESERVED = [ "root", "local" ]
 
     META_ACCESS = {
-        "write": Role.USER,
-        "before_create": before_create,
-        "before_update": before_update,
-        "before_delete": before_delete,
-        "after_read": after_read,
-        "routes": [
-            {
-                "path":"login", 
-                "methods":["POST"], 
-                "function":api_login,
-            },
-            {
-                "path":"logout", 
-                "methods":["POST"], 
-                "function":api_logout,
-            },
-            {
-                "path": "pwreset",
-                "methods": ["GET"],
-                "keyed_url": True,
-                "function": api_get_password_reset_key
-            },
-            {
-                "path": "pwreset",
-                "methods": ["POST"],
-                "function": api_password_reset
-            },
-        ],
+        "create_role": Role.FULL_ADMIN,
+        "read_role": Role.USER,
+        "update_role": Role.USER,
+        "delete_role": Role.FULL_ADMIN,
     }
 
     # meta data and type that are exposed via read/write with type and defaults
@@ -195,98 +37,116 @@ class User(Rest):
             "key": True,
             "type": str,
             "regex": "^(?i)[a-z0-9\_.:]{1,128}$",
-            "default": ""
+            "default": "",
+            "description": "user username",
         },
         "password": {
             "type": str,
             "regex": "^.{1,256}$",
             "hash": True,
             "read": False,
-            "default": "password"
+            "default": "password",
+            "description": "user password",
         },
         "role": {
             "type": int,
             "default": Role.USER,
             "min": Role.MIN_ROLE,
             "max": Role.MAX_ROLE,
+            "description": "user role used for role-based authentication",
         },
         "last_login": {
             "type": float,
             "write": False,
+            "description": "epoch timestamp of last successful login event for this user",
         },
         "password_reset_key": {
             "type": str,
             "read": False,
             "write": False,
+            "description": "temporary password reset key",
         },
         "password_reset_timestamp": {
             "type": float,
             "read": False,
             "write": False,
+            "description": "epoc timestamp when password_reset_key was issued",
+        },
+        # reference for swagger only
+        "token_required": {
+            "reference": True,
+            "type": bool,
+            "default": False,
+            "description": "used by login API to indicate that CSFR token is required",
+        },
+        "token": {
+            "reference": True,
+            "type": str,
+            "default": "",
+            "description": "CSFR token which will be required in each session request",
         },
     }
-   
-    # required for flask-login
-    # https://flask-login.readthedocs.org/en/latest/#your-user-class
-    def is_authenticated(self): return True
-    def is_active(self): return True
-    def is_anonymous(self): return False
-    def get_id(self): return self.username
 
     @staticmethod
-    def login(username, password, force=False):
-        """ authenticate username and password. On success create user session
-            return boolean authentication success
-            set force to True to skip password validate and allow login
-        
-            on success last_login timestamp is updated. If the user did not
-            previousy exists, the save() operation will create the user
-        """
-        success = False
-        if username is None: return False
+    @api_route(path="logout", methods=["POST"], role=Role.USER)
+    def logout():
+        """ logout current user """
+        session_id = g.user.session
+        if session_id is not None:
+            s = Session.load(session=session_id)
+            if s.exists():
+                #logger.debug("deleting session: %s", session_id)
+                s.remove()
+        logout_user()
+        return User.api_ok()
+
+    @staticmethod
+    @api_route(path="login", methods=["POST"], authenticated=False, swag_ret=["success","token"])
+    def login(username, password, token_required=False):
+        """ create new user login session """
         u = User.load(username=username)
-        if force: success = True
-        else:
+        if u.exists():
             from flask_bcrypt import check_password_hash
             try:
-                if check_password_hash(u.password, password): success = True
+                if check_password_hash(u.password, password):
+                    u.last_login = time.time()
+                    u.save()
+                    # create a new session for user
+                    sid = base64.b64encode(os.urandom(64))
+                    s = Session(username=u.username, role=u.role, session=sid, 
+                                                            token_required=token_required)
+                    if not s.save():
+                        logger.error("failed to create session for user %s", u.username)
+                    login_user(s, remember=True)
+                    if token_required:
+                        return jsonify({"success": True, "token": s.token})
+                    else:
+                        return User.api_ok()
             except Exception as e:
-                User.logger.error("User failed to check hash: %s" % e)
+                logger.error("check_password_hash failed: %s", e)
+        else:
+            logger.debug("username %s does not exist", username)
+        abort(401, "Authentication Failed")
 
-        # on successfully login, start user session
-        if success:
-            if not force:
-                u.last_login = time.time()
-                u.save()
-            login_user(u, remember=True)
-        return success
-
-    @staticmethod
-    def get_password_reset_key(username):
-        """ generates a password reset key, inserts into database for user,
-            and returns key.  
+    @api_route(path="pwreset", methods=["GET"], role=Role.USER)
+    def get_password_reset_key(self):
+        """ get a temporary password reset link for user. The reset link can only be requested by 
+            users with admin privilege or for the current authenticated user
         """
-        u = User.load(username=username)
-        if not u.exists():
-            abort(404, "User(%s) not found" % username)
-
         # non-admins can only get a pwreset link for thier account
-        if g.user.role != Role.FULL_ADMIN and username != g.user.username:
+        if g.user.role != Role.FULL_ADMIN and self.username != g.user.username:
             abort(403, MSG_403)
 
         # create a temporary random key and timestamp it
-        u.password_reset_key = "%s"%uuid.uuid4()
-        u.password_reset_timestamp = time.time()
-        u.save()
-        return u.password_reset_key
+        self.password_reset_key = "%s"%uuid.uuid4()
+        self.password_reset_timestamp = time.time()
+        self.save()
+        return jsonify({"key": self.password_reset_key})
 
     @staticmethod
+    @api_route(path="pwreset", methods=["POST"], authenticated=False)
     def password_reset(username, password, password_reset_key):
-        """ a non-authenticated user provides correct username and pw_reset_key
-            within the pw_reset_timestamp. If successful, then provided 
-            password will be updated for user.
-            aborts on failure
-        """
+        """ request to reset user password """
         u = User.load(username=username)
         if not u.exists():
             abort(400, "Incorrect username or inactive key provided")
@@ -308,6 +168,191 @@ class User(Rest):
         u.password_reset_timestamp = 0
         u.password_reset_key = ""
         u.save()
+        return User.api_ok()
 
+    @classmethod
+    @api_callback("before_create")
+    def before_user_create(cls, data, api=False):
+        # only perform check on api calls
+        if not api: return data
+        # ensure username is not a reserved username
+        if "username" in data and data["username"] in User.RESERVED:
+            abort(400, "Username \"%s\" is reserved" % data["username"])
+        return data
 
+    @classmethod
+    @api_callback("before_read")
+    def before_user_read(cls, filters, api=False):
+        # only perform check on api calls
+        if not api: return filters
+        # for non-admins, force filter to include their username
+        admin = (g.user.role == Role.FULL_ADMIN)
+        if not admin:
+            if "username" in filters:
+                if filters["username"] != g.user.username:
+                    abort(403, MSG_403)
+            else:
+                filters["username"] = g.user.username
+        return filters
+
+    @classmethod
+    @api_callback("before_update")
+    def before_user_update(cls, filters, data, api=False):
+        # only perform check on api calls
+        if not api: return (filters, data)
+        # block user from updating reserved users
+        admin = (g.user.role == Role.FULL_ADMIN)
+        if "username" in filters:
+            if filters["username"] in User.RESERVED:
+                abort(400, "Username \"%s\" is reserved and cannot be updated"%filters["username"])
+            elif not admin and g.user.username != filters["username"]:
+                abort(403, MSG_403)
+        else:
+            if not admin:
+                # for non-admin users, filter must include their username
+                filters["username"] = g.user.username
+            else:
+                # else add filter blocking updates to reserved usernames
+                filters["username"] = {"$nin":User.RESERVED}
+        return (filters, data)
+
+    @classmethod
+    @api_callback("before_delete")
+    def before_user_delete(cls, filters, api=False):
+        # only perform check on api calls
+        if not api: return filters
+        username = g.user.username
+        if "username" in filters:
+            if filters["username"] in User.RESERVED:
+                abort(400, "Username \"%s\" is reserved and cannot be updated"%filters["username"])
+            elif username is not None and username == filters["username"]:
+                abort(400, "User \"%s\" cannot delete user \"%s\""%(username, filters["username"]))
+        else:
+            # else add filter blocking updates to reserved usernames and local user
+            filters["username"] = {"$nin":User.RESERVED}
+            if username is not None: filters["username"]["$nin"].append(username)
+        return filters
+
+    @classmethod
+    @api_callback("after_read")
+    def after_user_read(cls, data, api=False):
+        # only perform check on api calls.  
+        if not api: return data
+        # remove reserved usernames from results
+        if "objects" not in data or "count" not in data: return data
+        count = data["count"]
+        objects = []
+        for o in data["objects"]:
+            if "username" in o["user"] and o["user"]["username"] in User.RESERVED:
+                count-= 1
+            else: objects.append(o)
+        if count < 0: count = 0
+        return {"count": count, "objects": objects}
+
+@api_register(parent="user")
+class Session(Rest):
+    logger = logger
+    META_ACCESS = {
+        "create": False,
+        "read": False,
+        "update": False,
+        "delete": False,
+    }
+    META = {
+        "session": {
+            "type": str,
+            "key": True,
+            "description": "unique session id",
+        },
+        "role": {
+            "type": int,
+            "default": Role.USER,
+            "min": Role.MIN_ROLE,
+            "max": Role.MAX_ROLE,
+            "description": "role inherited from user object that created this session",
+        },
+        "created": {
+            "type": float,
+            "description": "epoch timestampe when session was created",
+        },  
+        "timeout": {
+            "type": float,
+            "description": "epoch timestamp when session will no longer be valid",
+        },
+        "token_required": {
+            "type": bool,
+            "default": False,
+            "description": "csfr token enabled for session authentication",
+        },
+        "token": {
+            "type": str,
+            "description": "csfr token"
+        },
+    }
+
+    # required for flask-login
+    # https://flask-login.readthedocs.org/en/latest/#your-user-class
+    def is_authenticated(self): return True
+    def is_active(self): return True
+    def is_anonymous(self): return False
+    def get_id(self): return self.session
+
+    @staticmethod 
+    def load_session(session_id):
+        # load user object for corresponding session id.  If session id is invalid, has expired,
+        # or token is not present within the request and token_required enabled, then return None
+        now = time.time()
+        s = Session.load(session=session_id)
+        if not s.exists(): return None
+        if now > s.timeout:
+            logger.debug("session %s timeout (%s > %s)", s.session, now, s.timeout)
+            return None
+        # perform CSFR check if token_required 
+        if s.token_required:
+            # token can be set in headers, data, or params and must be called 'app_token'
+            token = get_user_headers().get("app_token", None)
+            if token is None:
+                token = get_user_data().get("app_token", None)
+            if token is None:
+                token = get_user_params().get("app_token", None)
+            if token is None:
+                logger.debug("no token provided for session %s", s.session)
+                return None
+            if token != s.token:
+                logger.debug("invalid token %s provided for session %s", token, s.session)
+                return None
+
+        # load user corresponding to valid session
+        u = User.load(username=s.username)
+        if not u.exists(): 
+            logger.debug("username %s for session %s no longer exists", s.username, s.session)
+            return None
+        return s
+
+    @classmethod
+    @api_callback("before_create")
+    def before_session_create(cls, data):
+        # allocate session value and token if token_required and set session timeout
+        # urandom used for session id's and uuid4 used for csfr tokens
+        now = time.time()
+        s = Settings.load()
+        data["created"] = now
+        data["timeout"] = s.session_timeout + now
+        if data["token_required"]:
+            data["token"] = base64.b64encode("%s" % uuid.uuid4())
+        return data
+
+    @classmethod
+    @api_callback("after_create")
+    def after_session_create(cls, data):
+        # after each successful session creation, purge expired sessions
+        ret = Session.delete(_filters={"session":{"$lte":time.time()}})    
+        if "count" in ret and ret["count"]>0:
+            logger.debug("old sessions purged: %s", ret["count"])
+        s = Session.load(username=data["username"], session=data["session"])
+        if not s.exists():
+            logger.debug("failed to save that session thing...")
+        else:
+            logger.debug("created session: (%s, %s, token:%s, timeout: %s)", s.username, s.session,
+                    s.token, s.timeout)
 

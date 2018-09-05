@@ -13,7 +13,7 @@
         "contact-phone":"555-123-4567",
         "contact-url":"https://github.com/agccie/ACI-EnhancedEndpointTracker"
     },
-    "iconfile":"aci-app-logo.png",
+    "iconfile":"logo.png",
     "name":"EnhancedEndpointTracker",
     "permissions":[
         "admin"
@@ -22,5 +22,5 @@
     "shortdescr":"Track endpoint activity within the ACI fabric",
     "vendor":"Cisco",
     "vendordomain":"Cisco",
-    "version":"1.3"
+    "version":"2.0"
 }

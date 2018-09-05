@@ -1,20 +1,15 @@
 
-import logging
-from .rest import (Rest, api_register)
-from .role import api_read_roles
+from . import api_register
+from . import api_route
+from . import Rest
+from . import RouteInfo
+from .role import Role
+from flask import current_app
 from flask import jsonify
+import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
-
-def verify_urls():
-    """ get urls successfully registered with flask routing module.  Note,
-        this has nothing to do with 'roles' but just a convenient url
-        endpoint for now...
-    """
-    from ..utils import list_routes
-    from flask import current_app
-    return jsonify(list_routes(current_app, api=True))
 
 # expose an API to get roles 
 @api_register(path="/role")
@@ -25,18 +20,19 @@ class RoleApi(Rest):
         "read": False,
         "update": False,
         "delete": False,
-        "routes": [
-            {
-                "path":"/", 
-                "methods":["GET"], 
-                "function": api_read_roles,
-                "summary": "get mapping of role value to role name"
-            },
-            {
-                "path": "/routes",
-                "methods": ["GET"],
-                "function": verify_urls,
-            }
-        ]
     }
     META = {}
+
+    @staticmethod
+    @api_route(path="/", methods=["GET"])
+    def read_roles():
+        """ get mapping of role value to role name """
+        return jsonify(Role.ROLES_STR)
+
+    @staticmethod
+    @api_route(path="/routes", methods=["GET"])
+    def get_urls():
+        """ get all available app routes """
+        from ..utils import list_routes
+        return jsonify(list_routes(current_app, api=True))
+

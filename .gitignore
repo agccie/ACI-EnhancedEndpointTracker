@@ -5,7 +5,7 @@
 
 # ignore private instance configurations 
 instance/*
-app.wsgi
+Service/app.json
 
 # ignore packager files and Media vidoes
 aci_app_packager.log
@@ -23,7 +23,6 @@ __pycache__/
 # Distribution / packaging
 .Python
 env/
-build/
 develop-eggs/
 dist/
 downloads/

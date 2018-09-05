@@ -263,8 +263,8 @@ function main(){
 
     # setup required directories with proper write access and custom app config
     setup_directories
-    start_all_services
     create_app_config_file
+    start_all_services
     init_db
 
     log `touch $STARTED_FILE 2>&1`

@@ -1,5 +1,6 @@
 import os, sys, logging, json
 from datetime import timedelta
+from multiprocessing import cpu_count
 
 # these variables are set from app.json if found. Use app.json as single
 # source of truth.
@@ -36,6 +37,7 @@ MONGO_DBNAME = os.environ.get("MONGO_DBNAME","devdb")
 MONGO_SERVER_SELECTION_TIMEOUT_MS = 5000
 MONGO_CONNECT_TIMEOUT_MS = 5000
 MONGO_SOCKET_TIMEOUT_MS = 20000
+MONGO_WRITECONCERN = int(os.environ.get("MONGO_WRITECONCERN",1))
 
 # enable application debugging (ensure debugging is disabled on production app)
 DEBUG = bool(int(os.environ.get("DEBUG", 1)))
@@ -45,8 +47,7 @@ JSONIFY_PRETTYPRINT_REGULAR = bool(int(
                             os.environ.get("JSONIFY_PRETTYPRINT_REGULAR",0)))
 
 # authentication settings
-REMEMBER_COOKIE_DURATION = timedelta(
-    days=int(os.environ.get("REMEMBER_COOKIE_DURATION",1)))
+REMEMBER_COOKIE_DURATION = timedelta(days=int(os.environ.get("REMEMBER_COOKIE_DURATION",0)))
 BCRYPT_LOG_ROUNDS = 12
 LOGIN_ENABLED = bool(int(os.environ.get("LOGIN_ENABLED",0)))
 DEFAULT_USERNAME = os.environ.get("DEFAULT_USERNAME", "admin")
@@ -79,3 +80,9 @@ ACI_APP_MODE = bool(int(os.environ.get("ACI_APP_MODE",0)))
 ACI_STARTED_FILE = os.environ.get("STARTED_FILE","/home/app/.started")
 ACI_STATUS_FILE = os.environ.get("STATUS_FILE","/home/app/.status")
 
+# set maximum file size for uploads (default to 10G)
+MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 10*1024*1024*1024))
+
+# tmp directory for working with tmp files (and uploaded files)
+TMP_DIR = os.environ.get("TMP_DIR", "/tmp/")
+MAX_POOL_SIZE = int(os.environ.get("MAX_POOL_SIZE", cpu_count()))

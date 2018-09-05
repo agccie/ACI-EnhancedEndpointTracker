@@ -1,9 +1,14 @@
 # for local testing, when running in prod will use app.wsgi
 from app import create_app
 from app.models.utils import setup_logger
+import logging
+import os
+import sys
 
-import logging, sys
-logger = setup_logger(logging.getLogger("app"),stdout=True, quiet=True)
+logger = setup_logger(logging.getLogger("app"), stdout=True, quiet=True)
+
+INFO = ["app.models.aci.tools"] 
+for i in INFO: logging.getLogger(i).setLevel(logging.INFO)
 
 def get_args():
     # get command line arguments
@@ -14,6 +19,8 @@ def get_args():
         default=80, help="start flask debug web server")
     parser.add_argument("-d", action="store", dest="debug", default="debug",
         help="debugging level", choices=["debug","info","warn","error"])
+    parser.add_argument("--test", action="store_true", dest="test",
+        help="run app in test module mode")
     args = parser.parse_args()
 
     # set debug level
@@ -28,7 +35,16 @@ def get_args():
 if __name__ == "__main__":
 
     args = get_args()
-    app = create_app("config.py")
+    if args.test:
+        # override some config settings and add test modules
+        from tests.api.test_proxy import Rest_TestProxy
+        app = create_app("config.py")
+        app.config["ENABLE_LOGIN"] = False
+        app.config["DEBUG"] = True
+        app.config["MONGO_DBNAME"] = "testdb"
+        app.config["TMP_DIR"] = os.path.realpath("%s/test" % app.config["TMP_DIR"])
+    else:
+        app = create_app("config.py")
     logger.debug("running on port %s" % args.port)
     app.run(host="0.0.0.0", port=args.port)
 

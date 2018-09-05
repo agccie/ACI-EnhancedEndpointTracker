@@ -1,7 +1,10 @@
 
-import logging
-from ..rest import (Rest, api_register, registered_classes)
+from .. import Rest
+from .. import api_register
+from .. import RouteInfo
+from .. import registered_classes
 from flask import jsonify, current_app
+import logging
 
 def get_swagger_documentation():
     """ get swagger documentation for all rest endpoints """
@@ -24,9 +27,33 @@ def get_swagger_documentation():
                     "required": False,
                     "schema": { "type": "string"},
                     "description": """ 
-            perform advanced filtering on attributes to limit the number of 
-            objects read or modified.
-            See filter query syntax [link](https://www.google.com)
+Filters allow user to perform advanced filtering on attributes to limit the number of objects read 
+or modified.  **Note** objects that support `bulk update` and `bulk delete` can utilize the same 
+filter syntax to modify or delete a range of objects.
+
+There are two types of operators supported:
+* **base-operators** in the form `operator`("`attribute`", `value`)
+	* `eq` filters on attributes equal to `value`
+	* `neq` filters on attributes not equal to `value`
+	* `lt` filters on attributes less than `value`
+	* `le` filters on attributes less than or equal to `value`
+	* `gt` filters on attributes greater than `value`
+ 	* `ge` filters on attributes greater than or equal to `value`
+	* `regex` filters on attributes with `value` matching a regular expression
+* **conditional-operators** in the form `operator`(`op1`, `op2`).  Here `op1` and `op2` can be a 
+base-operator or another conditional-operator.
+	* `and` filter condition when both `op1` and `op2` evaluate to True
+	* `or` filter condition when either `op1` or `op2` evaluate to True
+
+Below are **example filters** for a User object that contains a string attribute `username` and 
+float timestamp `last_login`:
+* Show only user info for username `admin` or `root`:
+	* `or`( `eq`(`"username"`, `"admin"`) , `eq` (`"username"`, `"root"`) )
+* Show only users `username` that contains `mgmt`:
+	* `regex` (`"username"`, `"mgmt"`)
+* Show only users with `last_login` after Aug-22-2018 (epoch timestamp `1534896000`):
+	* `ge` (`"last_login"`, `1534896000`)
+                  
                     """.strip()
                 },
                "page": {
@@ -46,10 +73,10 @@ def get_swagger_documentation():
                     "name": "sort",
                     "schema": {"type": "string"},
                     "description": """
-                    sort attribute along with optional sort direction. The sort
-                    directions are 'asc' and 'desc' with default of 'asc'. For 
-                    example, to sort users by username and then by last_login:
-                        sort=username,last_login|desc
+                        sort attribute along with optional sort direction. The sort directions are 
+                        'asc' and 'desc' with default of 'asc'. For example, to sort users by 
+                        username and then by last_login: 
+                        <strong>sort=username,last_login|desc</strong>
                     """.strip()
                 },
                 "count": {
@@ -57,9 +84,9 @@ def get_swagger_documentation():
                     "name": "count",
                     "schema": {"type": "boolean"},
                     "description": """
-                    return only the number of objects matching the query. Note,
-                    this is performed if 'count' parameter is present 
-                    independent of whether the value is true or false
+                        return only the number of objects matching the query. Note, this is 
+                        performed if 'count' parameter is present independent of whether the value 
+                        is true or false
                     """.strip()
                 },
                 "include": {
@@ -67,19 +94,29 @@ def get_swagger_documentation():
                     "name": "include",
                     "schema": {"type": "string"},
                     "description": """
-                    comma separated list of attributes to include in read 
-                    result. By default all object attributes are returned. For
-                    example: include=compare_id,total
-                    Note, if _id is exposed then it is always returned with 
-                    result even if not provided in list of include attributes.
+                        comma separated list of attributes to include in read result. By default 
+                        all object attributes are returned. For example: 
+                        <strong>include=compare_id,total</strong><br>
+                        Note, if _id is exposed then it is always returned with result even if not 
+                        provided in list of include attributes. Addtionally, when using rsp-include=
+                        children or subtree, the keys for the children are always included.
+                    """.strip()
+                },
+                "rsp-include": {
+                    "in": "query",
+                    "name": "rsp-include",
+                    "schema": {"type": "string", "enum":["self","children","subtree"]},
+                    "description": """ 
+                        Include children or full subtree in response. By default, only the object 
+                        matching the provided query filter is returned.
                     """.strip()
                 },
             },
             "schemas": {
-                "generic_write": {
+                "create_response": {
                     "type": "object",
                     "properties": {
-                        "successs":{
+                        "success":{
                             "type": "boolean",
                             "description": "successfully created object"
                         },
@@ -89,23 +126,10 @@ def get_swagger_documentation():
                         },
                     },
                 },
-                "generic_post": {
+                "create_id_response": {
                     "type": "object",
                     "properties": {
-                        "successs":{
-                            "type": "boolean",
-                            "description": "successfully performed post"
-                        },
-                        "error": {
-                            "type": "string",
-                            "description": "description of error if not success"
-                        },
-                    },
-                },
-                "create_id": {
-                    "type": "object",
-                    "properties": {
-                        "successs":{
+                        "success":{
                             "type": "boolean",
                             "description": "successfully created object"
                         },
@@ -119,31 +143,6 @@ def get_swagger_documentation():
                         },
                     },
                 },
-                "read": {
-                    "type": "object",
-                    "properties": {
-                        "count": {
-                            "type": "integer",
-                            "description": "number of objects returned"
-                        },
-                        "objects": {
-                            "type": "array",
-                            "description": "list of objects returned"
-                        },
-                    },
-                },
-                "bad_request": {
-                    "type": "object",
-                    "description": """ if a create/read/update/delete operation
-                    fails validation then a 400 badRequest is returned with a
-                    description regarding what validation failed. """,
-                    "properties": {
-                        "error": {
-                            "type": "string",
-                            "description": "description of error"
-                        },
-                    },
-                },
             }
         },
         "definitions": {}
@@ -151,6 +150,8 @@ def get_swagger_documentation():
 
     for c in registered_classes:
         c = registered_classes[c]
+        if "read_obj_ref" in c._swagger:
+            swagger["components"]["schemas"][c._classname] = c._swagger["read_obj_ref"]
         for p in c._swagger: 
             swagger["paths"][p] = c._swagger[p]
 
@@ -168,11 +169,7 @@ class Docs(Rest):
         "update": False,
         "delete": False,
         "routes": [
-            {
-                "path":"/",
-                "methods": ["GET"],
-                "function": get_swagger_documentation
-            }
+            RouteInfo(path="/", methods=["GET"], function=get_swagger_documentation)
         ],
     }
     

@@ -25,6 +25,7 @@ from pymongo.errors import (DuplicateKeyError, ServerSelectionTimeoutError)
 from pymongo import (ASCENDING, DESCENDING)
 import logging
 import os
+import re
 import sys
 import time
 
@@ -97,8 +98,6 @@ bd_name                         = "%s/BD-reasonably-long-bd-name-{}" % tenant_na
 epg_name                        = "%s/ap-reasonably-long-app-name/epg-epg-name-{}" % tenant_name
 nodes                           = {}    # ptr to eptNode objects of type leaf
 vpc_domains                     = {}    # ptr to eptNode objects of type vpc
-endpoints                       = {}    # index of endpoints addr -> [type, vnid, node, intf]
-                                        # note for this scale test all addresses are globally unique
 bd_to_epg                       = {}    # index by bd vnid and ptr to eptEpg
 ip_allocator                    = None  # IpAllocator tracking available subnets and IPs
 db_pre_init                     = False # db already initialized
@@ -172,7 +171,7 @@ class IpAllocator(object):
             return (subnet, ip)
 
 class Endpoint(object):
-    def __init__(self, endpoint_type, addr, vnid, node_id, intf, pctag, rw_mac=None, rw_bd=None):
+    def __init__(self, endpoint_type, addr, vnid, node_id, intf, pctag, rw_mac=0, rw_bd=0):
         self.type = endpoint_type
         self.addr = addr
         self.vnid = vnid
@@ -181,7 +180,9 @@ class Endpoint(object):
         self.rw_mac = rw_mac
         self.rw_bd = rw_bd
         self.pctag = pctag
-        if "tunnel" in intf:
+        self.remote = 0
+        if "tunnel" in self.intf:
+            self.remote = int(re.sub("tunnel","", self.intf))
             if self.type == "mac": 
                 self.flags = "mac"
             else:
@@ -208,8 +209,149 @@ class Endpoint(object):
             self.rw_bd if self.rw_bd is not None else 0
         )
 
-# initialize global IpAllocator
+    def get_eptHistory(self):
+        # return eptHistory object to insert into db for this endpoint
+        del_event = {
+            "class": "",
+            "encap": "",
+            "flags": "",
+            "intf": "",
+            "pctag": 0,
+            "remote": 0,
+            "rw_bd": 0,
+            "rw_mac": 0,
+            "status": "deleted",
+            "ts": 0
+        }
+        create_event = {
+            "class": "",
+            "encap": "",
+            "flags": self.flags,
+            "pctag": self.pctag,
+            "remote": self.remote,
+            "rw_bd": self.rw_bd,
+            "rw_mac": self.rw_mac,
+            "status": "created",
+            "ts": 0
+        }
+        events = [del_event for x in xrange(0, 63)]
+        events.insert(0, create_event)
+        addr = self.addr
+        if self.type == "mac": addr = get_mac_string(addr)
+        elif self.type == "ipv4": addr = get_ipv4_string(addr)
+        elif self.type == "ipv6": addr = get_ipv6_string(addr)
+        return eptHistory(
+            fabric = fabric.fabric,
+            node = self.node_id,
+            vnid = self.vnid,
+            addr = addr,
+            type = self.type,
+            events = events
+        )
+
+class EndpointTrackerNode(object):
+    # track tunnels and local endpoints
+    def __init__(self, node_id, tep):
+        self.node_id = node_id
+        self.tep = tep
+        self.tunnels = {}   # index by dst-addr-str pointing to eptTunnel object
+        self.vpc_tunnels = {}   # index by dst-addr-str pointing to eptTunnel object
+        self.mac = {}
+        self.ipv4 = {}
+        self.ipv6 = {}
+        self.vpc_mac = {}
+        self.vpc_ipv4 = {}
+        self.vpc_ipv6 = {}
+        self.xr_mac_count = 0
+        self.xr_ipv4_count = 0
+        self.xr_ipv6_count = 0
+        self.init = False
+        self.pointers = {
+            "mac": 0,
+            "ipv4": 0,
+            "ipv6": 0,
+            "vpc_mac": 0,
+            "vpc_ipv4": 0,
+            "vpc_ipv6": 0,
+        }
+        self.endpoints = {
+            "mac": [],
+            "ipv4": [],
+            "ipv6": [],
+            "vpc_mac": [],
+            "vpc_ipv4": [],
+            "vpc_ipv6": [],
+        }
+
+    def get_next_endpoint(self, addr_type, vpc=True):
+        if not self.init:
+            for x in self.mac:
+                ept = self.mac[x]
+                if "vpc" in ept.flags: self.endpoints["vpc_mac"].append(ept)
+                else: self.endpoints["mac"].append(ept)
+            for x in self.ipv4:
+                ept = self.ipv4[x]
+                if "vpc" in ept.flags: self.endpoints["vpc_ipv4"].append(ept)
+                else: self.endpoints["ipv4"].append(ept)
+            for x in self.ipv6:
+                ept = self.ipv6[x]
+                if "vpc" in ept.flags: self.endpoints["vpc_ipv6"].append(ept)
+                else: self.endpoints["ipv6"].append(ept)
+        if vpc: addr_type = "vpc_%s" % addr_type
+        if self.pointers[addr_type] >= len(self.endpoints[addr_type]):
+            self.pointers[addr_type] = 0
+        ret = self.endpoints[addr_type][self.pointers[addr_type]]
+        self.pointers[addr_type]+=1
+        return ret
+
+class EndpointTracker(object):
+    def __init__(self):
+        self.mac = set([])
+        self.ipv4 = set([])
+        self.ipv6 = set([])
+        # list of nodes indexed by node_id
+        self.nodes = {}
+        self.total_mac = 0
+        self.total_ipv4 = 0
+        self.total_ipv6 = 0
+
+    def get_total_endpoints(self):
+        # get unique endpoints
+        return len(self.mac) + len(self.ipv4) + len(self.ipv6)
+
+    def exists(self, addr, addr_type):
+        # return true if addr exists within tracker
+        if addr_type == "mac": 
+            return addr in self.mac
+        elif addr_type == "ipv4": 
+            return addr in self.ipv4
+        elif addr_type == "ipv6":
+            return addr in self.ipv6
+        raise Exception("unsupported addr type '%s'" % addr_type)
+
+    def add_node(self, tracker_node):
+        self.nodes[tracker_node.node_id] = tracker_node
+
+    def add_endpoint(self, endpoint):
+        # add endpoint to tracker
+        if endpoint.node_id not in self.nodes: 
+            raise Exception("unknown node_id %s" % endpoint.node_id)
+        if endpoint.type == "mac":
+            if endpoint.addr not in self.mac: self.mac.add(endpoint.addr)
+            self.nodes[endpoint.node_id].mac[endpoint.addr] = endpoint
+            if endpoint.node_id < 0xffff: self.total_mac+=1
+        elif endpoint.type == "ipv4":
+            if endpoint.addr not in self.ipv4: self.ipv4.add(endpoint.addr)
+            self.nodes[endpoint.node_id].ipv4[endpoint.addr] = endpoint
+            if endpoint.node_id < 0xffff: self.total_ipv4+=1
+        elif endpoint.type == "ipv6":
+            if endpoint.addr not in self.ipv6: self.ipv6.add(endpoint.addr)
+            self.nodes[endpoint.node_id].ipv6[endpoint.addr] = endpoint
+            if endpoint.node_id < 0xffff: self.total_ipv6+=1
+
+# initialize global IpAllocator and EndpointTracker
 ip_allocator = IpAllocator()
+endpoint_tracker = EndpointTracker()
 
 from app import create_app
 from app.models.rest import registered_classes
@@ -314,6 +456,7 @@ def build_topology():
         )
         bulk_nodes.append(new_node)
         nodes[nid] = new_node
+        endpoint_tracker.add_node(EndpointTrackerNode(nid,addr))
 
     node_ids = nodes.keys()
     node_id_ptr = 0
@@ -337,6 +480,7 @@ def build_topology():
         )
         vpc_domains[vpc_nid] = new_node
         bulk_nodes.append(new_node)
+        endpoint_tracker.add_node(EndpointTrackerNode(vpc_nid,addr))
         node_id_ptr+= 2
     if not db_pre_init:
         ts = time.time()
@@ -386,7 +530,7 @@ def build_topology():
             rid = next_round_robin_id()
             if rid == nid: 
                 rid = next_round_robin_id()
-            bulk_tunnels.append(eptTunnel(
+            tunnel = eptTunnel(
                 fabric = fabric.fabric,
                 node = nid,
                 intf = "tunnel%s" % rid,
@@ -395,13 +539,15 @@ def build_topology():
                 status = "up",
                 src = nodes[nid].addr,
                 dst = nodes[rid].addr
-            ))
+            )
+            bulk_tunnels.append(tunnel)
+            endpoint_tracker.nodes[nid].tunnels[nodes[rid].addr] = tunnel
         # build vpc tunnels to all other vpcs with exception of 'this' node
         for i in xrange(0, scale["per_node_vpc_tunnel"]):
             rid = next_round_robin_id(vpc=True)
             if vpc_domains[rid].nodes[0]["node"] == nid or vpc_domains[rid].nodes[1]["node"] == nid:
                 rid = next_round_robin_id(vpc=True)
-            bulk_tunnels.append(eptTunnel(
+            tunnel = eptTunnel(
                 fabric = fabric.fabric,
                 node = nid,
                 intf = "tunnel%s" % rid,
@@ -410,7 +556,9 @@ def build_topology():
                 status = "up",
                 src = nodes[nid].addr,
                 dst = vpc_domains[rid].addr
-            ))
+            )
+            bulk_tunnels.append(tunnel)
+            endpoint_tracker.nodes[nid].vpc_tunnels[vpc_domains[rid].addr] = tunnel
     if not db_pre_init:
         ts = time.time()
         assert eptTunnel.bulk_save(bulk_tunnels)
@@ -491,13 +639,8 @@ def build_endpoints():
     # create local endpoints based on nodes, vpc_domains, and available subnets
     logger.debug("building endpoints (nodes: %s)" % len(nodes))
 
-    ept_by_node = {}    # endpoints allocated by node id and type
- 
     for nid in nodes:
         n = nodes[nid]
-        if nid not in ept_by_node: 
-            ept_by_node[nid] = {"mac":[], "ipv4":[], "ipv6":[]}
-
         # allocate macs to use for local orphan ports (note bd and port are allocated by IP)
         local_macs = [allocate_new_value("mac") for i in xrange(0, scale["per_node_local_orphan_mac"])]
         local_mac_ptr = 0
@@ -510,14 +653,15 @@ def build_endpoints():
             intf = "eth1/1"
             epg = bd_to_epg[subnet.bd_vnid]
             # add mac endpoint to endpoint dict 
-            if mac not in endpoints:
-                endpoints[mac] = [Endpoint("mac", mac, subnet.bd_vnid, nid, intf, epg["pctag"])]
-                ept_by_node[nid]["mac"].append(endpoints[mac][0])
-            if ipv4 in endpoints:
-                raise Exception("duplicate ipv4 in endpoints: %s" % endpoints[ipv4])
-            endpoints[ipv4] = [Endpoint("ipv4",ipv4, subnet.vrf_vnid, nid, intf, epg["pctag"], 
-                    rw_mac = mac, rw_bd = subnet.bd_vnid)]
-            ept_by_node[nid]["ipv4"].append(endpoints[ipv4][0])
+            if not endpoint_tracker.exists(mac, "mac"):
+                endpoint_tracker.add_endpoint(
+                    Endpoint("mac", mac, subnet.bd_vnid, nid, intf, epg["pctag"])
+                )
+            if endpoint_tracker.exists(ipv4,"ipv4"):
+                raise Exception("duplicate ipv4 in endpoints: %s" % ipv4)
+            endpoint_tracker.add_endpoint(
+                Endpoint("ipv4",ipv4, subnet.vrf_vnid, nid, intf, epg["pctag"],rw_mac=mac,rw_bd=subnet.bd_vnid)
+            )
 
         # allocate a new ipv4 address up to orphan ipv6
         for i in xrange(0, scale["per_node_local_orphan_ipv6"]):
@@ -528,20 +672,18 @@ def build_endpoints():
             intf = "eth1/1"
             epg = bd_to_epg[subnet.bd_vnid]
             # add mac endpoint to endpoint dict 
-            if mac not in endpoints:
-                endpoints[mac] = [Endpoint("mac", mac, subnet.bd_vnid, nid, intf, epg["pctag"])]
-                ept_by_node[nid]["mac"].append(endpoints[mac][0])
-            if ipv6 in endpoints:
-                raise Exception("duplicate ipv6 in endpoints: %s" % endpoints[ipv6])
-            endpoints[ipv6] = [Endpoint("ipv6",ipv6, subnet.vrf_vnid, nid, intf, epg["pctag"], 
-                    rw_mac = mac, rw_bd = subnet.bd_vnid)]
-            ept_by_node[nid]["ipv6"].append(endpoints[ipv6][0])
-
+            if not endpoint_tracker.exists(mac, "mac"):
+                endpoint_tracker.add_endpoint(
+                    Endpoint("mac", mac, subnet.bd_vnid, nid, intf, epg["pctag"])
+                )
+            if endpoint_tracker.exists(ipv6,"ipv6"):
+                raise Exception("duplicate ipv6 in endpoints: %s" % ipv6)
+            endpoint_tracker.add_endpoint(
+                Endpoint("ipv6",ipv6, subnet.vrf_vnid, nid, intf, epg["pctag"],rw_mac=mac,rw_bd=subnet.bd_vnid)
+            )
 
     for vid in vpc_domains:
         n = vpc_domains[vid]
-        if vid not in ept_by_node: 
-            ept_by_node[vid] = {"mac":[], "ipv4":[], "ipv6":[]}
         # allocate macs to use for local vpc ports (note bd is allocated by IP)
         local_macs = [allocate_new_value("mac") for i in xrange(0, scale["per_node_local_vpc_mac"])]
         local_mac_ptr = 0
@@ -561,29 +703,29 @@ def build_endpoints():
             nid1 = n.nodes[0]["node"]
             nid2 = n.nodes[1]["node"]
             # add mac endpoint to endpoint dict 
-            if mac not in endpoints:
+            if not endpoint_tracker.exists(mac, "mac"):
                 ept1 = Endpoint("mac", mac, subnet.bd_vnid, nid1, intf, epg["pctag"])
                 ept2 = Endpoint("mac", mac, subnet.bd_vnid, nid2, intf, epg["pctag"])
                 ept3 = Endpoint("mac", mac, subnet.bd_vnid, vid, intf, epg["pctag"])
                 ept1.flags+= ",vpc-attached"
                 ept2.flags+= ",vpc-attached"
                 ept3.flags+= ",vpc-attached"
-                endpoints[mac] = [ept1, ept2]
-                ept_by_node[nid1]["mac"].append(ept1)
-                ept_by_node[nid2]["mac"].append(ept2)
-                ept_by_node[vid]["mac"].append(ept3)
-            if ipv4 in endpoints:
-                raise Exception("duplicate ipv4 in endpoints: %s" % endpoints[ipv4])
+                endpoint_tracker.add_endpoint(ept1)
+                endpoint_tracker.add_endpoint(ept2)
+                endpoint_tracker.add_endpoint(ept3)
+
+            if endpoint_tracker.exists(ipv4,"ipv4"):
+                raise Exception("duplicate ipv4 in endpoints: %s" % ipv4)
             ept1 = Endpoint("ipv4",ipv4, subnet.vrf_vnid, nid1, intf, epg["pctag"],rw_mac=mac,rw_bd=subnet.bd_vnid)
             ept2 = Endpoint("ipv4",ipv4, subnet.vrf_vnid, nid2, intf, epg["pctag"],rw_mac=mac,rw_bd=subnet.bd_vnid)
             ept3 = Endpoint("ipv4",ipv4, subnet.vrf_vnid, vid, intf, epg["pctag"],rw_mac=mac,rw_bd=subnet.bd_vnid)
             ept1.flags+= ",vpc-attached"
             ept2.flags+= ",vpc-attached"
             ept3.flags+= ",vpc-attached"
-            endpoints[ipv4] = [ept1, ept2]
-            ept_by_node[nid1]["ipv4"].append(ept1)
-            ept_by_node[nid2]["ipv4"].append(ept2)
-            ept_by_node[vid]["ipv4"].append(ept3)
+            endpoint_tracker.add_endpoint(ept1)
+            endpoint_tracker.add_endpoint(ept2)
+            endpoint_tracker.add_endpoint(ept3)
+
         # allocate a new ipv4 address up to orphan ipv4
         for i in xrange(0, scale["per_node_local_vpc_ipv6"]):
             (subnet, ipv6) = ip_allocator.get_next_ipv6_ip()
@@ -598,50 +740,99 @@ def build_endpoints():
             nid1 = n.nodes[0]["node"]
             nid2 = n.nodes[1]["node"]
             # add mac endpoint to endpoint dict 
-            if mac not in endpoints:
+            if not endpoint_tracker.exists(mac, "mac"):
                 ept1 = Endpoint("mac", mac, subnet.bd_vnid, nid1, intf, epg["pctag"])
                 ept2 = Endpoint("mac", mac, subnet.bd_vnid, nid2, intf, epg["pctag"])
                 ept3 = Endpoint("mac", mac, subnet.bd_vnid, vid, intf, epg["pctag"])
                 ept1.flags+= ",vpc-attached"
                 ept2.flags+= ",vpc-attached"
                 ept3.flags+= ",vpc-attached"
-                endpoints[mac] = [ept1, ept2]
-                ept_by_node[nid1]["mac"].append(ept1)
-                ept_by_node[nid2]["mac"].append(ept2)
-                ept_by_node[vid]["mac"].append(ept3)
-            if ipv6 in endpoints:
-                raise Exception("duplicate ipv6 in endpoints: %s" % endpoints[ipv6])
+                endpoint_tracker.add_endpoint(ept1)
+                endpoint_tracker.add_endpoint(ept2)
+                endpoint_tracker.add_endpoint(ept3)
+
+            if endpoint_tracker.exists(ipv6,"ipv6"):
+                raise Exception("duplicate ipv6 in endpoints: %s" % ipv6)
             ept1 = Endpoint("ipv6",ipv6, subnet.vrf_vnid, nid1, intf, epg["pctag"],rw_mac=mac,rw_bd=subnet.bd_vnid)
             ept2 = Endpoint("ipv6",ipv6, subnet.vrf_vnid, nid2, intf, epg["pctag"],rw_mac=mac,rw_bd=subnet.bd_vnid)
             ept3 = Endpoint("ipv6",ipv6, subnet.vrf_vnid, vid, intf, epg["pctag"],rw_mac=mac,rw_bd=subnet.bd_vnid)
             ept1.flags+= ",vpc-attached"
             ept2.flags+= ",vpc-attached"
             ept3.flags+= ",vpc-attached"
-            endpoints[ipv6] = [ept1, ept2]
-            ept_by_node[nid1]["ipv4"].append(ept1)
-            ept_by_node[nid2]["ipv4"].append(ept2)
-            ept_by_node[vid]["ipv4"].append(ept3)
+            endpoint_tracker.add_endpoint(ept1)
+            endpoint_tracker.add_endpoint(ept2)
+            endpoint_tracker.add_endpoint(ept3)
 
+    # add local endpoint to db for all nodes
+    for nid in nodes:
+        bulk_history = []
+        for i in endpoint_tracker.nodes[nid].mac:
+            bulk_history.append(endpoint_tracker.nodes[nid].mac[i].get_eptHistory())
+        for i in endpoint_tracker.nodes[nid].ipv4:
+            bulk_history.append(endpoint_tracker.nodes[nid].ipv4[i].get_eptHistory())
+        for i in endpoint_tracker.nodes[nid].ipv6:
+            bulk_history.append(endpoint_tracker.nodes[nid].ipv6[i].get_eptHistory())
+        if not db_pre_init:
+            ts = time.time()
+            assert eptHistory.bulk_save(bulk_history)
+            logger.debug("eptHistory (%s) bulk save local endpoints node %s: %s", len(bulk_history),
+                nid, time.time()-ts)
 
     # next step is to build xr entires on each node
-    #for nid in nodes:
-    #    n = nodes[nid]
+    for nid in nodes:
+        tracker_node = endpoint_tracker.nodes[nid]
+        bulk_history = []
+        for addr_type in ["mac", "ipv4", "ipv6"]:
+            created_count = 0
+            per_tunnel_count = int(scale["per_node_xr_ptep_%s" % addr_type]/len(tracker_node.tunnels)) + 1
+            for dst in tracker_node.tunnels:
+                tunnel = tracker_node.tunnels[dst]
+                rid = int(re.sub("tunnel", "", tunnel.intf))
+                remote_tracker_node = endpoint_tracker.nodes[rid]
+                for i in xrange(0, per_tunnel_count):
+                    xr = remote_tracker_node.get_next_endpoint(addr_type, vpc=False)
+                    ept = Endpoint(addr_type,xr.addr, xr.vnid, nid, tunnel.intf, xr.pctag)
+                    bulk_history.append(ept.get_eptHistory())
+                    if addr_type == "mac":
+                        tracker_node.xr_mac_count+=1
+                    elif addr_type == "ipv4":
+                        tracker_node.xr_ipv4_count+=1
+                    elif addr_type == "ipv6":
+                        tracker_node.xr_ipv6_count+=1 
+                    created_count+=1
+                    if created_count >= scale["per_node_xr_ptep_%s" % addr_type]: break
+                if created_count >= scale["per_node_xr_ptep_%s" % addr_type]: break
+
+        # repeat for vpc_tunnels
+        for addr_type in ["mac", "ipv4", "ipv6"]:
+            per_tunnel_count = int(scale["per_node_xr_vpc_%s" % addr_type]/len(tracker_node.vpc_tunnels)) + 1
+            created_count = 0
+            for dst in tracker_node.vpc_tunnels:
+                tunnel = tracker_node.vpc_tunnels[dst]
+                rid = int(re.sub("tunnel", "", tunnel.intf))
+                remote_tracker_node = endpoint_tracker.nodes[rid]
+                for i in xrange(0, per_tunnel_count):
+                    xr = remote_tracker_node.get_next_endpoint(addr_type, vpc=True)
+                    ept = Endpoint(addr_type,xr.addr, xr.vnid, nid, tunnel.intf, xr.pctag)
+                    bulk_history.append(ept.get_eptHistory())
+                    if addr_type == "mac":
+                        tracker_node.xr_mac_count+=1
+                    elif addr_type == "ipv4":
+                        tracker_node.xr_ipv4_count+=1
+                    elif addr_type == "ipv6":
+                        tracker_node.xr_ipv6_count+=1 
+                    created_count+=1
+                    if created_count >= scale["per_node_xr_vpc_%s" % addr_type]: break
+                if created_count >= scale["per_node_xr_vpc_%s" % addr_type]: break
+
+        if not db_pre_init:
+            ts = time.time()
+            assert eptHistory.bulk_save(bulk_history)
+            logger.debug("eptHistory (%s) bulk save xr endpoints node %s: %s", len(bulk_history),
+                nid, time.time()-ts)
+
 
     logger.debug("building endpoints complete")
-    """
-    "per_node_local_vpc_mac"        : 500,
-    "per_node_local_vpc_ipv4"       : 500,
-    "per_node_local_vpc_ipv6"       : 1000,
-    "per_node_local_orphan_mac"     : 100,
-    "per_node_local_orphan_ipv4"    : 200,
-    "per_node_local_orphan_ipv6"    : 200,
-    "per_node_xr_vpc_mac"           : 1500,
-    "per_node_xr_vpc_ipv4"          : 3000,
-    "per_node_xr_vpc_ipv6"          : 3000,
-    "per_node_xr_ptep_mac"          : 500,
-    "per_node_xr_ptep_ipv4"         : 1000,
-    "per_node_xr_ptep_ipv6"         : 1000,
-    """
 
 if __name__ == "__main__":
     
@@ -680,21 +871,34 @@ if __name__ == "__main__":
     app = create_app("config.py")
     db = get_db()
     
-
     init_db()
     fabric = Fabric.load(fabric=fabric_name)
     build_topology()
     build_logical_objects()
     build_endpoints()
 
-    etype = {}
-    for addr in endpoints:
-        e = endpoints[addr]
-        if e[0].type not in etype: etype[e[0].type] = 0
-        etype[e[0].type]+=len(e)
-    print "nodes: %s" % len(nodes)
+    print "nodes: %s" % len(endpoint_tracker.nodes)
     print "vpc domains: %s" % len(vpc_domains)
-    print "endpoints: %s" % len(endpoints)
-    print "types: %s" % etype
+    print "total unique endpoints: %s" % endpoint_tracker.get_total_endpoints()
+    print "mac: %s, ipv4: %s, ipv6: %s" % (
+        endpoint_tracker.total_mac,
+        endpoint_tracker.total_ipv4,
+        endpoint_tracker.total_ipv6
+    )
+    total_xr_mac = 0
+    total_xr_ipv4 = 0
+    total_xr_ipv6 = 0
+    for nid in endpoint_tracker.nodes:
+        total_xr_mac+= endpoint_tracker.nodes[nid].xr_mac_count
+        total_xr_ipv4+= endpoint_tracker.nodes[nid].xr_ipv4_count
+        total_xr_ipv6+= endpoint_tracker.nodes[nid].xr_ipv6_count
+    print "total xr_mac: %s, xr_ipv4: %s, xr_ipv6: %s" % (
+            total_xr_mac,
+            total_xr_ipv4,
+            total_xr_ipv6
+    )
+
+    print "all done!"
+    sys.exit(0)
 
 

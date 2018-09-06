@@ -1,7 +1,5 @@
 from ...rest import Rest
 from ...rest import api_register
-from ...rest import api_callback
-from .common import api_read_format_addr
 import logging
 
 # module level logging
@@ -22,6 +20,8 @@ class eptHistory(Rest):
     META = {
         "addr": {
             "type": str,
+            "key": True,
+            "key_index": 2,
             "default": "0.0.0.0",   # default is only used for swagger docs example fields
             "description": """
             for endpoints of type ipv4 this is 32-bit ipv4 address, for endpoints of type ipv6 this
@@ -30,6 +30,8 @@ class eptHistory(Rest):
         },
         "vnid": {
             "type": int,
+            "key": True,
+            "key_index": 1,
             "description": """
             26-bit vxlan network identifier (VNID). For MACs this is the BD VNID and for IPs this is 
             the vrf VNID.
@@ -99,10 +101,9 @@ class eptHistory(Rest):
                     "description": "interface id where endpoint was learned",
                 },
                 "rw_mac": {
-                    "type": int,
+                    "type": str,
                     "description": """
-                    rewrite mac address for local ipv4/ipv6 endpoints. For API calls this is
-                    as string representation of MAC address or an empty string if not set (0).
+                    rewrite mac address for local ipv4/ipv6 endpoints.
                     """,
                 },
                 "rw_bd": {
@@ -114,12 +115,4 @@ class eptHistory(Rest):
             },
         },
     }
-
-    @classmethod
-    @api_callback("after_read")
-    def after_history_read(cls, data, api):
-        """ convert event rw_mac """
-        if not api: return data
-        return api_read_format_addr(data)
-
 

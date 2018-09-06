@@ -9,32 +9,6 @@ logger = logging.getLogger(__name__)
 
 ###############################################################################
 #
-# common db callbacks
-#
-###############################################################################
-
-def api_read_format_addr(data):
-    """ If events in object and rw_mac in the event, convert to mac string """
-    if "objects" not in data: return data
-    for obj in data["objects"]:
-        if type(obj) is dict and len(obj)>0:
-            o = obj[obj.keys()[0]]
-            if type(o) is dict:
-                if "events" in o and len(o["events"])>0:
-                    events = []
-                    for event in o["events"]:
-                        if "rw_mac" in event:
-                            if event["rw_mac"] == 0: 
-                                event["rw_mac"] = ""
-                            else: 
-                                event["rw_mac"] = get_mac_string(event["rw_mac"])
-                        events.append(event)
-                    o["events"] = events
-    return data
-
-
-###############################################################################
-#
 # common conversion functions
 #
 ###############################################################################

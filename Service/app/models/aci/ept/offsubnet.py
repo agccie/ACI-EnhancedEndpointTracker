@@ -1,7 +1,5 @@
 from ...rest import Rest
 from ...rest import api_register
-from ...rest import api_callback
-from .common import api_read_format_addr
 from .history import eptHistory
 import logging
 
@@ -72,9 +70,3 @@ class eptOffSubnet(Rest):
         },
     }
 
-    @classmethod
-    @api_callback("after_read")
-    def after_stale_read(cls, data, api):
-        """ convert event rw_mac """
-        if not api: return data
-        return api_read_format_addr(data)

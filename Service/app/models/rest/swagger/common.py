@@ -1,7 +1,7 @@
 """
 common functions for interacting with Rest objects to build swagger docs
 """
-from ..Role import Role
+from ..role import Role
 import copy
 import logging
 import re

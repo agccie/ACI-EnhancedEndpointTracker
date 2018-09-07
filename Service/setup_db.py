@@ -169,7 +169,7 @@ def db_setup(args):
         elif " " in pwd:
             print "No spaces allowed in password"
             pwd = None
-    
+   
     db = get_db()
     # get all objects registred to rest API, drop db and create with 
     # proper keys
@@ -178,16 +178,14 @@ def db_setup(args):
         # drop existing collection
         logger.debug("dropping collection %s" % c._classname)
         db[c._classname].drop()
-        # create unique indexes for collection if expose_id is disabled
-        # (else mongo _id is only unique key required)
+        # create indexes for searching and unique keys ordered based on key order
+        # indexes are unique only if expose_id is disabled
         indexes = []
-        if not c._access["expose_id"]:
-            for a in c._attributes:
-                if c._attributes[a].get("key", False): 
-                    indexes.append((a,DESCENDING))
+        for a in c._dn_attributes:
+            indexes.append((a,ASCENDING))
         if len(indexes)>0:
             logger.debug("creating indexes for %s: %s",c._classname,indexes)
-            db[c._classname].create_index(indexes, unique=True)
+            db[c._classname].create_index(indexes, unique=not c._access["expose_id"])
 
     # if uni is enabled then required before any other object is created
     uni = Universe.load()

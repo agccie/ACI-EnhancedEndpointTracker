@@ -89,15 +89,16 @@ def app(request):
         # insert test if present 
         if c._classname in testdata: load_testdata(c._classname, testdata[c._classname])
 
-        # create unique indexes for collection
+        # create indexes for searching and unique keys ordered based on key order
+        # indexes are unique only if expose_id is disabled
         indexes = []
-        if not c._access["expose_id"]:
-            for a in c._attributes:
-                if c._attributes[a].get("key", False): 
-                    indexes.append((a,DESCENDING))
+        for a in c._dn_attributes:
+            indexes.append((a,ASCENDING))
         if len(indexes)>0:
             logger.debug("creating indexes for %s: %s",c._classname,indexes)
-            db[c._classname].create_index(indexes, unique=True)
+            db[c._classname].create_index(indexes, unique=not c._access["expose_id"])
+
+
 
     # if uni is enabled then required before any other object is created
     uni = Universe.load()

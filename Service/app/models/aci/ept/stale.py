@@ -42,20 +42,24 @@ class eptStale(Rest):
     }
 
     META = {
+        "vnid": {
+            "type": int,
+            "key": True,
+            "key_index": 1,
+            "description": """
+            26-bit vxlan network identifier (VNID). For MACs this is the BD VNID and for IPs this is 
+            the vrf VNID.
+            """
+        },
         "addr": {
             "type": str,
+            "key": True,
+            "key_index": 2,
             "default": "0.0.0.0",   # default is only used for swagger docs example fields
             "description": """
             for endpoints of type ipv4 this is 32-bit ipv4 address, for endpoints of type ipv6 this
             is 64-bit ipv6 address, and for endpoints of type mac this is 48-bit mac address
             """,
-        },
-        "vnid": {
-            "type": int,
-            "description": """
-            26-bit vxlan network identifier (VNID). For MACs this is the BD VNID and for IPs this is 
-            the vrf VNID.
-            """
         },
         "type": {
             "type": str,

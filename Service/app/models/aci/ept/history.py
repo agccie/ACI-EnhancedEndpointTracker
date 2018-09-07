@@ -5,7 +5,7 @@ import logging
 # module level logging
 logger = logging.getLogger(__name__)
 
-@api_register(parent="eptNode", path="ept/history")
+@api_register(parent="fabric", path="ept/history")
 class eptHistory(Rest):
     """ endpoint history """
     logger = logger
@@ -18,6 +18,15 @@ class eptHistory(Rest):
     }
 
     META = {
+        "vnid": {
+            "type": int,
+            "key": True,
+            "key_index": 1,
+            "description": """
+            26-bit vxlan network identifier (VNID). For MACs this is the BD VNID and for IPs this is 
+            the vrf VNID.
+            """
+        },
         "addr": {
             "type": str,
             "key": True,
@@ -28,14 +37,16 @@ class eptHistory(Rest):
             is 64-bit ipv6 address, and for endpoints of type mac this is 48-bit mac address
             """,
         },
-        "vnid": {
+        "node": {
             "type": int,
             "key": True,
-            "key_index": 1,
-            "description": """
-            26-bit vxlan network identifier (VNID). For MACs this is the BD VNID and for IPs this is 
-            the vrf VNID.
-            """
+            "key_index": 3,
+            "min": 1,
+            "max": 4096,
+            "description": """ 
+            node id corresponding to this node. For nodes with role 'vpc', this is an emulated id
+            unique to the two nodes in the vpc domain
+            """,
         },
         "type": {
             "type": str,

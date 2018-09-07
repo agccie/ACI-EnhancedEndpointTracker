@@ -103,7 +103,7 @@ class eptSubnet(Rest):
             entry it can simply be returned. Else assume an ipv6 address and each value is 32 bit
             unsigned value
         """
-        results = 0
+        result = 0
         for i, x in enumerate(byte_list):
             result+= (x << (32*i))
         return result

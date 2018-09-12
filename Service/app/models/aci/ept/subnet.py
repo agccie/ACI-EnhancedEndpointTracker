@@ -105,7 +105,7 @@ class eptSubnet(Rest):
         """
         result = 0
         for i, x in enumerate(byte_list):
-            result+= (x << (32*i))
+            result = (result << 32) + x
         return result
 
 

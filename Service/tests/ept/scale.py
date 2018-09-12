@@ -1,22 +1,44 @@
 """
-simulate max scale and benchmark db performance and events per second
+build scale setup
     
     Object          Scale   Description
     vrfs            3K
     bds             15K     5 per VRF
     epgs            15K     1 per BD
     subnets         15K     10 ipv4 and 5 ipv6 per BD for first 1K BDs
-    leafs           400
-    vpc-pairs       200     type 'vpc' nodes
+    nodes           400
+    vpc_domains     200     type 'vpc' nodes
     vpc-intf        10K     25 per vpc-pair  (25 x 2 x vpc-pairs)
-    tunnels         60K     each node with tunnel to 100 vpc-teps and 50 physical teps
-    endpoints       5M      mix of mac, ipv4, and ipv6 local, xr, and orphan
-                            per-node local
-                                vpc (2K) 500 mac, 500 ipv4, 1k ipv6
-                                orphan (500) 100 mac, 200 ipv4, 200 ipv6
-                            per-node remote
-                                vpc (7.5K) 1.5k mac, 3k ipv4, 3k ipv6
-                                ptep (2.5K) 500 mac, 1k ipv4, 1k ipv6
+    tunnels         200K     each node with tunnel to 195 vpc-teps and 305 physical teps
+    endpoints       4.18M   mix of mac, ipv4, and ipv6 local, xr, and orphan
+
+                            local-endpoints
+                                per-vpc-domain - each endpoint on both nodes in vpc domain
+                                    (400) 100 mac, 100 ipv4, 200 ipv6
+                                per-node-orphan - each endpoint on single node in fabric
+                                    (50) 10 mac, 20 ipv4, 20 ipv6
+
+                            remote-endpoints
+                                per-node-xr-ptep - remote endpoint to a single node
+                                    (2k) 500 mac, 750 ipv4, 750 ipv6
+                                per-node-xr-vtep - remote endpoint to a vpc vtep
+                                    (8k) 2k mac, 3k ipv4, 3k ipv6
+
+                            # unique endpoints in the fabric
+                            total-unique = per-vpc-domain * vpc_domains + per-node-orphan * nodes
+                            total-unique = 400 * 200 + 50 * 400
+                            total-unique = 100k
+
+                            total-local = per-vpc-domain * 2 * vpc_domains + per-node-orphan * nodes
+                            total-local = 400 * 2 * 200 + 50 * 400
+                            total-local = 180k
+
+                            total-remote = per-node-xr-ptep * nodes + per-node-xr-vtep * nodes
+                            total-remote = 2k * 400 + 8k * 400
+                            total-remote = 4000k
+
+                            # total db endpoints is sume of total-local + total-remote
+                            total-db-endpoints = 180k + 4000k = 4180k
 
 """
 
@@ -42,25 +64,25 @@ scale = {
     "nodes"                         : 400,
     "vpc_domains"                   : 200,
     "per_vpc_domain_vpcs"           : 25,
-    "per_node_ptep_tunnel"          : 50,
-    "per_node_vpc_tunnel"           : 100,
+    "per_node_ptep_tunnel"          : 305,
+    "per_node_vpc_tunnel"           : 195,
     "max_subnets"                   : 15000,    # limit total subnets (will not be across all BDs)
     "per_bd_ipv4_subnets"           : 10,
     "per_bd_ipv6_subnets"           : 5,
 
     # endpoint scale
-    "per_node_local_vpc_mac"        : 500,
-    "per_node_local_vpc_ipv4"       : 500,
-    "per_node_local_vpc_ipv6"       : 1000,
-    "per_node_local_orphan_mac"     : 100,
-    "per_node_local_orphan_ipv4"    : 200,
-    "per_node_local_orphan_ipv6"    : 200,
-    "per_node_xr_vpc_mac"           : 1500,
+    "per_node_local_vpc_mac"        : 100,
+    "per_node_local_vpc_ipv4"       : 100,
+    "per_node_local_vpc_ipv6"       : 200,
+    "per_node_local_orphan_mac"     : 10,
+    "per_node_local_orphan_ipv4"    : 20,
+    "per_node_local_orphan_ipv6"    : 20,
+    "per_node_xr_vpc_mac"           : 2000,
     "per_node_xr_vpc_ipv4"          : 3000,
     "per_node_xr_vpc_ipv6"          : 3000,
     "per_node_xr_ptep_mac"          : 500,
-    "per_node_xr_ptep_ipv4"         : 1000,
-    "per_node_xr_ptep_ipv6"         : 1000,
+    "per_node_xr_ptep_ipv4"         : 750,
+    "per_node_xr_ptep_ipv6"         : 750,
 }
 
 # allocators
@@ -285,6 +307,8 @@ class EndpointTrackerNode(object):
 
     def get_next_endpoint(self, addr_type, vpc=True):
         if not self.init:
+            self.init = True
+            #logger.debug("init endpoint ptrs on node %s", self.node_id)
             for x in self.mac:
                 ept = self.mac[x]
                 if "vpc" in ept.flags: self.endpoints["vpc_mac"].append(ept)
@@ -402,15 +426,14 @@ def init_db():
         #logger.debug("dropping collection %s", c._classname)
         db[c._classname].drop()
 
-        # create unique indexes for collection
+        # create indexes for searching and unique keys ordered based on key order
+        # indexes are unique only if expose_id is disabled
         indexes = []
-        if not c._access["expose_id"]:
-            for a in c._attributes:
-                if c._attributes[a].get("key", False): 
-                    indexes.append((a,DESCENDING))
+        for a in c._dn_attributes:
+            indexes.append((a,ASCENDING))
         if len(indexes)>0:
-            #logger.debug("creating indexes for %s: %s",c._classname,indexes)
-            db[c._classname].create_index(indexes, unique=True)
+            logger.debug("creating indexes for %s: %s",c._classname,indexes)
+            db[c._classname].create_index(indexes, unique=not c._access["expose_id"])
 
     # if uni is enabled then required before any other object is created
     uni = Universe()
@@ -435,11 +458,10 @@ def build_topology():
         )
     if scale["per_node_vpc_tunnel"] >= scale["vpc_domains"]:
         raise Exception("number of per_node_vpc_tunnel(%s) must be < vpc nodes (%s)" % (
-            scale_["per_node_vpc_tunnel"], 
+            scale["per_node_vpc_tunnel"],
             scale["vpc_domains"])
         )
 
-    bulk_tunnels = []
     bulk_nodes = []
     for n in xrange(0, scale["nodes"]):
         nid = allocate_new_value("node")
@@ -777,6 +799,12 @@ def build_endpoints():
             assert eptHistory.bulk_save(bulk_history)
             logger.debug("eptHistory (%s) bulk save local endpoints node %s: %s", len(bulk_history),
                 nid, time.time()-ts)
+        logger.debug("eptHistory (%s) local complete for node %s", len(bulk_history), nid)
+        del bulk_history[:]
+
+    # trigger get_next_endpoint on all nodes to initial ptrs
+    for nid in endpoint_tracker.nodes:
+        endpoint_tracker.nodes[nid].get_next_endpoint("mac")
 
     # next step is to build xr entires on each node
     for nid in nodes:
@@ -793,6 +821,7 @@ def build_endpoints():
                     xr = remote_tracker_node.get_next_endpoint(addr_type, vpc=False)
                     ept = Endpoint(addr_type,xr.addr, xr.vnid, nid, tunnel.intf, xr.pctag)
                     bulk_history.append(ept.get_eptHistory())
+                    del ept
                     if addr_type == "mac":
                         tracker_node.xr_mac_count+=1
                     elif addr_type == "ipv4":
@@ -815,6 +844,7 @@ def build_endpoints():
                     xr = remote_tracker_node.get_next_endpoint(addr_type, vpc=True)
                     ept = Endpoint(addr_type,xr.addr, xr.vnid, nid, tunnel.intf, xr.pctag)
                     bulk_history.append(ept.get_eptHistory())
+                    del ept
                     if addr_type == "mac":
                         tracker_node.xr_mac_count+=1
                     elif addr_type == "ipv4":
@@ -830,6 +860,8 @@ def build_endpoints():
             assert eptHistory.bulk_save(bulk_history)
             logger.debug("eptHistory (%s) bulk save xr endpoints node %s: %s", len(bulk_history),
                 nid, time.time()-ts)
+        logger.debug("eptHistory (%s) xr complete for node %s", len(bulk_history), nid)
+        del bulk_history[:]
 
 
     logger.debug("building endpoints complete")
@@ -837,10 +869,7 @@ def build_endpoints():
 if __name__ == "__main__":
     
     import argparse
-    desc = """
-    scale tester.  More details to follow...
-    """
-    parser = argparse.ArgumentParser(description=desc,
+    parser = argparse.ArgumentParser(description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         )
     parser.add_argument("--cache", action="store_true", dest="cached",
@@ -860,7 +889,7 @@ if __name__ == "__main__":
     # db updates through environment settings - required before initializing db
     os.environ["MONGO_HOST"] = "localhost"
     os.environ["MONGO_PORT"] = "27017"
-    os.environ["MONGO_DBNAME"] = "scaledb"
+    os.environ["MONGO_DBNAME"] = "scaledb1"
 
     # check for cached option
     db_pre_init = args.cached
@@ -877,25 +906,67 @@ if __name__ == "__main__":
     build_logical_objects()
     build_endpoints()
 
-    print "nodes: %s" % len(endpoint_tracker.nodes)
-    print "vpc domains: %s" % len(vpc_domains)
-    print "total unique endpoints: %s" % endpoint_tracker.get_total_endpoints()
-    print "mac: %s, ipv4: %s, ipv6: %s" % (
-        endpoint_tracker.total_mac,
-        endpoint_tracker.total_ipv4,
-        endpoint_tracker.total_ipv6
-    )
     total_xr_mac = 0
     total_xr_ipv4 = 0
     total_xr_ipv6 = 0
+    total_tunnels = 0
     for nid in endpoint_tracker.nodes:
         total_xr_mac+= endpoint_tracker.nodes[nid].xr_mac_count
         total_xr_ipv4+= endpoint_tracker.nodes[nid].xr_ipv4_count
         total_xr_ipv6+= endpoint_tracker.nodes[nid].xr_ipv6_count
-    print "total xr_mac: %s, xr_ipv4: %s, xr_ipv6: %s" % (
-            total_xr_mac,
-            total_xr_ipv4,
-            total_xr_ipv6
+        total_tunnels+= len(endpoint_tracker.nodes[nid].tunnels) 
+        total_tunnels+= len(endpoint_tracker.nodes[nid].vpc_tunnels)
+
+    print """
+    Simulation Totals
+        nodes               : %s
+        vpc domains         : %s
+        tunnels             : %s
+        
+    Endpoints
+        unique mac          : %s
+        unique ipv4         : %s
+        unique ipv6         : %s
+        total unique        : %s
+
+        local-macs          : %s
+        local-ipv4          : %s
+        local-ipv6          : %s
+        total-local         : %s
+
+        xr-macs             : %s
+        xr-ipv4             : %s
+        xr-ipv6             : %s
+        total-xr            : %s
+
+        total db endpoints  : %s 
+
+    """ % (
+        len(endpoint_tracker.nodes) - len(vpc_domains),
+        len(vpc_domains),
+        total_tunnels,
+
+        # unique
+        len(endpoint_tracker.mac),
+        len(endpoint_tracker.ipv4),
+        len(endpoint_tracker.ipv6),
+        endpoint_tracker.get_total_endpoints(),
+
+        # total local
+        endpoint_tracker.total_mac, 
+        endpoint_tracker.total_ipv4,
+        endpoint_tracker.total_ipv6,
+        endpoint_tracker.total_mac + endpoint_tracker.total_ipv4 + endpoint_tracker.total_ipv6,
+
+        # total xr
+        total_xr_mac,
+        total_xr_ipv4,
+        total_xr_ipv6,
+        total_xr_mac + total_xr_ipv4 + total_xr_ipv6,
+
+        # total entries
+        total_xr_mac + total_xr_ipv4 + total_xr_ipv6 + \
+            endpoint_tracker.total_mac + endpoint_tracker.total_ipv4 + endpoint_tracker.total_ipv6,
     )
 
     print "all done!"

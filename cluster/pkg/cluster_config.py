@@ -1,5 +1,6 @@
 import copy
 import logging
+import os
 import re
 import yaml
 
@@ -41,7 +42,7 @@ class ClusterConfig(object):
         self.configsvr_replicas = 1
         self.configsvr_port = 27019
         self.mongos_port = 27017
-        self.compose_file = "./compose.yml"
+        self.compose_file = "/tmp/compose.yml"
 
     def import_config(self, configfile):
         """ import/parse and validate config file, raise exception on error """

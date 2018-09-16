@@ -91,6 +91,7 @@ if __name__ == "__main__":
         config.build_compose()
         swarm = Swarmer(config, username=args.username, password=args.password)
         swarm.init_swarm()
+        swarm.deploy_service()
 
     except Exception as e:
         logger.debug("Traceback:\n%s", traceback.format_exc())

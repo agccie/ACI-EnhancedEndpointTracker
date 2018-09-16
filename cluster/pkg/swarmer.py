@@ -6,6 +6,7 @@ import getpass
 import json
 import logging
 import re
+import time
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -28,7 +29,6 @@ class Swarmer(object):
         for nid in self.config.nodes:
             config_nodes["%s" % nid] = self.config.nodes[nid]
         self.config.nodes = config_nodes
-
 
     def init_swarm(self):
         # determine the swarm status of this node. If in a swarm but not the manager, raise an error
@@ -215,6 +215,52 @@ class Swarmer(object):
                     logger.debug("new node: %s", node)
             except ValueError as e: 
                 logger.debug("failed to decode node: '%s'", l)
+
+    def deploy_service(self):
+        """ deploy docker service referencing config file and verify everything is running """
+
+        logger.info("deploying app services, please wait...")
+        cmd = "docker stack deploy -c %s %s" % (self.config.compose_file, self.config.app_name)
+        if run_command(cmd) is None:
+            raise Exception("failed to deploy stack")
+        
+        check_count = 8
+        check_interval = 15
+        all_services_running = True
+        while check_count > 0:
+            check_count-= 1
+            all_services_running = True
+            # check that all the deployed services have at least one replica up 
+            cmd = "docker service ls --format '{{json .}}'"
+            out = run_command(cmd)
+            if out is None:
+                raise Exception("failed to validate services are running")
+            for l in out.split("\n"):
+                if len(l.strip()) == 0: continue
+                try:
+                    js = json.loads(l)
+                    if re.search("^%s_" % re.escape(self.config.app_name), js["Name"]):
+                        replicas = re.search("(?P<c>[0-9]+)/(?P<t>[0-9]+)",js["Replicas"])
+                        if replicas is not None:
+                            if int(replicas.group("c")) < int(replicas.group("t")):
+                                err_msg = "failed to deploy service %s (%s/%s)" % (js["Name"],
+                                        replicas.group("c"), replicas.group("t"))
+                                # if this is last check interation, raise an error
+                                if check_count <= 0: raise Exception(err_msg)
+                                all_services_running = False
+                                logger.debug(err_msg)
+                        logger.debug("service %s success: %s", js["Name"], js["Replicas"])
+                    else:
+                        logger.debug("skipping check for service %s", js["Name"])
+                except (ValueError,KeyError) as e:
+                    logger.warn("failed to parse docker service line: %s", l)
+
+            if not all_services_running:
+                logger.debug("one or more services pending, re-check in %s seconds", check_interval)
+                time.sleep(check_interval)
+            else: break
+
+        logger.info("app services deployed")
 
 class DockerNode(object):
 

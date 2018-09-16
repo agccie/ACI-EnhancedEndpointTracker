@@ -6,7 +6,7 @@ import subprocess
 import logging
 
 # module level logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("connection")
 
 class Connection(object):
     """

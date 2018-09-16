@@ -10,11 +10,12 @@ import traceback
 # update path to allow for semi-relatively imports
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
-from deploy.cluster_config import ClusterConfig
+from pkg.cluster_config import ClusterConfig
+from pkg.swarmer import Swarmer
 
 logger = logging.getLogger(__name__)
 
-def setup_logger(logger, loglevel="debug", logfile="/tmp/deploy.log"):
+def setup_logger(logger, loglevel="debug", logfile=None):
     """ setup two loggers, one to stdout with user provided logging level and second to file with 
         full debug enabled
     """
@@ -30,8 +31,6 @@ def setup_logger(logger, loglevel="debug", logfile="/tmp/deploy.log"):
     old_logger.addHandler(logging.NullHandler())
     for h in list(logger.handlers): logger.removeHandler(h)
     
-    logger.setLevel(logging.DEBUG)
-
     # stream handler to stdout at user provided log level
     fmt ="%(asctime)s.%(msecs).03d||%(levelname)s||%(message)s"
     shandler = logging.StreamHandler(sys.stdout)
@@ -46,15 +45,18 @@ def setup_logger(logger, loglevel="debug", logfile="/tmp/deploy.log"):
     logger.addHandler(shandler)
 
     # write full debug file to logfile
-    try:
-        fmt ="%(process)d||%(asctime)s.%(msecs).03d||%(levelname)s||"
-        fmt+="%(filename)s:(%(lineno)d)||%(message)s"
-        fhandler = logging.FileHandler(logfile)
-        fhandler.setFormatter(logging.Formatter(fmt=fmt, datefmt=datefmt))
-        fhandler.setLevel(logging.DEBUG)
-        #logger.addHandler(fhandler)
-    except IOEerror as e:
-        sys.stderr.write("failed to open logger handler: %s\n" % logfile)
+    if logfile is not None:
+        try:
+            fmt ="%(process)d||%(asctime)s.%(msecs).03d||%(levelname)s||"
+            fmt+="%(filename)s:(%(lineno)d)||%(message)s"
+            fhandler = logging.FileHandler(logfile)
+            fhandler.setFormatter(logging.Formatter(fmt=fmt, datefmt=datefmt))
+            fhandler.setLevel(logging.DEBUG)
+            logger.addHandler(fhandler) 
+            # logger needs to have level set to DEBUG so debugs go to filehandler
+            logger.setLevel(logging.DEBUG) 
+        except IOEerror as e:
+            sys.stderr.write("failed to open logger handler: %s\n" % logfile)
     return logger
 
 if __name__ == "__main__":
@@ -67,22 +69,37 @@ if __name__ == "__main__":
     parser.add_argument("-c","--config", dest="config", help="cluster config file in yaml format",
             default=default_config)
     parser.add_argument("-d","--debug", dest="debug", choices=["debug","info","warn","error"],
-        help="debug loglevel", default="debug")
+        help="debug loglevel", default="info")
     parser.add_argument("-l","--log", dest="logfile", default="/tmp/deploy.log", help="log file")
+    parser.add_argument("-u","--username", dest="username", 
+        help="username for initializing other nodes within the cluster")
+    parser.add_argument("-p","--password", dest="password", 
+        help="password for initializing other nodes within the cluster")
+
     args = parser.parse_args()
 
     # setup logging
     logger = setup_logger(logger, loglevel=args.debug, logfile=args.logfile)
-    setup_logger(logging.getLogger("deploy"), loglevel=args.debug, logfile=args.logfile)
+    setup_logger(logging.getLogger("pkg"), loglevel=args.debug, logfile=args.logfile)
+    setup_logger(logging.getLogger("pkg.connection"), loglevel="info", logfile=None)
+    logger.info("Logfile: %s", args.logfile)
 
     # validate config file
     config = ClusterConfig()
     try:
         config.import_config(args.config)
         config.build_compose()
+        swarm = Swarmer(config, username=args.username, password=args.password)
+        swarm.init_swarm()
+
     except Exception as e:
         logger.debug("Traceback:\n%s", traceback.format_exc())
         logger.error("Unable to deploy cluster: %s", e)
+        sys.exit(1)
+
+    except KeyboardInterrupt as e:
+        logger.debug("keyboard interrupt")
+        print "\nBye!"
         sys.exit(1)
 
     logger.debug("deployment complete")

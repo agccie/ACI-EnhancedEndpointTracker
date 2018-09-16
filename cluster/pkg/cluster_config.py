@@ -2,16 +2,8 @@ import copy
 import logging
 import re
 import yaml
-import json
 
 logger = logging.getLogger(__name__)
-
-def pretty_print(js):
-    """ try to convert json to pretty-print format """
-    try:
-        return json.dumps(js, indent=4, separators=(",", ":"), sort_keys=True)
-    except Exception as e:
-        return "%s" % js
 
 class ClusterConfig(object):
     """ manage parsing user config.yml to swarm compose file """
@@ -34,14 +26,14 @@ class ClusterConfig(object):
     LOGGING_MAX_FILE = "10"
 
     def __init__(self):
-        self.nodes = {}         # indexed by node id
-        self.app_workers = 6
+        self.nodes = {}         # indexed by node id, {"id":int, "hostname":"addr"}
+        self.app_workers = 5
         self.app_subnet = "192.0.2.0/27"
         self.app_name = "ept"
         # set http/https port to 0 to disable that service
         self.app_http_port = 80
         self.app_https_port = 443
-        self.shardsvr_shards = 3
+        self.shardsvr_shards = 1
         self.shardsvr_memory = 2.0
         self.shardsvr_replicas = 1
         self.shardsvr_port = 27107
@@ -79,8 +71,16 @@ class ClusterConfig(object):
             if i not in self.nodes:
                 raise Exception("expected node id '%s' in list of nodes between 1 and %s" % (
                     i, max(self.nodes.keys())))
-        if self.nodes[1]["hostname"] != "localhost" and self.nodes[1]["hostname"] != "127.0.0.1":
-            raise Exception("node 1 (%s) must have hostname 'localhost'"%self.nodes[1]["hostname"])
+
+        # node-1 can be any address, should be localhost but not enforced
+        #if self.nodes[1]["hostname"] != "localhost" and self.nodes[1]["hostname"] != "127.0.0.1":
+        #    raise Exception("node 1 (%s) must have hostname 'localhost'"%self.nodes[1]["hostname"])
+
+        # ensure that there are no duplicate IPs
+        index_hostname = {}
+        for nid in self.nodes:
+            if self.nodes[nid]["hostname"] in index_hostname:
+                raise Exception("duplicate node hostname: %s" % self.nodes[nid]["hostname"])
 
         # ensure that shardsvr_replicas is <= number of nodes
         if self.shardsvr_replicas > len(self.nodes):
@@ -248,9 +248,9 @@ class ClusterConfig(object):
         for s in xrange(0, node_count*self.shardsvr_shards):
             for r in xrange(0, self.shardsvr_replicas):
                 svc = "db_sh_%s_%s" % (s, r)
-                anchor = (s + r) % node_count
+                anchor = ((s + r) % node_count) + 1
                 cmd = "mongod --shardsvr --replSet sh%s " % s
-                cmd+= "--wiredTigerCachedSizeGB %s " % self.shardsvr_memory
+                cmd+= "--wiredTigerCacheSizeGB %s " % self.shardsvr_memory
                 cmd+= "--bind_ip_all --port %s " % self.shardsvr_port 
                 config["services"][svc] = {
                     "image": ClusterConfig.MONGO_IMAGE,
@@ -260,7 +260,7 @@ class ClusterConfig(object):
                         "replicas": 1,
                         "placement": {
                             "constraints": [
-                                {"node.labels.node": anchor},
+                                "node.labels.node == %s" % anchor,
                             ]
                         }
                     },
@@ -270,10 +270,10 @@ class ClusterConfig(object):
         cfg_str = "cfg/"
         for r in xrange(0, self.configsvr_replicas):
             svc = "db_cfg_%s" % r
-            anchor = r % node_count
+            anchor = (r % node_count) + 1
             cfg_str+= "%s:%s," % (svc, self.configsvr_port)
             cmd = "mongod --configsvr --replSet cfg "
-            cmd+= "--wiredTigerCachedSizeGB %s " % self.configsvr_memory
+            cmd+= "--wiredTigerCacheSizeGB %s " % self.configsvr_memory
             cmd+= "--bind_ip_all --port %s " % self.configsvr_port 
             config["services"][svc] = {
                 "image": ClusterConfig.MONGO_IMAGE,
@@ -283,7 +283,7 @@ class ClusterConfig(object):
                     "replicas": 1,
                     "placement": {
                         "constraints": [
-                            {"node.labels.node": anchor},
+                            "node.labels.node == %s" % anchor
                         ]
                     }
                 },
@@ -298,6 +298,16 @@ class ClusterConfig(object):
             "logging": copy.deepcopy(default_logging),
         }
 
+        # configure workers
+        cmd = "/bin/sleep infinity"
+        for i in xrange(0, self.app_workers):
+            svc = "w%s" % i
+            config["services"][svc] = {
+                "image": ClusterConfig.APP_IMAGE,
+                "command": cmd,
+                "logging": copy.deepcopy(default_logging),
+            }
+
         with open(self.compose_file, "w") as f:
-            print yaml.dump(config)
+            yaml.dump(config, f, default_flow_style=False)
 

@@ -66,8 +66,7 @@ def get_db(uniq=False, overwrite_global=False):
 #
 ###############################################################################
 
-def setup_logger(logger, fname="utils.log", quiet=False, stdout=False,
-                thread=False ):
+def setup_logger(logger, fname="utils.log", quiet=True, stdout=False, thread=False ):
     """ setup logger with appropriate logging level and rotate options """
 
     # quiet all other loggers...

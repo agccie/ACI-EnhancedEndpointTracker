@@ -143,5 +143,10 @@ class eptSettings(Rest):
             "min_val": 1024, 
             "max_val": 1048576,
         },
+        "overlay_vnid": {
+            "type": int,
+            "write": False,
+            "description": "dynamically discovered overlay vnid"
+        },
     }
 

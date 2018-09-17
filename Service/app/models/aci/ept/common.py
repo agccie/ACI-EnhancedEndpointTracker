@@ -7,6 +7,17 @@ import re
 # module level logging
 logger = logging.getLogger(__name__)
 
+
+###############################################################################
+#
+# shared globals
+#
+###############################################################################
+
+HELLO_CHANNEL = "worker_hello"
+HELLO_INTERVAL = 3.0
+HELLO_TIMEOUT = 300.0
+
 ###############################################################################
 #
 # common conversion functions

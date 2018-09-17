@@ -272,12 +272,17 @@ class Swarmer(object):
             else: break
 
         logger.info("app services deployed")
+        logger.debug("pausing for 15 seconds to give all services time to actually start")
+        time.sleep(15)
 
     def init_db(self):
         """ need to initialize all replication sets for mongo db based on user config 
             ssh to intended replica primary (replica 0) and initialize replica
         """
         self.init_db_cfg()
+        # pause for 15 seconds to ensure that replica set is ready
+        logger.debug("pausing for 15 seconds to ensure replica is up")
+        time.sleep(15)
         self.init_db_shards()
 
     def init_db_cfg(self):
@@ -393,6 +398,11 @@ class Swarmer(object):
                     err_msg+= ", (node id: %s, hostname: %s)" % (node_0["id"], node_0["hostname"])
                     err_msg+= "\ncmd: %s\nresult: %s" % (cmd, "\n".join(c.output.split("\n")[:-1]))
                     logger.warn(err_msg)
+
+
+        # pause for 15 seconds to ensure that replica set is ready
+        logger.debug("pausing for 15 seconds to ensure all replica is up")
+        time.sleep(15)
 
         # add each shard to mongo-router - note, there's an instance of mongos with service name
         # 'db' on all nodes in the cluster so this command is always locally executed

@@ -7,7 +7,7 @@ from flask import Flask, jsonify, flash, redirect
 from flask import request, make_response, g, abort
 from flask_login import (LoginManager, current_user)
 
-from ..models.user import User, Session
+from ..models.rest.user import User, Session
 from ..models.rest import Role
 from ..models.utils import MSG_403, get_user_data
 import re, logging
@@ -26,17 +26,6 @@ def on_load(state):
 
 @auth.before_app_request
 def before_request():
-    #from ..models.utils import list_routes
-    #list_routes(current_app)
-    # force everything over HTTPS if enabled
-    if current_app.config.get("force_https", False):
-        fwd_proto = request.headers.get("x-forwarded-proto",None)
-        if fwd_proto is not None:
-            if fwd_proto.lower() == "http":
-                return redirect(request.url.replace("http:","https:", 1))
-        else:
-            if re.search("^http:", request.url) is not None:
-                return redirect(request.url.replace("http:","https:", 1))
 
     # set global object 'g.user' based off current user session
     g.ROLE_FULL_ADMIN = Role.FULL_ADMIN

@@ -1,20 +1,25 @@
 
-import sys, os, subprocess, re, uuid, getpass, argparse, logging, traceback
 
+from app.models.rest import registered_classes
+from app.models.rest import Role
+from app.models.rest import Universe
+from app.models.rest.db import db_setup
 from app.models.utils import get_app
-from app.models.rest import (registered_classes, Role, Universe)
-from app.models.user import User
-from app.models.settings import Settings
-from app.models.utils import (setup_logger, get_db)
-from werkzeug.exceptions import (NotFound, BadRequest)
-from pymongo import IndexModel
-from pymongo.errors import (DuplicateKeyError, ServerSelectionTimeoutError)
-from pymongo import (ASCENDING, DESCENDING)
+from app.models.utils import setup_logger
+from pymongo.errors import ServerSelectionTimeoutError
 
 # specific to this application
 from app.models.aci import utils as aci_utils
 from app.models.aci.tools.acitoolkit.acisession import Session
 from app.models.aci.fabric import Fabric
+
+
+import argparse
+import logging
+import os
+import re
+import sys
+import traceback
 
 # setup logger
 logger = logging.getLogger(__name__)
@@ -29,19 +34,14 @@ def get_gateway():
     logger.debug("getting default gateway")
     cmd = "ip route | egrep -o \"default via [0-9\.]+\" "
     cmd+= "| egrep -o \"[0-9\.]+\""
-    try:    
-        logger.debug("cmd: %s" % cmd)
-        out = subprocess.check_output(cmd,shell=True,stderr=subprocess.STDOUT)
+    out = aci_utils.run_command(cmd)
+    if out is not None:
         out = out.strip().split("\n")   # may be multiple default routes
         if len(out)>0: 
             logger.debug("default gateway: [%s]" % out[0])
             return out[0]
         else:
             logger.debug("failed to determine default gateway")
-    except subprocess.CalledProcessError as e:
-        logger.warn("error running shell command:\n%s" % e)
-        logger.warn("stderr:\n%s" % e.output)
-        return None
     return None
 
 def apic_app_init(args):
@@ -133,91 +133,6 @@ def app_get_fabric_domain(hostname, apic_username, apic_cert):
         logger.debug("traceback:\n%s" % traceback.format_exc())
         return None
 
-def db_exists():
-    """ check if database exists by verifying presents of any of the following
-        collections:
-            users, settings, aci.settings
-    """
-    logger.debug("checking if db exists")
-    collections = get_db().collection_names()
-    logger.debug("current collections: %s" % collections)
-    if len(collections)>0 and ("user" in collections and "settings" in collections):
-        return True
-    return False
-
-def db_setup(args):
-    """ delete any existing database and setup all tables for new database 
-        returns boolean success
-    """
-    force = args.force
-    logger.debug("setting up new database (force:%r)", force)
-    
-    if not force and db_exists():
-        logger.debug("db already exists")
-        return True
-
-    # get password from user if not set
-    pwd = args.password
-    while pwd is None:
-        pwd = getpass.getpass( "Enter admin password: ")
-        pwd2 = getpass.getpass("Re-enter password   : ")
-        if len(pwd)==0: 
-            pwd = None
-        elif pwd!=pwd2:
-            print "Passwords do not match"
-            pwd = None
-        elif " " in pwd:
-            print "No spaces allowed in password"
-            pwd = None
-   
-    db = get_db()
-    # get all objects registred to rest API, drop db and create with 
-    # proper keys
-    for classname in registered_classes:
-        c = registered_classes[classname]
-        # drop existing collection
-        logger.debug("dropping collection %s" % c._classname)
-        db[c._classname].drop()
-        # create indexes for searching and unique keys ordered based on key order
-        # indexes are unique only if expose_id is disabled
-        indexes = []
-        for a in c._dn_attributes:
-            indexes.append((a,ASCENDING))
-        if len(indexes)>0:
-            logger.debug("creating indexes for %s: %s",c._classname,indexes)
-            db[c._classname].create_index(indexes, unique=not c._access["expose_id"])
-
-    # if uni is enabled then required before any other object is created
-    uni = Universe.load()
-    uni.save()
-        
-    # insert settings with user provided values 
-    lpass = "%s"%uuid.uuid4()
-    s = Settings(
-        app_name=args.app_name,
-        force_https= not args.no_https,
-        lpass = lpass
-    )
-    try: s.save()
-    except BadRequest as e:
-        logger.error("failed to create settings: %s. Using all defaults"%e)
-        s = Settings(lpass=lpass)
-        s.save()
-    
-    # create admin user with provided password and local user
-    u = User(username="local", password=lpass, role=Role.FULL_ADMIN)
-    if not u.save(): 
-        logger.error("failed to create local user")
-        return False
-    u = User(username=args.username, password=pwd, role=Role.FULL_ADMIN)
-    if not u.save():
-        logger.error("failed to create username: %s" % args.username)
-        return False
-
-    #successful setup
-    return True
-        
-
 def get_args():
     desc = """
     db setup for %s:%s 
@@ -236,6 +151,8 @@ def get_args():
     parser.add_argument("--password", action="store", dest="password",
         help="password for default user", 
         default=app.config.get("DEFAULT_PASSWORD", None))
+    parser.add_argument("--sharding", action="store_true", dest="sharding",
+        help="enable sharding on the database")
     parser.add_argument("--app_name", action="store", dest="app_name",
         help="application Name", default="ExampleApp")
     parser.add_argument("--no_https", action="store_true", 
@@ -274,7 +191,13 @@ if __name__ == "__main__":
                 logger.error("failed to initialize app")
                 sys.exit(1)
         else:
-            if not db_setup(args):
+            if not db_setup(
+                app_name = args.app_name,
+                username = args.username,
+                password = args.password,
+                sharding = args.sharding,
+                force = args.force
+                ):
                 logger.error("failed to setup datbase")
                 sys.exit(1)
     except ServerSelectionTimeoutError as e:

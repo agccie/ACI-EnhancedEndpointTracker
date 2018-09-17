@@ -5,7 +5,7 @@ import logging
 # module level logging
 logger = logging.getLogger(__name__)
 
-@api_register(parent="fabric", path="ept/history")
+@api_register(parent="eptNode", path="ept/history")
 class eptHistory(Rest):
     """ endpoint history """
     logger = logger
@@ -15,6 +15,9 @@ class eptHistory(Rest):
         "read": True,
         "update": False,
         "delete": False,
+        "db_index": ["addr", "vnid", "fabric", "node"],
+        "db_shard_enable": True,
+        "db_shard_index": ["addr"],
     }
 
     META = {
@@ -35,17 +38,6 @@ class eptHistory(Rest):
             "description": """
             for endpoints of type ipv4 this is 32-bit ipv4 address, for endpoints of type ipv6 this
             is 64-bit ipv6 address, and for endpoints of type mac this is 48-bit mac address
-            """,
-        },
-        "node": {
-            "type": int,
-            "key": True,
-            "key_index": 3,
-            "min": 1,
-            "max": 4096,
-            "description": """ 
-            node id corresponding to this node. For nodes with role 'vpc', this is an emulated id
-            unique to the two nodes in the vpc domain
             """,
         },
         "type": {

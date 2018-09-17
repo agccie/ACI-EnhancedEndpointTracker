@@ -36,8 +36,8 @@ def create_app(config_filename="config.py"):
     from .models.aci.fabric import Fabric
     from .models.app_status import AppStatus
     from .models.rest.swagger.docs import Docs
-    from .models.settings import Settings
-    from .models.user import User
+    from .models.rest.settings import Settings
+    from .models.rest.user import User
 
     # ept objects
     from .models.aci.ept.epg import eptEpg

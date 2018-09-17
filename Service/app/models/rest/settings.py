@@ -1,6 +1,8 @@
 
+from . import Rest
+from . import Role
+from . import api_register
 import logging
-from .rest import (Rest, Role, api_register)
 
 @api_register()
 class Settings(Rest):
@@ -19,11 +21,6 @@ class Settings(Rest):
             "default":"AppName",
             "regex": "^(?i).{1,128}$",  # any 128 character string
             "description": "application name",
-        },
-        "force_https":  {
-            "type": bool, 
-            "default": False,
-            "description": "redirect all http requests to https",
         },
         "password_reset_timeout": {
             "type": int, 

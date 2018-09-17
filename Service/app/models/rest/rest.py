@@ -142,6 +142,19 @@ class Rest(object):
             "routes":       list RouteInfo, custom (non-CRUD) routes to provide to API. This can be
                             set directly but recommended way is to use api_route decorator.
 
+            "db_index":     list str (default None), custom db indexing that overrides object keys. 
+                            This is useful for optimizing search speeds by reordering indexes to 
+                            keys used most often.
+
+            "db_index_unique": bool (default None), set unique flag to true for index
+
+            "db_shard_enable": bool (default False), enabling sharding on the collection
+
+            "db_shard_index": list str (default None), if shard is enabled then sharding will be 
+                            done on provided index or default indexes based on object keys. This can 
+                            be overridden by providing a specific index for shards.  Note, mongo 
+                            requires shard index to be prefix of collection index.
+
         }
 
         All classes required META dict in following format:
@@ -257,6 +270,10 @@ class Rest(object):
         "after_update": None,
         "after_delete": None,
         "routes": [],
+        "db_index": None,
+        "db_index_unique": None,
+        "db_shard_enable": False,
+        "db_shard_index": None,
     }
     ATTRIBUTE_DEF = {
         "type": str,

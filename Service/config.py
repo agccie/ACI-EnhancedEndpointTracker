@@ -86,3 +86,9 @@ MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 10*1024*1024*1024)
 # tmp directory for working with tmp files (and uploaded files)
 TMP_DIR = os.environ.get("TMP_DIR", "/tmp/")
 MAX_POOL_SIZE = int(os.environ.get("MAX_POOL_SIZE", cpu_count()))
+
+# redis config
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
+REDIS_DB = int(os.environ.get("REDIS_DB", 0))
+

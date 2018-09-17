@@ -102,8 +102,6 @@ def dummy_work(subnets, count):
 if __name__ == "__main__":
 
     # db updates through environment settings - required before initializing db
-    os.environ["MONGO_HOST"] = "localhost"
-    os.environ["MONGO_PORT"] = "27017"
     os.environ["MONGO_DBNAME"] = "scaledb1"
 
     fabric = "esc-aci-fab4"

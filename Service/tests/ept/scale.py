@@ -378,6 +378,7 @@ ip_allocator = IpAllocator()
 endpoint_tracker = EndpointTracker()
 
 from app import create_app
+from app.models.rest.db import db_setup
 from app.models.rest import registered_classes
 from app.models.rest import Universe
 from app.models.utils import pretty_print
@@ -418,26 +419,8 @@ def init_db():
         return
 
     logger.debug("initializing db")
+    db_setup(sharding=True, force=True)
 
-    # get all objects registred to rest API, drop db and create with proper keys
-    for classname in registered_classes:
-        c = registered_classes[classname]
-        # drop existing collection
-        #logger.debug("dropping collection %s", c._classname)
-        db[c._classname].drop()
-
-        # create indexes for searching and unique keys ordered based on key order
-        # indexes are unique only if expose_id is disabled
-        indexes = []
-        for a in c._dn_attributes:
-            indexes.append((a,ASCENDING))
-        if len(indexes)>0:
-            logger.debug("creating indexes for %s: %s",c._classname,indexes)
-            db[c._classname].create_index(indexes, unique=not c._access["expose_id"])
-
-    # if uni is enabled then required before any other object is created
-    uni = Universe()
-    assert uni.save()
     fabric = Fabric(fabric=fabric_name)
     assert fabric.save()
     logger.debug("db initialized")
@@ -887,8 +870,6 @@ if __name__ == "__main__":
     }.get(args.debug, logging.DEBUG)
 
     # db updates through environment settings - required before initializing db
-    os.environ["MONGO_HOST"] = "localhost"
-    os.environ["MONGO_PORT"] = "27017"
     os.environ["MONGO_DBNAME"] = "scaledb1"
 
     # check for cached option

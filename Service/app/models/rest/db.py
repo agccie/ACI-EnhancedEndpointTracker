@@ -71,9 +71,11 @@ def db_setup(app_name="App", username="admin", password="cisco", sharding=False,
             db[c._classname].create_index(indexes, unique=unique)
 
         if sharding and c._access["db_shard_enable"]:
-            shard_indexes = indexes
+            shard_indexes = {}
             if c._access["db_shard_index"] is not None:
-                shard_indexes = [(a, ASCENDING) for a in c._access["db_shard_index"]]
+                for a in c._access["db_shard_index"]: shard_indexes[a] = 1
+            else:
+                for (a,d) in indexes: shard_indexes[a] = 1
             logger.debug("creating shard index for %s: %s", c._classname, shard_indexes)
             sh.command("shardCollection", "%s.%s" % (db.name, c._classname), key=shard_indexes)
 

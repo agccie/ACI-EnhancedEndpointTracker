@@ -393,6 +393,22 @@ class Swarmer(object):
                     err_msg+= ", (node id: %s, hostname: %s)" % (node_0["id"], node_0["hostname"])
                     err_msg+= "\ncmd: %s\nresult: %s" % (cmd, "\n".join(c.output.split("\n")[:-1]))
                     logger.warn(err_msg)
+
+        # add each shard to mongo-router - note, there's an instance of mongos with service name
+        # 'db' on all nodes in the cluster so this command is always locally executed
+        for shard_name in shards:
+            svc_name = shards[shard_name]["svc_name"]
+            svc_port = shards[shard_name]["svc_port"]
+            cmd = 'docker exec -it '
+            cmd+= '$(docker ps -qf label=com.docker.swarm.service.name=%s_db) '%self.config.app_name 
+            cmd+= 'mongo localhost:%s --eval \'sh.addShard("%s/%s:%s")\'' % (
+                self.config.mongos_port, shard_name, svc_name, svc_port)
+            ret = run_command(cmd)
+            if ret is None or not re.search("['\"]ok['\"] *: *1 *", ret):
+                err_msg="sh.addShard may not have completed successfully for shard %s"%shard_name
+                err_msg+= "\ncmd: %s\nresult: %s" % (cmd, ret)
+                logger.warn(err_msg)
+
         
 class DockerNode(object):
 

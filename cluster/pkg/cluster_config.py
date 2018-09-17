@@ -34,15 +34,17 @@ class ClusterConfig(object):
         # set http/https port to 0 to disable that service
         self.app_http_port = 80
         self.app_https_port = 443
+        self.redis_port = 6379
+        self.mongos_port = 27017
+        self.configsvr_port = 27019
+        self.shardsvr_port = 27017
         self.shardsvr_shards = 1
         self.shardsvr_memory = 2.0
         self.shardsvr_replicas = 1
-        self.shardsvr_port = 27107
         self.configsvr_memory = 2.0
         self.configsvr_replicas = 1
-        self.configsvr_port = 27019
-        self.mongos_port = 27017
         self.compose_file = "/tmp/compose.yml"
+        self.services = {}         # indexed by service name and contains node label or 0
 
     def import_config(self, configfile):
         """ import/parse and validate config file, raise exception on error """
@@ -237,6 +239,7 @@ class ClusterConfig(object):
         if self.app_https_port > 0:
             web_service["ports"].append("%s:443" % self.app_https_port)
         config["services"]["web"] = web_service
+        self.services["web"] = Service("web")
 
         # configure redis service (static)
         redis_service = {
@@ -244,6 +247,8 @@ class ClusterConfig(object):
             "logging": copy.deepcopy(default_logging),
         }
         config["services"]["redis"] = redis_service
+        self.services["redis"] = Service("redis")
+        self.services["redis"].set_service_type("redis", port_number=self.redis_port)
 
         # configure shard service (multiple shards and replicas)
         for s in xrange(0, node_count*self.shardsvr_shards):
@@ -266,6 +271,9 @@ class ClusterConfig(object):
                         }
                     },
                 }
+                self.services[svc] = Service(svc, node=anchor, replica="sh%s" % s)
+                self.services[svc].set_service_type("db_sh", shard_number=s, replica_number=r,
+                        port_number=self.shardsvr_port)
 
         # configure configsvr service (replicas only)
         cfg_str = "cfg/"
@@ -289,6 +297,9 @@ class ClusterConfig(object):
                     }
                 },
             }
+            self.services[svc] = Service(svc, node=anchor, replica="cfg")
+            self.services[svc].set_service_type("db_cfg", replica_number=r, 
+                    port_number=self.configsvr_port)
         cfg_str = re.sub(",$","", cfg_str)
 
         # configure router (mongos = main db app will use) pointing to cfg replica
@@ -297,7 +308,12 @@ class ClusterConfig(object):
             "image": ClusterConfig.MONGO_IMAGE,
             "command": cmd,
             "logging": copy.deepcopy(default_logging),
+            "deploy": {
+                "mode": "global"        # each node has local db instance
+            },
         }
+        self.services["db"] = Service("db")
+        self.services["db"].set_service_type("db", port_number=self.mongos_port)
 
         # configure workers
         cmd = "/bin/sleep infinity"
@@ -308,7 +324,48 @@ class ClusterConfig(object):
                 "command": cmd,
                 "logging": copy.deepcopy(default_logging),
             }
+            self.services[svc] = Service(svc)
+            self.services[svc].set_service_type("worker")
 
         with open(self.compose_file, "w") as f:
             yaml.dump(config, f, default_flow_style=False)
+
+class Service(object):
+
+    SERVICE_TYPES = ["web", "redis", "worker", "db", "db_cfg", "db_sh"]
+    def __init__(self, name, node=None, replica=None):
+        self.name = name
+        self.node = node            # node label_id if constrained to a single node
+        self.replica = replica      # name of the replica if part of a replication set
+        self.service_type = None
+        self.replica_number = None
+        self.shard_number = None
+        self.port_number = None
+        if name in Service.SERVICE_TYPES: 
+            self.service_type = name
+
+    def set_service_type(self,service_type,shard_number=None,replica_number=None,port_number=None):
+        # set service type (which may be same as the name).  For db_sh, can provided the 
+        # shard_number.  The supported services:
+        #   web
+        #   redis
+        #   worker
+        #   db      (shard router)
+        #   db_cfg  (configserver)
+        #   db_sh   (shard)
+        if service_type not in Service.SERVICE_TYPES:
+            raise Exception("unsupported service type %s" % service_type)
+        self.service_type = service_type
+        if shard_number is not None and service_type == "db_sh":
+            self.shard_number = shard_number
+        if replica_number is not None and self.replica is not None:
+            self.replica_number = replica_number
+        if port_number is not None:
+            self.port_number = port_number
+
+    def __repr__(self):
+        return "name: %s, node: %s, replica-name: %s, type: %s, shard: %s, replica: %s, port: %s" % (
+            self.name, self.node, self.replica, self.service_type, self.shard_number,
+            self.replica_number, self.port_number)
+            
 

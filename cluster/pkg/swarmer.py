@@ -30,6 +30,28 @@ class Swarmer(object):
             config_nodes["%s" % nid] = self.config.nodes[nid]
         self.config.nodes = config_nodes
 
+    def get_credentials(self):
+        # prompt user for username/password if not previously provided
+        while self.username is None or len(self.username)==0:
+            self.username = raw_input("Enter ssh username: ").strip()
+        while self.password is None or len(self.password)==0:
+            self.password = getpass.getpass("Enter ssh password: ").strip()
+
+    def get_connection(self, hostname):
+        # return ssh connection object to provided hostname, raise exception on error
+        
+        logger.debug("get connection to %s", hostname)
+        self.get_credentials()
+        c = Connection(hostname)
+        c.username = self.username
+        c.password = self.password
+        c.protocol = "ssh"
+        c.port = 22
+        c.prompt = "[#>\$] *$"
+        if not c.login(max_attempts=3):
+            raise Exception("failed to connect to node %s@%s" % (self.username, hostname))
+        return c
+
     def init_swarm(self):
         # determine the swarm status of this node. If in a swarm but not the manager, raise an error
         # If in a swarm AND the manager, then validate status matches config.
@@ -130,19 +152,8 @@ class Swarmer(object):
         """ attempt to connect to remote node and add to docker swarm """
         # prompt user for credentials here if not set...
         logger.info("Adding worker to cluster (id:%s, hostname:%s)", nid, hostname)
-        while self.username is None or len(self.username)==0:
-            self.username = raw_input("Enter ssh username: ").strip()
-        while self.password is None or len(self.password)==0:
-            self.password = getpass.getpass("Enter ssh password: ").strip()
 
-        c = Connection(hostname)
-        c.username = self.username
-        c.password = self.password
-        c.protocol = "ssh"
-        c.port = 22
-        c.prompt = "[#>\$] *$"
-        if not c.login(max_attempts=3):
-            raise Exception("failed to connect to node(%s) %s@%s"%(nid, self.username, hostname))
+        c = self.get_connection(hostname)
         cmd = "docker swarm join --token %s %s" % (self.token, self.node_socket)
         ret = c.cmd(cmd, timeout=60)
         if ret != "prompt":
@@ -262,6 +273,127 @@ class Swarmer(object):
 
         logger.info("app services deployed")
 
+    def init_db(self):
+        """ need to initialize all replication sets for mongo db based on user config 
+            ssh to intended replica primary (replica 0) and initialize replica
+        """
+        self.init_db_cfg()
+        self.init_db_shards()
+
+    def init_db_cfg(self):
+        """ initialize cfg server replica set """
+
+        logger.info("initialize db config replica set")
+        # find all 'db_cfg' service along with replica '0' info
+        rs = {"configsvr": True, "members":[]}
+        db_port = None
+        replica_0_node = None
+        replica_0_name = None
+        for svc_name in self.config.services:
+            svc = self.config.services[svc_name]
+            if svc.service_type == "db_cfg":
+                if "_id" not in rs: rs["_id"] = svc.replica
+                if svc.replica_number is None or svc.port_number is None:
+                    raise Exception("service has invalid replica or port number: %s" % svc)
+                host = self.config.nodes.get("%s" % svc.node, None)
+                if host is None:
+                    raise Exception("failed to determine host for service: %s" % svc)
+                member = {
+                    "_id": svc.replica_number,
+                    "host": "%s:%s" % (svc_name, svc.port_number)
+                }
+                if svc.replica_number == 0: 
+                    replica_0_node = host
+                    replica_0_name = svc_name
+                    db_port = svc.port_number
+                    member["priority"] = 2
+                else:
+                    member["priority"] = 1
+                rs["members"].append(member)
+
+        if replica_0_node is None or replica_0_name is None:
+            raise Exception("failed to determine replica 0 db configsrv")
+
+        cmd = 'docker exec -it '
+        cmd+= '$(docker ps -qf label=com.docker.swarm.service.name=%s_%s) ' % (
+                self.config.app_name, replica_0_name)
+        cmd+= 'mongo localhost:%s --eval \'rs.initiate(%s)\'' % (db_port, json.dumps(rs))
+        logger.debug("initiate cfg replication set cmd: %s", cmd)
+        # cfg server is statically pinned to node-1
+        if "%s" % replica_0_node["id"] == "1":
+            # hard to parse return json since there's other non-json characters printed so we'll
+            # just search for "ok" : 1
+            ret = run_command(cmd)
+            if ret is None or not re.search("['\"]ok['\"] *: *1 *", ret):
+                logger.warn("rs.initiate may not have completed successfully, cmd:%s\nresult:\n%s",
+                    cmd, ret)
+        else:
+            raise Exception("expected cfg server replica 0 to be on node-1, currently on %s" % (
+                replica_0_node))
+
+    def init_db_shards(self):
+        """ initialize each shard replication set on replica-0 node owner """
+
+        logger.info("initialize db shards")
+        # get all service type db_sh and organize into replication sets
+        shards = {}     # indexed by shared replica-name, contains node-0 (id and hostname) along
+                        # with 'rs' which is initiate dict
+        for svc_name in self.config.services:
+            svc = self.config.services[svc_name]
+            if svc.service_type == "db_sh":
+                if svc.replica_number is None or svc.port_number is None:
+                    raise Exception("service has invalid replica or port number: %s" % svc)
+                if svc.replica not in shards:
+                    shards[svc.replica] = {
+                        "node-0": None,
+                        "svc_name": None,
+                        "svc_port": None,
+                        "rs": {"_id": svc.replica, "members":[]}
+                    }
+                host = self.config.nodes.get("%s" % svc.node, None)
+                if host is None:
+                    raise Exception("failed to determine host for service: %s" % svc)
+                member = {
+                    "_id": svc.replica_number,
+                    "host": "%s:%s" % (svc_name, svc.port_number)
+                }
+                if svc.replica_number == 0:
+                    shards[svc.replica]["node-0"] = host
+                    shards[svc.replica]["svc_name"] = svc.name
+                    shards[svc.replica]["svc_port"] = svc.port_number
+                    member["priority"] = 2
+                else:
+                    member["priority"] = 1
+                shards[svc.replica]["rs"]["members"].append(member)
+
+        for shard_name in shards:
+            rs = shards[shard_name]["rs"]
+            node_0 = shards[shard_name]["node-0"]
+            if node_0 is None:
+                raise Exception("failed to find replica 0 node for shard %s" % shard_name)
+            cmd = 'docker exec -it '
+            cmd+= '$(docker ps -qf label=com.docker.swarm.service.name=%s_%s) ' % (
+                    self.config.app_name, shards[shard_name]["svc_name"])
+            cmd+= 'mongo localhost:%s --eval \'rs.initiate(%s)\'' % (shards[shard_name]["svc_port"], 
+                    json.dumps(rs))
+            logger.debug("command on %s: %s", node_0["id"], cmd)
+            if "%s" % node_0["id"] == "1":
+                # command is executed on local host
+                ret = run_command(cmd)
+                if ret is None or not re.search("['\"]ok['\"] *: *1 *", ret):
+                    err_msg="rs.initiate may not have completed successfully for shard %s"%shard_name
+                    err_msg+= ", node (id:%s, hostname:%s)" % (node_0["id"], node_0["hostname"])
+                    err_msg+= "\ncmd: %s\nresult: %s" % (cmd, ret)
+                    logger.warn(err_msg)
+            else:
+                c = self.get_connection(node_0["hostname"])
+                ret = c.cmd(cmd)
+                if ret != "prompt" or not re.search("['\"]ok['\"] *: *1 *", c.output):
+                    err_msg="rs.initiate may not have completed successfully for shard %s"%shard_name
+                    err_msg+= ", (node id: %s, hostname: %s)" % (node_0["id"], node_0["hostname"])
+                    err_msg+= "\ncmd: %s\nresult: %s" % (cmd, "\n".join(c.output.split("\n")[:-1]))
+                    logger.warn(err_msg)
+        
 class DockerNode(object):
 
     def __init__(self, **kwargs):

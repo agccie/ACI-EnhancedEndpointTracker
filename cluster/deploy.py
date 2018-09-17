@@ -92,17 +92,15 @@ if __name__ == "__main__":
         swarm = Swarmer(config, username=args.username, password=args.password)
         swarm.init_swarm()
         swarm.deploy_service()
-
+        swarm.init_db()
+        logger.info("deployment complete")
     except Exception as e:
         logger.debug("Traceback:\n%s", traceback.format_exc())
         logger.error("Unable to deploy cluster: %s", e)
         sys.exit(1)
-
     except KeyboardInterrupt as e:
         logger.debug("keyboard interrupt")
         print "\nBye!"
         sys.exit(1)
-
-    logger.debug("deployment complete")
 
 

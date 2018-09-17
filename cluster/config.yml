@@ -36,7 +36,7 @@ database:
     # The aggregate memory of all containers running on a single node should be less than total 
     # memory on the node or the db may crash.
     shardsvr: 
-        shards: 1
+        shards: 3
         replicas: 1
         memory: 2.0
 
@@ -45,7 +45,7 @@ database:
     #
     # memory is a float measured in GB and is per instance
     configsvr:
-        replicas: 1
+        replicas: 3
         memory: 2.0
 
 

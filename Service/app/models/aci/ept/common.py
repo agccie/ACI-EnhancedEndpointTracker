@@ -3,10 +3,10 @@ common ept functions
 """
 import logging
 import re
+import time
 
 # module level logging
 logger = logging.getLogger(__name__)
-
 
 ###############################################################################
 #
@@ -17,6 +17,38 @@ logger = logging.getLogger(__name__)
 HELLO_CHANNEL = "worker_hello"
 HELLO_INTERVAL = 3.0
 HELLO_TIMEOUT = 300.0
+MANAGER_CTRL_CHANNEL = "manager_ctrl"
+
+
+###############################################################################
+#
+# initializing functions
+#
+###############################################################################
+
+def wait_for_redis(redis_db, check_interval=1):
+    """ blocking function that waits until provided redis-db is available """
+    while True:
+        try:
+            if redis_db.dbsize() >= 0:
+                logger.debug("successfully connected to redis db")
+                return
+        except Exception as e:
+            logger.debug("failed to connect to redis db: %s", e)
+        if check_interval > 0:
+            time.sleep(check_interval)
+
+def wait_for_db(db, check_interval=1):
+    """ blocking function that waits until provided mongo-db is available """
+    while True:
+        try:
+            if len(db.collection_names()) >= 0:
+                logger.debug("successfully connected to mongo db")
+                return 
+        except Exception as e:
+            logger.debug("failed to connect to mongo db: %s", e)
+        if check_interval > 0:
+            time.sleep(check_interval)
 
 ###############################################################################
 #

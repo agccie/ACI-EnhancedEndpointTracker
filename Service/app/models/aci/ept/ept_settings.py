@@ -2,7 +2,7 @@
 from ...rest import Rest
 from ...rest import api_register
 from ...rest import api_callback
-from ..fabric import Fabric
+from .. fabric import Fabric
 import logging
 
 # module level logging

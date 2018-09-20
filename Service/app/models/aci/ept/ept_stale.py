@@ -1,13 +1,20 @@
 from ...rest import Rest
 from ...rest import api_register
-from .history import eptHistory
+from . ept_history import eptHistory
 import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
 
 common_attr = ["ts", "status", "remote", "pctag", "flags", "encap", "intf", "rw_mac", "rw_bd"]
-offsubnet_event = {
+stale_event = {
+    "expected_remote": {
+        "type": int,
+        "description": """
+        node id of remote node the endpoint is expected to be learned.  If the endpoint was deleted
+        from the fabric (no local learn exists), then the value is set to 0
+        """,
+    },
     "epg_name": {
         "type": str,
         "description": "epg name at the time the event was detected",
@@ -19,12 +26,12 @@ offsubnet_event = {
 }
 # pull common attributes from eptHistory 
 for a in common_attr:
-    offsubnet_event[a] = eptHistory.META["events"]["meta"][a]
+    stale_event[a] = eptHistory.META["events"]["meta"][a]
 
 
-@api_register(parent="eptNode", path="ept/offsubnet")
-class eptOffSubnet(Rest):
-    """ endpoint offsubnet events within the fabric """
+@api_register(parent="eptNode", path="ept/stale")
+class eptStale(Rest):
+    """ endpoint stale events within the fabric """
     logger = logger
 
     META_ACCESS = {
@@ -62,15 +69,15 @@ class eptOffSubnet(Rest):
         "count": {
             "type": int,
             "description": """
-            total number of offsubnet events that have occurred. Note, the events list is limited by 
-            the eptSettings max_ep_events threshold but the count will total count including the 
-            events that have wrapped.
+            total number of stale events that have occurred. Note, the events list is limited by the
+            eptSettings max_ep_events threshold but the count will total count including the events
+            that have wrapped.
             """
         },
         "events": {
             "type": list,
             "subtype": dict,
-            "meta": offsubnet_event,
+            "meta": stale_event,
         },
     }
 

@@ -4,7 +4,7 @@ Settings database data available (and possibly manipulated) by/for config tests:
 """
 
 from app.models.utils import get_db
-from app.models.settings import Settings
+from app.models.rest.settings import Settings
 import pytest
 import json, logging
 

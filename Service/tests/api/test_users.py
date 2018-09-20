@@ -3,8 +3,8 @@ import json, logging, time
 import pytest
 from app.models.utils import get_db, pretty_print
 from app.models.rest import Role, Universe
-from app.models.user import User, Session
-from app.models.settings import Settings
+from app.models.rest.user import User, Session
+from app.models.rest.settings import Settings
 
 keyed_url = "/api/uni/username-{}"
 login_url = "/api/user/login"

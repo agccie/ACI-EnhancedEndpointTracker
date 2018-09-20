@@ -50,4 +50,3 @@ class eptVnid(Rest):
             "description": "epoch timestamp the object was created or updated",
         },
     }
-

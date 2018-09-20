@@ -1,6 +1,6 @@
 
 
-class EPTWorkerQueueStats(object):
+class eptWorkerQueueStats(object):
     def __init__(self, name, priority):
         # track queue statistics where:
         #   priority (int) priority of the queue where lowest number is highest priority

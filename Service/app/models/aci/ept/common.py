@@ -14,10 +14,12 @@ logger = logging.getLogger(__name__)
 #
 ###############################################################################
 
-HELLO_CHANNEL = "worker_hello"
-HELLO_INTERVAL = 3.0
-HELLO_TIMEOUT = 300.0
+HELLO_INTERVAL = 1.0
+HELLO_TIMEOUT = 5.0
 MANAGER_CTRL_CHANNEL = "manager_ctrl"
+MANAGER_WORK_QUEUE = "mq"
+WORKER_CTRL_CHANNEL = "worker_ctrl"
+
 
 
 ###############################################################################

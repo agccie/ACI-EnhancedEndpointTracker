@@ -1,6 +1,6 @@
 from ...rest import Rest
 from ...rest import api_register
-from .history import eptHistory
+from . ept_history import eptHistory
 import logging
 
 # module level logging

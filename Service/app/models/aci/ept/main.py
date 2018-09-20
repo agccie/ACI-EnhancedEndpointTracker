@@ -1,7 +1,7 @@
 
 from ... utils import setup_logger
-from . ept_worker import EPTWorker
-from . ept_manager import EPTManager
+from . ept_worker import eptWorker
+from . ept_manager import eptManager
 
 import argparse
 import logging
@@ -31,8 +31,8 @@ if __name__ == "__main__":
         setup_logger(logging.getLogger(l), fname=fname, stdout=stdout, thread=True)
 
     if args.role == "manager": 
-        w = EPTManager(args.worker_id)
+        w = eptManager(args.worker_id)
     else:
-        w = EPTWorker(args.worker_id, role=args.role)
+        w = eptWorker(args.worker_id, role=args.role)
     w.run()
     logger.error("worker %s unexpected ended", w.worker_id)

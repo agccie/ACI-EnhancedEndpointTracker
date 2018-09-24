@@ -1,4 +1,5 @@
 
+from .... import create_app
 from ... utils import setup_logger
 from . ept_worker import eptWorker
 from . ept_manager import eptManager
@@ -20,6 +21,9 @@ if __name__ == "__main__":
         choices=["manager", "worker"])
     parser.add_argument("--stdout", dest="stdout", action="store_true", help="send logs to stdout")
     args = parser.parse_args()
+
+    # initialize app with initializes rest model required by all objects
+    app = create_app("config.py")
 
     stdout = args.stdout
     fname="worker_%s" % args.worker_id

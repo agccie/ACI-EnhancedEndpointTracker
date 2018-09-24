@@ -648,7 +648,7 @@ class Rest(object):
         cls._key_path = ""
         cls._key_swag_path = ""
         if cls._dependency is None:
-            cls.logger.debug("depenency not set (this should only happen in tests)")
+            cls.logger.debug("dependency not set (this should only happen in tests)")
             cls._dependency = RestDependency(cls)
         if cls._dependency.path is None:
             cls._classname = re.sub("_",".", cls.__name__).lower()

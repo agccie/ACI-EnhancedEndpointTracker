@@ -1,9 +1,26 @@
 
+from enum import Enum
+from enum import unique as enum_unique
+
 import json
 import time
 
+# static msg types to prevent duplicates
+@enum_unique
+class MSG_TYPE(Enum):
+    WORK                = "work"            # worker from subscriber to manager to worker (or requeued)
+    HELLO               = "hello"           # hello from worker to manager
+    MANAGER_STATUS      = "manager_status"  # manager status response
+    GET_MANAGER_STATUS  = "get_manager_status" # request to get manager status from API to manager
+    FABRIC_START        = "fabric_start"    # request from API to manager to start fabric monitor
+    FABRIC_STOP         = "fabric_stop"     # request from API to manager to stop fabric monitor
+    FLUSH_FABRIC        = "flush_fabric"    # request from manager to workers to flush fabric from their
+                                            # local caches
+
 class eptMsg(object):
-    """ generic ept job for messaging between workers """
+    """ generic ept job for messaging between workers 
+        NOTE, msg_type must be instance of MSG_TYPE Enum
+    """
     def __init__(self, msg_type, data={}, seq=1):
         self.msg_type = msg_type
         self.data = data
@@ -12,26 +29,25 @@ class eptMsg(object):
     def jsonify(self):
         """ jsonify for transport across messaging queue """
         return json.dumps({
-            "msg_type": self.msg_type,
+            "msg_type": self.msg_type.value,
             "data": self.data,
             "seq": self.seq,
         })
 
     def __repr__(self):
-        return "%s.%s" % (self.msg_type, self.seq)
+        return "%s.%s" % (self.msg_type.value, self.seq)
 
     @staticmethod
     def parse(data):
         # parse data received on message queue and return corresponding EPMsg
         # allow exception to raise on invalid data
         js = json.loads(data)
-        if js["msg_type"] == "work":
+        if js["msg_type"] == MSG_TYPE.WORK.value:
             return eptMsgWork.from_msg_json(js)
-        elif js["msg_type"] == "hello": 
+        elif js["msg_type"] == MSG_TYPE.HELLO.value:
             return eptMsgHello.from_msg_json(js)
-
         return eptMsg(
-                    js["msg_type"], 
+                    MSG_TYPE(js["msg_type"]), 
                     data=js.get("data", {}),
                     seq = js.get("seq", None)
                 )
@@ -40,7 +56,7 @@ class eptMsgHello(object):
     """ hello message sent from worker to manager """
 
     def __init__(self, worker_id, role, queues, start_time, seq=1):
-        self.msg_type = "hello"
+        self.msg_type = MSG_TYPE.HELLO
         self.worker_id = worker_id
         self.role = role
         self.queues = queues            # list of queue names sorted by priority        
@@ -48,12 +64,12 @@ class eptMsgHello(object):
         self.seq = seq
 
     def __repr__(self):
-        return "[%s] %s.%s" % (self.worker_id, self.msg_type, self.seq)
+        return "[%s] %s.%s" % (self.worker_id, self.msg_type.value, self.seq)
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """
         return json.dumps({
-            "msg_type": self.msg_type,
+            "msg_type": self.msg_type.value,
             "seq": self.seq,
             "data": {
                 "worker_id": self.worker_id,
@@ -83,7 +99,7 @@ class eptMsgWork(object):
     """
 
     def __init__(self, addr, role, data, qnum=1, seq=1):
-        self.msg_type = "work"
+        self.msg_type = MSG_TYPE.WORK
         self.addr = addr
         self.role = role
         self.qnum = qnum
@@ -91,12 +107,12 @@ class eptMsgWork(object):
         self.seq = seq
 
     def __repr__(self):
-        return "%s.%s %s" % (self.msg_type, self.seq, self.role)
+        return "%s.%s %s" % (self.msg_type.value, self.seq, self.role)
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """
         return json.dumps({
-            "msg_type": self.msg_type,
+            "msg_type": self.msg_type.value,
             "seq": self.seq,
             "data": self.data,
             "addr": self.addr,

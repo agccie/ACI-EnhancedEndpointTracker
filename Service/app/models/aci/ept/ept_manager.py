@@ -1,16 +1,23 @@
 
 from ... utils import get_app_config
 from ... utils import get_db
+from .. fabric import Fabric
+from .. utils import terminate_process
 from . common import HELLO_INTERVAL
 from . common import HELLO_TIMEOUT
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_WORK_QUEUE
 from . common import SEQUENCE_TIMEOUT
 from . common import WORKER_CTRL_CHANNEL
+from . common import WORKER_UPDATE_INTERVAL
 from . common import wait_for_db
 from . common import wait_for_redis
+from . ept_msg import MSG_TYPE
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgHello
+from . ept_queue_stats import eptQueueStats
+from . ept_subscriber import eptSubscriber
+from multiprocessing import Process
 
 import logging
 import redis
@@ -23,23 +30,31 @@ logger = logging.getLogger(__name__)
 
 class eptManager(object):
     
+    # list of required roles that need to register before manager is ready to accept work
+    #REQUIRED_ROLES = ["worker", "watcher", "priority"]
+    REQUIRED_ROLES = ["worker" ]
+
     def __init__(self, worker_id):
         self.worker_id = "%s" % worker_id
         self.app_config = get_app_config()
         self.db = get_db()
         self.redis = redis.StrictRedis(host=self.app_config["REDIS_HOST"], 
                             port=self.app_config["REDIS_PORT"], db=self.app_config["REDIS_DB"])
+        self.fabrics = {}               # running fabrics indexed by fabric name
         self.subscribe_thread = None
         self.stats_thread = None
         self.worker_tracker = None
-        self.stats_interval = 60.0
-        self.stats_last_time = 0
-        self.stats_last_total_tx_msg = 0
-        self.stats_last_total_rx_msg = 0
-        self.stats_tx_msg_rate = 0.0
-        self.stats_rx_msg_rate = 0.0
-        self.stats_total_rx_msg = 0
-        self.stats_total_tx_msg = 0
+
+        self.queue_stats_lock = threading.Lock()
+        self.queue_stats = {
+            WORKER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, queue=WORKER_CTRL_CHANNEL),
+            MANAGER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, queue=MANAGER_CTRL_CHANNEL),
+            MANAGER_WORK_QUEUE: eptQueueStats.load(proc=self.worker_id, queue=MANAGER_WORK_QUEUE),
+            "total": eptQueueStats.load(proc=self.worker_id, queue="total"),
+        }
+        # initialize stats counters
+        for k, q in self.queue_stats.items():
+            q.init_queue()
 
     def __repr__(self):
         return self.worker_id
@@ -51,12 +66,16 @@ class eptManager(object):
         except (Exception, SystemExit, KeyboardInterrupt) as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
         finally:
+            # clean up threads and running fabrics
             if self.stats_thread is not None:
                 self.stats_thread.cancel()
             if self.worker_tracker is not None and self.worker_tracker.update_thread is not None:
                 self.worker_tracker.update_thread.cancel()
             if self.subscribe_thread is not None:
                 self.subscribe_thread.stop()
+            for f, fab in self.fabrics.items():
+                if fab["process"] is not None:
+                    terminate_process(fab["process"])
 
     def _run(self):
         """ start manager 
@@ -68,7 +87,7 @@ class eptManager(object):
         # first check/wait on redis and mongo connection, then start
         wait_for_redis(self.redis)
         wait_for_db(self.db)
-        self.worker_tracker = WorkerTracker(self.redis)
+        self.worker_tracker = WorkerTracker(manager=self)
         self.update_stats()
 
         channels = {
@@ -77,7 +96,6 @@ class eptManager(object):
         }
         p = self.redis.pubsub(ignore_subscribe_messages=True)
         p.subscribe(**channels)
-        #self.subscribe_thread = p.run_in_thread(sleep_time=0.001)
         self.subscribe_thread = p.run_in_thread()
         logger.debug("[%s] listening for events on channels: %s", self, channels.keys())
 
@@ -88,21 +106,19 @@ class eptManager(object):
                 time.sleep(HELLO_INTERVAL)
             else: break
 
-        logger.debug("listening for work!")
+        logger.debug("manager %s ready for work", self.worker_id)
         # watch for work that needs to be dispatched to available workers
         while True:
             (q, data) = self.redis.blpop(MANAGER_WORK_QUEUE)
             try:
-                self.stats_total_rx_msg+= 1
                 msg = eptMsg.parse(data) 
                 # expected only eptWork received on this queue
-                if q == MANAGER_WORK_QUEUE and msg.msg_type == "work":
+                if q == MANAGER_WORK_QUEUE and msg.msg_type == MSG_TYPE.WORK:
+                    self.increment_stats(MANAGER_WORK_QUEUE, tx=False)
                     # create hash based on address
                     _hash = sum(ord(i) for i in msg.addr)
                     if not self.worker_tracker.send_msg(_hash, msg):
                         logger.warn("[%s] failed to enqueue message(%s): %s", h, msg)
-                    else:
-                        self.stats_total_tx_msg+= 1
                 else:
                     logger.warn("[%s] unexpected messaged received on queue %s: %s", self, q, msg)
 
@@ -110,18 +126,18 @@ class eptManager(object):
                 logger.debug("failure occurred on msg from q: %s, data: %s", q, data)
                 logger.error("Traceback:\n%s", traceback.format_exc())
 
-
     def handle_channel_msg(self, msg):
         """ handle msg received on subscribed channels """
         try:
-            self.stats_total_rx_msg+= 1
             if msg["type"] == "message":
                 channel = msg["channel"]
                 msg = eptMsg.parse(msg["data"]) 
                 #logger.debug("[%s] msg on q(%s): %s", self, channel, msg)
                 if channel == WORKER_CTRL_CHANNEL:
+                    self.increment_stats(WORKER_CTRL_CHANNEL, tx=False)
                     self.worker_tracker.handle_hello(msg)
                 elif channel == MANAGER_CTRL_CHANNEL:
+                    self.increment_stats(MANAGER_CTRL_CHANNEL, tx=False)
                     self.handle_manager_ctrl(msg)
                 else:
                     logger.warn("[%s] unsupported channel: %s", self, channel)
@@ -130,59 +146,137 @@ class eptManager(object):
             logger.error("Traceback:\n%s", traceback.format_exc())
 
     def handle_manager_ctrl(self, msg):
-        logger.debug("ctrl message: %s, %s", msg.msg_type, msg.data)
-        if msg.msg_type == "get_status":
+        logger.debug("ctrl message: %s, %s", msg.msg_type.value, msg.data)
+        if msg.msg_type == MSG_TYPE.GET_MANAGER_STATUS:
             # return worker status along with current seq per queue and queue length
             data = {
                 "manager": {
-                    "id": self.worker_id,
-                    "total_tx_msg": self.stats_total_tx_msg,
-                    "total_rx_msg": self.stats_total_rx_msg,
-                    "tx_msg_rate": self.stats_tx_msg_rate,
-                    "rx_msg_rate": self.stats_rx_msg_rate,
-                    "stats_interval": self.stats_interval,
+                    "manager_id": self.worker_id,
                     "queues": [MANAGER_WORK_QUEUE],
                     "queue_len": [self.redis.llen(MANAGER_WORK_QUEUE)],
                 },
                 "workers": self.worker_tracker.get_worker_status(),
-                "fabrics": []
+                "fabrics": [{
+                        "fabric":f, 
+                        "alive": fab["process"] is not None and fab["process"].is_alive(),
+                        "waiting_for_retry": fab["waiting_for_retry"],
+                    } for f, fab in self.fabrics.items()
+                ]
             }
-            ret = eptMsg("status", data=data, seq=msg.seq)
+            ret = eptMsg(MSG_TYPE.MANAGER_STATUS, data=data, seq=msg.seq)
             self.redis.publish(MANAGER_CTRL_CHANNEL, ret.jsonify())
-            self.stats_total_tx_msg+=1
-        elif msg.msg_type == "start_fabric":
-            pass
-        elif msg.msg_type == "stop_fabric":
-            pass
+            self.increment_stats(MANAGER_CTRL_CHANNEL, tx=True)
+
+        elif msg.msg_type == MSG_TYPE.FABRIC_START:
+            # start monitoring for fabric
+            self.start_fabric(msg.data["fabric"], purge=msg.data.get("purge", False),
+                                                    reason=msg.data.get("reason", None))
+                
+        elif msg.msg_type == MSG_TYPE.FABRIC_STOP:
+            # stop a running fabric
+            self.stop_fabric(msg.data["fabric"], purge=msg.data.get("purge", False), 
+                                                    reason=msg.data.get("reason", None))
+
+    def start_fabric(self, fabric, purge=False, reason=None):
+        # manager start monitoring provided fabric name.  
+        # if purge is set to true, then references to this fabric will be removed from manager. Else,
+        # if a new worker comes online the fabric may automatically restart.
+        # return boolean success
+        if reason is None: reason = "generic start"
+        logger.debug("manager start fabric: %s (%s)", fabric, reason)
+        if fabric not in self.fabrics:
+            self.fabrics[fabric] = {
+                "process": None,
+                "subscriber": None,
+                "waiting_for_retry": False,
+            }
+        if self.fabrics[fabric]["process"] is None or not self.fabrics[fabric]["process"].is_alive():
+            f = Fabric.load(fabric=fabric)
+            if f.exists():
+                f.add_fabric_event("started", reason)
+                # check that minimim workers are present
+                for role in eptManager.REQUIRED_ROLES:
+                    if role not in self.worker_tracker.active_workers or \
+                        len(self.worker_tracker.active_workers[role]) == 0:
+                        msg = "no active workers for role '%s'" % role
+                        logger.warn(msg)
+                        f.add_fabric_event("stopped", msg)
+                        if purge: self.fabrics.pop(fabric, None)
+                        else: self.fabrics[fabric]["waiting_for_retry"] = True
+                        return False
+
+                sub = eptSubscriber(f)
+                self.fabrics[fabric]["subscriber"] = sub
+                self.fabrics[fabric]["process"] = Process(target=sub.run)
+                self.fabrics[fabric]["process"].start()
+                self.fabrics[fabric]["waiting_for_retry"] = False
+                return True
+            else:
+                logger.warn("start requested for fabric '%s' which does not exist", fabric)
+                if purge: self.fabrics.pop(fabric, None)
+                return False
+        else:
+            logger.warn("fabric '%s' already running", fabric)
+            return False
+
+    def stop_fabric(self, fabric, purge=False, reason=None):
+        # manager stop monitoring provided fabric name.  
+        # if purge is set to true, then references to this fabric will be removed from manager. Else,
+        # if a new worker comes online the fabric may automatically restart.
+        # return boolean success
+        if reason is None: reason = "generic stop"
+        logger.debug("manager stop fabric: %s (%s)", fabric, reason)
+        f = Fabric.load(fabric=fabric)
+        if f.exists():
+            f.add_fabric_event("stopped", reason)
+        if fabric not in self.fabrics:
+            logger.warn("stop requested for unknown fabric '%s'", fabric)
+            return False
+        elif self.fabrics[fabric]["process"] is not None:
+            logger.debug("terminating fabric process '%s", fabric)
+            terminate_process(self.fabrics[fabric]["process"])
+            # need to force all workers to flush their caches for this fabric
+            flush = eptMsg(MSG_TYPE.FLUSH_FABRIC, data={"fabric": fabric})
+            self.worker_tracker.broadcast(flush)
+            # manager should flush all events from worker queues for the fabric instead of 
+            # having worker perform the operation which could lead to race conditions
+            self.worker_tracker.flush_fabric(fabric)
+            if purge: self.fabrics.pop(fabric, None)
+            else:
+                self.fabrics[fabric]["waiting_for_retry"] = True
+            return True
+                
+    def increment_stats(self, queue, tx=False):
+        # update stats queue
+        with self.queue_stats_lock:
+            if queue in self.queue_stats:
+                if tx:
+                    self.queue_stats[queue].total_tx_msg+= 1
+                    self.queue_stats["total"].total_tx_msg+= 1
+                else:
+                    self.queue_stats[queue].total_rx_msg+= 1
+                    self.queue_stats["total"].total_rx_msg+= 1
 
     def update_stats(self):
-        # update stats at regular interval - will save to db with wrap later
-        # for now just tracking msg_rate 
-        ts = time.time()
-        if self.stats_last_time == 0:
-            self.stats_last_time = ts
-        else:
-            d = ts - self.stats_last_time
-            tx = self.stats_total_tx_msg - self.stats_last_total_tx_msg
-            rx = self.stats_total_rx_msg - self.stats_last_total_rx_msg
-            if d > 0:
-                self.stats_tx_msg_rate = tx / d
-                self.stats_rx_msg_rate = rx / d
-            self.stats_last_total_tx_msg = self.stats_total_tx_msg
-            self.stats_last_total_rx_msg = self.stats_total_rx_msg
+        # update stats at regular interval for all queues
+        with self.queue_stats_lock:
+            for k, q in self.queue_stats.items():
+                q.collect(qlen = self.redis.llen(k))
 
-        self.stats_thread = threading.Timer(self.stats_interval, self.update_stats)
+        # set timer to recollect at next collection interval
+        self.stats_thread = threading.Timer(eptQueueStats.STATS_INTERVAL, self.update_stats)
         self.stats_thread.daemon = True
         self.stats_thread.start()
-        
+
         
 class WorkerTracker(object):
     # track list of active workers 
-    def __init__(self, redis_db):
-        self.redis = redis_db
+    def __init__(self, manager=None):
+        self.manager = manager
+        self.redis = self.manager.redis
         self.known_workers = {}     # indexed by worker_id
         self.active_workers = {}    # list of active workers indexed by role
-        self.update_interval = 10.0 # interval to check for new/expired workers
+        self.update_interval = WORKER_UPDATE_INTERVAL # interval to check for new/expired workers
         self.update_thread = None
         self.update_active_workers()
 
@@ -201,6 +295,10 @@ class WorkerTracker(object):
             for q in hello.queues:
                 self.known_workers[hello.worker_id].last_seq.append(0)
                 self.known_workers[hello.worker_id].last_head.append(0)
+                self.known_workers[hello.worker_id].queue_locks.append(threading.Lock())
+                if q not in self.manager.queue_stats:
+                    self.manager.queue_stats[q] = eptQueueStats(proc=self.manager.worker_id,queue=q)
+                    self.manager.queue_stats[q].init_queue()
             # wait until background thread picks up update and adds to available workers
             logger.debug("new worker(%s) detected, waiting for activation period",hello.worker_id)
         else:
@@ -224,19 +322,23 @@ class WorkerTracker(object):
                 self.active_workers[w.role].append(w)
                 w.active = True
                 new_workers = True
-            elif w.last_head_check + SEQUENCE_TIMEOUT < ts:
-                # check if seq is stuck on any queue which indicates a problem with the worker
-                for i, last_head in enumerate(w.last_head):
-                    head = self.redis.lindex(w.queues[i], 0)
-                    if head is None:
-                        w.last_head[i] = 0
-                    elif last_head > 0 and last_head == head:
-                        logger.warn("worker seq stuck on q:%s, seq:%s %s", w.queues[i], head, w)
-                        remove_workers.append(w)
-                        break
-                    else:
-                        w.last_head[i] = head
-                self.last_head_check = ts
+                # trigger fabric restarts if any are in 'waiting_for_retry' state
+                for f, fab in self.manager.fabrics.items():
+                    if fab["waiting_for_retry"]:
+                        self.manager.start_fabric(f, reason="new worker '%s' online" % wid)
+            #elif w.last_head_check + SEQUENCE_TIMEOUT < ts:
+            #    # check if seq is stuck on any queue which indicates a problem with the worker
+            #    for i, last_head in enumerate(w.last_head):
+            #        head = self.redis.lindex(w.queues[i], 0)
+            #        if head is None:
+            #            w.last_head[i] = 0
+            #        elif last_head > 0 and last_head == head:
+            #            logger.warn("worker seq stuck on q:%s, seq:%s %s", w.queues[i], head, w)
+            #            remove_workers.append(w)
+            #            break
+            #        else:
+            #            w.last_head[i] = head
+            #    self.last_head_check = ts
 
         # remove workers from known_workers and active_workers
         for w in remove_workers:
@@ -245,6 +347,18 @@ class WorkerTracker(object):
             if w.role in self.active_workers and w in self.active_workers[w.role]:
                 logger.debug("removing worker from active_workers[%s]: %s", w.role, w)
                 self.active_workers[w.role].remove(w)
+            # if a worker has died, when need to trigger a monitor restart for all fabrics and 
+            # flush out current worker queues to prevent stale work in redis incase worker comes
+            # back online
+            for i, q in enumerate(w.queues):
+                logger.debug("deleting work from queue: %s", q)
+                with w.queue_locks[i]:
+                    self.redis.delete(q)
+            # restart all fabrics
+            for f in self.manager.fabrics.keys():
+                self.manager.stop_fabric(f, reason="worker '%s' no longer active" % w.worker_id)
+                self.manager.start_fabric(f, reason="restarting after active worker change")
+
         if len(remove_workers)>0 or new_workers:
             logger.info("total workers: %s", len(self.known_workers))
 
@@ -256,6 +370,7 @@ class WorkerTracker(object):
     def send_msg(self, _hash, msg):
         # get number of active workers for msg.role and using modulo on _hash to select a worker
         # add the work to corresponding worker queue and increment seq number.  
+        # msg must be type eptMsgWorker 
         # return boolean success
         if msg.role not in self.active_workers or len(self.active_workers[msg.role]) == 0:
             logger.warn("no available workers for role '%s'", msg.role)
@@ -266,11 +381,50 @@ class WorkerTracker(object):
             logger.warn("unable to enqueue work on worker %s, queue %s does not exist", 
                 worker.worker_id, msg.qnum)
             return False
-        worker.last_seq[msg.qnum]+= 1
-        msg.seq = worker.last_seq[msg.qnum]
-        #logger.debug("enqueuing work onto queue %s: %s", worker.queues[msg.qnum], msg)
-        self.redis.rpush(worker.queues[msg.qnum], msg.jsonify())
+        with worker.queue_locks[msg.qnum]:
+            worker.last_seq[msg.qnum]+= 1
+            msg.seq = worker.last_seq[msg.qnum]
+            #logger.debug("enqueuing work onto queue %s: %s", worker.queues[msg.qnum], msg)
+            self.redis.rpush(worker.queues[msg.qnum], msg.jsonify())
+            self.manager.increment_stats(worker.queues[msg.qnum], tx=True)
         return True
+
+    def broadcast(self, msg, queue=0, role=None):
+        # broadcast message to active workers on particular queue index.  Set role to limit the 
+        # broadcast to only workers of particular role
+        logger.debug("broadcast [q:%s, r:%s] msg: %s", queue, role, msg)
+        for r in self.active_workers:
+            if role is None or r == role:
+                for i, worker in enumerate(self.active_workers[r]):
+                    if queue > len(worker.queues):
+                        logger.warn("unable to broadcast msg on worker %s, queue %s does not exist",
+                            worker.worker_id, queue)
+                    else:
+                        with worker.queue_locks[queue]:
+                            worker.last_seq[queue]+= 1
+                            msg.seq = worker.last_seq[queue]
+                            self.redis.rpush(worker.queues[queue], msg.jsonify())
+                            self.manager.increment_stats(worker.queues[queue], tx=True)
+
+    def flush_fabric(self, fabric, queue=-1, role=None):
+        # walk through all active workers and remove any work objects from queue for this fabric
+        # NOTE, this is a costly operation if the queue is significantly backed up...
+        logger.debug("flush fabric '%s'", fabric)
+        for r in self.active_workers:
+            if role is None or r == role:
+                for i, worker in enumerate(self.active_workers[r]):
+                    if abs(queue) > len(worker.queues):
+                        logger.warn("unable to flush fabric for worker %s, queue %s does not exist",
+                                worker.worker_id, queue)
+                    else:
+                        # pull off all messages on the queue in single operation
+                        pl = self.redis.pipeline()
+                        pl.lrange(worker.queues[queue], 0, -1)
+                        pl.delete(worker.queues[queue])
+                        ret = pl.execute()
+                        logger.debug("ret -> %s", ret)
+
+
 
     def get_worker_status(self):
         # return list of dict representation of TrackedWorker objects along with queue_len list 
@@ -289,6 +443,7 @@ class TrackedWorker(object):
         self.worker_id = worker_id
         self.active = False             # set to true when added to active list
         self.queues = []                # queue names sorted by priority
+        self.queue_locks = []           # list of thread locks per queue
         self.role = None
         self.start_time = 0
         self.hello_seq = 0

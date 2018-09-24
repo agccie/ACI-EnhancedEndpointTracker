@@ -400,14 +400,15 @@ def terminate_process(p):
         return boolean success
     """
     if p.is_alive():
+        logger.debug("sending SIGTERM to pid(%s)", p.pid)
         p.terminate()
         time.sleep(0.01)
         if p.is_alive():
             try:
-                logger.debug("sending SIGKILL to pid(%s)" % p.pid)
+                logger.debug("sending SIGKILL to pid(%s)",  p.pid)
                 os.kill(p.pid, signal.SIGKILL)
             except OSError as e:
-                logger.warn("error occurred while sending kill: %s" % e)
+                logger.warn("error occurred while sending kill: %s", e)
                 return False
     return True
 

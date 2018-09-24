@@ -1,9 +1,24 @@
 
-import logging, json, requests, re, time, os, traceback
-from flask import jsonify, g, abort, current_app
-from ..rest import (Rest, Role, api_register, api_route, api_callback)
+from ..rest import Rest
+from ..rest import Role
+from ..rest import api_register
+from ..rest import api_route
+from ..rest import api_callback
+from ..utils import get_app
+from ..utils import get_app_config
 from . import utils as aci_utils
-from ..utils import (get_app, get_app_config, get_user_data)
+
+from flask import abort
+from flask import jsonify
+
+import json
+import logging
+import os
+import re
+import redis
+import requests
+import time
+import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -278,33 +293,29 @@ class Fabric(Rest):
         ret["success"] = True
         return jsonify(ret)
 
+    def add_fabric_event(self, status, description):
+        """ add a new status and description to events list """
+        logger.debug("add event %s: %s to %s", status, description, self.fabric)
+        if not self.exists():
+            return False
+        self.event_count+=1
+        self.events.insert(0, {
+            "timestamp": time.time(),
+            "status": status,
+            "description": description
+        })
+        self.events = self.events[0: self.max_events]
+        if not self.save():
+            logger.warn("failed to save fabric event %s:%s", status, description)
+            return False
+        return True
+
 
 ###############################################################################
 #
 # fabric functions
 #
 ###############################################################################
-
-def add_fabric_event(fabric, status, description):
-    """ add an event to fabric events and rotate as required by max_events 
-        return boolean success
-    """
-    logger.debug("add event %s: %s to %s", status, description, fabric)
-    f = Fabric.load(fabric=fabric)
-    if not f.exists():
-        logger.warn("fabric %s does not exist", fabric)
-        return False
-    f.event_count+=1
-    f.events.insert(0, {
-        "timestamp": time.time(),
-        "status": status,
-        "description": description
-    })
-    if len(f.events) > f.max_events: f.events = f.events[0:f.max_events]
-    if not f.save():
-        logger.warn("failed to save fabric event %s:%s", status, description)
-        return False
-    return True
 
 def start_fabric(fabric, reason="", rest=True):
     """ start a fabric monitor
@@ -400,6 +411,7 @@ def rest_fabric_action(fabric, action, reason):
     logger.debug("rest fabric action '%s' fabric '%s': %s",action,fabric,
         r.json())
     return True
+
 
 
 def get_fabric_processes():

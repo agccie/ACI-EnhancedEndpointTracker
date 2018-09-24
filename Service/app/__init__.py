@@ -45,6 +45,7 @@ def create_app(config_filename="config.py"):
     from .models.aci.ept.ept_move import eptMove
     from .models.aci.ept.ept_node import eptNode
     from .models.aci.ept.ept_offsubnet import eptOffSubnet
+    from .models.aci.ept.ept_queue_stats import eptQueueStats
     from .models.aci.ept.ept_settings import eptSettings
     from .models.aci.ept.ept_stale import eptStale
     from .models.aci.ept.ept_subnet import eptSubnet

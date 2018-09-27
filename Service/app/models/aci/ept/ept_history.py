@@ -5,7 +5,7 @@ import logging
 # module level logging
 logger = logging.getLogger(__name__)
 
-@api_register(parent="eptNode", path="ept/history")
+@api_register(parent="fabric", path="ept/history")
 class eptHistory(Rest):
     """ endpoint history """
     logger = logger
@@ -21,6 +21,17 @@ class eptHistory(Rest):
     }
 
     META = {
+        "node": {
+            "type": int,
+            "key": True,
+            "key_index": 0,
+            "min": 1,
+            "max": 0xffffffff,
+            "description": """ 
+            node id corresponding to this node. For nodes with role 'vpc', this is an emulated id
+            unique to the two nodes in the vpc domain
+            """,
+        },
         "vnid": {
             "type": int,
             "key": True,

@@ -3,8 +3,13 @@
     @author agossett@cisco.com
 """
 
-import logging, threading, time, traceback
-from .utils import (get_dn, get_apic_session)
+from . utils import get_apic_session
+from . utils import get_dn
+
+import logging
+import threading
+import time
+import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -160,7 +165,7 @@ class SubscriptionCtrl(object):
         try: self.heartbeat = float(self.heartbeat)
         except ValueError as e:
             logger.warn("invalid heartbeat '%s' setting to 60.0",self.heartbeat)
-            heartbeat = 60.0
+            self.heartbeat = 60.0
 
         # create session to fabric
         self.session = get_apic_session(self.fabric, subscription_enabled=True)
@@ -201,7 +206,7 @@ class SubscriptionCtrl(object):
                 url = self.interests[cname]["url"]
                 count = self.session.get_event_count(url)
                 if count > 0:
-                    logger.debug("1/%s events found for %s", count, cname)
+                    #logger.debug("1/%s events found for %s", count, cname)
                     self.interests[cname]["handler"](self.session.get_event(url))
                     interest_found = True
 

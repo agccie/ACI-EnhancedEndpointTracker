@@ -544,15 +544,21 @@ class Rest(object):
         cls.logger.debug("%s bulk save request", cls._classname)
         collection = get_db()[cls._classname]
 
+        ts = time.time()
         bulk = []
         for r in rest_objects:
             save_obj = r._save(bulk_prep=True, skip_validation=skip_validation)
             if save_obj is not None: bulk.append(save_obj)
         try:
             if len(bulk)>0:
+                insert_time = time.time()
                 result = collection.bulk_write(bulk)
-                cls.logger.debug("bulk write results (objects:%s), inserts: %s, updates: %s", 
-                        len(bulk), result.inserted_count, result.modified_count)
+                now = time.time()
+                timing = "build_time: %0.3f, insert_time: %0.3f, total_time: %0.3f" % (
+                    insert_time - ts, now - insert_time, now - ts
+                )
+                cls.logger.debug("bulk write results (objects:%s), inserts: %s, updates: %s, %s", 
+                        len(bulk), result.inserted_count, result.modified_count, timing)
             return True
         except BulkWriteError as be:
             cls.logger.warn("%s bulkwrite error: %s", cls._classname, be.details)
@@ -1831,7 +1837,7 @@ class Rest(object):
                     if attr in cls._keys: child_filters[attr] = obj[attr]
                 for n in cls._dependency.children:
                     if n.obj is not None:
-                        cls.logger.debug("deleting child %s: %s", n.obj._classname, child_filters)
+                        #cls.logger.debug("deleting child %s: %s", n.obj._classname, child_filters)
                         n.obj.delete(_filters=child_filters)
 
         # perform delete request

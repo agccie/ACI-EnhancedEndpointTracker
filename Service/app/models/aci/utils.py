@@ -107,10 +107,10 @@ def get(session, url, **kwargs):
                 logger.warn("failed to parse js reply: %s", pretty_print(js))
                 return None
             results+=js["imdata"]
-            logger.debug("results count: %s/%s",len(results),js["totalCount"])
+            logger.debug("results count: %s/%s", len(results), js["totalCount"])
             if len(js["imdata"])<page_size or \
                 len(results)>=int(js["totalCount"]):
-                logger.debug("all pages received")
+                #logger.debug("all pages received")
                 return results
             elif (limit is not None and len(js["imdata"]) >= limit):
                 logger.debug("limit(%s) hit or exceeded", limit)
@@ -209,9 +209,9 @@ def get_apic_session(fabric, subscription_enabled=False):
     from .fabric import Fabric
     from .tools.acitoolkit.acisession import Session
      
-    logger.debug("get_apic_session for fabric: %s", fabric)
     if isinstance(fabric, Fabric): aci = fabric
     else: aci = Fabric.load(fabric=fabric)
+    logger.debug("get_apic_session for fabric: %s", aci.fabric)
         
     if not aci.exists(): 
         logger.warn("fabric %s not found", fabric)
@@ -339,6 +339,52 @@ def get_ssh_connection(fabric, pod_id, node_id, session=None):
         logger.debug("ssh session to node %s complete: %s",tep,c.output)
     logger.debug("successfully connected to %s node-%s", f.fabric, node_id)
     return c 
+
+def get_controller_version(session):
+    # return list of controllers and current running version
+    r = get_class(session, "firmwareCtrlrRunning")
+    ret = []
+    reg = "topology/pod-[0-9]+/node-(?P<node>[0-9]+)/"
+    if r is not None:
+        for obj in r:
+            if "firmwareCtrlrRunning" not in obj or \
+                "attributes" not in obj["firmwareCtrlrRunning"]:
+                logger.warn("invalid firmwareCtrlrRunning object: %s" % obj)
+                continue
+            attr = obj["firmwareCtrlrRunning"]["attributes"]
+            if "dn" not in attr or "type" not in attr and "version" not in attr:
+                logger.warn("firmwareCtrlrRunning missing fields: %s" % attr)
+                continue
+            r1 = re.search(reg, attr["dn"])
+            if r1 is None:
+                logger.warn("invalid dn firmwareCtrlrRunning: %s"%attr["dn"])
+                continue
+            # should never happen but let's double check
+            if attr["type"]!="controller":
+                logger.warn("invalid 'type' for firmwareCtrlrRunning: %s"%attr)
+                continue
+            ret.append({"node":r1.group("node"), "version": attr["version"]})
+
+    return ret
+
+def parse_apic_version(version):
+    # receive string code version and return dict with major, minor, build, and patch
+    # for example:  2.3.1f
+    #   major: 2
+    #   minor: 3
+    #   build: 1
+    #   patch: f
+    # return None if unable to parse version string
+
+    reg ="(?P<M>[0-9]+)[\-\.](?P<m>[0-9]+)[\.\-\(](?P<p>[0-9\.]+)(?P<pp>[a-z]+)\)?"
+    r1 = re.search(reg, version)
+    if r1 is None: return None
+    return {
+        "major": r1.group("M"),
+        "minor": r1.group("m"),
+        "build": r1.group("p"),
+        "patch": r1.group("pp"),
+    }
 
 ###############################################################################
 #

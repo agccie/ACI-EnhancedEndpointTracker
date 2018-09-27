@@ -29,7 +29,7 @@ for a in common_attr:
     stale_event[a] = eptHistory.META["events"]["meta"][a]
 
 
-@api_register(parent="eptNode", path="ept/stale")
+@api_register(parent="fabric", path="ept/stale")
 class eptStale(Rest):
     """ endpoint stale events within the fabric """
     logger = logger
@@ -42,6 +42,17 @@ class eptStale(Rest):
     }
 
     META = {
+        "node": {
+            "type": int,
+            "key": True,
+            "key_index": 0,
+            "min": 1,
+            "max": 0xffffffff,
+            "description": """ 
+            node id corresponding to this node. For nodes with role 'vpc', this is an emulated id
+            unique to the two nodes in the vpc domain
+            """,
+        },
         "vnid": {
             "type": int,
             "key": True,

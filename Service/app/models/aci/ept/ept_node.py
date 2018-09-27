@@ -23,11 +23,17 @@ class eptNode(Rest):
             "type": int,
             "key": True,
             "min": 1,
-            "max": 4096,
+            "max": 0xffffffff,
             "description": """ 
             node id corresponding to this node. For nodes with role 'vpc', this is an emulated id
             unique to the two nodes in the vpc domain
             """,
+        },
+        "pod_id": {
+            "type": int,
+            "description": "pod identifier",
+            "min": 1,
+            "max": 4096,
         },
         "name": {
             "type":str, 
@@ -35,6 +41,7 @@ class eptNode(Rest):
         },
         "oob_addr": {
             "type": str,
+            "default": "0.0.0.0",
             "description": "node out-of-band management address",
         },
         "state": {
@@ -48,6 +55,7 @@ class eptNode(Rest):
         },
         "addr": {
             "type": str,
+            "default": "0.0.0.0",
             "description": "32-bit physical TEP ipv4 address of node",
         },
         "nodes": {

@@ -22,6 +22,9 @@ MANAGER_WORK_QUEUE = "mq"
 WORKER_CTRL_CHANNEL = "wctrl"
 WORKER_UPDATE_INTERVAL = 1.0
 
+# minimum version of supported code (2.2.1n)
+MINIMUM_SUPPORTED_VERSION = "2.2.1n"
+
 ###############################################################################
 #
 # initializing functions
@@ -190,4 +193,14 @@ def get_ipv6_prefix(ipv6):
     for n in (upper + [0]*pad + lower): addr = (addr << 16) + n
     mask = (~(pow(2,128-mask)-1)) & 0xffffffffffffffffffffffffffffffff
     return (addr&mask, mask)
+
+def get_vpc_domain_id(n1, n2):
+    """ calculate interger vpc_domain_id for two node ids
+        id is always (highest node id) << 16 + (lower node id)
+    """
+    n1 = int(n1)
+    n2 = int(n2)
+    if n1 > n2: return (n1 << 16) + n2
+    return (n2 << 16) + n1
+    
 

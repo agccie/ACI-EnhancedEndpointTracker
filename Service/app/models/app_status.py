@@ -214,7 +214,7 @@ class AppStatus(Rest):
                         ret["workers"] = msg.data["workers"]
                         ret["fabrics"] = msg.data["fabrics"]
                         return ret
-        logger.warn("no manager response within timeout(%s sec)", AppStatus.MANAGER_TIMEOUT)
+        logger.warn("no manager response within timeout(%s sec)", AppStatus.MANAGER_STATUS_TIMEOUT)
         return ret
 
 

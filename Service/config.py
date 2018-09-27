@@ -1,6 +1,10 @@
-import os, sys, logging, json
 from datetime import timedelta
 from multiprocessing import cpu_count
+
+import json
+import logging
+import os
+import sys
 
 # these variables are set from app.json if found. Use app.json as single
 # source of truth.
@@ -8,6 +12,11 @@ app_vars = {
     "APP_VENDOR_DOMAIN":    "Cisco",
     "APP_ID":               "ExampleApp",
     "APP_VERSION":          "1.0",
+    "APP_COMMIT":           "",
+    "APP_COMMIT_DATE":      "",
+    "APP_COMMIT_DATE_EPOCH": 0,
+    "APP_COMMIT_AUTHOR":    "",
+    "APP_COMMIT_BRANCH":    "",
 }
 
 # read in env.sh file if present and set local environ objects (with filter)
@@ -22,7 +31,26 @@ if os.path.exists(appfile):
             if "appid" in js:
                 app_vars["APP_ID"] = js["appid"]
             if "version" in js:
-                app_var["APP_VERSION"] = js["version"]
+                app_vars["APP_VERSION"] = js["version"]
+    except Exception as e: pass
+
+# version.txt is created at build and should be in the following format
+# 923797471c147b67b1e71004a8873d61db8d8f82
+# 2018-09-27T10:12:48-04:00
+# 1538057568
+# agccie@users.noreply.github.com
+# master
+version_file = "%s/version.txt" % os.path.dirname(os.path.realpath(__file__))
+if os.path.exists(version_file):
+    try:
+        with open(version_file, "r") as f:
+            lines = f.readlines()
+            if len(lines) >= 5:
+                app_vars["APP_COMMIT"] = lines[0].strip()
+                app_vars["APP_COMMIT_DATE"] = lines[1].strip()
+                app_vars["APP_COMMIT_DATE_EPOCH"] = lines[2].strip()
+                app_vars["APP_COMMIT_AUTHOR"] = lines[3].strip()
+                app_vars["APP_COMMIT_BRANCH"] = lines[4].strip()
     except Exception as e: pass
 
 # specify mongo uri
@@ -73,6 +101,11 @@ APP_VERSION = os.environ.get("APP_VERSION", app_vars["APP_VERSION"])
 APP_ID = os.environ.get("APP_ID", app_vars["APP_ID"])
 APP_VENDOR_DOMAIN = os.environ.get("APP_VENDOR_DOMAIN", 
                                         app_vars["APP_VENDOR_DOMAIN"])
+APP_COMMIT = app_vars["APP_COMMIT"]
+APP_COMMIT_DATE = app_vars["APP_COMMIT_DATE"]
+APP_COMMIT_DATE_EPOCH = app_vars["APP_COMMIT_DATE_EPOCH"]
+APP_COMMIT_AUTHOR = app_vars["APP_COMMIT_AUTHOR"]
+APP_COMMIT_BRANCH = app_vars["APP_COMMIT_BRANCH"]
 
 # application running as an app on aci apic (ensure started file matches
 # start.sh settings)

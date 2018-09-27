@@ -45,6 +45,37 @@ class AppStatus(Rest):
         "delete": False,
     }
     META = {
+        "version": {
+            "reference": True,
+            "type": dict,
+            "description": "app version information",
+            "meta": {
+                "version": {
+                    "type": str,
+                    "description": "app version",
+                },
+                "commit": {
+                    "type": str,
+                    "description": "git commit hash",
+                },
+                "date": {
+                    "type": str,
+                    "description": "ISO timestamp of git commit"
+                },
+                "timestamp": {
+                    "type": float,
+                    "description": "EPOCH timestamp of git commit",
+                },
+                "branch": {
+                    "type": str,
+                    "description": "branch name of git commit",
+                },
+                "author": {
+                    "type": str,
+                    "description": "author email of git commit",
+                },
+            },
+        },
         "manager_status": {
             "reference": True,
             "type": dict,
@@ -168,6 +199,19 @@ class AppStatus(Rest):
             logger.debug("application status flag not found")
             status = "not-ready"
         return (False, status)
+
+    @staticmethod
+    @api_route(path="/version", methods=["GET"], authenticated=False, swag_ret=["version"])
+    def get_version():
+        """ get app version and build info """
+        return jsonify({
+            "version": current_app.config.get("APP_VERSION", "-"),
+            "commit": current_app.config.get("APP_COMMIT", ""),
+            "date": current_app.config.get("APP_COMMIT_DATE", ""),
+            "timestamp": current_app.config.get("APP_COMMIT_DATE_EPOCH", 0),
+            "branch": current_app.config.get("APP_COMMIT_BRANCH", ""),
+            "author": current_app.config.get("APP_COMMIT_AUTHOR", ""),
+        })
 
     @staticmethod
     @api_route(path="/manager", methods=["GET"], swag_ret=["manager_status"])

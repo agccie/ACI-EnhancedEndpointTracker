@@ -5,7 +5,12 @@
 
 # ignore private instance configurations 
 instance/*
+# ignore auto-copied app.json to Service/ or UIAssets/
 Service/app.json
+UIAssets/app.json
+UIAssets.build/
+# ignore build info
+version.txt
 
 # ignore packager files and Media vidoes
 aci_app_packager.log

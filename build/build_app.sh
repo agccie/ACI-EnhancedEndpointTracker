@@ -44,6 +44,18 @@ build_standalone="0"
 standalone_http_port="5000"
 standalone_https_port="5001"
 
+# create version.txt with commit info
+function add_version() {
+    # example output:
+    # 923797471c147b67b1e71004a8873d61db8d8f82      - commit
+    # 2018-09-27T10:12:48-04:00                     - date (iso format)
+    # 1538057568                                    - date (unix timestamp)
+    # agccie@users.noreply.github.com               - commit author
+    # master                                        - commit branch
+    git log --pretty=format:%H%n%aI%n%at%n%ae%n -1 > ./version.txt
+    git rev-parse --abbrev-ref HEAD >> ./version.txt
+}
+
 function log() {
     ts=`date '+%Y-%m-%dT%H:%M:%S'`
     echo "$ts $@"
@@ -159,9 +171,11 @@ function check_packager_dependencies() {
 function build_standalone_container() {
     set -e
     log "deploying standalone container $APP_VENDOR_DOMAIN/$APP_ID:$APP_VERSION"
+    add_version
 
     # cp app.json to Service directory for consumption by config.py
     cp ./app.json ./Service/
+    cp ./version.txt ./Service/ 
 
     # build docker container
     log "building container"
@@ -193,7 +207,8 @@ function build_standalone_container() {
 function build_app() {
     set -e
     log "building application $APP_VENDOR_DOMAIN/$APP_ID"
-    
+    add_version    
+
     # create workspace directory, setup required app-mode directories, and copy over required files
     log "building workspace/copying files to $TMP_DIR/$APP_ID"
     rm -rf $TMP_DIR/$APP_ID
@@ -212,6 +227,7 @@ function build_app() {
     cp -p ./app.json $TMP_DIR/$APP_ID/
     # include app.json in Service directory for config.py to pick up required variables
     cp -p ./app.json $TMP_DIR/$APP_ID/Service/
+    cp -p ./version.txt $TMP_DIR/$APP_ID/Service/
 
     # create media and legal files
     # (note, snapshots are required in order for intro_video to be displayed on appcenter

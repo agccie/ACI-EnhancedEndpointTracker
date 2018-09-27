@@ -1,12 +1,17 @@
 
-from ..rest import Rest
-from ..rest import Role
-from ..rest import api_register
-from ..rest import api_route
-from ..rest import api_callback
-from ..utils import get_app
-from ..utils import get_app_config
+from .. app_status import AppStatus
+from .. rest import Rest
+from .. rest import Role
+from .. rest import api_register
+from .. rest import api_route
+from .. rest import api_callback
+from .. utils import get_app_config
+from .. utils import get_redis
+
 from . import utils as aci_utils
+from . ept.ept_msg import eptMsg
+from . ept.ept_msg import MSG_TYPE
+from . ept.common import MANAGER_CTRL_CHANNEL 
 
 from flask import abort
 from flask import jsonify
@@ -145,37 +150,47 @@ class Fabric(Rest):
     @api_route(path="status", methods=["GET"], swag_ret=["status"], role=Role.USER)
     def get_fabric_status(self):
         """ get current fabric status (running/stopped) """
-        status = "unknown"
-        processes = get_fabric_processes()
-        if self.fabric in processes and len(processes[self.fabric])>0:
-            status = "running"
-        else:
+        try:
             status = "stopped"
-        return jsonify({"status":status})
+            manager_status = AppStatus.check_manager_status()
+            for fab in manager_status["fabrics"]:
+                if fab["fabric"] == self.fabric:
+                    if fab["alive"]:
+                        status = "running"
+                    break
+            # fabric not found within manager status implies it is not running
+            return jsonify({"status": status})
+        except Exception as e:
+            logger.error("Traceback:\n%s", traceback.format_exc())
+            abort(500, "failed to send message or invalid manager response") 
 
-    @api_route(path="stop", methods=["POST"], swag_ret=["success", "error"])
+    @api_route(path="stop", methods=["POST"], swag_ret=["success"])
     def stop_fabric_monitor(self, reason=""):
         """ stop fabric monitor """
-        ret = {"success": False, "error": ""}
-        if not stop_fabric(self.fabric, reason, rest=False):
-            ret["error"] = "failed to stop fabric"
-        else: ret["success"] = True
-        return jsonify(ret)
+        try:
+            if len(reason) == 0: reason = "API requested stop"
+            redis = get_redis()
+            data={"fabric":self.fabric, "purge":True, "reason":reason}
+            msg = eptMsg(MSG_TYPE.FABRIC_STOP,data=data)
+            redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
+            return jsonify({"success":True})
+        except Exception as e:
+            logger.error("Traceback:\n%s", traceback.format_exc())
+            abort(500, "failed to send message to redis db")
 
-    @api_route(path="start", methods=["POST"], swag_ret=["success", "error"])
+    @api_route(path="start", methods=["POST"], swag_ret=["success"])
     def start_fabric_monitor(self, reason=""):
         """ start fabric monitor """
-        ret = {"success": False, "error": ""}
-        # ensure fabric is not currently running
-        processes = get_fabric_processes()
-        if self.fabric in processes and len(processes[self.fabric])>0:
-            ret["error"] = "fabric monitor for '%s' is already running" % self.fabric
-        # verify credentials
-        elif not start_fabric(self.fabric, reason, rest=False):
-            ret["error"] = "failed to start fabric monitor"
-        else:
-            ret["success"] = True
-        return jsonify(ret)
+        try:
+            if len(reason) == 0: reason = "API requested start"
+            redis = get_redis()
+            data={"fabric":self.fabric, "reason":reason}
+            msg = eptMsg(MSG_TYPE.FABRIC_START,data=data)
+            redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
+            return jsonify({"success":True})
+        except Exception as e:
+            logger.error("Traceback:\n%s", traceback.format_exc())
+            abort(500, "failed to send message to redis db")
 
     @api_route(path="verify", methods=["POST"], swag_ret=["success","apic_error","ssh_error"])
     def verify_credentials(self):
@@ -310,134 +325,3 @@ class Fabric(Rest):
             return False
         return True
 
-
-###############################################################################
-#
-# fabric functions
-#
-###############################################################################
-
-def start_fabric(fabric, reason="", rest=True):
-    """ start a fabric monitor
-        return True on success else returns False
-    """
-    return fabric_action(fabric, "start", reason, rest)
-
-def stop_fabric(fabric, reason="", rest=True):
-    """ stop a fabric monitor
-        return True on success else returns False
-    """
-    if len(reason) == 0: reason = "unknown stop reason"
-    return fabric_action(fabric, "stop", reason, rest)
-
-def fabric_action(fabric, action, reason="", rest=True):
-    """ perform fabric monitor action of start/stop/restart by calling 
-        corresponding worker process directly or using rest API to trigger the
-        event.
-
-        a little danagerous since relying on triggering bash script...
-        return False if error raised from shell, else return True
-    """
-    if fabric is None or len(fabric)==0:
-        logger.error("invalid fabric name: %s", fabric)
-        return False
-
-    # if rest action then perform approriate API call to trigger event
-    if rest:
-        return rest_fabric_action(fabric, action, reason)
-
-    background = True
-    status_str = ""
-    if action == "stop":
-        background = False
-        status_str = "Stopping"
-        cmd = "--stop %s" % fabric
-        logger.info("stoping fabric: %s", cmd)
-    elif action == "start":
-        background = True
-        status_str = "Starting"
-        cmd = "--start %s" % fabric
-        logger.info("starting fabric: %s", cmd)
-    else:
-        logger.error("invalid fabric action '%s'", action)
-        return False
-
-    if aci_utils.execute_worker(cmd, background=background):
-        add_fabric_event(fabric, status_str, reason)
-        return True
-    else:
-        logger.error("failed to execute fabric action %s, %s", action, fabric)
-        return False
-
-def rest_fabric_action(fabric, action, reason):
-    """ perform POST to localhost for fabric action and return True on success,
-        else return False.
-            action = "start", "stop"
-                * start will use 'restart' API
-    """
-    logger.debug("perform rest fabric action '%s' fabric '%s'",action,fabric)
-
-    if action not in ["start","stop"]:
-        logger.error("invalid fabric action '%s'", action)
-        return False
-    
-    lpass = aci_utils.get_lpass()
-    if lpass is None: 
-        logger.error("failed to determine local password")
-        return False
-
-    app = get_app()
-    headers = {"content-type":"application/json"}
-    s = requests.Session()
-    base_url = app.config.get("PROXY_URL", "http://localhost")
-    if "http" not in base_url: base_url = "http://%s" % base_url
-
-    # login as local user and then perform post
-    url = "%s/api/users/login" % base_url
-    data = {"username":"local", "password":lpass}
-    r = s.post(url, verify=False, data=json.dumps(data), headers=headers)
-    if r.status_code != 200:
-        logger.error("failed local login: %s", r.text)
-        return False
-    
-    # send fabric action post
-    url = "%s/api/aci/fabrics/%s/%s" % (base_url, fabric, action)
-    data = {"reason": reason}
-    r = s.post(url, verify=False, data=json.dumps(data), headers=headers)
-    if r.status_code != 200:
-        logger.error("failed to perform fabric action: %s", r.text)
-        return False
-
-    logger.debug("rest fabric action '%s' fabric '%s': %s",action,fabric,
-        r.json())
-    return True
-
-
-
-def get_fabric_processes():
-    """ get dict of fabric to pid mappings for each active fabric monitor.  An
-        active fabric monitor is a worker running
-            python -m app.models.aci.worker --start <fabric-name>
-            ignore:
-                python -m app.models.aci.worker --stop <fabric-name>
-        returns None on error
-    """
-    fabrics = {}
-    cmd = "ps -eo pid,cmd | egrep python | egrep app.models.aci.worker "
-    
-    reg = "^[ ]*(?P<pid>[0-9]+)[ ]+.+?--start[ ]+(?P<fabric>[^ ]+)"
-    out = aci_utils.run_command(cmd)
-    if out is None:
-        logger.error("failed to get system pids")
-        return None
-    for l in out.split("\n"):
-        l = l.strip()
-        if "egrep" in l: continue
-        r1 = re.search(reg, l)
-        if r1 is not None:
-            pid = int(r1.group("pid"))
-            fab = r1.group("fabric")
-            if fab not in fabrics: fabrics[fab] = []
-            if pid not in fabrics[fab]: fabrics[fab].append(pid)
-    logger.debug("current fabric processes: %s", fabrics)
-    return fabrics

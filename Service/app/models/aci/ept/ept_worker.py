@@ -1,5 +1,5 @@
 
-from ... utils import get_app_config
+from ... utils import get_redis
 from ... utils import get_db
 from . common import wait_for_db
 from . common import wait_for_redis
@@ -26,10 +26,8 @@ class eptWorker(object):
     def __init__(self, worker_id, role):
         self.worker_id = "%s" % worker_id
         self.role = role
-        self.app_config = get_app_config()
         self.db = get_db()
-        self.redis = redis.StrictRedis(host=self.app_config["REDIS_HOST"], 
-                            port=self.app_config["REDIS_PORT"], db=self.app_config["REDIS_DB"])
+        self.redis = get_redis()
 
         # broadcast hello for any managers (registration and keepalives)
         self.hello_thread = None

@@ -1,6 +1,6 @@
 
-from ... utils import get_app_config
 from ... utils import get_db
+from ... utils import get_redis
 from .. fabric import Fabric
 from .. utils import terminate_process
 from . common import HELLO_INTERVAL
@@ -36,10 +36,8 @@ class eptManager(object):
 
     def __init__(self, worker_id):
         self.worker_id = "%s" % worker_id
-        self.app_config = get_app_config()
         self.db = get_db()
-        self.redis = redis.StrictRedis(host=self.app_config["REDIS_HOST"], 
-                            port=self.app_config["REDIS_PORT"], db=self.app_config["REDIS_DB"])
+        self.redis = get_redis()
         self.fabrics = {}               # running fabrics indexed by fabric name
         self.subscribe_thread = None
         self.stats_thread = None
@@ -96,7 +94,7 @@ class eptManager(object):
         }
         p = self.redis.pubsub(ignore_subscribe_messages=True)
         p.subscribe(**channels)
-        self.subscribe_thread = p.run_in_thread()
+        self.subscribe_thread = p.run_in_thread(sleep_time=0.01, daemon=True)
         logger.debug("[%s] listening for events on channels: %s", self, channels.keys())
 
         # wait until there are some workers active
@@ -159,7 +157,6 @@ class eptManager(object):
                 "fabrics": [{
                         "fabric":f, 
                         "alive": fab["process"] is not None and fab["process"].is_alive(),
-                        "waiting_for_retry": fab["waiting_for_retry"],
                     } for f, fab in self.fabrics.items()
                 ]
             }
@@ -200,9 +197,12 @@ class eptManager(object):
                         len(self.worker_tracker.active_workers[role]) == 0:
                         msg = "no active workers for role '%s'" % role
                         logger.warn(msg)
-                        f.add_fabric_event("stopped", msg)
-                        if purge: self.fabrics.pop(fabric, None)
-                        else: self.fabrics[fabric]["waiting_for_retry"] = True
+                        if purge: 
+                            self.fabrics.pop(fabric, None)
+                            f.add_fabric_event("stopped", msg)
+                        else: 
+                            self.fabrics[fabric]["waiting_for_retry"] = True
+                            f.add_fabric_event("waiting to start", msg)
                         return False
 
                 sub = eptSubscriber(f)
@@ -235,6 +235,7 @@ class eptManager(object):
         elif self.fabrics[fabric]["process"] is not None:
             logger.debug("terminating fabric process '%s", fabric)
             terminate_process(self.fabrics[fabric]["process"])
+            self.fabrics[fabric]["process"] = None
             # need to force all workers to flush their caches for this fabric
             flush = eptMsg(MSG_TYPE.FLUSH_FABRIC, data={"fabric": fabric})
             self.worker_tracker.broadcast(flush)
@@ -245,6 +246,14 @@ class eptManager(object):
             else:
                 self.fabrics[fabric]["waiting_for_retry"] = True
             return True
+
+    def check_fabric_processes(self):
+        # check if each running fabric is still running. If not attempt to restart process
+        # triggered by worker_tracker thread at WORKER_UDPATE_INTERVAL interval
+        for f, fab in self.fabrics.items():
+            if fab["process"] is not None and not fab["process"].is_alive():
+                logger.warn("restarting failed fabric '%s'", f)
+                self.start_fabric(f, reason="auto restarting failed monitor")
                 
     def increment_stats(self, queue, tx=False):
         # update stats queue
@@ -308,6 +317,8 @@ class WorkerTracker(object):
         # at a regular interval, check for new workers to add to active worker queue along with
         # removal of inactive workers.  This runs in a background thread independent of hello.  
         # Therefore, the time to detect a new worker is potential 2x update timer
+        # This also triggers fabric check on manager to ensure all subscriber processes are still
+        # running.
         ts = time.time()
         remove_workers = []
         new_workers = False
@@ -361,6 +372,9 @@ class WorkerTracker(object):
 
         if len(remove_workers)>0 or new_workers:
             logger.info("total workers: %s", len(self.known_workers))
+
+        # trigger manager fabric processes check
+        self.manager.check_fabric_processes()
 
         # schedule next worker check
         self.update_thread = threading.Timer(self.update_interval, self.update_active_workers)

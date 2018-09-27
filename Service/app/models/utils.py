@@ -1,9 +1,19 @@
 
 from flask import request
-import random, string, time, logging, re, sys, json, datetime, traceback
-from pymongo import MongoClient
 from flask_bcrypt import generate_password_hash
+from pymongo import MongoClient
+
 import dateutil.parser
+import datetime
+import json
+import logging
+import random
+import re 
+import redis
+import sys 
+import string
+import time
+import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -59,6 +69,11 @@ def get_db(uniq=False, overwrite_global=False):
         if _g_db is None or overwrite_global: _g_db = client[db]
         return client[db]
     return _g_db
+
+def get_redis():
+    # get a unique redis connection object
+    cfg = get_app_config()
+    return redis.StrictRedis(host=cfg["REDIS_HOST"], port=cfg["REDIS_PORT"], db=cfg["REDIS_DB"])
 
 ###############################################################################
 #

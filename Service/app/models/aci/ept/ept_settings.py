@@ -116,33 +116,6 @@ class eptSettings(Rest):
             "min_val": 8, 
             "max_val": 1024,
         },
-        "max_workers":{
-            "type": int,
-            "description": " maximum number of worker processes",
-            "default": 6,
-            "min_val": 1, 
-            "max_val": 128,
-        },
-        "max_jobs":{
-            "type": int,
-            "description": """
-            maximum queue size of pending events to process during steady-state. When this number is
-            exceeded the fabric monitor is restarted.
-            """,
-            "default": 65536,
-            "min_val": 1024, 
-            "max_val": 1048576,
-        },
-        "max_startup_jobs":{
-            "type": int,
-            "description": """
-            maximum queue size of endpoints events to process during fabric startup. This number 
-            must be high enough to support the total number of EPM objects within the fabric.
-            """,
-            "default": 256000,
-            "min_val": 1024, 
-            "max_val": 1048576,
-        },
         "overlay_vnid": {
             "type": int,
             "write": False,

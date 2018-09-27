@@ -17,12 +17,10 @@ logger = logging.getLogger(__name__)
 HELLO_INTERVAL = 1.0
 HELLO_TIMEOUT = 5.0
 SEQUENCE_TIMEOUT = 100
-MANAGER_CTRL_CHANNEL = "manager_ctrl"
+MANAGER_CTRL_CHANNEL = "mctrl"
 MANAGER_WORK_QUEUE = "mq"
-WORKER_CTRL_CHANNEL = "worker_ctrl"
+WORKER_CTRL_CHANNEL = "wctrl"
 WORKER_UPDATE_INTERVAL = 1.0
-
-
 
 ###############################################################################
 #

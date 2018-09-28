@@ -864,142 +864,6 @@ class Rest(object):
             If value is invalid then abort with 400 code and appropriate error
         """
 
-        def raise_error(classname, attr, val, e=""):
-            if len(e)>0: e = ". %s" % e 
-            abort(400, "%s.%s invalid value '%s'%s"%(classname,attr,val, e))
-
-        def default_validator(**kwargs):
-            classname = kwargs.get("classname", "<class>")
-            attribute_name = kwargs.get("attribute_name", "<attribute>")
-            a = kwargs.get("attribute_meta", {})
-            value = kwargs.get("value", None)
-            original_value = value
-
-            atype   = a.get("type", str)
-            values  = a.get("values", None)
-            a_min   = a.get("min", None)
-            a_max   = a.get("max", None)
-            a_regex = a.get("regex", None)
-            subtype = a.get("subtype", None)
-            meta    = a.get("meta", None)
-            index   = 0
-            try:
-                # check for custom validator for attribute first
-                validator = a.get("validator", None)
-                if callable(validator):
-                    return validator(classname=classname, attribute_meta=a,
-                        attribute_name=attribute_name, value=value)
-
-                # if type is a list, then first validate correct type. To allow
-                # per-item validation in list, always assume a list and
-                # return either list or just first item in the list.
-                valid_values = []
-                if atype is list :
-                    if not isinstance(value, list):
-                        raise ValueError("received '%s' but expected a list"%(
-                            str(type(value))))
-                else: 
-                    # perform validation as if attribute was a list, set subtype
-                    # to the original attribute type
-                    value = [value]
-                    subtype = atype
-
-                # perform casting of value only for following primitives:
-                #   str, float, int, bool, dict, list
-                if subtype not in [str, float, int, bool, dict, list]:
-                    cls.logger.warn("unable to validate %s.%s type %s", classname, attribute_name, 
-                                        subtype)
-                    valid_values = value
-                else:
-                    for index, pre_v in enumerate(value):
-                        # cast pre-value to attribute type allowing ValueError
-                        if subtype is str and (isinstance(pre_v, str) or \
-                            isinstance(pre_v,unicode)):
-                            # encode without casting to support utf-8 chars
-                            v = pre_v.encode('utf-8')
-                        elif subtype is bool:
-                            # support string 'True', 'False', 'yes', and 'no' for bools along
-                            # with int/float 1 or 0.  For any other value raise
-                            # ValueError
-                            if isinstance(pre_v, bool): 
-                                v = bool(pre_v)
-                            elif isinstance(pre_v,float) or isinstance(pre_v,int):
-                                v = int(pre_v)
-                                if v!=0 and v!=1: raise ValueError()
-                                v = bool(v)
-                            elif isinstance(pre_v, basestring):
-                                pre_v = pre_v.lower()
-                                if pre_v == "true": v = True
-                                elif pre_v == "false": v = False
-                                elif pre_v == "yes": v = True
-                                elif pre_v == "no": v = False
-                                else: raise ValueError() 
-                            else: raise ValueError()
-                        else: v = subtype(pre_v)
-
-                        # check for formatter function
-                        if callable(a.get("formatter",None)): 
-                            v = a["formatter"](v)
-
-                        # check if value is in list of values
-                        if values is not None and v not in values:
-                            e="Value must be one of the following: %s"%(values)
-                            raise ValueError(e)
-
-                        # handle type dict by examining per-attribute meta
-                        if subtype is dict and meta is not None and len(meta)>0:
-                            vv = {}
-                            for m in meta:
-                                mtype = meta[m].get("type", str)
-                                msubtype = meta[m].get("subtype", None)
-                                if m in v or mtype is dict or \
-                                    (mtype is list and msubtype is dict):
-                                    if m not in v:
-                                        v[m] = [] if mtype is list else {}
-                                    if atype is list:
-                                        aname = "%s.%s.%s" % (attribute_name,
-                                            index, m)
-                                    else: aname = "%s.%s" % (attribute_name, m)
-                                    vv[m] = default_validator(
-                                        classname=classname, 
-                                        attribute_name=aname, 
-                                        value = v[m], attribute_meta=meta[m])
-                                else: 
-                                    vv[m] = meta[m].get("default", None)
-                            # ensure any attributes in v not in meta raise error
-                            for m in v:
-                                if m not in meta:
-                                    raise ValueError("unknown attribute '%s'"%m)
-                            v = vv
-                    
-                        # perform min/max check for int/float only
-                        if subtype is int or subtype is float:
-                            if a_min is not None and v < a_min:
-                                raise ValueError("Must be >= %s" %a_min)
-                            if a_max is not None and v > a_max:
-                                raise ValueError("Must be <= %s" %a_max)
-
-                        # perform regex only for strings
-                        if subtype is str and a_regex is not None:
-                            if not re.search(a_regex, v): raise ValueError()
-
-                        # value is valid
-                        valid_values.append(v)
-
-                # finally single valid value or all values if atype was list
-                if atype is list: return valid_values
-                elif len(valid_values)>0: return valid_values[0]
-
-            except (ValueError, TypeError) as e: 
-                if atype is list: 
-                    attribute_name = "%s.%s" % (attribute_name,index)
-                raise_error(classname, attribute_name, original_value, 
-                    ("%s"%e).strip())
-
-            # should never get error, abort with server error
-            abort(500, "unable to validate %s.%s value %s" % (classname,
-                attribute_name, original_value))
-
         # perform validation on attribute
         attribute_meta = None
         if attr in cls._attributes: attribute_meta = cls._attributes[attr]
@@ -1950,4 +1814,139 @@ class Rest(object):
             raise e
         cls.logger.warn("out of retries")
         raise e
+
+def raise_error(classname, attr, val, e=""):
+    """ raise attribute validate error in with standard format """
+    if len(e)>0: e = ". %s" % e 
+    abort(400, "%s.%s invalid value '%s'%s" % (classname, attr, val, e))
+
+default_validator_primitive_list = [str, float, int, bool, dict, list]
+def default_validator(**kwargs):
+    """ default rest validator engine """
+    classname = kwargs.get("classname", "<class>")
+    attribute_name = kwargs.get("attribute_name", "<attribute>")
+    a = kwargs.get("attribute_meta", {})
+    value = kwargs.get("value", None)
+    original_value = value
+
+    atype   = a.get("type", str)
+    values  = a.get("values", None)
+    a_min   = a.get("min", None)
+    a_max   = a.get("max", None)
+    a_regex = a.get("regex", None)
+    subtype = a.get("subtype", None)
+    meta    = a.get("meta", None)
+    index   = 0
+    try:
+        # check for custom validator for attribute first
+        if callable(a["validator"]):
+            return a["validator"](
+                    classname=classname, 
+                    attribute_meta=a, 
+                    attribute_name=attribute_name, 
+                    value=value
+            )
+
+        # if type is a list, then first validate correct type. To allow per-item validation in list, 
+        # always assume a list and return either list or just first item in the list.
+        valid_values = []
+        if a["type"] is list :
+            if not isinstance(value, list):
+                raise ValueError("received '%s' but expected a list" % (str(type(value))) )
+        else: 
+            # perform validation as if attribute was a list, set subtype to the original type
+            value = [value]
+            subtype = atype
+
+        # perform casting of value only for following primitives:
+        #   str, float, int, bool, dict, list
+        if subtype not in default_validator_primitive_list:
+            logger.warn("unable to validate %s.%s type %s", classname, attribute_name, subtype)
+            valid_values = value
+        else:
+            for index, pre_v in enumerate(value):
+                # cast pre-value to attribute type allowing ValueError
+                if subtype is str and isinstance(pre_v, basestring):
+                    # encode without casting to support utf-8 chars
+                    v = pre_v.encode('utf-8')
+                elif subtype is bool:
+                    # support string 'True', 'False', 'yes', and 'no' for bools along
+                    # with int/float 1 or 0.  For any other value raise ValueError
+                    if isinstance(pre_v, bool): 
+                        v = bool(pre_v)
+                    elif isinstance(pre_v,float) or isinstance(pre_v,int):
+                        v = int(pre_v)
+                        if v!=0 and v!=1: raise ValueError()
+                        v = bool(v)
+                    elif isinstance(pre_v, basestring):
+                        pre_v = pre_v.lower()
+                        if pre_v == "true" or pre_v == "yes": 
+                            v = True
+                        elif pre_v == "false" or pre_v == "no": 
+                            v = False
+                        else: raise ValueError() 
+                    else: raise ValueError()
+                else: v = subtype(pre_v)
+
+                # check for formatter function
+                if callable(a["formatter"]): 
+                    v = a["formatter"](v)
+
+                # check if value is in list of values
+                if values is not None and v not in values:
+                    raise ValueError("Value must be one of the following: %s"%(values))
+
+                # handle type dict by examining per-attribute meta
+                if subtype is dict and meta is not None and len(meta)>0:
+                    vv = {}
+                    for m in meta:
+                        mtype = meta[m].get("type", str)
+                        msubtype = meta[m].get("subtype", None)
+                        if m in v or mtype is dict or (mtype is list and msubtype is dict):
+                            if m not in v:
+                                v[m] = [] if mtype is list else {}
+                            if atype is list:
+                                aname = "%s.%s.%s" % (attribute_name,index, m)
+                            else: aname = "%s.%s" % (attribute_name, m)
+                            vv[m] = default_validator(
+                                    classname=classname, 
+                                    attribute_name=aname, 
+                                    value = v[m], 
+                                    attribute_meta=meta[m]
+                                )
+                        else: 
+                            vv[m] = meta[m].get("default", None)
+
+                    # ensure any attributes in v not in meta raise error
+                    for m in v:
+                        if m not in meta:
+                            raise ValueError("unknown attribute '%s'" % m)
+                    v = vv
+                    
+                # perform min/max check for int/float only
+                if subtype is int or subtype is float:
+                    if a_min is not None and v < a_min:
+                        raise ValueError("Must be >= %s" %a_min)
+                    if a_max is not None and v > a_max:
+                        raise ValueError("Must be <= %s" %a_max)
+
+                # perform regex only for strings
+                if subtype is str and a_regex is not None:
+                    if not re.search(a_regex, v): raise ValueError()
+
+                # value is valid
+                valid_values.append(v)
+
+        # finally single valid value or all values if atype was list
+        if atype is list: return valid_values
+        elif len(valid_values)>0: return valid_values[0]
+
+    except (ValueError, TypeError) as e: 
+        if atype is list: 
+            attribute_name = "%s.%s" % (attribute_name,index)
+        raise_error(classname, attribute_name, original_value, ("%s"%e).strip())
+
+    # should never get here, abort with server error
+    abort(500, "unable to validate %s.%s value %s" % (classname, attribute_name, original_value))
+
 

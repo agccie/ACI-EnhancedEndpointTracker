@@ -253,7 +253,7 @@ class SubscriptionCtrl(object):
                 self.session.subscription_thread.is_alive() and \
                 hasattr(self.session.subscription_thread, "_ws") and \
                 self.session.subscription_thread._ws.connected and \
-                get_dn(self.session, "uni", timeout=3) is not None
+                get_dn(self.session, "uni", timeout=10) is not None
             )
         except Exception as e: pass
         logger.debug("manual check to ensure session is still alive: %r",alive)

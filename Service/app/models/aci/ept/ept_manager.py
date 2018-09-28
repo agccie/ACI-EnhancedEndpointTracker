@@ -97,12 +97,14 @@ class eptManager(object):
         self.subscribe_thread = p.run_in_thread(sleep_time=0.01, daemon=True)
         logger.debug("[%s] listening for events on channels: %s", self, channels.keys())
 
-        # wait until there are some workers active
-        while True:
-            if len(self.worker_tracker.active_workers) == 0:
-                logger.debug("waiting for active workers")
-                time.sleep(HELLO_INTERVAL)
-            else: break
+        # wait for minimum workers to be ready
+        while not self.minimum_workers_ready():
+            time.sleep(HELLO_INTERVAL)
+
+        # start all fabrics with auto_start enabled
+        for f in Fabric.load(_bulk=True):
+            if f.auto_start:
+                self.start_fabric(f.fabric, reason="manager process start")
 
         logger.debug("manager %s ready for work", self.worker_id)
         # watch for work that needs to be dispatched to available workers
@@ -166,18 +168,25 @@ class eptManager(object):
 
         elif msg.msg_type == MSG_TYPE.FABRIC_START:
             # start monitoring for fabric
-            self.start_fabric(msg.data["fabric"], purge=msg.data.get("purge", False),
-                                                    reason=msg.data.get("reason", None))
+            self.start_fabric(msg.data["fabric"], reason=msg.data.get("reason", None))
                 
         elif msg.msg_type == MSG_TYPE.FABRIC_STOP:
             # stop a running fabric
-            self.stop_fabric(msg.data["fabric"], purge=msg.data.get("purge", False), 
-                                                    reason=msg.data.get("reason", None))
+            self.stop_fabric(msg.data["fabric"], reason=msg.data.get("reason", None))
 
-    def start_fabric(self, fabric, purge=False, reason=None):
+    def minimum_workers_ready(self):
+        # return true if worker is ready for each required role.
+        for role in eptManager.REQUIRED_ROLES:
+            if role not in self.worker_tracker.active_workers or \
+                len(self.worker_tracker.active_workers[role]) == 0:
+                logger.debug("no active workers for role '%s'", role)
+                return False
+        return True
+
+    def start_fabric(self, fabric, reason=None):
         # manager start monitoring provided fabric name.  
-        # if purge is set to true, then references to this fabric will be removed from manager. Else,
-        # if a new worker comes online the fabric may automatically restart.
+        # if auto_start is set disabled, then references to this fabric will be removed from manager. 
+        # Else, if a new worker comes online the fabric may automatically restart.
         # return boolean success
         if reason is None: reason = "generic start"
         logger.debug("manager start fabric: %s (%s)", fabric, reason)
@@ -192,18 +201,14 @@ class eptManager(object):
             if f.exists():
                 f.add_fabric_event("started", reason)
                 # check that minimim workers are present
-                for role in eptManager.REQUIRED_ROLES:
-                    if role not in self.worker_tracker.active_workers or \
-                        len(self.worker_tracker.active_workers[role]) == 0:
-                        msg = "no active workers for role '%s'" % role
-                        logger.warn(msg)
-                        if purge: 
-                            self.fabrics.pop(fabric, None)
-                            f.add_fabric_event("stopped", msg)
-                        else: 
-                            self.fabrics[fabric]["waiting_for_retry"] = True
-                            f.add_fabric_event("waiting to start", msg)
-                        return False
+                if not self.minimum_workers_ready():
+                    if not f.auto_start:
+                        self.fabrics.pop(fabric, None)
+                        f.add_fabric_event("stopped", "worker processes are not ready")
+                    else: 
+                        self.fabrics[fabric]["waiting_for_retry"] = True
+                        f.add_fabric_event("waiting to start", "worker processes are not ready")
+                    return False
 
                 sub = eptSubscriber(f)
                 self.fabrics[fabric]["subscriber"] = sub
@@ -213,16 +218,16 @@ class eptManager(object):
                 return True
             else:
                 logger.warn("start requested for fabric '%s' which does not exist", fabric)
-                if purge: self.fabrics.pop(fabric, None)
+                self.fabrics.pop(fabric, None)
                 return False
         else:
             logger.warn("fabric '%s' already running", fabric)
             return False
 
-    def stop_fabric(self, fabric, purge=False, reason=None):
+    def stop_fabric(self, fabric, reason=None):
         # manager stop monitoring provided fabric name.  
-        # if purge is set to true, then references to this fabric will be removed from manager. Else,
-        # if a new worker comes online the fabric may automatically restart.
+        # if auto_start is disabled, then references to this fabric will be removed from manager. 
+        # Else, if a new worker comes online the fabric may automatically restart.
         # return boolean success
         if reason is None: reason = "generic stop"
         logger.debug("manager stop fabric: %s (%s)", fabric, reason)
@@ -242,7 +247,8 @@ class eptManager(object):
             # manager should flush all events from worker queues for the fabric instead of 
             # having worker perform the operation which could lead to race conditions
             self.worker_tracker.flush_fabric(fabric)
-            if purge: self.fabrics.pop(fabric, None)
+            if not f.exists() or not f.auto_start: 
+                self.fabrics.pop(fabric, None)
             else:
                 self.fabrics[fabric]["waiting_for_retry"] = True
             return True

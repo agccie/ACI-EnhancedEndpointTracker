@@ -77,6 +77,12 @@ class Fabric(Rest):
             "read": False,
             "description": "password for ssh access to switch",
         },
+        "auto_start": {
+            "type": bool,
+            "write": False,
+            "default": False,
+            "description": "auto start when application starts or auto restart on failure",
+        },
         "controllers": {
             "type":list,
             "subtype": str,
@@ -167,10 +173,12 @@ class Fabric(Rest):
     @api_route(path="stop", methods=["POST"], swag_ret=["success"])
     def stop_fabric_monitor(self, reason=""):
         """ stop fabric monitor """
+        self.auto_start = False
+        self.save()
         try:
             if len(reason) == 0: reason = "API requested stop"
             redis = get_redis()
-            data={"fabric":self.fabric, "purge":True, "reason":reason}
+            data={"fabric":self.fabric, "reason":reason}
             msg = eptMsg(MSG_TYPE.FABRIC_STOP,data=data)
             redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
             return jsonify({"success":True})
@@ -181,6 +189,8 @@ class Fabric(Rest):
     @api_route(path="start", methods=["POST"], swag_ret=["success"])
     def start_fabric_monitor(self, reason=""):
         """ start fabric monitor """
+        self.auto_start = True
+        self.save()
         try:
             if len(reason) == 0: reason = "API requested start"
             redis = get_redis()

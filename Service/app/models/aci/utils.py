@@ -41,6 +41,7 @@ def build_query_filters(**kwargs):
         targetSubtreeClass=[mo-class]
         queryTargetFilter=[filter]
         rspSubtree=[no|children|full]
+        rspSubtreeClass=[mo-class]
         rspSubtreeInclude=[attr]
         rspPropInclude=[all|naming-only|config-explicit|config-all|oper]
         orderBy=[attr]
@@ -49,6 +50,7 @@ def build_query_filters(**kwargs):
     targetSubtreeClass  = kwargs.get("targetSubtreeClass", None)
     queryTargetFilter   = kwargs.get("queryTargetFilter", None)
     rspSubtree          = kwargs.get("rspSubtree", None)
+    rspSubtreeClass     = kwargs.get("rspSubtreeClass", None)
     rspSubtreeInclude   = kwargs.get("rspSubtreeInclude", None)
     rspPropInclude      = kwargs.get("rspPropInclude", None)
     orderBy             = kwargs.get("orderBy", None)
@@ -61,6 +63,8 @@ def build_query_filters(**kwargs):
         opts+= "&query-target-filter=%s" % queryTargetFilter
     if rspSubtree is not None:
         opts+= "&rsp-subtree=%s" % rspSubtree
+    if rspSubtreeClass is not None:
+        opts+= "&rsp-subtree-class=%s" % rspSubtreeClass
     if rspSubtreeInclude is not None:
         opts+= "&rsp-subtree-include=%s" % rspSubtreeInclude
     if rspPropInclude is not None:
@@ -97,7 +101,6 @@ def get(session, url, **kwargs):
             logger.warn("exception occurred in get request: %s",
                 traceback.format_exc())
             return None
-        logger.debug("response time: %f", (time.time() - tstart))
         if resp is None or not resp.ok:
             logger.warn("failed to get data: %s", url)
             return None
@@ -107,7 +110,8 @@ def get(session, url, **kwargs):
                 logger.warn("failed to parse js reply: %s", pretty_print(js))
                 return None
             results+=js["imdata"]
-            logger.debug("results count: %s/%s", len(results), js["totalCount"])
+            logger.debug("time: %0.3f, results count: %s/%s", time.time() - tstart, len(results), 
+                    js["totalCount"])
             if len(js["imdata"])<page_size or \
                 len(results)>=int(js["totalCount"]):
                 #logger.debug("all pages received")

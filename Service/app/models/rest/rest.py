@@ -27,7 +27,7 @@ class Rest(object):
             Rest.update(_data, _params)
             Rest.delete(_params)
 
-            # load an object from database based on key attributes
+            # load an object from database based on key attributes and auto-set non-key values
             object = Rest.load(**kwargs)
 
             # get dict/json representation of object
@@ -43,6 +43,9 @@ class Rest(object):
             # a classmethod to delete multiple entries from database whereas
             # remove deletes only currently referenced object
             object.remove()     
+
+            # get list of objects based on any attribute value
+            objects = Rest.find(attr1=value1, ...)
     
         # optional callback kwargs
         callback functions will receive all kwargs that CRUD function received.
@@ -511,7 +514,10 @@ class Rest(object):
                         if self._access["before_update"] or self._access["after_update"]:
                             reload_required = True
                         result = True
-                else: result = True     # if no update then save is still successful
+                else: 
+                    # if no update then save is still successful (return none for bulk prep)
+                    if bulk_prep: result = None
+                    else: result = True     
 
             # if there are callbacks for create/update then it's possible that the attribute values
             # were changed on save. we don't want to do this on bulk as it requires a db read which
@@ -557,12 +563,52 @@ class Rest(object):
                 timing = "build_time: %0.3f, insert_time: %0.3f, total_time: %0.3f" % (
                     insert_time - ts, now - insert_time, now - ts
                 )
-                cls.logger.debug("bulk write results (objects:%s), inserts: %s, updates: %s, %s", 
-                        len(bulk), result.inserted_count, result.modified_count, timing)
+                cls.logger.debug("%s bulk write results (objects:%s), inserts: %s, updates: %s, %s", 
+                    cls._classname, len(bulk), result.inserted_count, result.modified_count, timing)
             return True
         except BulkWriteError as be:
             cls.logger.warn("%s bulkwrite error: %s", cls._classname, be.details)
         return False
+
+    @classmethod
+    def find(cls, _rsp_include="self", **kwargs):
+        """ return list of instantiated rest objects matching kwargs (object attributes). 
+            value is found by performing read with provided attributes.  This is similar to load 
+            (_bulk=True) with the exception that load uses only key attributes for read and all 
+            non-key attributes are used to overwrite object values. I.e., load is a find + override
+            for non-keys.
+            
+            TODO (handle children on load)
+            _rsp_include to [self, children, subtree] to build children objects
+        """
+        results = []
+        try:
+            read_kwargs = {"_read_all":True}
+            for attr in cls._attributes:
+                if attr in kwargs:
+                    read_kwargs[attr] = kwargs[attr]
+            if "_id" in kwargs and cls._access["expose_id"]:
+                read_kwargs["_id"] = kwargs["_id"]
+            ret = cls.read(_disable_page=True, **read_kwargs)
+            if "objects" in ret and isinstance(ret["objects"], list):
+                for o in ret["objects"]:
+                    if cls._classname in o: 
+                        obj = cls(**o[cls._classname])
+                        obj._exists = True
+                        # update original_attributes to db value
+                        for attr in cls._attributes:
+                            if not cls._attributes[attr]["key"] and hasattr(obj, attr):
+                                obj._original_attributes[attr] = copy.deepcopy(getattr(obj, attr))
+                        # add _id to object for expose_id objects
+                        if cls._access["expose_id"] and "_id" in db_obj: 
+                            setattr(obj, "_id", o[cls._classname]["_id"])
+                        results.append(obj)
+        except NotFound as e:
+            cls.logger.debug("%s load not found: %s", cls._classname,e)
+        except Exception as e:
+            cls.logger.debug("traceback: %s", traceback.format_exc())
+            cls.logger.warn("%s load failed: %s", cls._classname, e)
+        return results
 
     @classmethod
     def load(cls, _bulk=False, _rsp_include="self", **kwargs):
@@ -872,21 +918,21 @@ class Rest(object):
                             # encode without casting to support utf-8 chars
                             v = pre_v.encode('utf-8')
                         elif subtype is bool:
-                            # support string 'True' and 'False' for bools along
+                            # support string 'True', 'False', 'yes', and 'no' for bools along
                             # with int/float 1 or 0.  For any other value raise
                             # ValueError
                             if isinstance(pre_v, bool): 
                                 v = bool(pre_v)
-                            elif isinstance(pre_v,float) or \
-                                isinstance(pre_v,int):
+                            elif isinstance(pre_v,float) or isinstance(pre_v,int):
                                 v = int(pre_v)
                                 if v!=0 and v!=1: raise ValueError()
                                 v = bool(v)
-                            elif isinstance(pre_v,str) or \
-                                isinstance(pre_v,unicode):
+                            elif isinstance(pre_v, basestring):
                                 pre_v = pre_v.lower()
                                 if pre_v == "true": v = True
                                 elif pre_v == "false": v = False
+                                elif pre_v == "yes": v = True
+                                elif pre_v == "no": v = False
                                 else: raise ValueError() 
                             else: raise ValueError()
                         else: v = subtype(pre_v)
@@ -1195,7 +1241,8 @@ class Rest(object):
         """
         cls.init()
         classname = cls._classname
-        #cls.logger.debug("%s create request", classname)
+        if not _bulk_prep:
+            cls.logger.debug("%s create request", classname)
         collection = get_db()[classname]
         callback_kwargs = {
             "api": kwargs.get("_api", False),
@@ -1618,7 +1665,8 @@ class Rest(object):
         """
         cls.init()
         classname = cls._classname
-        cls.logger.debug("%s update request kwargs: %s", classname,kwargs)
+        if not _bulk_prep:
+            cls.logger.debug("%s update request kwargs: %s", classname,kwargs)
         collection = get_db()[classname]
         callback_kwargs = {
             "api": kwargs.get("_api", False),

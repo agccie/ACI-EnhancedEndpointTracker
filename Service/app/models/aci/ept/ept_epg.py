@@ -5,6 +5,11 @@ import logging
 # module level logging
 logger = logging.getLogger(__name__)
 
+def pctag_validator(classname, attribute_name, attribute_meta, value):
+    # convert pctag to int, set to 0 on 'any' or any unexpected string
+    try: return int(value)
+    except Exception as e: return 0
+
 @api_register(parent="fabric", path="ept/epg")
 class eptEpg(Rest):
     """ provide mapping of pctag and vrf to epg name and bd vnid """ 
@@ -33,6 +38,7 @@ class eptEpg(Rest):
             policy control tag representing epg.  For epgs with pctag of 'any', this is 
             programmed with a value of 0
             """,
+            "validator": pctag_validator,
         },
         "name": {
             "type": str,
@@ -48,7 +54,7 @@ class eptEpg(Rest):
             "description": """
             true for isAttrBasedEPgs (useg epgs). This flag is used to override/ignore subnet check
             for uSeg EPGs.
-            """
+            """,
         },
         "ts": {
             "type": float,

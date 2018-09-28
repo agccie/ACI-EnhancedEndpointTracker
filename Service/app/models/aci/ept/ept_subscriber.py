@@ -11,9 +11,11 @@ from .. subscription_ctrl import SubscriptionCtrl
 
 from . common import MINIMUM_SUPPORTED_VERSION
 from . common import get_vpc_domain_id
+from . ept_epg import eptEpg
 from . ept_node import eptNode
 from . ept_tunnel import eptTunnel
 from . ept_settings import eptSettings
+from . ept_vnid import eptVnid
 
 import logging
 import re
@@ -45,7 +47,7 @@ class eptSubscriber(object):
             "fvCtx",
             "fvBD",
             "fvSvcBD",
-            "fvEPg",
+            "fvEPg",        # this includes fvAEPg, l3extInstP, vnsEPpInfo
             "fvRsBd",
             "vnsRsEPpInfoToBD",
             "l3extExtEncapAllocator",
@@ -118,7 +120,10 @@ class eptSubscriber(object):
         self.fabric.add_fabric_event(init_str, "apic version: %s" % apic_version[0]["version"])
         if version is None or min_version is None:
             logger.warn("failed to parse apic version: %s (min version: %s)", version, min_version)
-            self.fabric.add_fabric_event("failed","unknown or unsupported apic version: %s"%version)
+            self.fabric.add_fabric_event("failed","unknown or unsupported apic version: %s" % (
+                apic_version[0]["version"]))
+            self.fabric.auto_start = False
+            self.fabric.save()
             return
         # will check major/min/build and ignore patch for version check for now
         min_matched = True
@@ -131,7 +136,10 @@ class eptSubscriber(object):
                 min_matched = (version["build"] >= min_version["build"])
         if not min_matched:
             logger.warn("fabric does not meet minimum code version (%s < %s)", version, min_version)
-            self.fabric.add_fabric_event("failed", "unsupported apic version: %s" % version)
+            self.fabric.add_fabric_event("failed","unknown or unsupported apic version: %s" % (
+                apic_version[0]["version"]))
+            self.fabric.auto_start = False
+            self.fabric.save()
             return
 
         # get overlay vnid
@@ -142,7 +150,7 @@ class eptSubscriber(object):
         else:
             logger.warn("failed to determine overlay vnid: %s", overlay_attr)
             self.fabric.add_fabric_event("failed", "unable to determine overlay-1 vnid")
-        self.fabric.add_fabric_event(init_str, "overlay vnid 0x%x" % self.settings.overlay_vnid)
+            return
        
         # setup slow subscriptions to catch events occurring during build
         self.slow_subscription.subscribe(blocking=False)
@@ -158,6 +166,20 @@ class eptSubscriber(object):
         if not self.build_tunnel_db():
             self.fabric.add_fabric_event("failed", "failed to build tunnel db")
             return
+
+        # build vnid db
+        self.fabric.add_fabric_event(init_str, "building vnid db")
+        if not self.build_vnid_db():
+            self.fabric.add_fabric_event("failed", "failed to build vnid db")
+            return
+
+        # build epg db
+        self.fabric.add_fabric_event(init_str, "building epg db")
+        if not self.build_epg_db():
+            self.fabric.add_fabric_event("failed", "failed to build epg db")
+            return
+
+
 
 
         # setup epm subscriptions to catch events occurring during epm build
@@ -180,6 +202,7 @@ class eptSubscriber(object):
         """ generic handler to call appropriate handler based on event classname
             this will also enque events into buffer until intialization has completed
         """
+        logger.debug("event: %s", event)
         if self.initializing:
             self.pending_events.append(event)
             return
@@ -199,7 +222,7 @@ class eptSubscriber(object):
                 logger.warn("invalid event: %s", e)
 
     def initialize_generic_db_collection(self, restObject, classname, attribute_map, regex_map={}, 
-            set_ts=False):
+            set_ts=False, flush=False):
         """ most of the initialization is similar steps:
                 - delete current objects for restObject
                 - perform class query for classname
@@ -208,8 +231,8 @@ class eptSubscriber(object):
             this function assumes all objects have 'fabric' as one of the key attributes
 
             attribute_map must be a dict in the following format: {
-                "ACI-MO-ATTRIBUTE1": "db-attribute1-name",
-                "ACI-MO-ATTRIBUTE2": "db-attribute2-name",
+                "db-attribute1-name": "ACI-MO-ATTRIBUTE1"
+                "db-attribute2-name": "ACI-MO-ATTRIBUTE2"
                 ...
             }
             only the attributes provided in the attribute map will be added to the db object
@@ -223,10 +246,14 @@ class eptSubscriber(object):
 
             set_ts is boolean.  If true then each object will have timestamp set to 'now'
 
+            flush is boolean. Set to true to delete current entries in db before insert
+
             return bool success
         """
-        logger.debug("init collection %s for fabric %s", restObject._classname, self.fabric.fabric)
-        restObject.delete(_filters={"fabric":self.fabric.fabric})
+        if flush:
+            logger.debug("flushing previous entries in %s for fabric %s", restObject._classname,
+                    self.fabric.fabric)
+            restObject.delete(_filters={"fabric":self.fabric.fabric})
 
         data = get_class(self.session, classname)
         if data is None:
@@ -241,7 +268,7 @@ class eptSubscriber(object):
                 if "attributes" in obj[cname]:
                     attr = obj[cname]["attributes"]
                     db_obj = {"fabric": self.fabric.fabric}
-                    for o_attr, db_attr in attribute_map.items():
+                    for db_attr, o_attr in attribute_map.items():
                         if o_attr in attr:
                             # check for regex_map
                             if db_attr in regex_map:
@@ -278,20 +305,20 @@ class eptSubscriber(object):
         """ initialize node collection and vpc nodes. return bool success """
         logger.debug("initializing node db")
         if not self.initialize_generic_db_collection(eptNode, "topSystem", {
-                "address": "addr",
+                "addr": "address",
                 "name": "name",
-                "id": "node",
-                "oobMgmtAddr": "oob_addr",
-                "podId": "pod_id",
+                "node": "id",
+                "oob_addr": "oobMgmtAddr",
+                "pod_id": "podId",
                 "role": "role",
                 "state": "state",
-            }):
+            }, flush=True):
             logger.warn("failed to initialize node db from topSystem")
             return False
 
         # maintain list of all nodes for id to addr lookup 
         all_nodes = {}
-        for n in eptNode.load(fabric=self.fabric.fabric, _bulk=True):
+        for n in eptNode.find(fabric=self.fabric.fabric):
             all_nodes[n.node] = n
 
         # create pseudo node for each vpc group from fabricAutoGEp and fabricExplicitGEp each of 
@@ -366,22 +393,159 @@ class eptSubscriber(object):
 
 
     def build_tunnel_db(self):
-        """ initialize tunnel db
-            return bool success
-        """
+        """ initialize tunnel db. return bool success """
         logger.debug("initializing tunnel db")
         return self.initialize_generic_db_collection(eptTunnel, "tunnelIf", {
-                "dn": "node",
-                "id": "intf",
-                "dest": "dst",
-                "src": "src", 
-                "operSt": "status",
-                "tType": "encap",
-                "type": "flags",
-            }, set_ts=True, regex_map = {
+                "node": "dn",
+                "intf": "id",
+                "dst": "dest",
+                "src": "src",
+                "status": "operSt",
+                "encap": "tType",
+                "flags": "type",
+            }, set_ts=True, flush=True, regex_map = {
                 "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
                 "src": "(?P<value>[^/]+)(/[0-9]+)?",
             })
+
+    def build_vnid_db(self):
+        """ initialize vnid database. return bool success
+            vnid objects include the following:
+                fvCtx (vrf)
+                fvBD (BD)
+                fvSvcBD (copy-service BD)
+                l3extExtEncapAllocator (external BD)
+        """
+        logger.debug("initializing vnid db")
+       
+        # handle fvCtx
+        logger.debug("bulding vnid from fvCtx")
+        if not self.initialize_generic_db_collection(eptVnid, "fvCtx", {
+                "vnid": "scope",
+                "vrf": "scope",
+                "pctag": "pcTag",
+                "name": "dn",
+            }, set_ts=True, flush=True):
+            logger.warn("failed to initialize vnid db for fvCtx")
+            return False
+
+        # handle fvBD and fvSvcBD
+        for classname in ["fvBD", "fvSvcBD"]:
+            logger.debug("bulding vnid from %s", classname)
+            if not self.initialize_generic_db_collection(eptVnid, classname, {
+                    "vnid": "seg",
+                    "vrf": "scope",
+                    "pctag": "pcTag",
+                    "name": "dn",
+                }, set_ts=True, flush=False):
+                logger.warn("failed to initialize vnid db for %s", classname)
+                return False
+
+        # dict of name (vrf/bd) to vnid for quick lookup
+        logger.debug("bulding vnid from l3extExtEncapAllocator")
+        vnids = {}  
+        for v in eptVnid.find(fabric=self.fabric.fabric): 
+            vnids[v.name] = v.vnid
+        # handle l3extExtEncapAllocator (external BD) which requires second lookup for vrf 
+        bulk_objects = []
+        data = get_class(self.session, "l3extOut", rspSubtree="full", 
+                                    rspSubtreeClass="l3extExtEncapAllocator,l3extRsEctx")
+        ts = time.time()
+        if data is not None and len(data)>0:
+            for obj in data:
+                ext_bd = []
+                ext_vrf = None
+                cname = obj.keys()[0]
+                dn = obj[cname]["attributes"]["dn"]
+                if "children" in obj[cname] and len(obj[cname]["children"]) > 0:
+                    for cobj in obj[cname]["children"]:
+                        cname = cobj.keys()[0]
+                        attr = cobj[cname]["attributes"]
+                        if cname == "l3extRsEctx" and "tDn" in attr:
+                            if attr["tDn"] in vnids:
+                                ext_vrf = vnids[attr["tDn"]]
+                            else:
+                                logger.warn("unknown vrf %s in l3extRxEctx: %s", attr["tDn"], attr)
+                        if cname == "l3extExtEncapAllocator":
+                            ext_bd.append(eptVnid(
+                                fabric = self.fabric.fabric,
+                                vnid = int(re.sub("vxlan-","", attr["extEncap"])),
+                                name = "%s/encap-[%s]" % (dn, attr["encap"]),
+                                encap = attr["encap"],
+                                ts = ts,
+                            ))
+                    if ext_vrf is not None:
+                        for bd in ext_bd:
+                            bd.vrf = ext_vrf
+                            bulk_objects.append(bd)
+                    else:
+                        logger.warn("unable to add (%s) external BDs vnids, vrf not set",len(ext_bd))
+
+        if len(bulk_objects)>0:
+            eptVnid.bulk_save(bulk_objects, skip_validation=False)
+        return True
+
+    def build_epg_db(self):
+        """ initialize epg database. return bool success
+            epg objects include the following (all instances of fvEPg)
+                fvAEPg      - normal epg            (fvRsBd - map to fvBD)
+                mgmtInb     - inband mgmt epg       (mgmtRsMgmtBD - map to fvBD)
+                vnsEPpInfo  - epg from l4 graph     (vnsRsEPpInfoToBD - map to fvBD)
+                l3extInstP  - external epg          (no BD)
+        """
+        logger.debug("initializing epg db")
+        if not self.initialize_generic_db_collection(eptEpg, "fvEPg", {
+                "vrf": "scope",
+                "pctag": "pcTag",
+                "name": "dn",
+                "is_attr_based": "isAttrBasedEPg",
+            }, set_ts=True, flush=True):
+            logger.warn("failed to initialize epg db from fvEPg")
+            return False
+      
+        logger.debug("mapping epg to bd vnid")
+        # need to build mapping of epg to bd. to do so need to get the dn of the BD for each epg
+        # and then lookup into vnids table for bd name to get bd vnid to merge into epg table
+        bulk_object_keys = {}   # dict to prevent duplicate addition of object to bulk_objects
+        bulk_objects = []
+        vnids = {}      # indexed by bd/vrf name (dn), contains only vnid
+        epgs = {}       # indexed by epg name (dn), contains full object
+        for v in eptVnid.find(fabric=self.fabric.fabric): 
+            vnids[v.name] = v.vnid
+        for e in eptEpg.find(fabric=self.fabric.fabric):
+            epgs[e.name] = e
+        for classname in ["fvRsBd", "vnsRsEPpInfoToBD", "mgmtRsMgmtBD"]:
+            data = get_class(self.session, classname)
+            if data is None:
+                logger.warn("failed to get data for classname: %s", classname)
+            for obj in data:
+                cname = obj.keys()[0]
+                attr = obj[cname]["attributes"]
+                if "tDn" not in attr or "dn" not in attr:
+                    logger.warn("invalid %s object (missing dn/tDn): %s", classname, obj)
+                    continue
+                epg_name = re.sub("/(rsbd|rsEPpInfoToBD|rsmgmtBD)$", "", attr["dn"])
+                bd_name = attr["tDn"]
+                if epg_name not in epgs:
+                    logger.warn("cannot map bd to unknown epg '%s' from %s", epg_name, classname)
+                    continue
+                if bd_name not in vnids:
+                    logger.warn("cannot map epg %s to unknow bd %s", epg_name, bd_name)
+                    continue
+                epgs[epg_name].bd = vnids[bd_name]
+                if epg_name not in bulk_object_keys:
+                    bulk_object_keys[epg_name] = 1
+                    bulk_objects.append(epgs[epg_name])
+
+        if len(bulk_objects)>0:
+            # only adding vnid here which was validated from eptVnid so no validation required
+            eptEpg.bulk_save(bulk_objects, skip_validation=True)
+        return True
+                            
+
+
+
+
 
     
 

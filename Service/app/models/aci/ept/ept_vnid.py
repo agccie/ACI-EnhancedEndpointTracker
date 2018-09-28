@@ -1,5 +1,6 @@
 from ...rest import Rest
 from ...rest import api_register
+from . ept_epg import pctag_validator
 import logging
 
 # module level logging
@@ -40,6 +41,7 @@ class eptVnid(Rest):
             policy control tag representing epg.  For epgs with pctag of 'any', this is 
             programmed with a value of 0
             """,
+            "validator": pctag_validator,
         },
         "encap": {
             "type": str,

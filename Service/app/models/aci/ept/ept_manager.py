@@ -102,9 +102,8 @@ class eptManager(object):
             time.sleep(HELLO_INTERVAL)
 
         # start all fabrics with auto_start enabled
-        for f in Fabric.load(_bulk=True):
-            if f.auto_start:
-                self.start_fabric(f.fabric, reason="manager process start")
+        for f in Fabric.find(auto_start=True):
+            self.start_fabric(f.fabric, reason="manager process start")
 
         logger.debug("manager %s ready for work", self.worker_id)
         # watch for work that needs to be dispatched to available workers
@@ -195,11 +194,12 @@ class eptManager(object):
                 "process": None,
                 "subscriber": None,
                 "waiting_for_retry": False,
+                "fabric": None,
             }
         if self.fabrics[fabric]["process"] is None or not self.fabrics[fabric]["process"].is_alive():
             f = Fabric.load(fabric=fabric)
             if f.exists():
-                f.add_fabric_event("started", reason)
+                f.add_fabric_event("starting", reason)
                 # check that minimim workers are present
                 if not self.minimum_workers_ready():
                     if not f.auto_start:
@@ -256,10 +256,18 @@ class eptManager(object):
     def check_fabric_processes(self):
         # check if each running fabric is still running. If not attempt to restart process
         # triggered by worker_tracker thread at WORKER_UDPATE_INTERVAL interval
+        remove_list = []
         for f, fab in self.fabrics.items():
             if fab["process"] is not None and not fab["process"].is_alive():
-                logger.warn("restarting failed fabric '%s'", f)
-                self.start_fabric(f, reason="auto restarting failed monitor")
+                # validate auto_start is enabled on the no-longer running fabric
+                logger.warn("fabric %s no longer running", f)
+                if Fabric.load(fabric=f).auto_start and False:
+                    self.start_fabric(f, reason="auto restarting failed monitor")
+                else: 
+                    remove_list.append(f)
+        # stop tracking fabrics in remove list
+        for f in remove_list: self.fabrics.pop(f)
+
                 
     def increment_stats(self, queue, tx=False):
         # update stats queue

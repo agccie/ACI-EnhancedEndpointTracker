@@ -15,7 +15,9 @@ from . ept_epg import eptEpg
 from . ept_node import eptNode
 from . ept_tunnel import eptTunnel
 from . ept_settings import eptSettings
+from . ept_subnet import eptSubnet
 from . ept_vnid import eptVnid
+from . ept_vpc import eptVpc
 
 import logging
 import re
@@ -155,10 +157,13 @@ class eptSubscriber(object):
         # setup slow subscriptions to catch events occurring during build
         self.slow_subscription.subscribe(blocking=False)
 
-        # build node db
+        # build node db and vpc db
         self.fabric.add_fabric_event(init_str, "building node db")
         if not self.build_node_db():
             self.fabric.add_fabric_event("failed", "failed to build node db")
+            return
+        if not self.build_vpc_db():
+            self.fabric.add_fabric_event("failed", "failed to build node pc to vpc db")
             return
 
         # build tunnel db
@@ -179,8 +184,11 @@ class eptSubscriber(object):
             self.fabric.add_fabric_event("failed", "failed to build epg db")
             return
 
-
-
+        # build subnet db
+        self.fabric.add_fabric_event(init_str, "building subnet db")
+        if not self.build_subnet_db():
+            self.fabric.add_fabric_event("failed", "failed to build subnet db")
+            return
 
         # setup epm subscriptions to catch events occurring during epm build
         self.epm_subscription.subscribe(blocking=False)
@@ -250,11 +258,6 @@ class eptSubscriber(object):
 
             return bool success
         """
-        if flush:
-            logger.debug("flushing previous entries in %s for fabric %s", restObject._classname,
-                    self.fabric.fabric)
-            restObject.delete(_filters={"fabric":self.fabric.fabric})
-
         data = get_class(self.session, classname)
         if data is None:
             logger.warn("failed to get data for classname %s", classname)
@@ -295,10 +298,14 @@ class eptSubscriber(object):
             else:
                 logger.warn("invalid %s object: %s (empty dict)", classname, obj)
 
+        # flush right before insert to minimize time of empty table
+        if flush:
+            logger.debug("flushing entries in %s for fabric %s",restObject._classname,self.fabric.fabric)
+            restObject.delete(_filters={"fabric":self.fabric.fabric})
         if len(bulk_objects)>0:
             restObject.bulk_save(bulk_objects, skip_validation=False)
         else:
-            logger.debug("no objects of %s found", classname)
+            logger.debug("no objects of %s to insert", classname)
         return True
     
     def build_node_db(self):
@@ -391,6 +398,16 @@ class eptSubscriber(object):
             eptNode.bulk_save(bulk_objects, skip_validation=False)
         return True
 
+    def build_vpc_db(self):
+        """ build port-channel to vpc interface mapping. return bool success """
+        logger.debug("initializing vpc db")
+        return self.initialize_generic_db_collection(eptVpc, "vpcRsVpcConf", {
+                "node": "dn",
+                "intf": "tSKey",
+                "vpc": "parentSKey",
+            }, set_ts = True, flush=True, regex_map ={
+                "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
+            })
 
     def build_tunnel_db(self):
         """ initialize tunnel db. return bool success """
@@ -518,6 +535,7 @@ class eptSubscriber(object):
             data = get_class(self.session, classname)
             if data is None:
                 logger.warn("failed to get data for classname: %s", classname)
+                continue
             for obj in data:
                 cname = obj.keys()[0]
                 attr = obj[cname]["attributes"]
@@ -527,10 +545,10 @@ class eptSubscriber(object):
                 epg_name = re.sub("/(rsbd|rsEPpInfoToBD|rsmgmtBD)$", "", attr["dn"])
                 bd_name = attr["tDn"]
                 if epg_name not in epgs:
-                    logger.warn("cannot map bd to unknown epg '%s' from %s", epg_name, classname)
+                    logger.warn("cannot map bd to unknown epg '%s' from '%s'", epg_name, classname)
                     continue
                 if bd_name not in vnids:
-                    logger.warn("cannot map epg %s to unknow bd %s", epg_name, bd_name)
+                    logger.warn("cannot map epg %s to unknown bd '%s'", epg_name, bd_name)
                     continue
                 epgs[epg_name].bd = vnids[bd_name]
                 if epg_name not in bulk_object_keys:
@@ -541,10 +559,93 @@ class eptSubscriber(object):
             # only adding vnid here which was validated from eptVnid so no validation required
             eptEpg.bulk_save(bulk_objects, skip_validation=True)
         return True
-                            
 
+    def build_subnet_db(self):
+        """ build subnet db 
+            Only two objects that we care about but they can come from a few different places:
+                - fvSubnet
+                    - fvBD, fvAEPg
+                      vnsEPpInfo and vnsLIfCtx where the latter requires vnsRsLIfCtxToBD lookup
+                - fvIpAttr
+                    - fvAEPg
+        """
+        logger.debug("initializing subnet db")
 
+        # use subnet dn as lookup into vnid and epg table to determine corresponding bd vnid
+        # yes, we're doing duplicate db lookup as build_epg_db but db lookup on init is minimum
+        # performance hit even with max scale
+        vnids = {}
+        epgs = {}
+        for v in eptVnid.find(fabric=self.fabric.fabric): 
+            vnids[v.name] = v.vnid
+        for e in eptEpg.find(fabric=self.fabric.fabric):
+            # we only care about the bd vnid, only add to epgs list if a non-zero value is present
+            if e.bd != 0: epgs[e.name] = e.bd
 
+        # build bd mapping for vnsLIfCtx to support service graph subnets
+        vns_epg = {}    # indexed by vnsLIfCtx dn with mapping to bd vnid
+        data = get_class(self.session, "vnsRsLIfCtxToBD")
+        if data is not None and len(data)>0:
+            for obj in data:
+                cname = obj.keys()[0]
+                if "tDn" in obj[cname]["attributes"] and "dn" in obj[cname]["attributes"]:
+                    vns_dn = re.sub("/rsLIfCtxToBD$", "", obj[cname]["attributes"]["dn"])
+                    bd_dn = obj[cname]["attributes"]["tDn"]
+                    if bd_dn in vnids:
+                        vns_epg[vns_dn] = vnids[bd_dn]
+                    else:
+                        logger.warn("unable to map vnsLIfCtx '%s' to unknown bd '%s'",vns_dn,bd_dn)
+
+        dup_check = {}
+        dup_count = 0
+        bulk_objects = []
+        # should now have all objects that would contain a subnet 
+        for classname in ["fvSubnet", "fvIpAttr"]:
+            data = get_class(self.session, classname)
+            ts = time.time()
+            if data is None:
+                logger.warn("failed to get data for classname: %s", classname)
+                continue
+            for obj in data:
+                cname = obj.keys()[0]
+                attr = obj[cname]["attributes"]
+                if "ip" not in attr or "dn" not in attr:
+                    logger.warn("invalid %s object (missing dn/ip): %s", classname, obj)
+                    continue
+                if attr["ip"] == "0.0.0.0" or "usefvSubnet" in attr and attr["usefvSubnet"]=="yes":
+                    logger.debug("skipping invalid subnet for %s, %s", attr["ip"], attr["dn"])
+                else:
+                    dn = re.sub("(/crtrn/ipattr-.+$|/subnet-\[[^]]+\]$)","", attr["dn"])
+                    # usually in bd so check vnid first and then epg and then vns
+                    bd_vnid = None
+                    if dn in vnids:
+                        bd_vnid = vnids[dn]
+                    elif dn in epgs:
+                        bd_vnid = epgs[dn]
+                    elif dn in vns_epg:
+                        bd_vnid = vns_epg[dn]
+                    if bd_vnid is not None:
+                        # we support fvSubnet on BD and EPG for shared services so duplicate subnet
+                        # can exist so prevent dup added here which causes db error
+                        if bd_vnid not in dup_check: dup_check[bd_vnid] = {}
+                        if attr["ip"] not in dup_check[bd_vnid]:
+                            dup_check[bd_vnid][attr["ip"]] = 1
+                            bulk_objects.append(eptSubnet(
+                                fabric = self.fabric.fabric,
+                                bd = bd_vnid,
+                                subnet = attr["ip"],
+                                ts = ts
+                            ))
+                        else: dup_count+=1
+                    else:
+                        logger.warn("failed to map subnet '%s' (%s) to a bd", attr["dn"], dn)
+
+        logger.debug("duplicate subnet count: %s", dup_count)
+        logger.debug("flushing entries in %s for fabric %s",eptSubnet._classname,self.fabric.fabric)
+        eptSubnet.delete(_filters={"fabric":self.fabric.fabric})
+        if len(bulk_objects)>0:
+            eptSubnet.bulk_save(bulk_objects, skip_validation=False)
+        return True
 
 
     

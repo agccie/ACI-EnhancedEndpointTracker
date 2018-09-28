@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @api_register(parent="fabric", path="ept/subnet")
 class eptSubnet(Rest):
-    """ provide mapping of BD vnid to list of configured subnets """ 
+    """ provide subnet to BD vnid mapping for configured subnets """ 
     logger = logger
 
     META_ACCESS = {
@@ -37,6 +37,7 @@ class eptSubnet(Rest):
         },
         "type": {
             "type": str,
+            "default": "ipv4",
             "description": "subnet prefix type of ipv4 or ipv6",
             "values": ["ipv4", "ipv6"],
         },

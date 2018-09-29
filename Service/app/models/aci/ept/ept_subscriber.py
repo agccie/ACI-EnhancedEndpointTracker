@@ -701,12 +701,16 @@ class eptSubscriber(object):
         if attr["status"] == "created":
             bd_vnid = 0
             if classname == "fvIpAttr":
+                logger.debug("lookup eptEpg for %s", dn)
                 obj = eptEpg.find(name=dn)
             elif "/BD-" in dn or "/svcBD-" in dn:
+                logger.debug("lookup eptVnid for %s", dn)
                 obj = eptVnid.find(name=dn)
-            elif "/lifCtx-" in dn:
+            elif "/lIfCtx-" in dn:
+                logger.debug("lookup eptVnsRsLIfCtxToBD for %s", dn)
                 obj = eptVnsRsLIfCtxToBD.find(parent=dn)
             else:
+                logger.debug("(catchall) lookup eptEpg for %s", dn)
                 obj = eptEpg.find(name=dn)
             if len(obj)==0:
                 logger.warn("unable to determine bd vnid for subnet: %s", attr["dn"])

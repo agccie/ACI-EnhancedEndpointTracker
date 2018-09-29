@@ -318,7 +318,7 @@ class Fabric(Rest):
         ret["success"] = True
         return jsonify(ret)
 
-    def add_fabric_event(self, status, description):
+    def add_fabric_event(self, status, description=""):
         """ add a new status and description to events list """
         logger.debug("add event %s: %s to %s", status, description, self.fabric)
         if not self.exists():

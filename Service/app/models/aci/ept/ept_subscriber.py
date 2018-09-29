@@ -17,6 +17,7 @@ from . ept_tunnel import eptTunnel
 from . ept_settings import eptSettings
 from . ept_subnet import eptSubnet
 from . ept_vnid import eptVnid
+from . ept_vns_rs_lif_ctx_to_bd import eptVnsRsLIfCtxToBD
 from . ept_vpc import eptVpc
 
 import logging
@@ -52,6 +53,7 @@ class eptSubscriber(object):
             "fvEPg",        # this includes fvAEPg, l3extInstP, vnsEPpInfo
             "fvRsBd",
             "vnsRsEPpInfoToBD",
+            "vnsRsLIfCtxToBD",
             "l3extExtEncapAllocator",
             "fvSubnet",
             "fvIpAttr",
@@ -63,8 +65,9 @@ class eptSubscriber(object):
             "epmRsMacEpToIpEpAtt",
         ]
         # classname to function handler for subscription events
-        self.handles = {                
-            
+        self.handlers = {                
+            "fvSubnet": self.handle_subnet_event,
+            "fvIpAttr": self.handle_subnet_event,
         }
 
         # create subscription object for slow and fast subscriptions
@@ -172,10 +175,13 @@ class eptSubscriber(object):
             self.fabric.add_fabric_event("failed", "failed to build tunnel db")
             return
 
-        # build vnid db
+        # build vnid db along with vnsLIfCtxToBD db which relies on vnid db
         self.fabric.add_fabric_event(init_str, "building vnid db")
         if not self.build_vnid_db():
             self.fabric.add_fabric_event("failed", "failed to build vnid db")
+            return
+        if not self.build_ept_vns_rs_lif_ctx_to_bd_db():
+            self.fabric.add_fabric_event("failed", "failed to build vnsLIfCtxToBD db")
             return
 
         # build epg db
@@ -191,8 +197,12 @@ class eptSubscriber(object):
             return
 
         # setup epm subscriptions to catch events occurring during epm build
-        self.epm_subscription.subscribe(blocking=False)
+        #   self.epm_subscription.subscribe(blocking=False)
+        # TODO - build endpoint database
 
+        # subscriber running
+        self.fabric.add_fabric_event("running")
+        self.initializing = False
 
         # ensure that all subscriptions are active
         while True:
@@ -200,11 +210,15 @@ class eptSubscriber(object):
                 logger.warn("slow subscription no longer alive for %s", self.fabric.fabric)
                 self.fabric.add_fabric_event("failed", "subscription no longer alive")
                 return
-            if not self.epm_subscription.is_alive():
+            if False and not self.epm_subscription.is_alive():
                 logger.warn("epm subscription no longer alive for %s", self.fabric.fabric)
                 self.fabric.add_fabric_event("failed", "subscription no longer alive")
                 return
             time.sleep(self.subscription_check_interval)
+
+    def send_flush(self, collection):
+        """ send flush message to workers for provided collection """
+        logger.error("TODO - flush %s", collection._classname)
 
     def handle_event(self, event):
         """ generic handler to call appropriate handler based on event classname
@@ -225,7 +239,7 @@ class eptSubscriber(object):
                         attr["_ts"] = event["_ts"]
                     else:
                         attr["_ts"] = time.time()
-                    return self.handlers[classname](attr)
+                    return self.handlers[classname](classname, attr)
             else:
                 logger.warn("invalid event: %s", e)
 
@@ -502,6 +516,32 @@ class eptSubscriber(object):
             eptVnid.bulk_save(bulk_objects, skip_validation=False)
         return True
 
+    def build_ept_vns_rs_lif_ctx_to_bd_db(self):
+        """ initialize eptVnsRsLIfCtxToBD database. return bool success """
+        logger.debug("initializing eptVnsRsLIfCtxToBD db")
+        if not self.initialize_generic_db_collection(eptVnsRsLIfCtxToBD, "vnsRsLIfCtxToBD", {
+                "name": "dn",
+                "bd_dn": "tDn",
+            }, set_ts=True, flush=True):
+            logger.warn("failed to initialize eptVnsRsLIfCtxToBD db")
+            return False
+        # need to map bd to vnid
+        bulk_objects = []
+        vnids = {}      # indexed by bd/vrf name (dn), contains only vnid
+        for v in eptVnid.find(fabric=self.fabric.fabric): 
+            vnids[v.name] = v.vnid
+        for vns in eptVnsRsLIfCtxToBD.find(fabric=self.fabric.fabric):
+            if vns.bd_dn in vnids:
+                vns.bd = vnids[vns.bd_dn]
+                bulk_objects.append(vns)
+            else:
+                logger.warn("failed to map bd for %s: '%s'", vns.name, vns.bd_dn)
+
+        if len(bulk_objects)>0:
+            # only adding vnid here which was validated from eptVnid so no validation required
+            eptVnsRsLIfCtxToBD.bulk_save(bulk_objects, skip_validation=True)
+        return True
+
     def build_epg_db(self):
         """ initialize epg database. return bool success
             epg objects include the following (all instances of fvEPg)
@@ -581,23 +621,10 @@ class eptSubscriber(object):
         for e in eptEpg.find(fabric=self.fabric.fabric):
             # we only care about the bd vnid, only add to epgs list if a non-zero value is present
             if e.bd != 0: epgs[e.name] = e.bd
+        # although not technically an epg, eptVnsLIfCtxToBD contains a mapping to bd that we need
+        for e in eptVnsRsLIfCtxToBD.find(fabric=self.fabric.fabric):
+            if e.bd != 0: epgs[e.parent] = e.bd
 
-        # build bd mapping for vnsLIfCtx to support service graph subnets
-        vns_epg = {}    # indexed by vnsLIfCtx dn with mapping to bd vnid
-        data = get_class(self.session, "vnsRsLIfCtxToBD")
-        if data is not None and len(data)>0:
-            for obj in data:
-                cname = obj.keys()[0]
-                if "tDn" in obj[cname]["attributes"] and "dn" in obj[cname]["attributes"]:
-                    vns_dn = re.sub("/rsLIfCtxToBD$", "", obj[cname]["attributes"]["dn"])
-                    bd_dn = obj[cname]["attributes"]["tDn"]
-                    if bd_dn in vnids:
-                        vns_epg[vns_dn] = vnids[bd_dn]
-                    else:
-                        logger.warn("unable to map vnsLIfCtx '%s' to unknown bd '%s'",vns_dn,bd_dn)
-
-        dup_check = {}
-        dup_count = 0
         bulk_objects = []
         # should now have all objects that would contain a subnet 
         for classname in ["fvSubnet", "fvIpAttr"]:
@@ -622,31 +649,128 @@ class eptSubscriber(object):
                         bd_vnid = vnids[dn]
                     elif dn in epgs:
                         bd_vnid = epgs[dn]
-                    elif dn in vns_epg:
-                        bd_vnid = vns_epg[dn]
                     if bd_vnid is not None:
                         # we support fvSubnet on BD and EPG for shared services so duplicate subnet
-                        # can exist so prevent dup added here which causes db error
-                        if bd_vnid not in dup_check: dup_check[bd_vnid] = {}
-                        if attr["ip"] not in dup_check[bd_vnid]:
-                            dup_check[bd_vnid][attr["ip"]] = 1
-                            bulk_objects.append(eptSubnet(
-                                fabric = self.fabric.fabric,
-                                bd = bd_vnid,
-                                subnet = attr["ip"],
-                                ts = ts
-                            ))
-                        else: dup_count+=1
+                        # can exist. unique index is disabled on eptSubnet to support this... 
+                        bulk_objects.append(eptSubnet(
+                            fabric = self.fabric.fabric,
+                            bd = bd_vnid,
+                            owner = attr["dn"],
+                            subnet = attr["ip"],
+                            ts = ts
+                        ))
                     else:
                         logger.warn("failed to map subnet '%s' (%s) to a bd", attr["dn"], dn)
 
-        logger.debug("duplicate subnet count: %s", dup_count)
         logger.debug("flushing entries in %s for fabric %s",eptSubnet._classname,self.fabric.fabric)
         eptSubnet.delete(_filters={"fabric":self.fabric.fabric})
         if len(bulk_objects)>0:
             eptSubnet.bulk_save(bulk_objects, skip_validation=False)
         return True
 
+    def handle_subnet_event(self, classname, attr):
+        """ handle subnet event for fvSubnet and fvIpAttr
+                - fvSubnet only expects created or deleted events
+                - fvIpAttr can be created/deleted/modified
+                    if modified and usefvSubnet is set to yes then corresponding subnet will be 
+                    deleted from eptSubnet db.  This can cause an issue if user is using API and 
+                    toggles usefvSubnet (no -> yes -> no).  Here a db entry will not exist but the
+                    subnet needs to be added.  An API refresh is required to get the full object
 
+            for create events, use parent dn as lookup into either vnid, epg, or vnsRsLifCtxToBD 
+            tables for vnid
+
+            for delete/modify events, use dn as lookup against subnet 'owner' to find subnet. Even
+            if there are duplicate bd/subnet combindations, the 'owner' will be unique.
+
+            for determining which table to perform lookup for fvSubnet (fvIpAttr always epg table)
+            fvBD:
+                uni/tn-{name}/BD-{name}
+                uni/tn-{name}/svcBD-{name}
+            fvAEPg:
+                uni/tn-{name}/ap-{name}/epg-{name}
+            vnsEPpInfo:
+                uni/tn-{name}/LDevInst-{[priKey]}-ctx-{ctxName}/G-{graphRn}-N-{nodeRn}-C-{connRn}
+                uni/vDev-{[priKey]}-tn-{[tnDn]}-ctx-{ctxName}/rndrInfo/eppContr/G-{graphRn}-N-{nodeRn}-C-{connRn}
+            vnsLIfCtx:
+                uni/tn-{name}/ldevCtx-c-{ctrctNameOrLbl}-g-{graphNameOrLbl}-n-{nodeNameOrLbl}/lIfCtx-c-{connNameOrLbl}
+
+        """
+        flush = False
+        dn = re.sub("(/crtrn/ipattr-.+$|/subnet-\[[^]]+\]$)","", attr["dn"])
+        if attr["status"] == "created":
+            bd_vnid = 0
+            if classname == "fvIpAttr":
+                obj = eptEpg.find(name=dn)
+            elif "/BD-" in dn or "/svcBD-" in dn:
+                obj = eptVnid.find(name=dn)
+            elif "/lifCtx-" in dn:
+                obj = eptVnsRsLIfCtxToBD.find(parent=dn)
+            else:
+                obj = eptEpg.find(name=dn)
+            if len(obj)==0:
+                logger.warn("unable to determine bd vnid for subnet: %s", attr["dn"])
+                return
+            # add to db if does not already exists
+            obj = obj[0]
+            if isinstance(obj, eptVnid): bd = obj.vnid
+            else: bd = obj.bd
+            subnet=eptSubnet.load(fabric=self.fabric.fabric, bd=bd, subnet=attr["ip"], owner=attr["dn"])
+            if subnet.exists():
+                logger.debug("ignoring create for existing subnet: %s", dn)
+                # update timestamp if more recent then db entry
+                if subnet.ts < attr["_ts"]:
+                    subnet.ts = attr["_ts"]
+                    subnet.save()
+                return
+            else:
+                subnet.ts = attr["_ts"]
+                subnet.save()
+                flush = True
+        elif attr["status"] == "deleted":
+            subnet = eptSubnet.load(fabric=self.fabric.fabric, owner=attr["dn"])
+            if not subnet.exists() or subnet.ts > attr["_ts"]:
+                logger.debug("ignorning delete for subnet that does not exist: %s", attr["dn"])
+            elif subnet.ts > attr["_ts"]:
+                logger.debug("ignorning old delete event for subnet %s (%s < %s)",
+                        attr["dn"], attr["_ts"],subnet.ts)
+            else:
+                subnet.remove()
+                flush = True
+        elif attr["status"] == "modified":
+            subnet = eptSubnet.load(fabric=self.fabric.fabric, owner=attr["dn"])
+            if classname == "fvSubnet":
+                logger.debug("ignoring modify events for fvSubnet")
+            elif subnet.exists() and subnet.ts > attr["_ts"]:
+                logger.debug("ignorning old modify event for subnet %s (%s < %s)",
+                        attr["dn"], attr["_ts"], subnet.ts)
+            else:
+                # need to do refresh on object - easier than tracking state
+                fvIp = get_attributes(session=self.session, dn=attr["dn"])
+                ts = time.time()
+                if fvIp is None: 
+                    logger.debug("failed to refresh state for '%s' (deleted?)", attr["dn"])
+                    if subnet.exists():
+                        subnet.remove()
+                        flush = True
+                elif fvIp["ip"] == "0.0.0.0" or fvIp["usefvSubnet"] == "yes":
+                    if subnet.exists():
+                        subnet.remove()
+                        flush = True
+                else:
+                    # need to determine bd, lookup will be against eptEpg table
+                    subnet.subnet = fvIp["ip"]
+                    obj = eptEpg.find(name=dn)
+                    if len(obj) == 0:
+                        logger.warn("unable to determine bd vnid for subnet: %s", attr["dn"])
+                        return
+                    subnet.bd = obj[0].bd
+                    subnet.ts = ts
+                    subnet.save()
+                    flush = True
+
+        if flush:
+            logger.debug("subnet change requiring flush detected for %s", self.fabric.fabric)
+            self.send_flush(eptSubnet)
     
 

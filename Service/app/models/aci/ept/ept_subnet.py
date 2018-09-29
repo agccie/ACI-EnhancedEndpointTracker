@@ -18,6 +18,7 @@ class eptSubnet(Rest):
         "read": True,
         "update": False,
         "delete": False,
+        "db_index_unique": False,   # allow for duplicate bd/subnet combinations
     }
 
     META = {
@@ -34,6 +35,12 @@ class eptSubnet(Rest):
             "key_index": 2,
             "key_type": "path",
             "description": "ipv4 or ipv6 subnet prefix"
+        },
+        "owner": {
+            "type": str,
+            "key": True,
+            "key_index": 3,
+            "description": "dn of object that created this subnet (required for event handlers)",
         },
         "type": {
             "type": str,

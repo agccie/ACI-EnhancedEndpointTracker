@@ -302,7 +302,7 @@ class eptQueueStats(Rest):
                     record["tx_msg_rate"] = float(record["tx_msg"]) / true_delta
                     record["rx_msg_rate"] = float(record["rx_msg"]) / true_delta
                 stats.insert(0, record)
-                stats = stats[0:eptQueueStats.STATS_SLICE]
+                setattr(self, stat_name, stats[0:eptQueueStats.STATS_SLICE])
 
         # save db update 
         self.total_tx_msg = total_tx

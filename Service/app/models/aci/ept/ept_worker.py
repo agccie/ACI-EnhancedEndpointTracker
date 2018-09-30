@@ -13,7 +13,6 @@ from . ept_queue_stats import eptQueueStats
 import json
 import logging
 import re
-import redis
 import threading
 import time
 import traceback

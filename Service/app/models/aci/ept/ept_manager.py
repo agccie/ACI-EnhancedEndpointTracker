@@ -20,7 +20,6 @@ from . ept_subscriber import eptSubscriber
 from multiprocessing import Process
 
 import logging
-import redis
 import threading
 import time
 import traceback
@@ -172,6 +171,11 @@ class eptManager(object):
         elif msg.msg_type == MSG_TYPE.FABRIC_STOP:
             # stop a running fabric
             self.stop_fabric(msg.data["fabric"], reason=msg.data.get("reason", None))
+
+        elif msg.msg_type == MSG_TYPE.FABRIC_RESTART:
+            # restart a running (or stopped) fabric
+            self.stop_fabric(msg.data["fabric"], reason=msg.data.get("reason", None))
+            self.start_fabric(msg.data["fabric"], reason=msg.data.get("reason", None))
 
     def minimum_workers_ready(self):
         # return true if worker is ready for each required role.

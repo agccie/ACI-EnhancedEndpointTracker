@@ -121,5 +121,11 @@ class eptSettings(Rest):
             "write": False,
             "description": "dynamically discovered overlay vnid"
         },
+        "vpc_pair_type": {
+            "type": str,
+            "write": False,
+            "default": "explicit",
+            "description": "fabricProtPol pairT attribute (consecutive|reciprocal|explicit)",
+        },
     }
 

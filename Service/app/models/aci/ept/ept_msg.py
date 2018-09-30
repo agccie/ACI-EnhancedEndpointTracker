@@ -14,6 +14,7 @@ class MSG_TYPE(Enum):
     GET_MANAGER_STATUS  = "get_manager_status" # request to get manager status from API to manager
     FABRIC_START        = "fabric_start"    # request from API to manager to start fabric monitor
     FABRIC_STOP         = "fabric_stop"     # request from API to manager to stop fabric monitor
+    FABRIC_RESTART      = "fabric_restart"  # request from API or subscriber to manager for restart
     FLUSH_FABRIC        = "flush_fabric"    # request from manager to workers to flush fabric from their
                                             # local caches
 

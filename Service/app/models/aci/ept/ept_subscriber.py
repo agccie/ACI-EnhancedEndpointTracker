@@ -1,5 +1,6 @@
 
 from ... utils import get_db
+from ... utils import get_redis
 
 from .. utils import get_apic_session
 from .. utils import get_attributes
@@ -9,8 +10,13 @@ from .. utils import parse_apic_version
 from .. utils import pretty_print
 from .. subscription_ctrl import SubscriptionCtrl
 
+from . common import MANAGER_CTRL_CHANNEL
+from . common import MANAGER_WORK_QUEUE
 from . common import MINIMUM_SUPPORTED_VERSION
 from . common import get_vpc_domain_id
+from . ept_msg import MSG_TYPE
+from . ept_msg import eptMsg
+from . ept_msg import eptMsgWork
 from . ept_epg import eptEpg
 from . ept_node import eptNode
 from . ept_tunnel import eptTunnel
@@ -22,6 +28,7 @@ from . ept_vpc import eptVpc
 
 import logging
 import re
+import threading
 import time
 import traceback
 
@@ -33,9 +40,13 @@ class eptSubscriber(object):
         # receive instance of Fabric rest object
         self.fabric = fabric
         self.settings = eptSettings.load(fabric=self.fabric.fabric)
-        self.initializing = True
+        self.initializing = True    # set to queue events until fully initialized
+        self.stopped = False        # set to ignore events after hard_restart triggered
         self.db = None
+        self.redis = None
         self.session = None
+        self.soft_restart_ts = 0    # timestamp of last soft_restart
+        self.manager_ctrl_channel_lock = threading.Lock()
         self.subscription_check_interval = 5.0   # interval to check subscription health
 
         # list of pending events received on subscription while in init state
@@ -43,20 +54,21 @@ class eptSubscriber(object):
         # statically defined classnames in which to subscribe
         # slow subscriptions are classes which we expect a low number of events
         subscription_classes = [
-            "fabricProtPol",
-            "fabricExplicitGEp",
+            "fabricProtPol",        # handle_fabric_prot_pol
+            "fabricAutoGEp",        # handle_fabric_group_ep
+            "fabricExplicitGEp",    # handle_fabric_group_ep
             "vpcRsVpcConf",
             "fabricNode",
             "fvCtx",
             "fvBD",
             "fvSvcBD",
-            "fvEPg",        # this includes fvAEPg, l3extInstP, vnsEPpInfo
+            "fvEPg",                # this includes fvAEPg, l3extInstP, vnsEPpInfo
             "fvRsBd",
             "vnsRsEPpInfoToBD",
             "vnsRsLIfCtxToBD",
             "l3extExtEncapAllocator",
-            "fvSubnet",
-            "fvIpAttr",
+            "fvSubnet",             # handle_subnet_event
+            "fvIpAttr",             # handle_subnet_event
         ]
         # epm subscriptions expect a high volume of events
         epm_subscription_classes = [
@@ -66,6 +78,9 @@ class eptSubscriber(object):
         ]
         # classname to function handler for subscription events
         self.handlers = {                
+            "fabricProtPol": self.handle_fabric_prot_pol,
+            "fabricAutoGEp": self.handle_fabric_group_ep,
+            "fabricExplicitGEp": self.handle_fabric_group_ep,
             "fvSubnet": self.handle_subnet_event,
             "fvIpAttr": self.handle_subnet_event,
         }
@@ -87,6 +102,7 @@ class eptSubscriber(object):
         try:
             # allocate a unique db connection as this is running in a new process
             self.db = get_db(uniq=True, overwrite_global=True)
+            self.redis = get_redis()
             self._run()
         except (Exception, SystemExit, KeyboardInterrupt) as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
@@ -147,11 +163,16 @@ class eptSubscriber(object):
             self.fabric.save()
             return
 
-        # get overlay vnid
+        # get overlay vnid and fabricProtP (which requires hard reset on change)
+        vpc_attr = get_attributes(session=self.session, dn="uni/fabric/protpol")
         overlay_attr = get_attributes(session=self.session, dn="uni/tn-infra/ctx-overlay-1")
         if overlay_attr and "scope" in overlay_attr:
             self.settings.overlay_vnid = int(overlay_attr["scope"])
-            self.settings.save()
+            if vpc_attr and "pairT" in vpc_attr:
+                self.settings.vpc_pair_type = vpc_attr["pairT"]
+                self.settings.save()
+            else:
+                logger.warn("failed to determine fabricProtPol pairT: %s (using default)",vpc_attr)
         else:
             logger.warn("failed to determine overlay vnid: %s", overlay_attr)
             self.fabric.add_fabric_event("failed", "unable to determine overlay-1 vnid")
@@ -216,6 +237,65 @@ class eptSubscriber(object):
                 return
             time.sleep(self.subscription_check_interval)
 
+    def hard_restart(self, reason=""):
+        """ send msg to manager for fabric restart """
+        logger.warn("restarting fabric monitor '%s': %s", self.fabric.fabric, reason)
+        self.fabric.add_fabric_event("restarting", reason)
+        # try to kill local subscriptions first
+        try:
+            self.stopped = True
+            reason = "restarting: %s" % reason
+            data = {"fabric":self.fabric.fabric, "reason":reason}
+            msg = eptMsg(MSG_TYPE.FABRIC_RESTART,data=data)
+            with self.manager_ctrl_channel_lock:
+                self.redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
+        finally:
+            self.slow_subscription.unsubscribe()
+            self.epm_subscription.unsubscribe()
+
+    def soft_restart(self, ts=None, reason=""):
+        """ soft restart sets initializing to True to block new updates along with restarting 
+            slow_subscriptions.  A subset of tables are rebuilt which is much faster than a hard
+            restart which requires updates to names (epg and vnid db), subnet db, and most 
+            importantly endpoint db.
+            The following tables are rebuilt in soft restart:
+                - eptNode
+                - eptTunnel
+                - eptVpc
+        """
+        logger.debug("soft restart requested: %s", reason)
+        if ts is not None and self.soft_restart_ts > ts:
+            logger.debug("skipping stale soft_restart request (%.3f > %.3f)",self.soft_restart_ts,ts)
+            return 
+
+        init_str = "re-initializing"
+        self.initializing = True
+        self.slow_subscription.restart(blocking=False)
+
+        # build node db and vpc db
+        self.fabric.add_fabric_event("soft-reset", reason)
+        self.fabric.add_fabric_event(init_str, "building node db")
+        if not self.build_node_db():
+            self.fabric.add_fabric_event("failed", "failed to build node db")
+            return self.hard_restart("failed to build node db")
+        if not self.build_vpc_db():
+            self.fabric.add_fabric_event("failed", "failed to build node pc to vpc db")
+            return self.hard_restart("failed to build node pc to vpc db")
+
+        # build tunnel db
+        self.fabric.add_fabric_event(init_str, "building tunnel db")
+        if not self.build_tunnel_db():
+            self.fabric.add_fabric_event("failed", "failed to build tunnel db")
+            return self.hard_restart("failed to build tunnel db")
+
+        # clear appropriate caches
+        self.send_flush(eptNode)
+        self.send_flush(eptVpc)
+        self.send_flush(eptTunnel)
+
+        self.fabric.add_fabric_event("running")
+        self.initializing = False
+
     def send_flush(self, collection):
         """ send flush message to workers for provided collection """
         logger.error("TODO - flush %s", collection._classname)
@@ -225,6 +305,9 @@ class eptSubscriber(object):
             this will also enque events into buffer until intialization has completed
         """
         logger.debug("event: %s", event)
+        if self.stopped:
+            logger.debug("ignoring event (subscriber stopped and waiting for reset)")
+            return
         if self.initializing:
             self.pending_events.append(event)
             return
@@ -671,6 +754,7 @@ class eptSubscriber(object):
     def handle_subnet_event(self, classname, attr):
         """ handle subnet event for fvSubnet and fvIpAttr
                 - fvSubnet only expects created or deleted events
+                    TODO: decide if we want to handle ctrl:no-default-gateway for fvSubnet
                 - fvIpAttr can be created/deleted/modified
                     if modified and usefvSubnet is set to yes then corresponding subnet will be 
                     deleted from eptSubnet db.  This can cause an issue if user is using API and 
@@ -776,5 +860,18 @@ class eptSubscriber(object):
         if flush:
             logger.debug("subnet change requiring flush detected for %s", self.fabric.fabric)
             self.send_flush(eptSubnet)
+
+    def handle_fabric_prot_pol(self, classname, attr):
+        """ if pairT changes in fabricProtPol then trigger hard restart """
+        if "pairT" in attr and attr["pairT"] != self.settings.vpc_pair_type:
+            msg="fabricProtPol changed from %s to %s" % (self.settings.vpc_pair_type,attr["pairT"])
+            logger.warn(msg)
+            self.hard_restart(msg)
+        else:
+            logger.debug("no change in fabricProtPol")
+
+    def handle_fabric_group_ep(self, classname, attr):
+        """ fabricExplicitGEp or fabricAutoGEp update requires unconditional soft restart """
+        self.soft_restart(ts=attr["_ts"], reason="(%s) vpc domain update" % classname)
     
 

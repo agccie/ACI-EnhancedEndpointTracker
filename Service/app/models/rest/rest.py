@@ -1289,8 +1289,7 @@ class Rest(object):
             read_one = True
             filters = {}
             for attr in cls._attributes:
-                if cls._attributes[attr].get("key",False) and \
-                    attr not in kwargs:
+                if cls._attributes[attr].get("key",False) and attr not in kwargs:
                     read_one = False
                 if attr in kwargs:
                     filters[attr] = kwargs.get(attr, "")
@@ -1300,8 +1299,7 @@ class Rest(object):
                     if "_id" in kwargs: filters["_id"] = ObjectId(kwargs["_id"])
                     else: read_one = False
                 except InvalidId as e:
-                    abort(400, "%s._id invalid value '%s" % (
-                        cls._classname,kwargs["_id"]))
+                    abort(400, "%s._id invalid value '%s" % (cls._classname,kwargs["_id"]))
             # additional read filters via user params
             filters = cls.filter(f=filters, params=_params)
         else: 
@@ -1330,8 +1328,7 @@ class Rest(object):
         # validate rsp_include values
         rsp_include = _params.get("rsp-include", "self")
         if rsp_include not in ["self", "children", "subtree"]:
-            abort(400, 
-                "invalid rsp-include '%s', expect either self, children, or subtree" % rsp_include)
+            abort(400, "invalid rsp-include '%s', expect [self|children|subtree]" % rsp_include)
 
         # before read callback
         if callable(cls._access["before_read"]):

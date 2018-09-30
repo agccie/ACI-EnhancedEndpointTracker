@@ -18,7 +18,7 @@ if __name__ == "__main__":
         )
     parser.add_argument("--id", dest="worker_id", required=True, help="unique id for this worker")
     parser.add_argument("--role", dest="role", required=True, help="worker role", default="worker",
-        choices=["manager", "worker"])
+        choices=["manager", "watcher", "worker"])
     parser.add_argument("--stdout", dest="stdout", action="store_true", help="send logs to stdout")
     args = parser.parse_args()
 

@@ -15,9 +15,11 @@ from . common import MANAGER_WORK_QUEUE
 from . common import MINIMUM_SUPPORTED_VERSION
 from . common import get_vpc_domain_id
 from . ept_msg import MSG_TYPE
+from . ept_msg import WORK_TYPE
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgWork
 from . ept_epg import eptEpg
+from . ept_history import eptHistory
 from . ept_node import eptNode
 from . ept_tunnel import eptTunnel
 from . ept_settings import eptSettings
@@ -46,7 +48,9 @@ class eptSubscriber(object):
         self.redis = None
         self.session = None
         self.soft_restart_ts = 0    # timestamp of last soft_restart
+        self.vpc_rebuild_ts = 0     # timestamp of last eptVpc rebuild
         self.manager_ctrl_channel_lock = threading.Lock()
+        self.manager_work_queue_lock = threading.Lock()
         self.subscription_check_interval = 5.0   # interval to check subscription health
 
         # list of pending events received on subscription while in init state
@@ -57,8 +61,8 @@ class eptSubscriber(object):
             "fabricProtPol",        # handle_fabric_prot_pol
             "fabricAutoGEp",        # handle_fabric_group_ep
             "fabricExplicitGEp",    # handle_fabric_group_ep
-            "vpcRsVpcConf",
-            "fabricNode",
+            "fabricNode",           # handle_fabric_node
+            "vpcRsVpcConf",         # handle_rs_vpc_conf
             "fvCtx",
             "fvBD",
             "fvSvcBD",
@@ -81,8 +85,10 @@ class eptSubscriber(object):
             "fabricProtPol": self.handle_fabric_prot_pol,
             "fabricAutoGEp": self.handle_fabric_group_ep,
             "fabricExplicitGEp": self.handle_fabric_group_ep,
+            "fabricNode": self.handle_fabric_node,
             "fvSubnet": self.handle_subnet_event,
             "fvIpAttr": self.handle_subnet_event,
+            "vpcRsVpcConf": self.handle_rs_vpc_conf,
         }
 
         # create subscription object for slow and fast subscriptions
@@ -296,9 +302,20 @@ class eptSubscriber(object):
         self.fabric.add_fabric_event("running")
         self.initializing = False
 
+    def send_msg(self, msg):
+        """ send eptMsgWork to worker via manager work queue """
+        # validate that 'fabric' is ALWAYS set on any work
+        msg.fabric = self.fabric.fabric
+        with self.manager_work_queue_lock:
+            self.redis.rpush(MANAGER_WORK_QUEUE, msg.jsonify())
+
     def send_flush(self, collection):
         """ send flush message to workers for provided collection """
-        logger.error("TODO - flush %s", collection._classname)
+        logger.info("flush %s", collection._classname)
+        # node addr of 0 is broadcast to all nodes of provided role
+        msg = eptMsgWork(0, "worker", {"cache": collection._classname}, WORK_TYPE.FLUSH_CACHE)
+        msg.qnum = 0    # highest priority queue
+        self.send_msg(msg)
 
     def handle_event(self, event):
         """ generic handler to call appropriate handler based on event classname
@@ -311,20 +328,24 @@ class eptSubscriber(object):
         if self.initializing:
             self.pending_events.append(event)
             return
-        for e in event["imdata"]:
-            classname = e.keys()[0]
-            if "attributes" in e[classname]:
-                if classname not in self.handlers:
-                    logger.warn("unexpected classname event received: %s, %s", classname, e)
-                else:
-                    attr = e[classname]["attributes"]
-                    if "_ts" in event: 
-                        attr["_ts"] = event["_ts"]
+        try:
+            for e in event["imdata"]:
+                classname = e.keys()[0]
+                if "attributes" in e[classname]:
+                    if classname not in self.handlers:
+                        logger.warn("unexpected classname event received: %s, %s", classname, e)
                     else:
-                        attr["_ts"] = time.time()
-                    return self.handlers[classname](classname, attr)
-            else:
-                logger.warn("invalid event: %s", e)
+                        attr = e[classname]["attributes"]
+                        if "_ts" in event: 
+                            attr["_ts"] = event["_ts"]
+                        else:
+                            attr["_ts"] = time.time()
+                        return self.handlers[classname](classname, attr)
+                else:
+                    logger.warn("invalid event: %s", e)
+        except Exception as e:
+            logger.error("Traceback:\n%s", traceback.format_exc())
+
 
     def initialize_generic_db_collection(self, restObject, classname, attribute_map, regex_map={}, 
             set_ts=False, flush=False):
@@ -498,13 +519,16 @@ class eptSubscriber(object):
     def build_vpc_db(self):
         """ build port-channel to vpc interface mapping. return bool success """
         logger.debug("initializing vpc db")
-        return self.initialize_generic_db_collection(eptVpc, "vpcRsVpcConf", {
+        if self.initialize_generic_db_collection(eptVpc, "vpcRsVpcConf", {
                 "node": "dn",
                 "intf": "tSKey",
                 "vpc": "parentSKey",
             }, set_ts = True, flush=True, regex_map ={
                 "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
-            })
+            }):
+            self.vpc_rebuild_ts = time.time()
+            return True
+        return False
 
     def build_tunnel_db(self):
         """ initialize tunnel db. return bool success """
@@ -780,6 +804,7 @@ class eptSubscriber(object):
                 uni/tn-{name}/ldevCtx-c-{ctrctNameOrLbl}-g-{graphNameOrLbl}-n-{nodeNameOrLbl}/lIfCtx-c-{connNameOrLbl}
 
         """
+        logger.debug("handle subnet event: %s", attr["dn"])
         flush = False
         dn = re.sub("(/crtrn/ipattr-.+$|/subnet-\[[^]]+\]$)","", attr["dn"])
         if attr["status"] == "created":
@@ -863,6 +888,7 @@ class eptSubscriber(object):
 
     def handle_fabric_prot_pol(self, classname, attr):
         """ if pairT changes in fabricProtPol then trigger hard restart """
+        logger.debug("handle fabricProtPol event: %s", attr["pairT"])
         if "pairT" in attr and attr["pairT"] != self.settings.vpc_pair_type:
             msg="fabricProtPol changed from %s to %s" % (self.settings.vpc_pair_type,attr["pairT"])
             logger.warn(msg)
@@ -872,6 +898,67 @@ class eptSubscriber(object):
 
     def handle_fabric_group_ep(self, classname, attr):
         """ fabricExplicitGEp or fabricAutoGEp update requires unconditional soft restart """
+        logger.debug("handle %s event", classname)
         self.soft_restart(ts=attr["_ts"], reason="(%s) vpc domain update" % classname)
-    
+
+    def handle_fabric_node(self, classname, attr):
+        """ handle events for fabricNode
+            If a new leaf becomes active then trigger a hard restart to rebuild endpoint database
+            as there's no way of knowing when endpoint events were missed on the new node (also,
+            we need to restart both slow and epm subscriptions to get events from the new node).
+            If an existing leaf becomes inactive, then create delete jobs for all endpoint learns 
+            for this leaf
+        """
+        logger.debug("handle fabricNode event: %s", attr["dn"])
+        if "dn" in attr and "fabricSt" in attr:
+            r1 = re.search("topology/pod-(?P<pod>[0-9]+)/node-(?P<node>[0-9]+)", attr["dn"])
+            status = attr["fabricSt"]
+            if r1 is None:
+                logger.warn("failed to extract node id from fabricNode dn: %s", attr["dn"])
+                return
+            # get db entry for this node
+            node = eptNode.load(fabric=self.fabric.fabric, node=int(r1.group("node")))
+            if node.exists():
+                if node.role != "leaf":
+                    logger.debug("ignoring fabricNode event for '%s'", node.role)
+                else:
+                    # if this is an active event, then trigger a hard restart else trigger pseudo
+                    # delete jobs for all previous entries on node.  This includes XRs to account
+                    # for bounce along with generally cleanup of node state.
+                    if status == "active":
+                        self.hard_restart(reason="leaf '%s' became active" % node.node)
+                    else:
+                        logger.debug("node %s '%s', sending watch_node event", node.node, status)
+                        data = {"pod": node.pod_id, "node": node.node}
+                        msg = eptMsgWork("node-%s" % node.node, "watcher",data,WORK_TYPE.WATCH_NODE)
+                        self.send_msg(msg)
+            else:
+                if status != "active":
+                    logger.debug("ignorning '%s' event for unknown node: %s",status,r1.group("node"))
+                else:
+                    # a new node became active, double check that is a leaf and if so trigger a 
+                    # hard restart
+                    new_node_dn = "topology/pod-%s/node-%s" % (r1.group("pod"), r1.group("node"))
+                    new_attr = get_attributes(session=self.session, dn=new_node_dn)
+                    if new_attr is not None and "role" in new_attr and new_attr["role"] == "leaf":
+                        self.hard_restart(reason="new leaf '%s' became active" % r1.group("node"))
+                    else:
+                        logger.debug("ignorning active event for non-leaf")
+        else:
+            logger.debug("ignoring fabricNode event (fabricSt or dn not present in attributes)")
+
+    def handle_rs_vpc_conf(self, classname, attr):
+        """ handle updates to vpcRsVpcConf which provide mapping of pc to vpc
+            unfortunately this subscription is unreliable (i.e., delete + create only returns a
+            delete event), therefore we will use full eptVpc rebuild on any event.  This is 
+            inefficient but only occurs on user config event so relatively rare...
+        """
+        logger.debug("handle %s event", classname)
+        if attr["_ts"] > self.vpc_rebuild_ts:
+            self.build_vpc_db()
+            self.send_flush(eptVpc)
+        else:
+            logger.debug("ignorning vpc rebuild as %0.3f > %0.3f", self.vpc_rebuild_ts, attr["_ts"])
+
+
 

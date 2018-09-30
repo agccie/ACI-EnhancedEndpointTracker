@@ -31,7 +31,7 @@ class eptManager(object):
     
     # list of required roles that need to register before manager is ready to accept work
     #REQUIRED_ROLES = ["worker", "watcher", "priority"]
-    REQUIRED_ROLES = ["worker" ]
+    REQUIRED_ROLES = ["worker", "watcher"]
 
     def __init__(self, worker_id):
         self.worker_id = "%s" % worker_id
@@ -113,10 +113,14 @@ class eptManager(object):
                 # expected only eptWork received on this queue
                 if q == MANAGER_WORK_QUEUE and msg.msg_type == MSG_TYPE.WORK:
                     self.increment_stats(MANAGER_WORK_QUEUE, tx=False)
-                    # create hash based on address
-                    _hash = sum(ord(i) for i in msg.addr)
-                    if not self.worker_tracker.send_msg(_hash, msg):
-                        logger.warn("[%s] failed to enqueue message(%s): %s", h, msg)
+                    if msg.addr == 0:
+                        # and addr of 0 is a broadcast to all workers of specified role
+                        self.worker_tracker.broadcast(msg, qnum=msg.qnum, role=msg.role)
+                    else:
+                        # create hash based on address and send to specific worker
+                        _hash = sum(ord(i) for i in msg.addr)
+                        if not self.worker_tracker.send_msg(_hash, msg):
+                            logger.warn("[%s] failed to enqueue message(%s): %s", h, msg)
                 else:
                     logger.warn("[%s] unexpected messaged received on queue %s: %s", self, q, msg)
 
@@ -416,43 +420,43 @@ class WorkerTracker(object):
         with worker.queue_locks[msg.qnum]:
             worker.last_seq[msg.qnum]+= 1
             msg.seq = worker.last_seq[msg.qnum]
-            #logger.debug("enqueuing work onto queue %s: %s", worker.queues[msg.qnum], msg)
+            logger.debug("enqueuing work onto queue %s: %s", worker.queues[msg.qnum], msg)
             self.redis.rpush(worker.queues[msg.qnum], msg.jsonify())
             self.manager.increment_stats(worker.queues[msg.qnum], tx=True)
         return True
 
-    def broadcast(self, msg, queue=0, role=None):
+    def broadcast(self, msg, qnum=0, role=None):
         # broadcast message to active workers on particular queue index.  Set role to limit the 
         # broadcast to only workers of particular role
-        logger.debug("broadcast [q:%s, r:%s] msg: %s", queue, role, msg)
+        logger.debug("broadcast [q:%s, r:%s] msg: %s", qnum, role, msg)
         for r in self.active_workers:
             if role is None or r == role:
                 for i, worker in enumerate(self.active_workers[r]):
-                    if queue > len(worker.queues):
-                        logger.warn("unable to broadcast msg on worker %s, queue %s does not exist",
-                            worker.worker_id, queue)
+                    if qnum > len(worker.queues):
+                        logger.warn("unable to broadcast msg on worker %s, qnum %s does not exist",
+                            worker.worker_id, qnum)
                     else:
-                        with worker.queue_locks[queue]:
-                            worker.last_seq[queue]+= 1
-                            msg.seq = worker.last_seq[queue]
-                            self.redis.rpush(worker.queues[queue], msg.jsonify())
-                            self.manager.increment_stats(worker.queues[queue], tx=True)
+                        with worker.queue_locks[qnum]:
+                            worker.last_seq[qnum]+= 1
+                            msg.seq = worker.last_seq[qnum]
+                            self.redis.rpush(worker.queues[qnum], msg.jsonify())
+                            self.manager.increment_stats(worker.queues[qnum], tx=True)
 
-    def flush_fabric(self, fabric, queue=-1, role=None):
+    def flush_fabric(self, fabric, qnum=-1, role=None):
         # walk through all active workers and remove any work objects from queue for this fabric
         # NOTE, this is a costly operation if the queue is significantly backed up...
         logger.debug("flush fabric '%s'", fabric)
         for r in self.active_workers:
             if role is None or r == role:
                 for i, worker in enumerate(self.active_workers[r]):
-                    if abs(queue) > len(worker.queues):
-                        logger.warn("unable to flush fabric for worker %s, queue %s does not exist",
-                                worker.worker_id, queue)
+                    if abs(qnum) > len(worker.queues):
+                        logger.warn("unable to flush fabric for worker %s, qnum %s does not exist",
+                                worker.worker_id, qnum)
                     else:
                         # pull off all messages on the queue in single operation
                         pl = self.redis.pipeline()
-                        pl.lrange(worker.queues[queue], 0, -1)
-                        pl.delete(worker.queues[queue])
+                        pl.lrange(worker.queues[qnum], 0, -1)
+                        pl.delete(worker.queues[qnum])
                         ret = pl.execute()
                         logger.debug("ret -> %s", ret)
 

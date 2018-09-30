@@ -77,7 +77,6 @@ class eptWorker(object):
         # first check/wait on redis and mongo connection, then start hello thread
         logger.debug("[%s] listening for jobs on queues: %s", self, self.queues)
         while True: 
-            logger.debug("big sleep.... %s", time.sleep(60))
             (q, data) = self.redis.blpop(self.queues)
             if q in self.queue_stats:
                 self.increment_stats(q, tx=False)

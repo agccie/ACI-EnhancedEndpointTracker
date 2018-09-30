@@ -18,6 +18,15 @@ class MSG_TYPE(Enum):
     FLUSH_FABRIC        = "flush_fabric"    # request from manager to workers to flush fabric from their
                                             # local caches
 
+# static work types sent with MSG_TYPE.WORK
+@enum_unique
+class WORK_TYPE(Enum):
+    WATCH_NODE          = "watch_node"      # a new node has become active/inactive
+    FLUSH_CACHE         = "flush_cache"     # flush cache for specific collection
+    EPM_IP_EVENT        = "epm_ip"          # epmIpEp event
+    EPM_MAC_EVENT       = "epm_mac"         # epmMacEp event
+    EPM_RS_IP           = "epm_rs_ip"       # epmRsMacEpToIpEpAtt event
+
 class eptMsg(object):
     """ generic ept job for messaging between workers 
         NOTE, msg_type must be instance of MSG_TYPE Enum
@@ -99,16 +108,18 @@ class eptMsgWork(object):
         with strict priority queuing on lowest queue index.
     """
 
-    def __init__(self, addr, role, data, qnum=1, seq=1):
+    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         self.msg_type = MSG_TYPE.WORK
         self.addr = addr
         self.role = role
         self.qnum = qnum
         self.data = data
+        self.wt = wt            # WORK_TYPE enum
         self.seq = seq
+        self.fabric = fabric
 
     def __repr__(self):
-        return "%s.%s %s" % (self.msg_type.value, self.seq, self.role)
+        return "%s.%s %s %s" % (self.msg_type.value, self.seq, self.role, self.wt.value)
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """
@@ -116,15 +127,18 @@ class eptMsgWork(object):
             "msg_type": self.msg_type.value,
             "seq": self.seq,
             "data": self.data,
+            "wt": self.wt.value,
             "addr": self.addr,
             "role": self.role,
             "qnum": self.qnum,
+            "fabric": self.fabric,
         })
 
     @staticmethod
     def from_msg_json(js):
         # return eptMsgWork object from received msg js
-        return eptMsgWork(js["addr"], js["role"], js["data"], js["qnum"], js["seq"])
+        return eptMsgWork(js["addr"], js["role"], js["data"], WORK_TYPE(js["wt"]),
+                qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
 
                 
 

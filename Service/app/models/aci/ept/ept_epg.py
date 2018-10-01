@@ -20,6 +20,7 @@ class eptEpg(Rest):
         "read": True,
         "update": False,
         "delete": False,
+        "db_index_unique": False,   # for unresolved relations pcTag can be 'any' = 0 
     }
 
     META = {

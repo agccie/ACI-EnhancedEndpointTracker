@@ -19,29 +19,23 @@ class eptSubnet(Rest):
         "update": False,
         "delete": False,
         "db_index_unique": False,   # allow for duplicate bd/subnet combinations
+        "db_index": ["fabric", "bd", "subnet"], 
     }
 
     META = {
+        "owner": {
+            "type": str,
+            "key": True,
+            "key_type": "path",
+            "description": "dn of object that created this subnet (required for event handlers)",
+        },
         "bd": {
             "type": int,
-            "key": True,
-            "key_index": 1,
-            "key_sn": "bd",
             "description": "BD vnid for this epg",
         },
         "subnet": {
             "type": str,
-            "key": True,
-            "key_index": 2,
-            "key_type": "path",
             "description": "ipv4 or ipv6 subnet prefix"
-        },
-        "owner": {
-            "type": str,
-            "key": True,
-            "key_index": 3,
-            "key_type": "path",
-            "description": "dn of object that created this subnet (required for event handlers)",
         },
         "type": {
             "type": str,

@@ -19,17 +19,18 @@ class eptVnid(Rest):
     }
 
     META = {
+        "name": {
+            "type": str,
+            "key": True,
+            "key_type": "path",
+            "description": "BD or VRF name corresponding to provided vnid",
+        },
         "vnid": {
             "type": int,
-            "key": True,
             "description": """
             26-bit vxlan network identifier (VNID). For MACs this is the BD VNID and for IPs this is 
             the vrf VNID.
             """
-        },
-        "name": {
-            "type": str,
-            "description": "BD or VRF name corresponding to provided vnid",
         },
         "vrf": {
             "type": int,

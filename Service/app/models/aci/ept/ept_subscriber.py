@@ -62,15 +62,15 @@ class eptSubscriber(object):
             "fabricAutoGEp",        # handle_fabric_group_ep
             "fabricExplicitGEp",    # handle_fabric_group_ep
             "fabricNode",           # handle_fabric_node
-            "vpcRsVpcConf",         # handle_rs_vpc_conf
-            "fvCtx",
-            "fvBD",
-            "fvSvcBD",
-            "fvEPg",                # this includes fvAEPg, l3extInstP, vnsEPpInfo
-            "fvRsBd",
-            "vnsRsEPpInfoToBD",
-            "vnsRsLIfCtxToBD",
-            "l3extExtEncapAllocator",
+            "vpcRsVpcConf",         # handle_rs_vpc_conf_event
+            "fvCtx",                # handle_vnid_event
+            "fvBD",                 # handle_vnid_event
+            "fvSvcBD",              # handle_vnid_event
+            #"fvEPg",                # this includes fvAEPg, l3extInstP, vnsEPpInfo
+            #"fvRsBd",
+            #"vnsRsEPpInfoToBD",
+            #"vnsRsLIfCtxToBD",      
+            #"l3extExtEncapAllocator",
             "fvSubnet",             # handle_subnet_event
             "fvIpAttr",             # handle_subnet_event
         ]
@@ -88,7 +88,10 @@ class eptSubscriber(object):
             "fabricNode": self.handle_fabric_node,
             "fvSubnet": self.handle_subnet_event,
             "fvIpAttr": self.handle_subnet_event,
-            "vpcRsVpcConf": self.handle_rs_vpc_conf,
+            "vpcRsVpcConf": self.handle_rs_vpc_conf_event,
+            "fvCtx": self.handle_vnid_event,
+            "fvBD": self.handle_vnid_event,
+            "fvSvcBD": self.handle_vnid_event,
         }
 
         # create subscription object for slow and fast subscriptions
@@ -99,8 +102,18 @@ class eptSubscriber(object):
         for s in epm_subscription_classes:
             epm_interest[s] = {"handler": self.handle_event}
 
-        self.slow_subscription = SubscriptionCtrl(self.fabric, slow_interest, inactive_interval=1)
-        self.epm_subscription = SubscriptionCtrl(self.fabric, epm_interest, inactive_interval=0.01)
+        self.slow_subscription = SubscriptionCtrl(
+            self.fabric, 
+            slow_interest, 
+            heartbeat=300,
+            inactive_interval=1
+        )
+        self.epm_subscription = SubscriptionCtrl(
+            self.fabric, 
+            epm_interest, 
+            heartbeat=300,
+            inactive_interval=0.01
+        )
 
     def run(self):
         """ wrapper around run to handle interrupts/errors """
@@ -828,7 +841,7 @@ class eptSubscriber(object):
             obj = obj[0]
             if isinstance(obj, eptVnid): bd = obj.vnid
             else: bd = obj.bd
-            subnet=eptSubnet.load(fabric=self.fabric.fabric, bd=bd, subnet=attr["ip"], owner=attr["dn"])
+            subnet=eptSubnet.load(fabric=self.fabric.fabric,bd=bd,subnet=attr["ip"],owner=attr["dn"])
             if subnet.exists():
                 logger.debug("ignoring create for existing subnet: %s", dn)
                 # update timestamp if more recent then db entry
@@ -947,7 +960,7 @@ class eptSubscriber(object):
         else:
             logger.debug("ignoring fabricNode event (fabricSt or dn not present in attributes)")
 
-    def handle_rs_vpc_conf(self, classname, attr):
+    def handle_rs_vpc_conf_event(self, classname, attr):
         """ handle updates to vpcRsVpcConf which provide mapping of pc to vpc
             unfortunately this subscription is unreliable (i.e., delete + create only returns a
             delete event), therefore we will use full eptVpc rebuild on any event.  This is 
@@ -961,4 +974,75 @@ class eptSubscriber(object):
             logger.debug("ignorning vpc rebuild as %0.3f > %0.3f", self.vpc_rebuild_ts, attr["_ts"])
 
 
+    def handle_vnid_event(self, classname, attr):
+        """ handle vnid updates for fvCtx, fvBD, and fvSvcBD. Refresh required on modified events
+            for unknown objects
+        """
+        logger.debug("handle vnid event for %s", classname)
+        orig_vnid = None
+        obj = eptVnid.find(fabric=self.fabric.fabric, name=attr["dn"])
+        if len(obj) > 0: 
+            obj = obj[0]
+            logger.debug("existing eptVnid object: %s", obj)
+            if classname != "fvCtx": orig_vnid = obj.vnid
+        else:  
+            obj = eptVnid(fabric=self.fabric.fabric, name=attr["dn"])
+            logger.debug("creating new eptVnid: %s", attr["dn"])
+        if obj.exists() and obj.ts > attr["_ts"]:
+            logger.debug("ignoring old event (%0.3f > %0.3f)", obj.ts, attr["_ts"])
+            return
 
+        vrf = attr.get("scope", None)
+        pctag = attr.get("pcTag", None)
+        if classname == "fvCtx":  vnid = attr.get("scope", None)
+        else: vnid = attr.get("seg", None)
+        obj.ts = attr["_ts"]
+
+        if attr["status"] == "created" or attr["status"] == "modified":
+            # don't necessarily have everything we need on create but will always have vnid
+            # if we don't have vnid and object does not exist, then need to do a refresh
+            if vnid is None and not obj.exists():
+                logger.debug("refreshing %s", attr["dn"])
+                refresh = get_attributes(session=self.session, dn=attr["dn"])
+                obj.vrf = refresh["scope"]
+                obj.pctag = refresh["pcTag"]
+                if classname == "fvCtx": obj.vnid = refresh["scope"]
+                else: obj.vnid = refresh["seg"]
+                obj.save()
+                obj.reload()  # ensures that attributes points to post-validator values
+            else:
+                if vnid is not None: obj.vnid = vnid
+                if vrf is not None: obj.vrf = vrf
+                if pctag is not None: obj.pctag = pctag
+                obj.save()
+                obj.reload()  # ensures that attributes points to post-validator values
+            # if the vnid is changed, then need to refresh eptSubnet and eptEpg that have old vnid
+            # note, this works as bd vnid is globally unique
+            if orig_vnid is not None and obj.vnid != orig_vnid:
+                logger.debug("vnid for %s changed from %s to %s", obj.name, orig_vnid, obj.vnid)
+                bulk_epg = []
+                bulk_subnet = []
+                for epg in eptEpg.find(fabric=self.fabric.fabric, bd=orig_vnid):
+                    epg.bd = obj.vnid
+                    bulk_epg.append(epg)
+                if len(bulk_epg) > 0:
+                    logger.debug("updating %s eptEpg vnids to %s", len(bulk_epg), obj.vnid)
+                    eptEpg.bulk_save(bulk_epg)
+                for subnet in eptSubnet.find(fabric=self.fabric.fabric, bd=orig_vnid):
+                    subnet.bd = obj.vnid
+                    bulk_subnet.append(subnet)
+                if len(bulk_subnet) > 0:
+                    logger.debug("updating %s eptSubnet vnids to %s", len(bulk_subnet), obj.vnid)
+                    eptSubnet.bulk_save(bulk_subnet)
+
+        elif attr["status"] == "deleted":
+            if obj.exists():
+                logger.debug("deleting existing entry: %s", attr["dn"])
+                obj.remove()
+            else:
+                logger.debug("ignoring delete event for non-existing vnid: %s", attr["dn"])
+                return
+
+        # send flush for eptVnid cache on workers
+        self.send_flush(eptVnid)
+  

@@ -1,0 +1,107 @@
+
+# object map for building/maintaining eptVnid, eptEpg, eptSubnet objects
+
+eptVnid
+    1) fvCtx       
+        eptVnid.vnid = fvCtx.scope
+        eptVnid.vrf  = fvCtx.scope
+        eptVnid.pctag = fvCtx.pcTag
+        eptVnid.name = fvCtx.dn
+        eptVnid.encap = ""
+
+    2) fvBD (and fvSvcBD)
+        eptVnid.vnid = fvBD.seg
+        eptVnid.vrf = fvBD.scope
+        eptVnid.pctag = fvBD.pcTag
+        eptVnid.name = fvBD.dn
+        eptVnid.encap = ""
+
+    3) l3extOut
+            l3extRsEctx
+            l3extExtEncapAllocator
+        
+        eptVnid.vnid = re.sub("vxlan-","", l3extExtEncapAllocator.extEncap)
+        eptVnid.vrf = eptVnid(name=l3extRsEctx.tDn).vrf
+        eptVnid.pctag = 0
+        eptVnid.name = l3extExtEncapAllocator.dn
+        eptVnid.encap = l3extExtEncapAllocator.encap
+
+eptEpg 
+    1) fvAEPg
+        fvRsBd
+
+        eptEpg.name = fvAEPg.dn
+        eptEpg.vrf = fvAEPg.scope
+        eptEpg.pctag = fvAEPg.pcTag
+        eptEpg.bd = eptVnid(name=fvRsBd.tDn).vnid
+        eptEpg.is_attr_based = fvAEPg.isAttrBasedEPg
+
+    2) vnsEPpInfo
+        vnsRsEPpInfoToBD
+
+        eptEpg.name = vnsEPpInfo.dn
+        eptEpg.vrf = vnsRsEPpInfo.scope
+        eptEpg.pctag = vnsRsEPpInfo.pcTag
+        eptEpg.bd = eptVnid(name=vnsRsEPpInfoToBD.tDn).vnid
+        eptEpg.is_attr_based = False
+
+    3) mgmtInB
+        mgmtRsMgmtBD
+
+        eptEpg.name = mgmtInB.dn
+        eptEpg.vrf = mgmtInB.scope
+        eptEpg.pctag = mgmtInB.pcTag
+        eptEpg.bd = eptVnid(name=mgmtRsMgmtBD.tDn).vnid
+        eptEpg.is_attr_based = False
+
+    4) l3extInstP
+        
+        eptEpg.name = l3extInstP.dn
+        eptEpg.vrf = l3extInstP.scope
+        eptEpg.pctag = l3extInstP.pcTag
+        eptEpg.bd = 0
+        eptEpg.is_attr_based = False
+
+eptSubnet
+
+    1) fvBD (fvSvcBD)
+        fvSubnet
+
+        eptSubnet.name = fvSubnet.dn
+        eptSubnet.subnet = fvSubnet.ip
+        eptSubnet.bd = eptVnid(name=re.sub("/subnet-\[[^]]+\]$)", "", fvSubnet.dn).vnid
+            or
+            eptSubnet.bd = eptVnid(name=fvBD.dn).vnid
+
+    2) fvAEPg
+        fvSubnet
+        fvRsBd
+
+        eptSubnet.name = fvSubnet.dn
+        eptSubnet.subnet = fvSubnet.ip
+        eptSubnet.bd = eptVnid(name=fvRsBd.tDn).vnid
+            or
+            eptSubnet.bd = eptEpg(name=re.sub("/subnet-...", "", fvSubnet.dn).vnid
+
+    3) fvAEPg
+        fvIpAttr (if fvIpAttr.ip != "0.0.0.0" and fvIpAttr.usefvSubnet == "no")
+        fvRsBd
+
+        eptSubnet.name = fvIpAttr.dn
+        eptSubnet.subnet = fvIpAttr.ip
+        eptSubnet.bd = eptVnid(name=fvRsBd.tDn).vnid
+            or
+            eptSubnet.bd = eptEpg(name=re.sub("/crtrn/ipattr-.+$", fvIpAttr.dn).vnid
+
+    4) vnsLIfCtx 
+        vnsRsLIfCtxToBD
+        fvSubnet
+
+        eptSubnet.name = fvSubnet.dn
+        eptSubnet.subnet = fvSubnet.ip
+        eptSubnet.bd = eptVnid(name=vnsRsLIfCtxToBD.tDn).vnid
+            or
+            eptSubnet.bd = eptVnsRsLIfCtxToBD(name=re.sub("/subnet-...", "", fvSubnet.dn).vnid
+    
+
+

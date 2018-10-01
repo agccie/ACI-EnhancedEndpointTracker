@@ -23,7 +23,7 @@ class eptSubnet(Rest):
     }
 
     META = {
-        "owner": {
+        "name": {
             "type": str,
             "key": True,
             "key_type": "path",

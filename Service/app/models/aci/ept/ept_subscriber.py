@@ -28,6 +28,8 @@ from . ept_vnid import eptVnid
 from . ept_vns_rs_lif_ctx_to_bd import eptVnsRsLIfCtxToBD
 from . ept_vpc import eptVpc
 
+from importlib import import_module
+
 import logging
 import re
 import threading
@@ -36,6 +38,48 @@ import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
+
+mo_map = {
+    "fvCtx": {
+        "object": "eptVnid",
+        "db": {
+            "name": "dn",
+            "vnid": "scope",
+            "vrf": "scope",
+            "pctag": "pcTag",
+        },
+    },
+    "fvBD": {
+        "object": "eptVnid",
+        "db": {
+            "name": "dn",
+            "vnid": "seg",
+            "vrf": "vnid",
+            "pctag": "pcTag",
+        },
+    },
+    "fvSvcBD": {
+        "object": "eptVnid",
+        "db": {
+            "name": "dn",
+            "vnid": "seg",
+            "vrf": "vnid",
+            "pctag": "pcTag",
+        },
+    },
+    "l3extExtEncapAllocator": {
+        "object": "eptVnid",
+        "db": {
+            "name": "dn",
+            "encap": "encap",
+            "vnid": "extEncap",
+            "vrf": "fvCtx.scope",
+        },
+        "regex_map": {
+            "vnid": "vxlan-(?P<value>[0-9]+)",
+        },
+    },
+}
 
 class eptSubscriber(object):
     def __init__(self, fabric):
@@ -63,22 +107,16 @@ class eptSubscriber(object):
             "fabricExplicitGEp",    # handle_fabric_group_ep
             "fabricNode",           # handle_fabric_node
             "vpcRsVpcConf",         # handle_rs_vpc_conf_event
-            "fvCtx",                # handle_vnid_event
-            "fvBD",                 # handle_vnid_event
-            "fvSvcBD",              # handle_vnid_event
+            #"fvCtx",                # handle_vnid_event
+            #"fvBD",                 # handle_vnid_event
+            #"fvSvcBD",              # handle_vnid_event
             #"fvEPg",                # this includes fvAEPg, l3extInstP, vnsEPpInfo
             #"fvRsBd",
             #"vnsRsEPpInfoToBD",
             #"vnsRsLIfCtxToBD",      
             #"l3extExtEncapAllocator",
-            "fvSubnet",             # handle_subnet_event
-            "fvIpAttr",             # handle_subnet_event
-        ]
-        # epm subscriptions expect a high volume of events
-        epm_subscription_classes = [
-            "epmMacEp",
-            "epmIpEp",
-            "epmRsMacEpToIpEpAtt",
+            #"fvSubnet",             # handle_subnet_event
+            #"fvIpAttr",             # handle_subnet_event
         ]
         # classname to function handler for subscription events
         self.handlers = {                
@@ -86,19 +124,48 @@ class eptSubscriber(object):
             "fabricAutoGEp": self.handle_fabric_group_ep,
             "fabricExplicitGEp": self.handle_fabric_group_ep,
             "fabricNode": self.handle_fabric_node,
-            "fvSubnet": self.handle_subnet_event,
-            "fvIpAttr": self.handle_subnet_event,
             "vpcRsVpcConf": self.handle_rs_vpc_conf_event,
-            "fvCtx": self.handle_vnid_event,
-            "fvBD": self.handle_vnid_event,
-            "fvSvcBD": self.handle_vnid_event,
+            #"fvSubnet": self.handle_subnet_event,
+            #"fvIpAttr": self.handle_subnet_event,
+            #"fvCtx": self.handle_vnid_event,
+            #"fvBD": self.handle_vnid_event,
+            #"fvSvcBD": self.handle_vnid_event,
         }
 
+        # epm subscriptions expect a high volume of events
+        epm_subscription_classes = [
+            "epmMacEp",
+            "epmIpEp",
+            "epmRsMacEpToIpEpAtt",
+        ]
+
+        self.mo_classes = [
+            "fvCtx",
+            "fvBD",
+            "fvSvcBD",
+            "l3extExtEncapAllocator",
+            "l3extInstP",
+            "l3extOut",
+            "l3extRsEctx",
+            "fvAEPg",
+            "fvRsBd",
+            "vnsEPpInfo",
+            "vnsRsEPpInfoToBD",
+            "mgmtInB",
+            "mgmtRsMgmtBD",
+            "fvSubnet",
+            "fvIpAttr",
+            "vnsLIfCtx",
+            "vnsRsLIfCtxToBD",
+        ]
         # create subscription object for slow and fast subscriptions
         slow_interest = {}
         epm_interest = {}
+
         for s in subscription_classes:
             slow_interest[s] = {"handler": self.handle_event}
+        for mo in self.mo_classes:
+            slow_interest[s] = {"handler": self.handle_std_mo_event}
         for s in epm_subscription_classes:
             epm_interest[s] = {"handler": self.handle_event}
 
@@ -199,6 +266,11 @@ class eptSubscriber(object):
        
         # setup slow subscriptions to catch events occurring during build
         self.slow_subscription.subscribe(blocking=False)
+
+        self.fabric.add_fabric_event(init_str, "collecting base managed objects")
+        if not self.build_mo():
+            self.fabric.add_fabric_event("failed", "failed to collect MOs")
+            return
 
         # build node db and vpc db
         self.fabric.add_fabric_event(init_str, "building node db")
@@ -330,6 +402,27 @@ class eptSubscriber(object):
         msg.qnum = 0    # highest priority queue
         self.send_msg(msg)
 
+    def parse_event(self, event):
+        """ return list of (classname, attr) objects from subscription event including _ts attribute
+            representing timestamp when event was received
+        """
+        events = []
+        try:
+            for e in event["imdata"]:
+                classname = e.keys()[0]
+                if "attributes" in e[classname]:
+                        attr = e[classname]["attributes"]
+                        if "_ts" in event: 
+                            attr["_ts"] = event["_ts"]
+                        else:
+                            attr["_ts"] = time.time()
+                        events.append((classname, attr))
+                else:
+                    logger.warn("invalid event: %s", e)
+        except Exception as e:
+            logger.error("Traceback:\n%s", traceback.format_exc())
+        return events
+
     def handle_event(self, event):
         """ generic handler to call appropriate handler based on event classname
             this will also enque events into buffer until intialization has completed
@@ -342,23 +435,27 @@ class eptSubscriber(object):
             self.pending_events.append(event)
             return
         try:
-            for e in event["imdata"]:
-                classname = e.keys()[0]
-                if "attributes" in e[classname]:
-                    if classname not in self.handlers:
-                        logger.warn("unexpected classname event received: %s, %s", classname, e)
-                    else:
-                        attr = e[classname]["attributes"]
-                        if "_ts" in event: 
-                            attr["_ts"] = event["_ts"]
-                        else:
-                            attr["_ts"] = time.time()
-                        return self.handlers[classname](classname, attr)
+            for (classname, attr) in self.parse_events(event):
+                if classname not in self.handlers:
+                    logger.warn("no event handler defined for classname: %s", classname)
                 else:
-                    logger.warn("invalid event: %s", e)
+                    return self.handlers[classname](classname, attr)
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 
+    def handle_std_mo_event(self, event):
+        """ 
+        """
+
+    def build_mo(self):
+        """ build managed objects for defined classes """
+        for mo in self.mo_classes:
+            # import the object and add to slow_interest subscription list
+            logger.debug("importing: %s", mo)
+            mod = import_module(".%s" % mo, "app.models.aci.mo")
+            MO = getattr(mod, mo)
+            MO.rebuild(self.fabric, session=self.session)
+        return True
 
     def initialize_generic_db_collection(self, restObject, classname, attribute_map, regex_map={}, 
             set_ts=False, flush=False):
@@ -775,7 +872,7 @@ class eptSubscriber(object):
                         bulk_objects.append(eptSubnet(
                             fabric = self.fabric.fabric,
                             bd = bd_vnid,
-                            owner = attr["dn"],
+                            name = attr["dn"],
                             subnet = attr["ip"],
                             ts = ts
                         ))
@@ -801,8 +898,8 @@ class eptSubscriber(object):
             for create events, use parent dn as lookup into either vnid, epg, or vnsRsLifCtxToBD 
             tables for vnid
 
-            for delete/modify events, use dn as lookup against subnet 'owner' to find subnet. Even
-            if there are duplicate bd/subnet combindations, the 'owner' will be unique.
+            for delete/modify events, use dn as lookup against subnet 'name' to find subnet. Even
+            if there are duplicate bd/subnet combindations, the 'name' will be unique.
 
             for determining which table to perform lookup for fvSubnet (fvIpAttr always epg table)
             fvBD:
@@ -841,7 +938,7 @@ class eptSubscriber(object):
             obj = obj[0]
             if isinstance(obj, eptVnid): bd = obj.vnid
             else: bd = obj.bd
-            subnet=eptSubnet.load(fabric=self.fabric.fabric,bd=bd,subnet=attr["ip"],owner=attr["dn"])
+            subnet=eptSubnet.load(fabric=self.fabric.fabric,bd=bd,subnet=attr["ip"],name=attr["dn"])
             if subnet.exists():
                 logger.debug("ignoring create for existing subnet: %s", dn)
                 # update timestamp if more recent then db entry
@@ -854,7 +951,7 @@ class eptSubscriber(object):
                 subnet.save()
                 flush = True
         elif attr["status"] == "deleted":
-            subnet = eptSubnet.load(fabric=self.fabric.fabric, owner=attr["dn"])
+            subnet = eptSubnet.load(fabric=self.fabric.fabric, name=attr["dn"])
             if not subnet.exists() or subnet.ts > attr["_ts"]:
                 logger.debug("ignorning delete for subnet that does not exist: %s", attr["dn"])
             elif subnet.ts > attr["_ts"]:
@@ -864,7 +961,7 @@ class eptSubscriber(object):
                 subnet.remove()
                 flush = True
         elif attr["status"] == "modified":
-            subnet = eptSubnet.load(fabric=self.fabric.fabric, owner=attr["dn"])
+            subnet = eptSubnet.load(fabric=self.fabric.fabric, name=attr["dn"])
             if classname == "fvSubnet":
                 logger.debug("ignoring modify events for fvSubnet")
             elif subnet.exists() and subnet.ts > attr["_ts"]:
@@ -972,7 +1069,6 @@ class eptSubscriber(object):
             self.send_flush(eptVpc)
         else:
             logger.debug("ignorning vpc rebuild as %0.3f > %0.3f", self.vpc_rebuild_ts, attr["_ts"])
-
 
     def handle_vnid_event(self, classname, attr):
         """ handle vnid updates for fvCtx, fvBD, and fvSvcBD. Refresh required on modified events

@@ -54,6 +54,25 @@ def create_app(config_filename="config.py"):
     from .models.aci.ept.ept_vns_rs_lif_ctx_to_bd import eptVnsRsLIfCtxToBD
     from .models.aci.ept.ept_vpc import eptVpc
 
+    # aci managed objects
+    from .models.aci.mo.fvCtx import fvCtx
+    from .models.aci.mo.fvBD import fvBD
+    from .models.aci.mo.fvSvcBD import fvSvcBD
+    from .models.aci.mo.l3extExtEncapAllocator import l3extExtEncapAllocator
+    from .models.aci.mo.l3extInstP import l3extInstP
+    from .models.aci.mo.l3extOut import l3extOut
+    from .models.aci.mo.l3extRsEctx import l3extRsEctx
+    from .models.aci.mo.fvAEPg import fvAEPg
+    from .models.aci.mo.fvRsBd import fvRsBd
+    from .models.aci.mo.vnsEPpInfo import vnsEPpInfo
+    from .models.aci.mo.vnsRsEPpInfoToBD import vnsRsEPpInfoToBD
+    from .models.aci.mo.mgmtInB import mgmtInB
+    from .models.aci.mo.mgmtRsMgmtBD import mgmtRsMgmtBD
+    from .models.aci.mo.fvSubnet import fvSubnet
+    from .models.aci.mo.fvIpAttr import fvIpAttr
+    from .models.aci.mo.vnsLIfCtx import vnsLIfCtx
+    from .models.aci.mo.vnsRsLIfCtxToBD import vnsRsLIfCtxToBD
+
     # auto-register api objects
     from .views.api import api
     from .models.rest import register

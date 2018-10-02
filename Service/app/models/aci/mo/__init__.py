@@ -13,8 +13,8 @@ class ManagedObject(Rest):
     
     logger = logger
 
-    # flag to force validation on rebuild
-    VALIDATE = False
+    VALIDATE = False                # flag to force validation on rebuild
+    TRUST_SUBSCRIPTION = True       # flag to indicate trusted subscriptions (or refresh required)
 
     META_ACCESS = {
         "create": False,

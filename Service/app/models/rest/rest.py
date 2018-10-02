@@ -418,6 +418,7 @@ class Rest(object):
         keys = self.get_keys(minimum=True)
         try:
             ret = self.__class__.delete(**keys)
+            self._exists = True
             return True
         except Exception as e:
             self.logger.warn("%s remove failed: %s", self._classname, e)
@@ -440,11 +441,13 @@ class Rest(object):
             else: keys["_id"] = self._id
         return keys
 
-    def save(self, skip_validation=False):
+    def save(self, skip_validation=False, allow_reload=True):
         """ save current instance of object to database.  If does not exists,
             then will attempt a create.  If already exists, then will perform
             an update.  
             
+            allow_reload triggers self.reload if any updates occurred. This is ignored on bulk save
+
             skip_validation flag is forwarded to proper create/update methods. To improve 
             performance this can be enabled if source data is trusted and complete
 
@@ -452,10 +455,12 @@ class Rest(object):
         """
         return (self._save(skip_validation=skip_validation) is not None)
 
-    def _save(self, bulk_prep=False, skip_validation=False):
+    def _save(self, bulk_prep=False, skip_validation=False, allow_reload=True):
         """ save current instance of object to database.  If does not exists,
             then will attempt a create.  If already exists, then will perform
             an update.  
+
+            allow_reload triggers self.reload if any updates occurred. This is ignored on bulk save
 
             if bulk_prep is True, then instance of InsertOne, UpdateOne, or UpdateMany that is used
             in bulk_save operation. If bulk_prep is False, then bool(true) is returned on success
@@ -484,8 +489,7 @@ class Rest(object):
                     if self._access["expose_id"] and "_id" in ret: 
                         self._id = ret["_id"]
                     result = True
-                    if self._access["before_create"] or self._access["after_create"]:
-                        reload_required = True
+                    reload_required = True
                 self._exists = True
             # perform update for existing object only providing changed values
             else:
@@ -511,8 +515,7 @@ class Rest(object):
                             _skip_validation=skip_validation, **keys)
                     if bulk_prep: result = ret
                     else: 
-                        if self._access["before_update"] or self._access["after_update"]:
-                            reload_required = True
+                        reload_required = True
                         result = True
                 else: 
                     # if no update then save is still successful (return none for bulk prep)
@@ -522,7 +525,7 @@ class Rest(object):
             # if there are callbacks for create/update then it's possible that the attribute values
             # were changed on save. we don't want to do this on bulk as it requires a db read which
             # will significantly offset the benefits of bulk.
-            if reload_required: self.reload()
+            if allow_reload and reload_required: self.reload()
 
             # reset all current _original_attributes to current value so 
             # subsequent saves correctly reflect current state

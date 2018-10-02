@@ -13,6 +13,7 @@ from .. subscription_ctrl import SubscriptionCtrl
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_WORK_QUEUE
 from . common import MINIMUM_SUPPORTED_VERSION
+from . common import MO_BASE
 from . common import get_vpc_domain_id
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
@@ -27,6 +28,7 @@ from . ept_subnet import eptSubnet
 from . ept_vnid import eptVnid
 from . ept_vns_rs_lif_ctx_to_bd import eptVnsRsLIfCtxToBD
 from . ept_vpc import eptVpc
+from . mo_dependency_map import dependency_map
 
 from importlib import import_module
 
@@ -38,48 +40,6 @@ import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
-
-mo_map = {
-    "fvCtx": {
-        "object": "eptVnid",
-        "db": {
-            "name": "dn",
-            "vnid": "scope",
-            "vrf": "scope",
-            "pctag": "pcTag",
-        },
-    },
-    "fvBD": {
-        "object": "eptVnid",
-        "db": {
-            "name": "dn",
-            "vnid": "seg",
-            "vrf": "vnid",
-            "pctag": "pcTag",
-        },
-    },
-    "fvSvcBD": {
-        "object": "eptVnid",
-        "db": {
-            "name": "dn",
-            "vnid": "seg",
-            "vrf": "vnid",
-            "pctag": "pcTag",
-        },
-    },
-    "l3extExtEncapAllocator": {
-        "object": "eptVnid",
-        "db": {
-            "name": "dn",
-            "encap": "encap",
-            "vnid": "extEncap",
-            "vrf": "fvCtx.scope",
-        },
-        "regex_map": {
-            "vnid": "vxlan-(?P<value>[0-9]+)",
-        },
-    },
-}
 
 class eptSubscriber(object):
     def __init__(self, fabric):
@@ -444,15 +404,34 @@ class eptSubscriber(object):
             logger.error("Traceback:\n%s", traceback.format_exc())
 
     def handle_std_mo_event(self, event):
-        """ 
+        """ handle standard MO subscription event. This will update the local db MO and if classname
+            exists within dependency_map, will update each dependency. If MO exists within ept_map,
+            will update each ept object.  Finally, will send a flush for each ept classname that 
+            was changed.
         """
+        try:
+            for (classname, attr) in self.parse_events(event):
+                if classname not in self.mo_classes or "dn" not in attr or "status" not in attr:
+                    logger.warn("event received for unknown classname: %s, %s", classname, event)
+                    continue
+
+                if classname in dependency_map:
+                    logger.debug("triggering sync_event for dependency %s", classname)
+                    updates = dependency_map[classname].sync_event(self.fabric.fabric, attr, 
+                        session = self.session
+                    )
+                    logger.debug("updated objects: %s", updates)
+                else:
+                    logger.warn("%s not defined in dependency_map", classname)
+
+        except Exception as e:
+            logger.error("Traceback:\n%s", traceback.format_exc())
 
     def build_mo(self):
         """ build managed objects for defined classes """
         for mo in self.mo_classes:
             # import the object and add to slow_interest subscription list
-            logger.debug("importing: %s", mo)
-            mod = import_module(".%s" % mo, "app.models.aci.mo")
+            mod = import_module(".%s" % mo, MO_BASE)
             MO = getattr(mod, mo)
             MO.rebuild(self.fabric, session=self.session)
         return True
@@ -885,117 +864,6 @@ class eptSubscriber(object):
             eptSubnet.bulk_save(bulk_objects, skip_validation=False)
         return True
 
-    def handle_subnet_event(self, classname, attr):
-        """ handle subnet event for fvSubnet and fvIpAttr
-                - fvSubnet only expects created or deleted events
-                    TODO: decide if we want to handle ctrl:no-default-gateway for fvSubnet
-                - fvIpAttr can be created/deleted/modified
-                    if modified and usefvSubnet is set to yes then corresponding subnet will be 
-                    deleted from eptSubnet db.  This can cause an issue if user is using API and 
-                    toggles usefvSubnet (no -> yes -> no).  Here a db entry will not exist but the
-                    subnet needs to be added.  An API refresh is required to get the full object
-
-            for create events, use parent dn as lookup into either vnid, epg, or vnsRsLifCtxToBD 
-            tables for vnid
-
-            for delete/modify events, use dn as lookup against subnet 'name' to find subnet. Even
-            if there are duplicate bd/subnet combindations, the 'name' will be unique.
-
-            for determining which table to perform lookup for fvSubnet (fvIpAttr always epg table)
-            fvBD:
-                uni/tn-{name}/BD-{name}
-                uni/tn-{name}/svcBD-{name}
-            fvAEPg:
-                uni/tn-{name}/ap-{name}/epg-{name}
-            vnsEPpInfo:
-                uni/tn-{name}/LDevInst-{[priKey]}-ctx-{ctxName}/G-{graphRn}-N-{nodeRn}-C-{connRn}
-                uni/vDev-{[priKey]}-tn-{[tnDn]}-ctx-{ctxName}/rndrInfo/eppContr/G-{graphRn}-N-{nodeRn}-C-{connRn}
-            vnsLIfCtx:
-                uni/tn-{name}/ldevCtx-c-{ctrctNameOrLbl}-g-{graphNameOrLbl}-n-{nodeNameOrLbl}/lIfCtx-c-{connNameOrLbl}
-
-        """
-        logger.debug("handle subnet event: %s", attr["dn"])
-        flush = False
-        dn = re.sub("(/crtrn/ipattr-.+$|/subnet-\[[^]]+\]$)","", attr["dn"])
-        if attr["status"] == "created":
-            bd_vnid = 0
-            if classname == "fvIpAttr":
-                logger.debug("lookup eptEpg for %s", dn)
-                obj = eptEpg.find(name=dn)
-            elif "/BD-" in dn or "/svcBD-" in dn:
-                logger.debug("lookup eptVnid for %s", dn)
-                obj = eptVnid.find(name=dn)
-            elif "/lIfCtx-" in dn:
-                logger.debug("lookup eptVnsRsLIfCtxToBD for %s", dn)
-                obj = eptVnsRsLIfCtxToBD.find(parent=dn)
-            else:
-                logger.debug("(catchall) lookup eptEpg for %s", dn)
-                obj = eptEpg.find(name=dn)
-            if len(obj)==0:
-                logger.warn("unable to determine bd vnid for subnet: %s", attr["dn"])
-                return
-            # add to db if does not already exists
-            obj = obj[0]
-            if isinstance(obj, eptVnid): bd = obj.vnid
-            else: bd = obj.bd
-            subnet=eptSubnet.load(fabric=self.fabric.fabric,bd=bd,subnet=attr["ip"],name=attr["dn"])
-            if subnet.exists():
-                logger.debug("ignoring create for existing subnet: %s", dn)
-                # update timestamp if more recent then db entry
-                if subnet.ts < attr["_ts"]:
-                    subnet.ts = attr["_ts"]
-                    subnet.save()
-                return
-            else:
-                subnet.ts = attr["_ts"]
-                subnet.save()
-                flush = True
-        elif attr["status"] == "deleted":
-            subnet = eptSubnet.load(fabric=self.fabric.fabric, name=attr["dn"])
-            if not subnet.exists() or subnet.ts > attr["_ts"]:
-                logger.debug("ignorning delete for subnet that does not exist: %s", attr["dn"])
-            elif subnet.ts > attr["_ts"]:
-                logger.debug("ignorning old delete event for subnet %s (%s < %s)",
-                        attr["dn"], attr["_ts"],subnet.ts)
-            else:
-                subnet.remove()
-                flush = True
-        elif attr["status"] == "modified":
-            subnet = eptSubnet.load(fabric=self.fabric.fabric, name=attr["dn"])
-            if classname == "fvSubnet":
-                logger.debug("ignoring modify events for fvSubnet")
-            elif subnet.exists() and subnet.ts > attr["_ts"]:
-                logger.debug("ignorning old modify event for subnet %s (%s < %s)",
-                        attr["dn"], attr["_ts"], subnet.ts)
-            else:
-                # need to do refresh on object - easier than tracking state
-                fvIp = get_attributes(session=self.session, dn=attr["dn"])
-                ts = time.time()
-                if fvIp is None: 
-                    logger.debug("failed to refresh state for '%s' (deleted?)", attr["dn"])
-                    if subnet.exists():
-                        subnet.remove()
-                        flush = True
-                elif fvIp["ip"] == "0.0.0.0" or fvIp["usefvSubnet"] == "yes":
-                    if subnet.exists():
-                        subnet.remove()
-                        flush = True
-                else:
-                    # need to determine bd, lookup will be against eptEpg table
-                    subnet.subnet = fvIp["ip"]
-                    obj = eptEpg.find(name=dn)
-                    if len(obj) == 0:
-                        logger.warn("unable to determine bd vnid for subnet: %s", attr["dn"])
-                        return
-                    subnet.bd = obj[0].bd
-                    subnet.ts = ts
-                    subnet.save()
-                    flush = True
-
-        if flush:
-            logger.debug("subnet change requiring flush detected for %s", self.fabric.fabric)
-            self.send_flush(eptSubnet)
-
     def handle_fabric_prot_pol(self, classname, attr):
         """ if pairT changes in fabricProtPol then trigger hard restart """
         logger.debug("handle fabricProtPol event: %s", attr["pairT"])
@@ -1070,75 +938,3 @@ class eptSubscriber(object):
         else:
             logger.debug("ignorning vpc rebuild as %0.3f > %0.3f", self.vpc_rebuild_ts, attr["_ts"])
 
-    def handle_vnid_event(self, classname, attr):
-        """ handle vnid updates for fvCtx, fvBD, and fvSvcBD. Refresh required on modified events
-            for unknown objects
-        """
-        logger.debug("handle vnid event for %s", classname)
-        orig_vnid = None
-        obj = eptVnid.find(fabric=self.fabric.fabric, name=attr["dn"])
-        if len(obj) > 0: 
-            obj = obj[0]
-            logger.debug("existing eptVnid object: %s", obj)
-            if classname != "fvCtx": orig_vnid = obj.vnid
-        else:  
-            obj = eptVnid(fabric=self.fabric.fabric, name=attr["dn"])
-            logger.debug("creating new eptVnid: %s", attr["dn"])
-        if obj.exists() and obj.ts > attr["_ts"]:
-            logger.debug("ignoring old event (%0.3f > %0.3f)", obj.ts, attr["_ts"])
-            return
-
-        vrf = attr.get("scope", None)
-        pctag = attr.get("pcTag", None)
-        if classname == "fvCtx":  vnid = attr.get("scope", None)
-        else: vnid = attr.get("seg", None)
-        obj.ts = attr["_ts"]
-
-        if attr["status"] == "created" or attr["status"] == "modified":
-            # don't necessarily have everything we need on create but will always have vnid
-            # if we don't have vnid and object does not exist, then need to do a refresh
-            if vnid is None and not obj.exists():
-                logger.debug("refreshing %s", attr["dn"])
-                refresh = get_attributes(session=self.session, dn=attr["dn"])
-                obj.vrf = refresh["scope"]
-                obj.pctag = refresh["pcTag"]
-                if classname == "fvCtx": obj.vnid = refresh["scope"]
-                else: obj.vnid = refresh["seg"]
-                obj.save()
-                obj.reload()  # ensures that attributes points to post-validator values
-            else:
-                if vnid is not None: obj.vnid = vnid
-                if vrf is not None: obj.vrf = vrf
-                if pctag is not None: obj.pctag = pctag
-                obj.save()
-                obj.reload()  # ensures that attributes points to post-validator values
-            # if the vnid is changed, then need to refresh eptSubnet and eptEpg that have old vnid
-            # note, this works as bd vnid is globally unique
-            if orig_vnid is not None and obj.vnid != orig_vnid:
-                logger.debug("vnid for %s changed from %s to %s", obj.name, orig_vnid, obj.vnid)
-                bulk_epg = []
-                bulk_subnet = []
-                for epg in eptEpg.find(fabric=self.fabric.fabric, bd=orig_vnid):
-                    epg.bd = obj.vnid
-                    bulk_epg.append(epg)
-                if len(bulk_epg) > 0:
-                    logger.debug("updating %s eptEpg vnids to %s", len(bulk_epg), obj.vnid)
-                    eptEpg.bulk_save(bulk_epg)
-                for subnet in eptSubnet.find(fabric=self.fabric.fabric, bd=orig_vnid):
-                    subnet.bd = obj.vnid
-                    bulk_subnet.append(subnet)
-                if len(bulk_subnet) > 0:
-                    logger.debug("updating %s eptSubnet vnids to %s", len(bulk_subnet), obj.vnid)
-                    eptSubnet.bulk_save(bulk_subnet)
-
-        elif attr["status"] == "deleted":
-            if obj.exists():
-                logger.debug("deleting existing entry: %s", attr["dn"])
-                obj.remove()
-            else:
-                logger.debug("ignoring delete event for non-existing vnid: %s", attr["dn"])
-                return
-
-        # send flush for eptVnid cache on workers
-        self.send_flush(eptVnid)
-  

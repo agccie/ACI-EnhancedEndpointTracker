@@ -33,7 +33,7 @@ class eptSubnet(Rest):
             "type": int,
             "description": "BD vnid for this epg",
         },
-        "subnet": {
+        "ip": {
             "type": str,
             "description": "ipv4 or ipv6 subnet prefix"
         },

@@ -25,6 +25,9 @@ WORKER_UPDATE_INTERVAL = 1.0
 # minimum version of supported code (2.2.1n)
 MINIMUM_SUPPORTED_VERSION = "2.2.1n"
 
+# dynamic imports of MOs need base relatively to full project
+MO_BASE = "app.models.aci.mo"
+
 ###############################################################################
 #
 # initializing functions

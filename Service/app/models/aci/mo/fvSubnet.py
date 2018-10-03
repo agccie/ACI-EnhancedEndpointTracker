@@ -46,6 +46,8 @@ class fvSubnet(ManagedObject):
             data["tCl"] = "fvBD"
         elif "/svcBD-" in data["parent"]:
             data["tCl"] = "fvSvcBD"
+        elif "/ap-" in data["parent"]:
+            data["tCl"] = "fvAEPg"
         elif "/LDevInst-" in data["parent"] or "/vDev-" in data["parent"]:
             data["tCl"] = "vnsEPpInfo"
         elif "/ldevCtx-" in data["parent"]:

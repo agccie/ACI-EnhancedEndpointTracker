@@ -16,6 +16,8 @@ class eptVnid(Rest):
         "read": True,
         "update": False,
         "delete": False,
+        "db_index_unique": False,   # db_index is intentionally different from mode keys
+        "db_index": ["fabric", "vnid"],
     }
 
     META = {

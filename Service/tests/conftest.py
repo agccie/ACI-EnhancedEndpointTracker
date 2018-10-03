@@ -79,6 +79,7 @@ def app(request):
     app.db = db
     app.client = app.test_client()
 
+    logger.debug("setting up db!")
     assert db_setup(sharding=False, force=True)
     logger.debug("db initialized")
 

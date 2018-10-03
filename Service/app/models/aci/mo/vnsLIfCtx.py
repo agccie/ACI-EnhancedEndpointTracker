@@ -11,7 +11,5 @@ logger = logging.getLogger(__name__)
 @api_register(parent="fabric", path="mo/vnsLIfCtx")
 class vnsLIfCtx(ManagedObject):
 
-    META = ManagedObject.append_meta({
-        "connNameOrLnl":{}
-    })
+    META = ManagedObject.append_meta({})
 

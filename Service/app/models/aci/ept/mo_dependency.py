@@ -3,8 +3,11 @@ from .. utils import get_attributes
 from . common import MO_BASE
 
 from importlib import import_module
+from werkzeug.exceptions import BadRequest
+
 import logging
 import re
+import time
 import traceback
 
 # module level logging
@@ -88,29 +91,29 @@ class DependencyNode(object):
 
     def sync_ept_to_mo(self, mo, mo_parents):
         """ sync ept object to mo. Also perform sync for each child node.  Return list of all ept
-            objects that were updated.
+            objects that were updated (created, modified, or deleted)
         """
         updates = []
         updated = False
         if hasattr(mo, "ept") and mo.ept is not None:
-            logger.debug("sync_ept_to_mo %s to %s.%s", mo.ept._classname, mo._classname, mo.dn)
+            ept = mo.ept
+            logger.debug("sync_ept_to_mo %s to %s(%s)", ept._classname, mo._classname, mo.dn)
             # delete operation requires us to delete the ept object
             if not mo.exists():
-                if mo.ept.exists():
+                if ept.exists():
                     logger.debug("mo deleted, removing ept object")
-                    mo.ept.remove()
+                    ept.remove()
+                    updates.append(ept)
                     updated = True
                 else:
                     logger.debug("mo deleted and ept object does not exist, no update required")
-
             else:
-
                 # force updated to true of ept object does not exist
-                if not mo.ept.exists(): updated = True
+                if not ept.exists(): updated = True
                 try:
                     for a, mo_attr in self.ept_attributes.items():
                         if not hasattr(ept, a):
-                            logger.warn("skipping unknown attribute %s in ept %s", a, ept._classname)
+                            logger.warn("skipping unknown attribute %s in ept %s",a,ept._classname)
                             continue
                         # mo_attribute in one of the following formats:
                         #   attribute               - indicating string name of mo attribute
@@ -150,30 +153,41 @@ class DependencyNode(object):
                             # val of none implies an unmapped attribute. This implies that a 
                             # dependency was not resolved which is common when objects are deleted.  
                             # Will force a value of '0' for all unmapped depenency
+                            logger.debug("%s(%s) '%s' from %s not found, setting to 0", 
+                                ept._classname, getattr(ept, self.ept_key), a, mo_attr)
                             val = 0
 
+                        # need to cast mo value to expected value in ept object. If cast fails then
+                        # corresponding save will also fail so only do comparison on successful cast
+                        try:
+                            val = ept.__class__.validate_attribute(a, val)
+                        except BadRequest as e:
+                            logger.warn("ignoring mo %s attribute %s value %s: %s", mo._classname, 
+                                a, val, e)
+
                         if getattr(ept, a) != val:
-                            logger.debug("updated ept %s from %s to %s", ept._classname, 
-                                getattr(ept, a), val
+                            logger.debug("updated %s(%s) %s from %s to %s", ept._classname, 
+                                getattr(ept, self.ept_key), a, getattr(ept, a), val
                             )
                             setattr(ept, a, val)
                             updated = True
                 except Exception as e:
                     logger.error("Traceback:\n%s", traceback.format_exc())
-
-        if updated: 
-            ept.save()
-            updates.append(ept)
+                if updated: 
+                    ept.save()
+                    updates.append(ept)
 
         # add self to parents dict and then call each child mo to perform their sync
-        if hasattr("children", mo) and len(mo.children)>0:
-            sub_parents = {}
-            for classname in mo_parents: 
-                sub_parents[classname] = mo_parents[classname]
-            # if this mo was deleted, then do not add to parents list which forces child to fail to
-            # map dependency
+        if hasattr(mo, "children") and len(mo.children)>0:
+            # if this mo was deleted, then tree is broken and no parents are available to child 
+            # dependency nodes (including self)
             if mo.exists():
+                sub_parents = {}
+                for classname in mo_parents: 
+                    sub_parents[classname] = mo_parents[classname]
                 sub_parents[self.classname] = mo
+            else:
+                sub_parents = {}
             for c in mo.children:
                 # need to get the DependencyNode for child mo before triggering sync
                 if hasattr(c, "dependency"):
@@ -181,6 +195,7 @@ class DependencyNode(object):
                 else:
                     logger.warn("cannot sync child, DependencyNode not set: %s %s",c._classname,c.dn)
 
+        #logger.debug("sync_ept_to_mo %s(%s) returning %s updates",mo._classname,mo.dn,len(updates))
         return updates
 
     def sync_event(self, fabric, attr, session=None):
@@ -188,6 +203,7 @@ class DependencyNode(object):
             return list of ept objects that were updated
             this requires 'dn', 'status', and '_ts' within provided attribute dict
         """
+        logger.debug("sync event (fabric:%s), event: %s", fabric, attr)
         updates = []
         mo = self.cls_mo.load(fabric=fabric, dn=attr["dn"])
         if mo.exists() and mo.ts >= attr["_ts"]:
@@ -231,13 +247,16 @@ class DependencyNode(object):
 
         # get ept object along with parent and child dependencies 
         self.set_ept_object(mo)
+        logger.debug("getting mo dependents for %s(%s)", mo._classname, mo.dn)
+        ts1 = time.time()
         parents = self.get_parent_objects(mo)
+        ts2 = time.time()
         setattr(mo, "children", self.get_child_objects(mo))
+        ts3 = time.time()
+        logger.debug("mo timing total: %.3f, parent: %.3f, child: %0.3f",ts3-ts1,ts2-ts1,ts3-ts2) 
 
         # update local ept object
-        updated = self.sync_ept_to_mo(self, mo, parents, children)
-        if updated: updates.append(mo.ept)
-        return updates
+        return self.sync_ept_to_mo(mo, parents)
 
     def get_parent_objects(self, mo):
         # return dict indexed by classname of each parent.  Note, each classname can only be one
@@ -246,7 +265,7 @@ class DependencyNode(object):
         #
         # Note, fabric is always used as part of lookup key with connector
         mo_classname = mo.__class__.__name__
-        logger.debug("get parent objects for %s(%s)", mo_classname, mo.dn)
+        #logger.debug("get parent objects for %s(%s)", mo_classname, mo.dn)
         ret = {}
         try:
             for connector in self.parents:
@@ -255,14 +274,13 @@ class DependencyNode(object):
                     "fabric": mo.fabric,
                     connector.remote_attr: getattr(mo, connector.local_attr),
                 }
-                #logger.debug("checking for parent %s(%s)", classname, key)
+                #logger.debug("checking for parent %s(%s=%s)", classname, connector.remote_attr,
+                #                                                        key[connector.remote_attr])
                 p_mo = connector.remote_node.cls_mo.find(**key)
                 if len(p_mo) > 0:
-                    setattr(p_mo, "dependency", connector.remote_node)
                     p_mo = p_mo[0]
-                    # update to a child will never update parent (for now), so no need to load it
-                    #connector.remote_node.set_ept_object(p_mo)
-                    logger.debug("matched %s parent %s(%s)", mo_classname, classname, p_mo.dn)
+                    setattr(p_mo, "dependency", connector.remote_node)
+                    #logger.debug("matched %s parent %s(%s)", mo_classname, classname, p_mo.dn)
                     p_ret = connector.remote_node.get_parent_objects(p_mo)
                     for k in p_ret: ret[k] = p_ret[k]
                     ret[classname] = p_mo
@@ -271,10 +289,10 @@ class DependencyNode(object):
                     break
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
-        if len(ret)>0:
-            logger.debug("returning %s parents: %s", mo.dn, ",".join([c for c in ret]))
-        else:
-            logger.debug("no parents for %s", mo.dn)
+        #if len(ret)>0:
+        #    logger.debug("returning %s parents: %s", mo.dn, ",".join([c for c in ret]))
+        #else:
+        #    logger.debug("no parents for %s", mo.dn)
         return ret
 
     def get_child_objects(self, mo):
@@ -288,7 +306,7 @@ class DependencyNode(object):
         #   ]
         # Note, fabric is always used as part of lookup key with connector
         mo_classname = mo.__class__.__name__
-        logger.debug("get child objects for %s(%s)", mo_classname, mo.dn)
+        #logger.debug("get child objects for %s(%s)", mo_classname, mo.dn)
         ret = []
         try:
             for connector in self.children:
@@ -297,22 +315,23 @@ class DependencyNode(object):
                     "fabric": mo.fabric,
                     connector.remote_attr: getattr(mo, connector.local_attr),
                 }
-                #logger.debug("checking for child %s(%s)", classname, key)
+                #logger.debug("checking for child %s(%s=%s)", classname, connector.remote_attr,
+                #                                                        key[connector.remote_attr])
                 c_mo = connector.remote_node.cls_mo.find(**key)
                 for c in c_mo:
                     setattr(c, "dependency", connector.remote_node)
                     connector.remote_node.set_ept_object(c)
-                    logger.debug("matched %s child %s(%s)", mo_classname, classname, c.dn)
+                    #logger.debug("matched %s child %s(%s)", mo_classname, classname, c.dn)
                     setattr(c, "children", connector.remote_node.get_child_objects(c))
                     ret.append(c)
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
-        if len(ret)>0:
-            logger.debug("returning %s children:\n  %s", mo.dn, 
-                "\n  ".join(["%s(%s)"%(c._classname, c.dn) for c in ret])
-            )
-        else: 
-            logger.debug("no children for %s", mo.dn)
+        #if len(ret)>0:
+        #    logger.debug("returning %s children:\n  %s", mo.dn, 
+        #        "\n  ".join(["%s(%s)"%(c._classname, c.dn) for c in ret])
+        #    )
+        #else: 
+        #    logger.debug("no children for %s", mo.dn)
         return ret
 
 

@@ -20,30 +20,28 @@ class eptEpg(Rest):
         "read": True,
         "update": False,
         "delete": False,
-        "db_index_unique": False,   # for unresolved relations pcTag can be 'any' = 0 
+        "db_index_unique": False,   # db_index is intentionally different from mode keys
+        "db_index": ["fabric", "pctag", "vrf"], 
     }
 
     META = {
+        "name": {
+            "type": str,
+            "key": True,
+            "description": "EPG name corresponding to provided vnid and pctag",
+        },
         "vrf": {
             "type": int,
-            "key": True,
-            "key_index": 1,
             "key_sn": "vrf",
             "description": "VRF vnid for this epg",
         },
         "pctag": {
             "type": int,
-            "key": True,
-            "key_index": 2,
             "description": """ 
             policy control tag representing epg.  For epgs with pctag of 'any', this is 
             programmed with a value of 0
             """,
             "validator": pctag_validator,
-        },
-        "name": {
-            "type": str,
-            "description": "EPG name corresponding to provided vnid and pctag",
         },
         "bd": {
             "type": int,

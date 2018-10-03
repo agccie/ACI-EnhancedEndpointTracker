@@ -18,8 +18,8 @@ class eptSubnet(Rest):
         "read": True,
         "update": False,
         "delete": False,
-        "db_index_unique": False,   # allow for duplicate bd/subnet combinations
-        "db_index": ["fabric", "bd", "subnet"], 
+        "db_index_unique": False,   # for unresolved relations pcTag can be 'any' = 0 
+        "db_index": ["fabric", "bd", "ip"], 
     }
 
     META = {
@@ -69,12 +69,12 @@ class eptSubnet(Rest):
     @api_callback("before_create")
     def before_subnet_create(cls, data):
         """ before create auto-detect type and update integer value for addr and mask list """
-        if ":" in data["subnet"]:
+        if ":" in data["ip"]:
             data["type"] = "ipv6"
-            (data["addr_byte"],data["mask_byte"]) = eptSubnet.get_prefix_array("ipv6",data["subnet"])
+            (data["addr_byte"],data["mask_byte"]) = eptSubnet.get_prefix_array("ipv6",data["ip"])
         else:
             data["type"] = "ipv4"
-            (data["addr_byte"],data["mask_byte"]) = eptSubnet.get_prefix_array("ipv4",data["subnet"])
+            (data["addr_byte"],data["mask_byte"]) = eptSubnet.get_prefix_array("ipv4",data["ip"])
         return data
 
     @staticmethod

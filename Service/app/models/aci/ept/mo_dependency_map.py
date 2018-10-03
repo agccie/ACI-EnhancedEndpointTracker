@@ -98,7 +98,7 @@ ept_map = {
         "attributes": {
             "name": "dn",
             "vnid": "seg",
-            "vrf": "vnid",
+            "vrf": "scope",
             "pctag": "pcTag",
         },
     },
@@ -107,7 +107,7 @@ ept_map = {
         "attributes": {
             "name": "dn",
             "vnid": "seg",
-            "vrf": "vnid",
+            "vrf": "scope",
             "pctag": "pcTag",
         },
     },
@@ -131,7 +131,7 @@ ept_map = {
             "vrf": "scope",
             "pctag": "pcTag",
             "is_attr_based": "isAttrBasedEPg",
-            "bd": "fvBD.seg",
+            "bd": ["fvBD.seg", "fvSvcBD.seg"],
         },
     },
     "l3extInstP": {
@@ -148,7 +148,7 @@ ept_map = {
             "name": "dn",
             "vrf": "scope",
             "pctag": "pcTag",
-            "bd": "fvBD.seg",
+            "bd": ["fvBD.seg", "fvSvcBD.seg"],
         },
     },
     "mgmtInB": {

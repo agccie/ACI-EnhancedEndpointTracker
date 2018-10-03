@@ -418,7 +418,7 @@ class Rest(object):
         keys = self.get_keys(minimum=True)
         try:
             ret = self.__class__.delete(**keys)
-            self._exists = True
+            self._exists = False
             return True
         except Exception as e:
             self.logger.warn("%s remove failed: %s", self._classname, e)
@@ -586,13 +586,13 @@ class Rest(object):
         """
         results = []
         try:
-            read_kwargs = {"_read_all":True}
+            read_filter = {}
             for attr in cls._attributes:
                 if attr in kwargs:
-                    read_kwargs[attr] = kwargs[attr]
+                    read_filter[attr] = kwargs[attr]
             if "_id" in kwargs and cls._access["expose_id"]:
-                read_kwargs["_id"] = kwargs["_id"]
-            ret = cls.read(_disable_page=True, **read_kwargs)
+                read_filter["_id"] = ObjectId(kwargs["_id"])
+            ret = cls.read(_disable_page=True, _read_all=True, _filters=read_filter)
             if "objects" in ret and isinstance(ret["objects"], list):
                 for o in ret["objects"]:
                     if cls._classname in o: 
@@ -606,8 +606,6 @@ class Rest(object):
                         if cls._access["expose_id"] and "_id" in db_obj: 
                             setattr(obj, "_id", o[cls._classname]["_id"])
                         results.append(obj)
-        except NotFound as e:
-            cls.logger.debug("%s load not found: %s", cls._classname,e)
         except Exception as e:
             cls.logger.debug("traceback: %s", traceback.format_exc())
             cls.logger.warn("%s load failed: %s", cls._classname, e)
@@ -650,7 +648,7 @@ class Rest(object):
                 for o in ret["objects"]:
                     if cls._classname in o: db_objs.append(o[cls._classname])
         except NotFound as e:
-            cls.logger.debug("%s load not found: %s", cls._classname,e)
+            cls.logger.debug("%s", e)
         except Exception as e:
             cls.logger.debug("traceback: %s", traceback.format_exc())
             cls.logger.warn("%s load failed: %s", cls._classname, e)
@@ -1153,9 +1151,10 @@ class Rest(object):
                     abort(400, "%s unknown attribute %s"%(classname, attr))
       
             # before anything (include before_create callback), if this node has a parent
-            # dependency, check for the existence of the parent
-            if cls._dependency is not None and cls._dependency.parent is not None and \
-                cls._dependency.parent.obj is not None:
+            # dependency, check for the existence of the parent. This is only done on api requests,
+            # not on normal backend calls
+            if kwargs.get("_api", False) and cls._dependency is not None and \
+                cls._dependency.parent is not None and cls._dependency.parent.obj is not None:
                 # parent keys are always a subset of child keys, determine corresponding parent that
                 # must exist for this child to be created
                 parent = cls._dependency.parent.obj
@@ -1362,6 +1361,7 @@ class Rest(object):
 
         # acquire cursor 
         try:
+            #cls.logger.debug("read filters(%s): %s", cls._classname, filters)
             cursor = cls.__mongo(collection.find, filters, projections)
         except PyMongoError as e:
             abort(500, "database error %s" % e)
@@ -1530,7 +1530,7 @@ class Rest(object):
         cls.init()
         classname = cls._classname
         if not _bulk_prep:
-            cls.logger.debug("%s update request kwargs: %s", classname,kwargs)
+            cls.logger.debug("%s update request kwargs: %s", classname, kwargs)
         collection = get_db()[classname]
         callback_kwargs = {
             "api": kwargs.get("_api", False),

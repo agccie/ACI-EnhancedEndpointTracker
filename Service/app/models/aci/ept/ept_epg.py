@@ -20,8 +20,9 @@ class eptEpg(Rest):
         "read": True,
         "update": False,
         "delete": False,
-        "db_index_unique": False,   # db_index is intentionally different from mode keys
-        "db_index": ["fabric", "pctag", "vrf"], 
+        "db_index_unique": True,
+        "db_index": ["fabric","name"],              # fabric+name(dn) is unique (for insert/update)
+        "db_index2": ["fabric", "vrf", "pctag"],    # second index for quick lookup
     }
 
     META = {
@@ -32,7 +33,6 @@ class eptEpg(Rest):
         },
         "vrf": {
             "type": int,
-            "key_sn": "vrf",
             "description": "VRF vnid for this epg",
         },
         "pctag": {

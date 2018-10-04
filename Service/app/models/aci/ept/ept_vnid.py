@@ -16,15 +16,15 @@ class eptVnid(Rest):
         "read": True,
         "update": False,
         "delete": False,
-        "db_index_unique": False,   # db_index is intentionally different from mode keys
-        "db_index": ["fabric", "vnid"],
+        "db_index_unique": True,  
+        "db_index": ["fabric","name"],      # fabric+name(dn) is unique (for insert/update)
+        "db_index2": ["fabric", "vnid"],    # second index for quick lookup
     }
 
     META = {
         "name": {
             "type": str,
             "key": True,
-            "key_type": "path",
             "description": "BD or VRF name corresponding to provided vnid",
         },
         "vnid": {

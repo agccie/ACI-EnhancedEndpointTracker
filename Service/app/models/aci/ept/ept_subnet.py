@@ -18,8 +18,9 @@ class eptSubnet(Rest):
         "read": True,
         "update": False,
         "delete": False,
-        "db_index_unique": False,   # for unresolved relations pcTag can be 'any' = 0 
-        "db_index": ["fabric", "bd", "ip"], 
+        "db_index_unique": True,  
+        "db_index": ["fabric","name"],      # fabric+name(dn) is unique (for insert/update)
+        "db_index2": ["fabric", "bd"],      # second index for quick lookup
     }
 
     META = {

@@ -6,6 +6,7 @@ from . mo_dependency import DependencyNode
 from . ept_epg import eptEpg
 from . ept_subnet import eptSubnet
 from . ept_vnid import eptVnid
+from . ept_vpc import eptVpc
 
 # vnid objects
 n_fvCtx = DependencyNode("fvCtx")
@@ -28,6 +29,8 @@ n_l3extInstP = DependencyNode("l3extInstP")
 # subnet objects
 n_fvSubnet = DependencyNode("fvSubnet")
 n_fvIpAttr = DependencyNode("fvIpAttr")
+# vpc objects
+n_vpcRsVpcConf = DependencyNode("vpcRsVpcConf")
 
 # build tree that this application cares about...
 n_fvCtx.add_child(n_l3extRsEctx, "dn", "tDn")
@@ -60,6 +63,8 @@ n_fvAEPg.add_child(n_fvIpAttr, "dn", "parent")
 n_vnsEPpInfo.add_child(n_fvSubnet, "dn", "parent")
 n_vnsLIfCtx.add_child(n_fvSubnet, "dn", "parent")
 
+
+
 # dict lookup for each object into dependency tree
 dependency_map = {
     "fvCtx": n_fvCtx,
@@ -79,6 +84,7 @@ dependency_map = {
     "l3extRsEctx": n_l3extRsEctx,
     "fvSubnet": n_fvSubnet,
     "fvIpAttr": n_fvIpAttr,
+    "vpcRsVpcConf": n_vpcRsVpcConf,
 }
 
 # statically map IFC MOs to ept db objects eptVnid, eptEpg, eptSubnet
@@ -175,6 +181,18 @@ ept_map = {
             "name": "dn",
             "ip": "ip",
             "bd": ["fvBD.seg", "fvSvcBD.seg"],
+        },
+    },
+    # vpc
+    "vpcRsVpcConf": {
+        "db": eptVpc,
+        "attributes": {
+            "node": "dn",
+            "intf": "tSKey",
+            "vpc": "parentSKey",
+        },
+        "regex_map": {
+            "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
         },
     },
 }

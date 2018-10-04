@@ -253,7 +253,8 @@ class DependencyNode(object):
         ts2 = time.time()
         setattr(mo, "children", self.get_child_objects(mo))
         ts3 = time.time()
-        logger.debug("mo timing total: %.3f, parent: %.3f, child: %0.3f",ts3-ts1,ts2-ts1,ts3-ts2) 
+        logger.debug("mo timing total: %.3f, parent(%s): %.3f, child(%s): %0.3f", ts3-ts1, 
+                len(parents), ts2-ts1, len(mo.children), ts3-ts2) 
 
         # update local ept object
         return self.sync_ept_to_mo(mo, parents)

@@ -187,6 +187,9 @@ def get_attributes(session=None, dn=None, attribute=None, data=None):
         if "attributes" not in obj[cname]:
             logger.debug("%s does not contain attributes: %s", cname, obj)
             continue
+        # for children into 'attributes' so caller functions can pick up child nodes as well
+        if "children" in obj[cname]:
+            obj[cname]["attributes"]["children"] = obj[cname]["children"]
         if attribute is not None:
             # only ever return first value matched when attribute is set
             if attribute in obj[cname]["attributes"]:

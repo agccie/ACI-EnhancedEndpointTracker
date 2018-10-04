@@ -51,7 +51,6 @@ def create_app(config_filename="config.py"):
     from .models.aci.ept.ept_subnet import eptSubnet
     from .models.aci.ept.ept_tunnel import eptTunnel
     from .models.aci.ept.ept_vnid import eptVnid
-    from .models.aci.ept.ept_vns_rs_lif_ctx_to_bd import eptVnsRsLIfCtxToBD
     from .models.aci.ept.ept_vpc import eptVpc
 
     # aci managed objects

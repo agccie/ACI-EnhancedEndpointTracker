@@ -458,7 +458,7 @@ class WorkerTracker(object):
                         pl.lrange(worker.queues[qnum], 0, -1)
                         pl.delete(worker.queues[qnum])
                         ret = pl.execute()
-                        logger.debug("ret -> %s", ret)
+                        logger.debug("TODO ret -> %s", ret)
 
 
 

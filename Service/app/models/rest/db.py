@@ -70,6 +70,13 @@ def db_setup(app_name="App", username="admin", password="cisco", sharding=False,
             logger.debug("creating indexes for %s: %s",c._classname,indexes)
             db[c._classname].create_index(indexes, unique=unique)
 
+        # support second search-only (non-unique) index for objects
+        if type(c._access["db_index2"]) is list and len(c._access["db_index2"])>0:
+            index2 = [(a, ASCENDING) for a in c._access["db_index2"]]
+            logger.debug("creating secondary index for %s: %s", c._classname, index2)
+            db[c._classname].create_index(index2, unique=False)
+
+
         if sharding and c._access["db_shard_enable"]:
             shard_indexes = {}
             if c._access["db_shard_index"] is not None:

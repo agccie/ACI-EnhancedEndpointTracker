@@ -6,7 +6,7 @@ from .dependency import RestDependency
 from .role import Role
 from bson.objectid import ObjectId, InvalidId
 from flask import abort, g, jsonify
-from pymongo.errors import (DuplicateKeyError, PyMongoError, BulkWriteError)
+from pymongo.errors import (DuplicateKeyError, PyMongoError, BulkWriteError, NetworkTimeout)
 from pymongo import (ASCENDING, DESCENDING, InsertOne, UpdateOne, UpdateMany)
 from werkzeug.exceptions import (NotFound, BadRequest, Forbidden, InternalServerError)
 
@@ -151,6 +151,10 @@ class Rest(object):
 
             "db_index_unique": bool (default None), set unique flag to true for index
 
+            "db_index2":    list str (default None).  Same as db_index but allows for a second index
+                            Note, second index cannot be unique and is used only for search 
+                            optimization
+
             "db_shard_enable": bool (default False), enabling sharding on the collection
 
             "db_shard_index": list str (default None), if shard is enabled then sharding will be 
@@ -274,6 +278,7 @@ class Rest(object):
         "after_delete": None,
         "routes": [],
         "db_index": None,
+        "db_index2": None,
         "db_index_unique": None,
         "db_shard_enable": False,
         "db_shard_index": None,
@@ -493,7 +498,6 @@ class Rest(object):
                 self._exists = True
             # perform update for existing object only providing changed values
             else:
-                create = False
                 keys = self.get_keys()
                 keys["_write_all"] = True
                 for attr in self._attributes: 
@@ -561,7 +565,8 @@ class Rest(object):
         try:
             if len(bulk)>0:
                 insert_time = time.time()
-                result = collection.bulk_write(bulk)
+                cls.logger.debug("%s executing bulk for %s objects", cls._classname, len(bulk))
+                result = cls.__mongo(collection.bulk_write, bulk)
                 now = time.time()
                 timing = "build_time: %0.3f, insert_time: %0.3f, total_time: %0.3f" % (
                     insert_time - ts, now - insert_time, now - ts
@@ -1800,17 +1805,16 @@ class Rest(object):
             try:
                 ts = time.time()
                 return func(*args, **kwargs)
-            except Exception as e:
+            except NetworkTimeout as e:
                 cls.logger.debug("traceback: %s", traceback.format_exc())
                 cls.logger.warn("database error: %s", e)
                 # some weird timeout bug on mongo connections - perform retry
                 # if timeout in less than a few seconds (since this wasn't 
                 # really a mongo timeout)
-                if "timed out" in "%s"%e:
-                    if time.time() - ts < 3:
-                        cls.logger.debug("retrying operation in %s sec", retry_time)
-                        time.sleep(retry_time)
-                        continue
+                if time.time() - ts < 3:
+                    cls.logger.debug("retrying operation in %s sec", retry_time)
+                    time.sleep(retry_time)
+                    continue
             raise e
         cls.logger.warn("out of retries")
         raise e

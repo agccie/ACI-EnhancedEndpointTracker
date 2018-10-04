@@ -26,7 +26,6 @@ from . ept_tunnel import eptTunnel
 from . ept_settings import eptSettings
 from . ept_subnet import eptSubnet
 from . ept_vnid import eptVnid
-from . ept_vns_rs_lif_ctx_to_bd import eptVnsRsLIfCtxToBD
 from . ept_vpc import eptVpc
 from . mo_dependency_map import dependency_map
 
@@ -52,13 +51,13 @@ class eptSubscriber(object):
         self.redis = None
         self.session = None
         self.soft_restart_ts = 0    # timestamp of last soft_restart
-        self.vpc_rebuild_ts = 0     # timestamp of last eptVpc rebuild
         self.manager_ctrl_channel_lock = threading.Lock()
         self.manager_work_queue_lock = threading.Lock()
         self.subscription_check_interval = 5.0   # interval to check subscription health
 
         # list of pending events received on subscription while in init state
         self.pending_events = []        
+        self.pending_std_events = []
         # statically defined classnames in which to subscribe
         # slow subscriptions are classes which we expect a low number of events
         subscription_classes = [
@@ -66,7 +65,7 @@ class eptSubscriber(object):
             "fabricAutoGEp",        # handle_fabric_group_ep
             "fabricExplicitGEp",    # handle_fabric_group_ep
             "fabricNode",           # handle_fabric_node
-            "vpcRsVpcConf",         # handle_rs_vpc_conf_event
+            #"vpcRsVpcConf",         # handle_rs_vpc_conf_event
             #"fvCtx",                # handle_vnid_event
             #"fvBD",                 # handle_vnid_event
             #"fvSvcBD",              # handle_vnid_event
@@ -84,7 +83,6 @@ class eptSubscriber(object):
             "fabricAutoGEp": self.handle_fabric_group_ep,
             "fabricExplicitGEp": self.handle_fabric_group_ep,
             "fabricNode": self.handle_fabric_node,
-            "vpcRsVpcConf": self.handle_rs_vpc_conf_event,
             #"fvSubnet": self.handle_subnet_event,
             #"fvIpAttr": self.handle_subnet_event,
             #"fvCtx": self.handle_vnid_event,
@@ -99,7 +97,7 @@ class eptSubscriber(object):
             "epmRsMacEpToIpEpAtt",
         ]
 
-        self.mo_classes = [
+        mo_classes = [
             "fvCtx",
             "fvBD",
             "fvSvcBD",
@@ -117,14 +115,20 @@ class eptSubscriber(object):
             "fvIpAttr",
             "vnsLIfCtx",
             "vnsRsLIfCtxToBD",
+            "vpcRsVpcConf",
         ]
+        # build mo classes into a dict where key is classname and value is imported object
+        self.mo_classes = {}
+        for mo in mo_classes:
+            self.mo_classes[mo] = getattr(import_module(".%s" % mo, MO_BASE), mo)
+
         # create subscription object for slow and fast subscriptions
         slow_interest = {}
         epm_interest = {}
 
         for s in subscription_classes:
             slow_interest[s] = {"handler": self.handle_event}
-        for mo in self.mo_classes:
+        for s in self.mo_classes:
             slow_interest[s] = {"handler": self.handle_std_mo_event}
         for s in epm_subscription_classes:
             epm_interest[s] = {"handler": self.handle_event}
@@ -158,6 +162,14 @@ class eptSubscriber(object):
 
     def _run(self):
         """ monitor fabric and enqueue work to workers """
+
+        # setup slow subscriptions to catch events occurring during build
+        #logger.debug("repeat heartbeat check...")
+        #self.slow_subscription.heartbeat = 1
+        #self.slow_subscription.subscribe(blocking=False)
+        #self.build_mo()
+        #time.sleep(3600)
+
 
         init_str = "initializing"
         # first step is to get a valid apic session, bail out if unable to connect
@@ -252,9 +264,6 @@ class eptSubscriber(object):
         if not self.build_vnid_db():
             self.fabric.add_fabric_event("failed", "failed to build vnid db")
             return
-        if not self.build_ept_vns_rs_lif_ctx_to_bd_db():
-            self.fabric.add_fabric_event("failed", "failed to build vnsLIfCtxToBD db")
-            return
 
         # build epg db
         self.fabric.add_fabric_event(init_str, "building epg db")
@@ -329,7 +338,9 @@ class eptSubscriber(object):
         if not self.build_node_db():
             self.fabric.add_fabric_event("failed", "failed to build node db")
             return self.hard_restart("failed to build node db")
-        if not self.build_vpc_db():
+        # need to rebuild vpc db which requires a rebuild of local mo vpcRsVpcConf mo first
+        success = self.mo_classes["vpcRsVpcConf"].rebuild(self.fabric, session=self.session)
+        if not success or not self.build_vpc_db():
             self.fabric.add_fabric_event("failed", "failed to build node pc to vpc db")
             return self.hard_restart("failed to build node pc to vpc db")
 
@@ -362,38 +373,37 @@ class eptSubscriber(object):
         msg.qnum = 0    # highest priority queue
         self.send_msg(msg)
 
-    def parse_event(self, event):
-        """ return list of (classname, attr) objects from subscription event including _ts attribute
-            representing timestamp when event was received
+    def parse_event(self, event, verify_ts=True):
+        """ iterarte list of (classname, attr) objects from subscription event including _ts 
+            attribute representing timestamp when event was received if verify_ts is set
         """
-        events = []
         try:
             for e in event["imdata"]:
                 classname = e.keys()[0]
                 if "attributes" in e[classname]:
                         attr = e[classname]["attributes"]
-                        if "_ts" in event: 
-                            attr["_ts"] = event["_ts"]
-                        else:
-                            attr["_ts"] = time.time()
-                        events.append((classname, attr))
+                        if verify_ts:
+                            if "_ts" in event: 
+                                attr["_ts"] = event["_ts"]
+                            else:
+                                attr["_ts"] = time.time()
+                        yield (classname, attr)
                 else:
                     logger.warn("invalid event: %s", e)
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
-        return events
 
     def handle_event(self, event):
         """ generic handler to call appropriate handler based on event classname
             this will also enque events into buffer until intialization has completed
         """
-        logger.debug("event: %s", event)
         if self.stopped:
             logger.debug("ignoring event (subscriber stopped and waiting for reset)")
             return
         if self.initializing:
             self.pending_events.append(event)
             return
+        logger.debug("event: %s", event)
         try:
             for (classname, attr) in self.parse_events(event):
                 if classname not in self.handlers:
@@ -409,8 +419,14 @@ class eptSubscriber(object):
             will update each ept object.  Finally, will send a flush for each ept classname that 
             was changed.
         """
+        if self.stopped:
+            logger.debug("ignoring event (subscriber stopped and waiting for reset)")
+            return
+        if self.initializing:
+            self.pending_std_events.append(event)
+            return
         try:
-            for (classname, attr) in self.parse_events(event):
+            for (classname, attr) in self.parse_event(event):
                 if classname not in self.mo_classes or "dn" not in attr or "status" not in attr:
                     logger.warn("event received for unknown classname: %s, %s", classname, event)
                     continue
@@ -420,7 +436,7 @@ class eptSubscriber(object):
                     updates = dependency_map[classname].sync_event(self.fabric.fabric, attr, 
                         session = self.session
                     )
-                    logger.debug("updated objects: %s", updates)
+                    logger.debug("updated objects: %s", len(updates))
                 else:
                     logger.warn("%s not defined in dependency_map", classname)
 
@@ -429,96 +445,118 @@ class eptSubscriber(object):
 
     def build_mo(self):
         """ build managed objects for defined classes """
-        for mo in self.mo_classes:
-            # import the object and add to slow_interest subscription list
-            mod = import_module(".%s" % mo, MO_BASE)
-            MO = getattr(mod, mo)
-            MO.rebuild(self.fabric, session=self.session)
+        for mo in sorted(self.mo_classes):
+            self.mo_classes[mo].rebuild(self.fabric, session=self.session)
         return True
 
-    def initialize_generic_db_collection(self, restObject, classname, attribute_map, regex_map={}, 
-            set_ts=False, flush=False):
-        """ most of the initialization is similar steps:
-                - delete current objects for restObject
-                - perform class query for classname
-                - loop through results and add interesting attributes to obj and then perform bulk
-                  update into db
-            this function assumes all objects have 'fabric' as one of the key attributes
+    def initialize_ept_collection(self, eptObject, mo_classname, attribute_map=None, 
+            regex_map=None ,set_ts=False, flush=False):
+        """ initialize ept collection.  Note, mo_object or mo_classname must be provided
+                eptObject = eptNode, eptVnid, eptEpg, etc...
+                mo_classname = classname of mo used for query, or if exists within self.mo_classes,
+                                the mo object from local database
+                set_ts = boolean to set modify ts within ept object. If mo_object is set, then ts
+                            from mo object is written to ept object. Else, timestamp of APIC query
+                            is used
+                flush = boolean to flush ept collection at initialization
+                attribute_map = dict handling mapping of ept attribute to mo attribute. If omitted,
+                        then the attribute map will use the value from the corresponding 
+                        DependencyNode (if found within the dependency_map)
+                regex_map = dict - ept attribute names in regex map will contain a regex used to 
+                        extract the value from the corresponding mo attribute.  if omitted, then 
+                        will use the regex_map definied within the corresponding DependencyNode
+                        (if found within the dependency_map)
 
-            attribute_map must be a dict in the following format: {
-                "db-attribute1-name": "ACI-MO-ATTRIBUTE1"
-                "db-attribute2-name": "ACI-MO-ATTRIBUTE2"
-                ...
-            }
-            only the attributes provided in the attribute map will be added to the db object
-
-            regex_map is a dict of db-attribute-name to regex.  If present, then regex is used to 
-            validate the attribute (with warning displayed if not captured) along with extracting
-            relevant data.  regex must contain a capture group "value" else it is only used for
-            validating the attribute.  example {
-                "db-attribute1-name": "node-(?P<value>[0-9]+)/"
-            }
-
-            set_ts is boolean.  If true then each object will have timestamp set to 'now'
-
-            flush is boolean. Set to true to delete current entries in db before insert
+                        This regex must contain a named capture group of 'value'.  For example:
+                        attribute_map = {
+                            "node": "dn"        # set's the ept value of 'node' to the mo 'dn'
+                        }
+                        regex_map = {
+                            "node": "node-(?P<value>[0-9]+)/" # extract interger value from 'node'
+                        }
 
             return bool success
+
         """
-        data = get_class(self.session, classname)
-        if data is None:
-            logger.warn("failed to get data for classname %s", classname)
-            return False
+        # iterator over data from class query returning just dict attributes
+        def raw_iterator(data):
+            for attr in get_attributes(data=data):
+                yield attr
+
+        # iterator over mo objects returning just dict attributes
+        def mo_iterator(objects):
+            for o in objects:
+                yield o.to_json()
+
+        # get data from local mo db
+        if mo_classname in self.mo_classes:
+            data = self.mo_classes[mo_classname].find(fabric=self.fabric.fabric)
+            iterator = mo_iterator
+        else:
+            data = get_class(self.session, mo_classname)
+            if data is None:
+                logger.warn("failed to get data for classname %s", mo_classname)
+                return False
+            iterator = raw_iterator
+
+        # get attribute_map and regex_map from arguments or dependency map
+        default_attribute_map = {}
+        default_regex_map = {}
+        if mo_classname in dependency_map:
+            default_attribute_map = dependency_map[mo_classname].ept_attributes
+            default_regex_map = dependency_map[mo_classname].ept_regex_map
+        if attribute_map is None: 
+            attribute_map = default_attribute_map
+        if regex_map is None:
+            regex_map = default_regex_map
 
         ts = time.time()
         bulk_objects = []
-        for obj in data:
-            if type(obj) is dict and len(obj)>0:
-                cname = obj.keys()[0]
-                if "attributes" in obj[cname]:
-                    attr = obj[cname]["attributes"]
-                    db_obj = {"fabric": self.fabric.fabric}
-                    for db_attr, o_attr in attribute_map.items():
-                        if o_attr in attr:
-                            # check for regex_map
-                            if db_attr in regex_map:
-                                r1 = re.search(regex_map[db_attr], attr[o_attr])
-                                if r1:
-                                    if "value" in r1.groupdict():
-                                        db_obj[db_attr] = r1.group("value")
-                                    else: 
-                                        db_obj[attr] = attr[o_attr]
-                                else:
-                                    logger.warn("%s value %s does not match regex %s", o_attr,
-                                            attr[o_attr], regex_map[db_attr])
-                                    db_obj = {}
-                                    break
-                            else:
-                                db_obj[db_attr] = attr[o_attr]
-                    if len(db_obj)>1:
-                        if set_ts: db_obj["ts"] = ts
-                        bulk_objects.append(restObject(**db_obj))
+        # iterate over results 
+        for attr in iterator(data):
+            db_obj = {}
+            for db_attr, o_attr in attribute_map.items():
+                # can only map 'plain' string attributes (not list referencing parent objects)
+                if isinstance(o_attr, basestring) and o_attr in attr:
+                    # check for regex_map
+                    if db_attr in regex_map:
+                        r1 = re.search(regex_map[db_attr], attr[o_attr])
+                        if r1:
+                            if "value" in r1.groupdict():
+                                db_obj[db_attr] = r1.group("value")
+                            else: 
+                                db_obj[attr] = attr[o_attr]
+                        else:
+                            logger.warn("%s value %s does not match regex %s", o_attr,attr[o_attr], 
+                                regex_map[db_attr])
+                            db_obj = {}
+                            break
                     else:
-                        logger.debug("no interesting attributes found for %s: %s", classname, obj)
-                else:
-                    logger.warn("invalid %s object: %s (no attributes)", classname, obj)
+                        db_obj[db_attr] = attr[o_attr]
+            if len(db_obj)>0:
+                db_obj["fabric"] = self.fabric.fabric
+                if set_ts: 
+                    if "ts" in attr: db_obj["ts"] = attr["ts"]
+                    else: db_obj["ts"] = ts
+                bulk_objects.append(eptObject(**db_obj))
             else:
-                logger.warn("invalid %s object: %s (empty dict)", classname, obj)
+                logger.warn("%s object not added from MO (no matching attributes): %s", 
+                    eptObject._classname, attr)
 
         # flush right before insert to minimize time of empty table
         if flush:
-            logger.debug("flushing entries in %s for fabric %s",restObject._classname,self.fabric.fabric)
-            restObject.delete(_filters={"fabric":self.fabric.fabric})
+            logger.debug("flushing %s entries for fabric %s",eptObject._classname,self.fabric.fabric)
+            eptObject.delete(_filters={"fabric":self.fabric.fabric})
         if len(bulk_objects)>0:
-            restObject.bulk_save(bulk_objects, skip_validation=False)
+            eptObject.bulk_save(bulk_objects, skip_validation=False)
         else:
-            logger.debug("no objects of %s to insert", classname)
+            logger.debug("no objects of %s to insert", mo_classname)
         return True
     
     def build_node_db(self):
         """ initialize node collection and vpc nodes. return bool success """
         logger.debug("initializing node db")
-        if not self.initialize_generic_db_collection(eptNode, "topSystem", {
+        if not self.initialize_ept_collection(eptNode, "topSystem", attribute_map = {
                 "addr": "address",
                 "name": "name",
                 "node": "id",
@@ -527,7 +565,7 @@ class eptSubscriber(object):
                 "role": "role",
                 "state": "state",
             }, flush=True):
-            logger.warn("failed to initialize node db from topSystem")
+            logger.warn("failed to build node db from topSystem")
             return False
 
         # maintain list of all nodes for id to addr lookup 
@@ -605,24 +643,10 @@ class eptSubscriber(object):
             eptNode.bulk_save(bulk_objects, skip_validation=False)
         return True
 
-    def build_vpc_db(self):
-        """ build port-channel to vpc interface mapping. return bool success """
-        logger.debug("initializing vpc db")
-        if self.initialize_generic_db_collection(eptVpc, "vpcRsVpcConf", {
-                "node": "dn",
-                "intf": "tSKey",
-                "vpc": "parentSKey",
-            }, set_ts = True, flush=True, regex_map ={
-                "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
-            }):
-            self.vpc_rebuild_ts = time.time()
-            return True
-        return False
-
     def build_tunnel_db(self):
         """ initialize tunnel db. return bool success """
         logger.debug("initializing tunnel db")
-        return self.initialize_generic_db_collection(eptTunnel, "tunnelIf", {
+        return self.initialize_ept_collection(eptTunnel, "tunnelIf", attribute_map={
                 "node": "dn",
                 "intf": "id",
                 "dst": "dest",
@@ -630,10 +654,16 @@ class eptSubscriber(object):
                 "status": "operSt",
                 "encap": "tType",
                 "flags": "type",
-            }, set_ts=True, flush=True, regex_map = {
+            }, regex_map = {
                 "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
                 "src": "(?P<value>[^/]+)(/[0-9]+)?",
-            })
+            }, flush=True, set_ts=True)
+
+    def build_vpc_db(self):
+        """ build port-channel to vpc interface mapping. return bool success """
+        logger.debug("initializing vpc db")
+        # vpcRsVpcConf exists within self.mo_classses and already defined in dependency_map
+        return self.initialize_ept_collection(eptVpc,"vpcRsVpcConf",set_ts=True, flush=True)
 
     def build_vnid_db(self):
         """ initialize vnid database. return bool success
@@ -645,117 +675,80 @@ class eptSubscriber(object):
         """
         logger.debug("initializing vnid db")
        
-        # handle fvCtx
+        # handle fvCtx, fvBD, and fvSvcBD
         logger.debug("bulding vnid from fvCtx")
-        if not self.initialize_generic_db_collection(eptVnid, "fvCtx", {
-                "vnid": "scope",
-                "vrf": "scope",
-                "pctag": "pcTag",
-                "name": "dn",
-            }, set_ts=True, flush=True):
+        if not self.initialize_ept_collection(eptVnid, "fvCtx", set_ts=True, flush=True):
             logger.warn("failed to initialize vnid db for fvCtx")
             return False
-
-        # handle fvBD and fvSvcBD
-        for classname in ["fvBD", "fvSvcBD"]:
-            logger.debug("bulding vnid from %s", classname)
-            if not self.initialize_generic_db_collection(eptVnid, classname, {
-                    "vnid": "seg",
-                    "vrf": "scope",
-                    "pctag": "pcTag",
-                    "name": "dn",
-                }, set_ts=True, flush=False):
-                logger.warn("failed to initialize vnid db for %s", classname)
-                return False
+        logger.debug("bulding vnid from fvBD")
+        if not self.initialize_ept_collection(eptVnid, "fvBD", set_ts=True, flush=False):
+            logger.warn("failed to initialize vnid db for fvBD")
+            return False
+        logger.debug("bulding vnid from fvSvcBD")
+        if not self.initialize_ept_collection(eptVnid, "fvSvcBD", set_ts=True, flush=False):
+            logger.warn("failed to initialize vnid db for fvSvcBD")
+            return False
 
         # dict of name (vrf/bd) to vnid for quick lookup
         logger.debug("bulding vnid from l3extExtEncapAllocator")
         vnids = {}  
         for v in eptVnid.find(fabric=self.fabric.fabric): 
             vnids[v.name] = v.vnid
+        # TODO - replace this with local db mo lookup
         # handle l3extExtEncapAllocator (external BD) which requires second lookup for vrf 
         bulk_objects = []
         data = get_class(self.session, "l3extOut", rspSubtree="full", 
                                     rspSubtreeClass="l3extExtEncapAllocator,l3extRsEctx")
         ts = time.time()
-        if data is not None and len(data)>0:
-            for obj in data:
-                ext_bd = []
-                ext_vrf = None
-                cname = obj.keys()[0]
-                dn = obj[cname]["attributes"]["dn"]
-                if "children" in obj[cname] and len(obj[cname]["children"]) > 0:
-                    for cobj in obj[cname]["children"]:
-                        cname = cobj.keys()[0]
-                        attr = cobj[cname]["attributes"]
-                        if cname == "l3extRsEctx" and "tDn" in attr:
-                            if attr["tDn"] in vnids:
-                                ext_vrf = vnids[attr["tDn"]]
-                            else:
-                                logger.warn("unknown vrf %s in l3extRxEctx: %s", attr["tDn"], attr)
-                        if cname == "l3extExtEncapAllocator":
-                            ext_bd.append(eptVnid(
-                                fabric = self.fabric.fabric,
-                                vnid = int(re.sub("vxlan-","", attr["extEncap"])),
-                                name = "%s/encap-[%s]" % (dn, attr["encap"]),
-                                encap = attr["encap"],
-                                ts = ts,
-                            ))
-                    if ext_vrf is not None:
-                        for bd in ext_bd:
-                            bd.vrf = ext_vrf
-                            bulk_objects.append(bd)
-                    else:
-                        logger.warn("unable to add (%s) external BDs vnids, vrf not set",len(ext_bd))
+        for attr in get_attributes(data=data):
+            ext_bd = []
+            ext_vrf = None
+            dn = attr["dn"]
+            if "children" in attr and len(attr["children"]) > 0:
+                for cobj in attr["children"]:
+                    cname = cobj.keys()[0]
+                    attr = cobj[cname]["attributes"]
+                    if cname == "l3extRsEctx" and "tDn" in attr:
+                        if attr["tDn"] in vnids:
+                            ext_vrf = vnids[attr["tDn"]]
+                        else:
+                            logger.warn("unknown vrf %s in l3extRxEctx: %s", attr["tDn"], attr)
+                    if cname == "l3extExtEncapAllocator":
+                        ext_bd.append(eptVnid(
+                            fabric = self.fabric.fabric,
+                            vnid = int(re.sub("vxlan-","", attr["extEncap"])),
+                            name = "%s/encap-[%s]" % (dn, attr["encap"]),
+                            encap = attr["encap"],
+                            ts = ts,
+                        ))
+                if ext_vrf is not None:
+                    for bd in ext_bd:
+                        bd.vrf = ext_vrf
+                        bulk_objects.append(bd)
+                else:
+                    logger.warn("unable to add (%s) external BDs vnids, vrf not set",len(ext_bd))
 
         if len(bulk_objects)>0:
             eptVnid.bulk_save(bulk_objects, skip_validation=False)
-        return True
-
-    def build_ept_vns_rs_lif_ctx_to_bd_db(self):
-        """ initialize eptVnsRsLIfCtxToBD database. return bool success """
-        logger.debug("initializing eptVnsRsLIfCtxToBD db")
-        if not self.initialize_generic_db_collection(eptVnsRsLIfCtxToBD, "vnsRsLIfCtxToBD", {
-                "name": "dn",
-                "bd_dn": "tDn",
-            }, set_ts=True, flush=True):
-            logger.warn("failed to initialize eptVnsRsLIfCtxToBD db")
-            return False
-        # need to map bd to vnid
-        bulk_objects = []
-        vnids = {}      # indexed by bd/vrf name (dn), contains only vnid
-        for v in eptVnid.find(fabric=self.fabric.fabric): 
-            vnids[v.name] = v.vnid
-        for vns in eptVnsRsLIfCtxToBD.find(fabric=self.fabric.fabric):
-            if vns.bd_dn in vnids:
-                vns.bd = vnids[vns.bd_dn]
-                bulk_objects.append(vns)
-            else:
-                logger.warn("failed to map bd for %s: '%s'", vns.name, vns.bd_dn)
-
-        if len(bulk_objects)>0:
-            # only adding vnid here which was validated from eptVnid so no validation required
-            eptVnsRsLIfCtxToBD.bulk_save(bulk_objects, skip_validation=True)
         return True
 
     def build_epg_db(self):
         """ initialize epg database. return bool success
             epg objects include the following (all instances of fvEPg)
                 fvAEPg      - normal epg            (fvRsBd - map to fvBD)
-                mgmtInb     - inband mgmt epg       (mgmtRsMgmtBD - map to fvBD)
+                mgmtInB     - inband mgmt epg       (mgmtRsMgmtBD - map to fvBD)
                 vnsEPpInfo  - epg from l4 graph     (vnsRsEPpInfoToBD - map to fvBD)
                 l3extInstP  - external epg          (no BD)
         """
         logger.debug("initializing epg db")
-        if not self.initialize_generic_db_collection(eptEpg, "fvEPg", {
-                "vrf": "scope",
-                "pctag": "pcTag",
-                "name": "dn",
-                "is_attr_based": "isAttrBasedEPg",
-            }, set_ts=True, flush=True):
-            logger.warn("failed to initialize epg db from fvEPg")
-            return False
-      
+        flush = True
+        for c in ["fvAEPg", "mgmtInB", "vnsEPpInfo", "l3extInstP"]:
+            if not self.initialize_ept_collection(eptEpg, c, set_ts=True, flush=flush):
+                logger.warn("failed to initialize epg db from %s", c)
+                return False
+            # only flush on first table
+            flush = False
+
         logger.debug("mapping epg to bd vnid")
         # need to build mapping of epg to bd. to do so need to get the dn of the BD for each epg
         # and then lookup into vnids table for bd name to get bd vnid to merge into epg table
@@ -768,18 +761,10 @@ class eptSubscriber(object):
         for e in eptEpg.find(fabric=self.fabric.fabric):
             epgs[e.name] = e
         for classname in ["fvRsBd", "vnsRsEPpInfoToBD", "mgmtRsMgmtBD"]:
-            data = get_class(self.session, classname)
-            if data is None:
-                logger.warn("failed to get data for classname: %s", classname)
-                continue
-            for obj in data:
-                cname = obj.keys()[0]
-                attr = obj[cname]["attributes"]
-                if "tDn" not in attr or "dn" not in attr:
-                    logger.warn("invalid %s object (missing dn/tDn): %s", classname, obj)
-                    continue
-                epg_name = re.sub("/(rsbd|rsEPpInfoToBD|rsmgmtBD)$", "", attr["dn"])
-                bd_name = attr["tDn"]
+            logger.debug("map epg bd vnid from %s", classname)
+            for mo in self.mo_classes[classname].find(fabric=self.fabric.fabric):
+                epg_name = re.sub("/(rsbd|rsEPpInfoToBD|rsmgmtBD)$", "", mo.dn)
+                bd_name = mo.tDn 
                 if epg_name not in epgs:
                     logger.warn("cannot map bd to unknown epg '%s' from '%s'", epg_name, classname)
                     continue
@@ -790,6 +775,8 @@ class eptSubscriber(object):
                 if epg_name not in bulk_object_keys:
                     bulk_object_keys[epg_name] = 1
                     bulk_objects.append(epgs[epg_name])
+                else:
+                    logger.warn("skipping duplicate dn: %s", epg_name)
 
         if len(bulk_objects)>0:
             # only adding vnid here which was validated from eptVnid so no validation required
@@ -818,8 +805,11 @@ class eptSubscriber(object):
             # we only care about the bd vnid, only add to epgs list if a non-zero value is present
             if e.bd != 0: epgs[e.name] = e.bd
         # although not technically an epg, eptVnsLIfCtxToBD contains a mapping to bd that we need
-        for e in eptVnsRsLIfCtxToBD.find(fabric=self.fabric.fabric):
-            if e.bd != 0: epgs[e.parent] = e.bd
+        for mo in self.mo_classes["vnsRsLIfCtxToBD"].find(fabric=self.fabric.fabric):
+            if mo.tDn in vnids:
+                epgs[mo.parent] = vnids[mo.tDn]
+            else:
+                logger.warn("%s tDn %s not in vnids", mo._classname, mo.tDn)
 
         bulk_objects = []
         # should now have all objects that would contain a subnet 
@@ -829,34 +819,29 @@ class eptSubscriber(object):
             if data is None:
                 logger.warn("failed to get data for classname: %s", classname)
                 continue
-            for obj in data:
-                cname = obj.keys()[0]
-                attr = obj[cname]["attributes"]
+            for attr in get_attributes(data=data):
                 if "ip" not in attr or "dn" not in attr:
-                    logger.warn("invalid %s object (missing dn/ip): %s", classname, obj)
+                    logger.warn("invalid %s object (missing dn/ip): %s", classname, attr)
                     continue
-                if attr["ip"] == "0.0.0.0" or "usefvSubnet" in attr and attr["usefvSubnet"]=="yes":
-                    logger.debug("skipping invalid subnet for %s, %s", attr["ip"], attr["dn"])
+                dn = re.sub("(/crtrn/ipattr-.+$|/subnet-\[[^]]+\]$)","", attr["dn"])
+                # usually in bd so check vnid first and then epg
+                bd_vnid = None
+                if dn in vnids:
+                    bd_vnid = vnids[dn]
+                elif dn in epgs:
+                    bd_vnid = epgs[dn]
+                if bd_vnid is not None:
+                    # FYI - we support fvSubnet on BD and EPG for shared services so duplicate ip
+                    # can exist. unique index is disabled on eptSubnet to support this... 
+                    bulk_objects.append(eptSubnet(
+                        fabric = self.fabric.fabric,
+                        bd = bd_vnid,
+                        name = attr["dn"],
+                        ip = attr["ip"],
+                        ts = ts
+                    ))
                 else:
-                    dn = re.sub("(/crtrn/ipattr-.+$|/subnet-\[[^]]+\]$)","", attr["dn"])
-                    # usually in bd so check vnid first and then epg and then vns
-                    bd_vnid = None
-                    if dn in vnids:
-                        bd_vnid = vnids[dn]
-                    elif dn in epgs:
-                        bd_vnid = epgs[dn]
-                    if bd_vnid is not None:
-                        # we support fvSubnet on BD and EPG for shared services so duplicate subnet
-                        # can exist. unique index is disabled on eptSubnet to support this... 
-                        bulk_objects.append(eptSubnet(
-                            fabric = self.fabric.fabric,
-                            bd = bd_vnid,
-                            name = attr["dn"],
-                            subnet = attr["ip"],
-                            ts = ts
-                        ))
-                    else:
-                        logger.warn("failed to map subnet '%s' (%s) to a bd", attr["dn"], dn)
+                    logger.warn("failed to map subnet '%s' (%s) to a bd", attr["dn"], dn)
 
         logger.debug("flushing entries in %s for fabric %s",eptSubnet._classname,self.fabric.fabric)
         eptSubnet.delete(_filters={"fabric":self.fabric.fabric})
@@ -924,17 +909,4 @@ class eptSubscriber(object):
                         logger.debug("ignorning active event for non-leaf")
         else:
             logger.debug("ignoring fabricNode event (fabricSt or dn not present in attributes)")
-
-    def handle_rs_vpc_conf_event(self, classname, attr):
-        """ handle updates to vpcRsVpcConf which provide mapping of pc to vpc
-            unfortunately this subscription is unreliable (i.e., delete + create only returns a
-            delete event), therefore we will use full eptVpc rebuild on any event.  This is 
-            inefficient but only occurs on user config event so relatively rare...
-        """
-        logger.debug("handle %s event", classname)
-        if attr["_ts"] > self.vpc_rebuild_ts:
-            self.build_vpc_db()
-            self.send_flush(eptVpc)
-        else:
-            logger.debug("ignorning vpc rebuild as %0.3f > %0.3f", self.vpc_rebuild_ts, attr["_ts"])
 

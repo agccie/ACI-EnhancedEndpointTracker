@@ -420,7 +420,7 @@ class WorkerTracker(object):
         with worker.queue_locks[msg.qnum]:
             worker.last_seq[msg.qnum]+= 1
             msg.seq = worker.last_seq[msg.qnum]
-            logger.debug("enqueuing work onto queue %s: %s", worker.queues[msg.qnum], msg)
+            logger.debug("enqueue %s: %s", worker.queues[msg.qnum], msg)
             self.redis.rpush(worker.queues[msg.qnum], msg.jsonify())
             self.manager.increment_stats(worker.queues[msg.qnum], tx=True)
         return True

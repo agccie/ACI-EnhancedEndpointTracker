@@ -3,7 +3,12 @@ from enum import Enum
 from enum import unique as enum_unique
 
 import json
+import logging
+import re
 import time
+
+# module level logging
+logger = logging.getLogger(__name__)
 
 # static msg types to prevent duplicates
 @enum_unique
@@ -23,9 +28,9 @@ class MSG_TYPE(Enum):
 class WORK_TYPE(Enum):
     WATCH_NODE          = "watch_node"      # a new node has become active/inactive
     FLUSH_CACHE         = "flush_cache"     # flush cache for specific collection and/or dn
-    EPM_IP_EVENT        = "epm_ip"          # epmIpEp event
+    EPM_IP_EVENT        = "epm_ip "         # epmIpEp event
     EPM_MAC_EVENT       = "epm_mac"         # epmMacEp event
-    EPM_RS_IP           = "epm_rs_ip"       # epmRsMacEpToIpEpAtt event
+    EPM_RS_IP           = "epmRsIp"         # epmRsMacEpToIpEpAtt event
 
 class eptMsg(object):
     """ generic ept job for messaging between workers 
@@ -45,7 +50,7 @@ class eptMsg(object):
         })
 
     def __repr__(self):
-        return "%s.%s" % (self.msg_type.value, self.seq)
+        return "%s.0x%08x" % (self.msg_type.value, self.seq)
 
     @staticmethod
     def parse(data):
@@ -74,7 +79,7 @@ class eptMsgHello(object):
         self.seq = seq
 
     def __repr__(self):
-        return "[%s] %s.%s" % (self.worker_id, self.msg_type.value, self.seq)
+        return "[%s] %s.0x%08x" % (self.worker_id, self.msg_type.value, self.seq)
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """
@@ -119,7 +124,7 @@ class eptMsgWork(object):
         self.fabric = fabric
 
     def __repr__(self):
-        return "%s.%s %s %s" % (self.msg_type.value, self.seq, self.role, self.wt.value)
+        return "%s.0x%08x %s %s" % (self.msg_type.value, self.seq, self.role, self.wt.value)
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """
@@ -137,9 +142,174 @@ class eptMsgWork(object):
     @staticmethod
     def from_msg_json(js):
         # return eptMsgWork object from received msg js
-        return eptMsgWork(js["addr"], js["role"], js["data"], WORK_TYPE(js["wt"]),
-                qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+        # check if this is eptMsgWorkEpmEvent and initialize accordingly
+        wt = WORK_TYPE(js["wt"])
+        if wt==WORK_TYPE.EPM_IP_EVENT or wt==WORK_TYPE.EPM_MAC_EVENT or wt==WORK_TYPE.EPM_RS_IP:
+            return eptMsgWorkEpmEvent(js["addr"], js["role"], js["data"], wt,
+                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+        else:
+            return eptMsgWork(js["addr"], js["role"], js["data"], wt,
+                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
 
-                
+###############################################################################
+#
+# epm event is a type of eptMsgWork triggered from an epmMacEp, epmIpEp, or
+# epmRsMacEpToIpEpAtt event. The heart of this app is parsing and delivering 
+# epmEvents.
+#
+###############################################################################
 
+# pre-compile regex expressions
+epm_reg = "node-(?P<node>[0-9]+)/sys/"
+epm_reg+= "((ctx-\[vxlan-(?P<vrf>[0-9]+)\]/)|(?P<ovl>inst-overlay-1/))"
+epm_reg+= "(bd-\[vxlan-(?P<bd>[0-9]+)\]/)?"
+epm_reg+= "(vx?lan-\[(?P<encap>vx?lan-[0-9]+)\]/)?"
+epm_reg+= "db-ep/"
+epm_reg+= "((mac|ip)-\[?(?P<addr>[0-9\.a-fA-F:]+)\]?)?"
+epm_rsMacToIp_reg = epm_reg+"/rsmacEpToIpEpAtt-.+?"
+epm_rsMacToIp_reg+= "ip-\[(?P<ip>[0-9\.a-fA-F\:]+)\]"
+epm_rsMacToIp_reg = re.compile(epm_rsMacToIp_reg)
+epm_reg = re.compile(epm_reg)
+
+class eptEpmEventParser(object):
+    """ shim for creating/parsing epmEvents """
+    def __init__(self, fabric, overlay_vnid):
+        logger.debug("new epm event parser '%s' with overlay-vnid: %s", fabric, overlay_vnid)
+        self.fabric = fabric
+        self.overlay_vnid = int(overlay_vnid)
+
+    def parse(self, classname, attr, ts):
+        # return an instance of eptMsgWorkEpmEvent or None on error
+        msg = eptMsgWorkEpmEvent(None, "worker", {}, None, fabric=self.fabric)
+        if not msg.parse(self.overlay_vnid, classname, attr, ts):
+            return None
+        return msg
+
+    def get_delete_event(self, classname, node, vnid, addr, ts):
+        # return an eptMsgWorkEpmEvent with status 'delete' for provided node+vnid+addr
+        msg = eptMsgWorkEpmEvent(addr, "worker", {}, None, fabric=self.fabric)
+        msg.status = "delete"
+        msg.node = node
+        msg.vnid = vnid
+        msg.ts = ts
+        if classname == "epmMacEp":
+            msg.wt = WORK_TYPE_EPM_MAC_EVENT
+            msg.type = "mac"
+        elif classname == "epmIpEp":
+            msg.wt = WORK_TYPE.EPM_IP_EVENT
+            msg.type = "ip"
+        elif classname == "epmRsMacEpToIpEpAtt":
+            msg.wt = WORK_TYPE.EPM_RS_IP
+            msg.type = "ip"
+            msg.ip = addr
+        else:
+            logger.warn("unexpected classname for EpmEventParser get_delete_event: %s", classname)
+            return None
+        return msg
+
+class eptMsgWorkEpmEvent(eptMsgWork):
+    """ standardize parsed result for epmMacEp, epmIpEp, and epmRsMacEpToIpEpAtt objects to always
+        include all attributes with default of empty string if not present
+    """
+    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+        # initialize as eptMsgWork with empty data set (completed only if valid event)
+        super(eptMsgWorkEpmEvent, self).__init__(addr, "worker", data, wt, fabric=fabric)
+        self.ts = float(data.get("ts", 0))
+        self.classname = data.get("classname", "")
+        self.type = data.get("type", "")
+        self.status = data.get("status", "")
+        self.flags = data.get("flags", "")
+        self.ifId = data.get("ifId", "")
+        self.pcTag = data.get("pcTag","")
+        self.encap = data.get("encap", "")
+        self.ip = data.get("ip", "")
+        self.node = int(data.get("node", 0))
+        self.vnid = int(data.get("vnid", 0))
+        self.vrf = int(data.get("vrf", 0))
+        self.bd = int(data.get("bd", 0))
+
+    def parse(self, overlay_vnid, classname, attr, ts):
+        # parse event and set data dict to prepare 
+        self.classname = classname
+        if "dn" not in attr:
+            logger.warn("invalid epm attribute (%s): %s", classname, attr)
+            return False
+        if self.classname == "epmIpEp":
+            self.wt = WORK_TYPE.EPM_IP_EVENT
+            r1 = epm_reg.search(attr["dn"])
+            self.type = "ip"
+        elif self.classname == "epmMacEp":
+            self.wt = WORK_TYPE.EPM_MAC_EVENT
+            r1 = epm_reg.search(attr["dn"])
+            self.type = "mac"
+        elif self.classname == "epmRsMacEpToIpEpAtt":
+            self.wt = WORK_TYPE.EPM_RS_IP
+            r1 = epm_rsMacToIp_reg.search(attr["dn"])
+            self.type = "ip"
+            self.ip = r1.group("ip")
+        else:
+            logger.warn("insupported epmEvent classname (%s): %s", classname, attr)
+            return False
+        if r1 is None:
+            logger.warn("failed to parse epm event for %s: %s", classname, attr["dn"])
+            return False
+
+        self.ts = ts
+        self.status = attr.get("status", "created")
+        self.flags = attr.get("flags", "")
+        self.ifId = attr.get("ifId", "")
+        self.pcTag = attr.get("pcTag", "")
+        self.node = int(r1.group("node"))
+        self.addr = r1.group("addr")
+
+        # either vrf or ovl will always be set. If ovl then use overlay_vnid for vrf
+        if r1.group("vrf") is not None:
+            self.vrf = int(r1.group("vrf"))
+        elif r1.group("ovl") is not None:
+            self.vrf = overlay_vnid
+        else:
+            logger.warn("parse did not match vrf or ovl %s: %s",attr["dn"],r1.groupdict())
+            return False
+
+        # optional matches that need to be set empty string if not present
+        self.bd = int(r1.group("bd"))   if r1.group("bd") is not None else 0
+        self.encap = r1.group("encap")  if r1.group("encap") is not None else ""
+
+        # set vnid to bd or vrf depending on classname
+        self.vnid = self.bd if self.classname == "epmMacEp" else self.vrf
+
+        # successful parse
+        #logger.debug("parse epm event on %s(%s): %s", self.classname, self.fabric, attr["dn"])
+        return True
+
+    def jsonify(self):
+        """ jsonify for transport across messaging queue """
+        return json.dumps({
+            "msg_type": self.msg_type.value,
+            "seq": self.seq,
+            "wt": self.wt.value,
+            "addr": self.addr,
+            "role": self.role,
+            "qnum": self.qnum,
+            "fabric": self.fabric,
+            "data": {
+                "classname": self.classname,
+                "type": self.type,
+                "ts": self.ts,
+                "status": self.status,
+                "flags": self.flags,
+                "ifId": self.ifId,
+                "pcTag": self.pcTag,
+                "node": self.node,
+                "vrf": self.vrf,
+                "bd": self.bd,
+                "encap": self.encap,
+                "ip": self.ip,
+                "vnid": self.vnid,
+            }
+        })
+
+    def __repr__(self):
+        return "%s.0x%08x %s [0x%x, %s, %s]" % (self.msg_type.value, self.seq, self.wt.value, 
+                self.vnid, self.addr, self.ip)
 

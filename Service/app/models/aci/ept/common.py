@@ -60,6 +60,22 @@ def wait_for_db(db, check_interval=1):
 
 ###############################################################################
 #
+# ept specific functions
+#
+###############################################################################
+
+def get_vpc_domain_id(n1, n2):
+    """ calculate interger vpc_domain_id for two node ids
+        id is always (highest node id) << 16 + (lower node id)
+    """
+    n1 = int(n1)
+    n2 = int(n2)
+    if n1 > n2: return (n1 << 16) + n2
+    return (n2 << 16) + n1
+    
+
+###############################################################################
+#
 # common conversion functions
 #
 ###############################################################################
@@ -197,13 +213,4 @@ def get_ipv6_prefix(ipv6):
     mask = (~(pow(2,128-mask)-1)) & 0xffffffffffffffffffffffffffffffff
     return (addr&mask, mask)
 
-def get_vpc_domain_id(n1, n2):
-    """ calculate interger vpc_domain_id for two node ids
-        id is always (highest node id) << 16 + (lower node id)
-    """
-    n1 = int(n1)
-    n2 = int(n2)
-    if n1 > n2: return (n1 << 16) + n2
-    return (n2 << 16) + n1
-    
 

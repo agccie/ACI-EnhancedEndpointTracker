@@ -96,7 +96,7 @@ class SubscriptionCtrl(object):
         self.queued_events = []
         # if called from within worker then just update self.ctrl
         if self.worker_thread is threading.current_thread():
-            # unconditionally flush queued_events on unsubscribe or restart
+            # unconditionally flush queued_events on _close or restart
             self.queued_events = []
             with self.lock:
                 self.ctrl = SubscriptionCtrl.CTRL_RESTART
@@ -109,8 +109,6 @@ class SubscriptionCtrl(object):
         """ unsubscribe and close connections """
         logger.info("%s unsubscribe: (alive:%r, thread:%r)", self.name, self.alive,
                     (self.worker_thread is not None))
-        # unconditionally flush queued_events on unsubscribe
-        self.queued_events = []
         if not self.alive: return
 
         # should never call unsubscribe without worker (subscribe called with block=True), however 
@@ -296,6 +294,8 @@ class SubscriptionCtrl(object):
         """ try to close any open subscriptions """
         logger.debug("close all subscriptions")
         self.alive = False
+        # unconditionally flush queued_events on unsubscribe
+        self.queued_events = []
         if self.session is not None:
             try:
                 urls = self.session.subscription_thread._subscriptions.keys()

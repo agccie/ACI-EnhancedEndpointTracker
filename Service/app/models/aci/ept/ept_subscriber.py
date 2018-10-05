@@ -17,6 +17,7 @@ from . common import MO_BASE
 from . common import get_vpc_domain_id
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
+from . ept_msg import eptEpmEventParser
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgWork
 from . ept_epg import eptEpg
@@ -51,6 +52,7 @@ class eptSubscriber(object):
         self.db = None
         self.redis = None
         self.session = None
+        self.ept_epm_parser = None  # initialized once overlay vnid is known
         self.soft_restart_ts = 0    # timestamp of last soft_restart
         self.manager_ctrl_channel_lock = threading.Lock()
         self.manager_work_queue_lock = threading.Lock()
@@ -262,11 +264,16 @@ class eptSubscriber(object):
         self.slow_subscription.resume()    # safe to call even if never paused
 
         # setup epm subscriptions to catch events occurring during epm build
+        self.ept_epm_parser = eptEpmEventParser(self.fabric.fabric, self.settings.overlay_vnid)
         if self.settings.queue_init_epm_events:
             self.epm_subscription.pause()
         self.epm_subscription.subscribe(blocking=False)
 
-        # TODO - build endpoint database
+        # build endpoint database
+        self.fabric.add_fabric_event(init_str, "building endpoint db")
+        if not self.build_endpoint_db():
+            self.fabric.add_fabric_event("failed", "failed to build endpoint db")
+            return
 
         # epm objects intialization completed
         self.epm_initializing = False
@@ -349,11 +356,23 @@ class eptSubscriber(object):
         self.initializing = False
 
     def send_msg(self, msg):
-        """ send eptMsgWork to worker via manager work queue """
-        # validate that 'fabric' is ALWAYS set on any work
-        msg.fabric = self.fabric.fabric
-        with self.manager_work_queue_lock:
-            self.redis.rpush(MANAGER_WORK_QUEUE, msg.jsonify())
+        """ send one or more eptMsgWork objects to worker via manager work queue """
+        if isinstance(msg, list):
+            work = []
+            for sub_msg in msg:
+                # validate that 'fabric' is ALWAYS set on any work
+                sub_msg.fabric = self.fabric.fabric
+                work.append(sub_msg.jsonify())
+            if len(work) == 0:
+                # rpush requires at least one event, if msg is empty list then just return
+                return
+            with self.manager_work_queue_lock:
+                self.redis.rpush(MANAGER_WORK_QUEUE, *work)
+        else:
+            # validate that 'fabric' is ALWAYS set on any work
+            msg.fabric = self.fabric.fabric
+            with self.manager_work_queue_lock:
+                self.redis.rpush(MANAGER_WORK_QUEUE, msg.jsonify())
 
     def send_flush(self, collection, name=None):
         """ send flush message to workers for provided collection """
@@ -369,7 +388,8 @@ class eptSubscriber(object):
             attribute representing timestamp when event was received if verify_ts is set
         """
         try:
-            for e in event["imdata"]:
+            if type(event) is dict: event = event["imdata"]
+            for e in event:
                 classname = e.keys()[0]
                 if "attributes" in e[classname]:
                         attr = e[classname]["attributes"]
@@ -923,3 +943,85 @@ class eptSubscriber(object):
         else:
             logger.debug("ignoring fabricNode event (fabricSt or dn not present in attributes)")
 
+
+    def build_endpoint_db(self):
+        """ all endpoint events (eptHistory and eptEndpoint) are handled by app workers. To build
+            the initial database we need to simulate create or delete events for each endpoint 
+            returned from the APIC and send through worker process.  Delete jobs are created for
+            endpoints previously within the database but not returned on query, all other objects 
+            will result in a create job.
+
+            Return boolean success
+        """
+        logger.debug("initialize endpoint db")
+
+        start_time = time.time()
+        data = get_class(self.session, "epmDb", queryTarget="subtree",
+                targetSubtreeClass="epmMacEp,epmIpEp,epmRsMacEpToIpEpAtt")
+        ts = time.time()
+        if data is None:
+            logger.warn("failed to get data for epmDb")
+            return
+        # 3-level dict to track endpoints returned from class query endpoints[node][vnid][addr] = 1
+        endpoints = {}
+        # queue all the events to send at one time...
+        create_msgs = []
+        delete_msgs = []
+        for (classname, attr) in self.parse_event(data, verify_ts=False):
+            msg = self.ept_epm_parser.parse(classname, attr, ts)
+            if msg is not None:
+                create_msgs.append(msg)
+                if msg.node not in endpoints: endpoints[msg.node] = {}
+                if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
+                endpoints[msg.node][msg.vnid][msg.addr] = 1
+
+        # free classquery data list
+        data = []
+
+        # get entries in db and create delete events for those not deleted and not in class query.
+        # we need to iterate through the results and do so as fast as possible and current rest
+        # class does not support an iterator.  Therefore, using direct db call...
+        flt = {
+            "fabric": self.fabric.fabric,
+            "events.0.status": {"$ne": "deleted"},
+        }
+        projection = {
+            "node": 1,
+            "vnid": 1,
+            "addr": 1,
+            "type": 1,
+        }
+        for obj in self.db[eptHistory._classname].find(flt, projection):
+            # if in endpoints dict, then stil exists in the fabric so do not create a delete event
+            if obj["node"] in endpoints and obj["vnid"] in endpoints[obj["node"]] and \
+                obj["addr"] in endpoints[obj["node"]][obj["vnid"]]:
+                continue
+            if obj["type"] == "mac":
+                msg = self.ept_epm_parser.get_delete_event("epmMacEp", obj["node"], 
+                    obj["vnid"], obj["addr"], ts)
+                if msg is not None:
+                    delete_msgs.append(msg)
+            else:
+                # create an epmRsMacEpToIpEpAtt and epmIpEp delete event
+                msg = self.ept_epm_parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"], 
+                    obj["vnid"], obj["addr"], ts)
+                if msg is not None:
+                    delete_msgs.append(msg)
+                msg = self.ept_epm_parser.get_delete_event("epmIpEp", obj["node"], 
+                    obj["vnid"], obj["addr"], ts)
+                if msg is not None:
+                    delete_msgs.append(msg)
+
+        # send all create and delete messages to workers (delete first just because...)
+        logger.debug("build_endoint_db sending %s delete and %s create messages", len(delete_msgs),
+                len(create_msgs))
+        ts2 = time.time()
+        self.send_msg(delete_msgs)
+        self.send_msg(create_msgs)
+        ts3 = time.time()
+        logger.debug("build_endpoint_db query: %.3f, build: %.3f, send_msg: %.3f, total: %.3f", 
+            ts-start_time, ts2-ts, ts3 - ts2, ts3 - start_time) 
+        return True
+
+
+                

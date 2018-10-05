@@ -36,15 +36,14 @@ class SubscriptionCtrl(object):
                 "imdata": list of objects within the event
 
             additional kwargs:
-            only_new (bool)     do not return existing objects, only new 
-                                events recevied on the subscription    
+            name (str)          subscription_ctrl name useful for debugs with multiple subscriptions
+                                within the same process/thread
+            only_new (bool)     do not return existing objects, only newly received events
             heartbeat (int)     dead interval to check health of session
-            inactive_interval(float) interval in seconds to sleep between loop
-                                when no events have been detected and no 
-                                callbacks are ready
-            subscribe_timeout(int) maximum amount of time to wait for 
-                                non-blocking subscription to start. If exceeded
-                                the subscription is aborted
+            inactive_interval(float) interval in seconds to sleep between loop when no events have 
+                                been detected and no callbacks are ready
+            subscribe_timeout(int) maximum amount of time to wait for non-blocking subscription to 
+                                start. If exceeded the subscription is aborted
         """
 
         self.fabric = fabric
@@ -53,18 +52,36 @@ class SubscriptionCtrl(object):
         self.heartbeat = kwargs.get("heartbeat", 60.0)
         self.inactive_interval = kwargs.get("inactive_interval", 0.5)
         self.subscribe_timeout = kwargs.get("subscribe_timeout", 10.0)
+        self.name = kwargs.get("name", "")
 
         # state of the session
         self.worker_thread = None
         self.last_heartbeat = 0
         self.session = None
         self.alive = False
+        self.paused = False
+        self.queued_events = []
         self.lock = threading.Lock()
         self.ctrl = SubscriptionCtrl.CTRL_CONTINUE
 
     def is_alive(self):
         """ determine if subscription is still alive """
         return self.alive
+
+    def pause(self):
+        """ pause subscription callback.  This is useful to keep the subscription alive and queue
+            the susbscriptions events until caller is ready to handle callbacks
+        """
+        logger.info("%s pausing subscription", self.name)
+        self.paused = True
+
+    def resume(self):
+        """ if the subscription has been paused, executing resume to 'unpause' and trigger handler
+            of all pending events that have been received while subscription was paused. Note, it
+            can take upt to the inactive_interval before the queued events are triggered
+        """
+        logger.info("%s resuming subscription", self.name)
+        self.paused = False
 
     def restart(self, blocking=True):
         """ restart subscription
@@ -73,9 +90,14 @@ class SubscriptionCtrl(object):
                                 subscription is active. If blocking is set to
                                 false then subscription is handled in background     
         """
-        logger.debug("restart: (alive: %r, thrd: %r)",self.alive,(self.worker_thread is not None))
-        # if called from within worker then just update self.ctr
+        logger.info("%s restart: (alive: %r, thread: %r)", self.name, self.alive,
+                    (self.worker_thread is not None))
+        # unconditionally flush queued_events on unsubscribe or restart
+        self.queued_events = []
+        # if called from within worker then just update self.ctrl
         if self.worker_thread is threading.current_thread():
+            # unconditionally flush queued_events on unsubscribe or restart
+            self.queued_events = []
             with self.lock:
                 self.ctrl = SubscriptionCtrl.CTRL_RESTART
         else:
@@ -85,7 +107,10 @@ class SubscriptionCtrl(object):
   
     def unsubscribe(self):
         """ unsubscribe and close connections """
-        logger.debug("unsubscribe: (alive:%r, thrd:%r)",self.alive,(self.worker_thread is not None))
+        logger.info("%s unsubscribe: (alive:%r, thread:%r)", self.name, self.alive,
+                    (self.worker_thread is not None))
+        # unconditionally flush queued_events on unsubscribe
+        self.queued_events = []
         if not self.alive: return
 
         # should never call unsubscribe without worker (subscribe called with block=True), however 
@@ -118,7 +143,7 @@ class SubscriptionCtrl(object):
             Note, when blocking=False, the main thread will still wait until
             subscription has successfully started (or failed) before returning
         """
-        logger.debug("start subscribe (blocking:%r)", blocking)
+        logger.info("%s start subscribe (blocking:%r)", self.name, blocking)
 
         # get lock to set ctrl
         logger.debug("setting ctrl to close")
@@ -227,6 +252,14 @@ class SubscriptionCtrl(object):
             # check ctrl flags and exit if set to quit
             if not continue_subscription(): return
 
+            # flush queued events if no longer paused
+            if not self.paused and len(self.queued_events) > 0:
+                logger.debug("unpaused, triggering callback of %s events", len(self.queued_events))
+                for (func, event) in self.queued_events:
+                    func(event)
+                    if not continue_subscription(): return
+                self.queued_events = []
+
             interest_found = False
             ts = time.time()
             for cname in self.interests:
@@ -234,7 +267,14 @@ class SubscriptionCtrl(object):
                 count = self.session.get_event_count(url)
                 if count > 0:
                     #logger.debug("1/%s events found for %s", count, cname)
-                    self.interests[cname]["handler"](self.session.get_event(url))
+                    if self.paused:
+                        self.queued_events.append((
+                            self.interests[cname]["handler"], 
+                            self.session.get_event(url)
+                        ))
+                        logger.debug("%s paused, event %s queued", cname, len(self.queued_events))
+                    else:
+                        self.interests[cname]["handler"](self.session.get_event(url))
                     interest_found = True
                     # if event forced subscription closed, don't pick up next event
                     if not continue_subscription(): return

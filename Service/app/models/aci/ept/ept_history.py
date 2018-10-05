@@ -53,8 +53,8 @@ class eptHistory(Rest):
         },
         "type": {
             "type": str,
-            "description": "endpoint type (mac, ipv4, ipv6)",
-            "values": ["mac", "ipv4", "ipv6"],
+            "description": "endpoint type (mac or ip)",
+            "values": ["mac", "ip"],
         },
         "is_stale": {
             "type": bool,
@@ -125,6 +125,10 @@ class eptHistory(Rest):
                     "description": """
                     BD VNID for mac of local ipv4/ipv6 endpoints.  This is 0 if not known.
                     """,
+                },
+                "epg_name": {
+                    "type": str,
+                    "description": "epg name of this event",
                 },
             },
         },

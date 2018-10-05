@@ -206,8 +206,8 @@ class DependencyNode(object):
         logger.debug("sync event (fabric:%s), event: %s", fabric, attr)
         updates = []
         mo = self.cls_mo.load(fabric=fabric, dn=attr["dn"])
-        if mo.exists() and mo.ts >= attr["_ts"]:
-            logger.debug("ignoring old %s event (%.3f >= %.3f)", self.classname, mo.ts, attr["_ts"])
+        if mo.exists() and mo.ts > attr["_ts"]:
+            logger.debug("ignoring old %s event (%.3f > %.3f)", self.classname, mo.ts, attr["_ts"])
             return updates
 
         # perform manual refresh for non-trusting mo or non-existing mo with modify event

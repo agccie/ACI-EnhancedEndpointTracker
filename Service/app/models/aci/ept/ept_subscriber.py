@@ -608,7 +608,7 @@ class eptSubscriber(object):
                                             "local_node": all_nodes[node_id]
                                         })
                                     else:
-                                        logger.warn("unknown node id %s", node_id)
+                                        logger.warn("unknown node id %s in %s", node_id, vpc_type)
                                 else:
                                     logger.warn("invalid %s object: %s", node_ep, cobj)
                     if len(child_nodes) == 2:
@@ -691,42 +691,30 @@ class eptSubscriber(object):
 
         # dict of name (vrf/bd) to vnid for quick lookup
         logger.debug("bulding vnid from l3extExtEncapAllocator")
+        ts = time.time()
+        bulk_objects = []
         vnids = {}  
+        l3ctx = {}     # mapping of l3out name to vrf vnid
         for v in eptVnid.find(fabric=self.fabric.fabric): 
             vnids[v.name] = v.vnid
-        # TODO - replace this with local db mo lookup
-        # handle l3extExtEncapAllocator (external BD) which requires second lookup for vrf 
-        bulk_objects = []
-        data = get_class(self.session, "l3extOut", rspSubtree="full", 
-                                    rspSubtreeClass="l3extExtEncapAllocator,l3extRsEctx")
-        ts = time.time()
-        for attr in get_attributes(data=data):
-            ext_bd = []
-            ext_vrf = None
-            dn = attr["dn"]
-            if "children" in attr and len(attr["children"]) > 0:
-                for cobj in attr["children"]:
-                    cname = cobj.keys()[0]
-                    attr = cobj[cname]["attributes"]
-                    if cname == "l3extRsEctx" and "tDn" in attr:
-                        if attr["tDn"] in vnids:
-                            ext_vrf = vnids[attr["tDn"]]
-                        else:
-                            logger.warn("unknown vrf %s in l3extRxEctx: %s", attr["tDn"], attr)
-                    if cname == "l3extExtEncapAllocator":
-                        ext_bd.append(eptVnid(
-                            fabric = self.fabric.fabric,
-                            vnid = int(re.sub("vxlan-","", attr["extEncap"])),
-                            name = "%s/encap-[%s]" % (dn, attr["encap"]),
-                            encap = attr["encap"],
-                            ts = ts,
-                        ))
-                if ext_vrf is not None:
-                    for bd in ext_bd:
-                        bd.vrf = ext_vrf
-                        bulk_objects.append(bd)
-                else:
-                    logger.warn("unable to add (%s) external BDs vnids, vrf not set",len(ext_bd))
+        for c in self.mo_classes["l3extRsEctx"].find(fabric=self.fabric.fabric):
+            if c.tDn in vnids:
+                l3ctx[c.parent]  = vnids[c.tDn]
+            else:
+                logger.warn("failed to map l3extRsEctx tDn(%s) to vrf vnid", c.tDn)
+        for obj in self.mo_classes["l3extExtEncapAllocator"].find(fabric=self.fabric.fabric):
+            new_vnid = eptVnid(
+                fabric = self.fabric.fabric,
+                vnid = int(re.sub("vxlan-","", obj.extEncap)),
+                name = obj.dn,
+                encap = obj.encap,
+                ts = ts
+            )
+            if obj.parent in l3ctx:
+                new_vnid.vrf = l3ctx[obj.parent]
+            else:
+                logger.warn("failed to map l3extOut(%s) to vrf vnid", obj.parent)
+            bulk_objects.append(new_vnid)
 
         if len(bulk_objects)>0:
             eptVnid.bulk_save(bulk_objects, skip_validation=False)

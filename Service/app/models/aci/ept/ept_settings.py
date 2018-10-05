@@ -116,6 +116,28 @@ class eptSettings(Rest):
             "min_val": 8, 
             "max_val": 1024,
         },
+        "queue_init_events": {
+            "type": bool,
+            "default": True,
+            "description": """ subscriptions are enabled for several MOs during the initial db 
+            build.  If events are received on the subscription before initialization has completed
+            these events can be queued and serviced after initialization. The number of events 
+            queued is dependent on the rate of events and the build time. It may be desirable to 
+            ignore the events during init, in which case queue_init_events should be disabled
+            """,
+        },
+        "queue_init_epm_events": {
+            "type": bool,
+            "default": True,
+            "description": """ similar to queue_init_events, epm event subscription is enabled 
+            before initial build/rebuild of the endpoint database. The events cannot be serviced 
+            until the build has completed. Ideally, queuing the events during the build ensure that
+            no endpoint events are lost, however if there is a high amount of events then it may be
+            advantageous to disable the queuing of events until they application is ready to 
+            process them.  Set queue_init_epm_events to False to ignore events received during 
+            initial epm db build.
+            """,
+        },
         "overlay_vnid": {
             "type": int,
             "write": False,

@@ -22,7 +22,7 @@ class MSG_TYPE(Enum):
 @enum_unique
 class WORK_TYPE(Enum):
     WATCH_NODE          = "watch_node"      # a new node has become active/inactive
-    FLUSH_CACHE         = "flush_cache"     # flush cache for specific collection
+    FLUSH_CACHE         = "flush_cache"     # flush cache for specific collection and/or dn
     EPM_IP_EVENT        = "epm_ip"          # epmIpEp event
     EPM_MAC_EVENT       = "epm_mac"         # epmMacEp event
     EPM_RS_IP           = "epm_rs_ip"       # epmRsMacEpToIpEpAtt event

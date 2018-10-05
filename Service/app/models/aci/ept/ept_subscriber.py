@@ -46,6 +46,7 @@ class eptSubscriber(object):
         self.fabric = fabric
         self.settings = eptSettings.load(fabric=self.fabric.fabric)
         self.initializing = True    # set to queue events until fully initialized
+        self.epm_initializing = True # different initializing flag for epm events
         self.stopped = False        # set to ignore events after hard_restart triggered
         self.db = None
         self.redis = None
@@ -55,48 +56,12 @@ class eptSubscriber(object):
         self.manager_work_queue_lock = threading.Lock()
         self.subscription_check_interval = 5.0   # interval to check subscription health
 
-        # list of pending events received on subscription while in init state
-        self.pending_events = []        
-        self.pending_std_events = []
-        # statically defined classnames in which to subscribe
+        # create subscription object for slow and fast subscriptions
         # slow subscriptions are classes which we expect a low number of events
-        subscription_classes = [
-            "fabricProtPol",        # handle_fabric_prot_pol
-            "fabricAutoGEp",        # handle_fabric_group_ep
-            "fabricExplicitGEp",    # handle_fabric_group_ep
-            "fabricNode",           # handle_fabric_node
-            #"vpcRsVpcConf",         # handle_rs_vpc_conf_event
-            #"fvCtx",                # handle_vnid_event
-            #"fvBD",                 # handle_vnid_event
-            #"fvSvcBD",              # handle_vnid_event
-            #"fvEPg",                # this includes fvAEPg, l3extInstP, vnsEPpInfo
-            #"fvRsBd",
-            #"vnsRsEPpInfoToBD",
-            #"vnsRsLIfCtxToBD",      
-            #"l3extExtEncapAllocator",
-            #"fvSubnet",             # handle_subnet_event
-            #"fvIpAttr",             # handle_subnet_event
-        ]
-        # classname to function handler for subscription events
-        self.handlers = {                
-            "fabricProtPol": self.handle_fabric_prot_pol,
-            "fabricAutoGEp": self.handle_fabric_group_ep,
-            "fabricExplicitGEp": self.handle_fabric_group_ep,
-            "fabricNode": self.handle_fabric_node,
-            #"fvSubnet": self.handle_subnet_event,
-            #"fvIpAttr": self.handle_subnet_event,
-            #"fvCtx": self.handle_vnid_event,
-            #"fvBD": self.handle_vnid_event,
-            #"fvSvcBD": self.handle_vnid_event,
-        }
+        slow_interest = {}
+        epm_interest = {}
 
-        # epm subscriptions expect a high volume of events
-        epm_subscription_classes = [
-            "epmMacEp",
-            "epmIpEp",
-            "epmRsMacEpToIpEpAtt",
-        ]
-
+        # classes that have corresponding mo Rest object and handled by handle_std_mo_event
         mo_classes = [
             "fvCtx",
             "fvBD",
@@ -117,31 +82,52 @@ class eptSubscriber(object):
             "vnsRsLIfCtxToBD",
             "vpcRsVpcConf",
         ]
-        # build mo classes into a dict where key is classname and value is imported object
+        # dict of classname to import mo object
         self.mo_classes = {}
         for mo in mo_classes:
             self.mo_classes[mo] = getattr(import_module(".%s" % mo, MO_BASE), mo)
 
-        # create subscription object for slow and fast subscriptions
-        slow_interest = {}
-        epm_interest = {}
+        # static/special handlers for a subset of 'slow' subscriptions
+        # note, slow subscriptions are handled via handle_std_mo_event and dependency_map
+        subscription_classes = [
+            "fabricProtPol",        # handle_fabric_prot_pol
+            "fabricAutoGEp",        # handle_fabric_group_ep
+            "fabricExplicitGEp",    # handle_fabric_group_ep
+            "fabricNode",           # handle_fabric_node
+        ]
+        # classname to function handler for subscription events
+        self.handlers = {                
+            "fabricProtPol": self.handle_fabric_prot_pol,
+            "fabricAutoGEp": self.handle_fabric_group_ep,
+            "fabricExplicitGEp": self.handle_fabric_group_ep,
+            "fabricNode": self.handle_fabric_node,
+        }
+
+        # epm subscriptions expect a high volume of events
+        epm_subscription_classes = [
+            "epmMacEp",
+            "epmIpEp",
+            "epmRsMacEpToIpEpAtt",
+        ]
 
         for s in subscription_classes:
             slow_interest[s] = {"handler": self.handle_event}
         for s in self.mo_classes:
             slow_interest[s] = {"handler": self.handle_std_mo_event}
         for s in epm_subscription_classes:
-            epm_interest[s] = {"handler": self.handle_event}
+            epm_interest[s] = {"handler": self.handle_epm_event}
 
         self.slow_subscription = SubscriptionCtrl(
             self.fabric, 
             slow_interest, 
+            name="sub-slow",
             heartbeat=300,
             inactive_interval=1
         )
         self.epm_subscription = SubscriptionCtrl(
             self.fabric, 
             epm_interest, 
+            name="sub-epm",
             heartbeat=300,
             inactive_interval=0.01
         )
@@ -162,14 +148,6 @@ class eptSubscriber(object):
 
     def _run(self):
         """ monitor fabric and enqueue work to workers """
-
-        # setup slow subscriptions to catch events occurring during build
-        #logger.debug("repeat heartbeat check...")
-        #self.slow_subscription.heartbeat = 1
-        #self.slow_subscription.subscribe(blocking=False)
-        #self.build_mo()
-        #time.sleep(3600)
-
 
         init_str = "initializing"
         # first step is to get a valid apic session, bail out if unable to connect
@@ -236,7 +214,9 @@ class eptSubscriber(object):
             self.fabric.add_fabric_event("failed", "unable to determine overlay-1 vnid")
             return
        
-        # setup slow subscriptions to catch events occurring during build
+        # setup slow subscriptions to catch events occurring during build 
+        if self.settings.queue_init_events:
+            self.slow_subscription.pause()
         self.slow_subscription.subscribe(blocking=False)
 
         self.fabric.add_fabric_event(init_str, "collecting base managed objects")
@@ -277,13 +257,23 @@ class eptSubscriber(object):
             self.fabric.add_fabric_event("failed", "failed to build subnet db")
             return
 
+        # slow objects (including std mo objects) initialization completed
+        self.initializing = False
+        self.slow_subscription.resume()    # safe to call even if never paused
+
         # setup epm subscriptions to catch events occurring during epm build
-        #   self.epm_subscription.subscribe(blocking=False)
+        if self.settings.queue_init_epm_events:
+            self.epm_subscription.pause()
+        self.epm_subscription.subscribe(blocking=False)
+
         # TODO - build endpoint database
+
+        # epm objects intialization completed
+        self.epm_initializing = False
+        self.epm_subscription.resume()    # safe to call even if never paused
 
         # subscriber running
         self.fabric.add_fabric_event("running")
-        self.initializing = False
 
         # ensure that all subscriptions are active
         while True:
@@ -365,11 +355,12 @@ class eptSubscriber(object):
         with self.manager_work_queue_lock:
             self.redis.rpush(MANAGER_WORK_QUEUE, msg.jsonify())
 
-    def send_flush(self, collection):
+    def send_flush(self, collection, name=None):
         """ send flush message to workers for provided collection """
-        logger.info("flush %s", collection._classname)
+        logger.info("flush %s (name:%s)", collection._classname, name)
         # node addr of 0 is broadcast to all nodes of provided role
-        msg = eptMsgWork(0, "worker", {"cache": collection._classname}, WORK_TYPE.FLUSH_CACHE)
+        data = {"cache": collection._classname, "name": name}
+        msg = eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE)
         msg.qnum = 0    # highest priority queue
         self.send_msg(msg)
 
@@ -395,17 +386,21 @@ class eptSubscriber(object):
 
     def handle_event(self, event):
         """ generic handler to call appropriate handler based on event classname
-            this will also enque events into buffer until intialization has completed
+            this can also enqueue events into buffer until intialization has completed
         """
         if self.stopped:
             logger.debug("ignoring event (subscriber stopped and waiting for reset)")
             return
         if self.initializing:
-            self.pending_events.append(event)
+            # ignore events during initializing state. If queue_init_events is enabled then 
+            # subscription_ctrl is 'paused' and queueing the events for us so this should only be
+            # triggered if queue_init_events is disabled in which case we are intentionally 
+            # igorning the event
+            logger.debug("ignoring event (in initializing state): %s", event)
             return
         logger.debug("event: %s", event)
         try:
-            for (classname, attr) in self.parse_events(event):
+            for (classname, attr) in self.parse_event(event):
                 if classname not in self.handlers:
                     logger.warn("no event handler defined for classname: %s", classname)
                 else:
@@ -414,16 +409,22 @@ class eptSubscriber(object):
             logger.error("Traceback:\n%s", traceback.format_exc())
 
     def handle_std_mo_event(self, event):
-        """ handle standard MO subscription event. This will update the local db MO and if classname
-            exists within dependency_map, will update each dependency. If MO exists within ept_map,
-            will update each ept object.  Finally, will send a flush for each ept classname that 
-            was changed.
+        """ handle standard MO subscription event. This will trigger sync_event from corresponding
+            MO DependencyNode which ensures that mo objects are updated in local db and dependent
+            ept objects (eptVnid, eptEpg, eptSubnet, eptVpc) are also updated. A list of updated
+            ept objects is return and a flush is triggered for each to ensure workers refresh their
+            cache for the objects.
         """
+        updates = []
         if self.stopped:
             logger.debug("ignoring event (subscriber stopped and waiting for reset)")
             return
         if self.initializing:
-            self.pending_std_events.append(event)
+            # ignore events during initializing state. If queue_init_events is enabled then 
+            # subscription_ctrl is 'paused' and queueing the events for us so this should only be
+            # triggered if queue_init_events is disabled in which case we are intentionally 
+            # igorning the event
+            logger.debug("ignoring event (in initializing state): %s", event)
             return
         try:
             for (classname, attr) in self.parse_event(event):
@@ -433,13 +434,37 @@ class eptSubscriber(object):
 
                 if classname in dependency_map:
                     logger.debug("triggering sync_event for dependency %s", classname)
-                    updates = dependency_map[classname].sync_event(self.fabric.fabric, attr, 
+                    updates+= dependency_map[classname].sync_event(self.fabric.fabric, attr, 
                         session = self.session
                     )
                     logger.debug("updated objects: %s", len(updates))
                 else:
                     logger.warn("%s not defined in dependency_map", classname)
 
+        except Exception as e:
+            logger.error("Traceback:\n%s", traceback.format_exc())
+        # send flush for each update
+        for u in updates:
+            self.send_flush(u, u.name if hasattr(u, "name") else None)
+
+    def handle_epm_event(self, event):
+        """ handle epm events received on epm_subscription
+            this can also enqueue events into buffer until intialization has completed
+        """
+        if self.stopped:
+            logger.debug("ignoring event (subscriber stopped and waiting for reset)")
+            return
+        if self.epm_initializing:
+            # ignore events during initializing state. If queue_init_events is enabled then 
+            # subscription_ctrl is 'paused' and queueing the events for us so this should only be
+            # triggered if queue_init_events is disabled in which case we are intentionally 
+            # igorning the event
+            logger.debug("ignoring event (in epm_initializing state): %s", event)
+            return
+        logger.debug("event: %s", event)
+        try:
+            # TODO
+            pass 
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 

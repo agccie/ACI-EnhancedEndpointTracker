@@ -114,6 +114,14 @@ def get_mac_value(mac):
         logger.warn("failed to convert mac '%s' to integer: %s", mac, e)
         return 0
 
+def get_ip_prefix(ip):
+    """ receives ipv4 or ipv6 string with or without mask, determines if the address is ipv4 or ipv6,
+        then returns result of get_ipv4_prefix or get_ipv6_prefix
+    """
+    if ":" in ip:
+        return get_ipv6_prefix(ip)
+    return get_ipv4_prefix(ip)
+
 def get_ipv4_string(ipv4):
     """ takes 32-bit integer and returns dotted ipv4 """
     return "%s.%s.%s.%s" % (

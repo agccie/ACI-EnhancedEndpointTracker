@@ -1,5 +1,4 @@
 
-
 import logging
 import pytest
 import time
@@ -36,7 +35,7 @@ tfabric = "fab1"
 
 @pytest.fixture(scope="module")
 def app(request):
-    # module level setup executed before any 'user' test in current file
+    # module level setup 
 
     from app import create_app
     app = create_app("config.py")

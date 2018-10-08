@@ -15,22 +15,25 @@ logger = logging.getLogger(__name__)
 class eptCache(object):
     """ cache for ept_worker to cache common lookups
 
-            Cache           Cache-index                     Cache-flush-index
-            node            node -> eptNode.peer            [no flush support for eptNode.name]
-            tunnel          node,intf -> eptTunnel.remote   [no flush support for eptTunnel.name]
-            vpc             node,intf -> eptVpc.vpc         eptVpc.name -> eptVpc
-            vnid_name       vnid -> eptVnid.name            eptVnid.name -> eptVnid
-            epg_name        vrf_vnid,pctag -> eptEpg        eptEpg.name -> eptEpg
-            subnet          bd_vnid -> list(eptSubnets)     eptSubnet.name -> bd vnid
-            offsubnet       ip,vnid,pctag -> bool           [flush via eptEpg and eptSubnet]
-            
+            get_peer_node       return eptNode.peer for provided node id
+        
+            get_tunnel_remote   return eptTunnel.remote for provided node and tunnel intf
+
+            get_pc_vpc_id       return eptVpc.vpc for provided node and port-channel intf
+
+            get_vnid_name       return eptVnid.name for provided vnid
+
+            get_epg_name        return eptEpg.name for provided vrf and pctag
+
+            get_subnets         return [eptSubnet] for provided bd
+
+            ip_is_offsubnet     return bool if ip is outside of subnets for bd corresponding to 
+                                vrf, pctag
+
             offsubnet check:
             vnid,pctag-> eptEpg.bd_vnid -> list(eptSubnets)
                                                   |
-                                                  + ip ------> offsubnet?
-
-            if receive a flush for eptEpg or eptSubnet, remove entry for bd_vnid within subnet cache
-            and 
+                                                  + ip ------> offsubnetCachedObject
     """
     MAX_CACHE_SIZE = 512
     KEY_DELIM = "`"             # majority of keys are integers, this should be sufficient delimiter
@@ -49,16 +52,16 @@ class eptCache(object):
     def handle_flush(self, collection_name, name=None):
         """ flush one or more entries in collection name """
         logger.debug("flush request for %s: %s", collection_name, name)
-        if collection_name == eptTunnel._classname:
-            self.tunnel_cache = {}      # always full cache flush for tunnel
-        elif collection_name == eptNode._classname:
-            self.node_cache = {}        # always full cache flush for node
+        if collection_name == eptNode._classname:
+            self.node_cache.flush()     # always full cache flush for node
+        elif collection_name == eptTunnel._classname:
+            self.tunnel_cache.flush()   # always full cache flush for tunnel
         elif collection_name == eptVpc._classname:
             if name is not None: self.vpc_cache.remove(name, name=True)
-            else: self.vpc_cache = {}
+            else: self.vpc_cache.flush()
         elif collection_name == eptVnid._classname:
             if name is not None: self.vnid_cache.remove(name, name=True)
-            else: self.vnid_cache = {}
+            else: self.vnid_cache.flush()
         elif collection_name == eptEpg._classname:
             # need to remove one or all entries in offsubnet cache based on matching epg.bd
             if name is not None: 
@@ -67,8 +70,8 @@ class eptCache(object):
                     self.offsubnet_cache.remove(epg.bd, name=True)
                 self.epg_cache.remove(name, name=True)
             else: 
-                self.epg_cache = {}
-                self.offsubnet_cache = {}
+                self.epg_cache.flush()
+                self.offsubnet_cache.flush()
         elif collection_name == eptSubnet._classname:
             # need to remove on or all entries in offsubnet cache based on matching subnet.bd
             if name is not None: 
@@ -79,14 +82,14 @@ class eptCache(object):
                     self.offsubnet_cache.remove(subnets[0].bd, name=True)
                 self.subnet_cache.remove(name, name=True)
             else: 
-                self.subnet_cache = {}
-                self.offsubnet_cache = {}
+                self.subnet_cache.flush()
+                self.offsubnet_cache.flush()
         else:
             logger.warn("flush for unsupported collection name: %s", collection_name)
 
     def get_key_str(self, **keys):
         """ return std key string for consistency between any method calculating cache key string"""
-        return self.key_delim.join([keys[k] for k in sorted(keys)])
+        return self.key_delim.join(["%s" % keys[k] for k in sorted(keys)])
 
     def generic_cache_lookup(self, cache, eptObject, find_one=True, db_lookup=True, **keys):
         """ check cache for object matching provided keys.  If not found then perform db lookup 
@@ -104,7 +107,7 @@ class eptCache(object):
         keystr = self.get_key_str(**keys)
         obj = cache.search(keystr)
         if not isinstance(obj, hitCacheNotFound):
-            logger.debug("(cache) %s %s", eptObject._classname, keys)
+            logger.debug("(from cache) %s %s", eptObject._classname, keys)
             return obj
         obj = eptObject.find(fabric=self.fabric, **keys)
         if len(obj) == 0:
@@ -118,18 +121,18 @@ class eptCache(object):
             # add result to cache for keys to prevent db lookup on next check
             cache.push(keystr, val)
             return val
-
-    def get_tunnel_remote(self, node, intf):
-        """ get remote node for tunnel interface. If not found or an error occurs, return 0 """
-        ret = self.generic_cache_lookup(self.tunnel_cache, eptTunnel, node=node, intf=intf)
-        if ret is None: return 0
-        return ret.remote
     
     def get_peer_node(self, node):
         """ get node's peer id if in vpc domain.  If not found or an error occurs, return 0 """
         ret = self.generic_cache_lookup(self.node_cache, eptNode, node=node)
         if ret is None: return 0
         return ret.peer
+
+    def get_tunnel_remote(self, node, intf):
+        """ get remote node for tunnel interface. If not found or an error occurs, return 0 """
+        ret = self.generic_cache_lookup(self.tunnel_cache, eptTunnel, node=node, intf=intf)
+        if ret is None: return 0
+        return ret.remote
 
     def get_pc_vpc_id(self, node, intf):
         """ get vpc id for provided port-channel interface, if not found return 0 """
@@ -141,7 +144,7 @@ class eptCache(object):
         """ return vnid name(dn) for corresponding bd or vrf vnid.  If an error occurs or vnid is
             not in db, return an empty string
         """
-        ret = self.generic_cache_lookup(self.vnid_cache, eptVpc, vnid=vnid)
+        ret = self.generic_cache_lookup(self.vnid_cache, eptVnid, vnid=vnid)
         if ret is None: return ""
         return ret.name
 
@@ -150,7 +153,7 @@ class eptCache(object):
             is not found, return an empty string
             set return_object to true to return entire object instead of just epg name
         """
-        ret = self.generic_cache_lockup(self.epg_cache, eptEpg, vrf=vrf, pctag=pctag)
+        ret = self.generic_cache_lookup(self.epg_cache, eptEpg, vrf=vrf, pctag=pctag)
         if return_object: return ret
         if ret is None: return ""
         return ret.name
@@ -259,6 +262,18 @@ class hitCache(object):
             node = node.child
         return "|".join(s)
 
+    def flush(self):
+        """ remove all entries within cache """
+        self.key_hash = {}
+        self.name_hash = {}
+        self.none_hash = {}
+        self.head = None
+        self.tail = None
+
+    def get_size(self):
+        """ get number of nodes currently in cached linked list """
+        return len(self.key_hash)
+
     def search(self, key, name=False):
         """ search for key within cache.  If found then trigger a push(hit) for that key and return
             corresponding value. Set name to true to perform lookup against name_hash instead of 
@@ -310,9 +325,9 @@ class hitCache(object):
             removed.
         """
         if name:
-            node = self.name_hash(key, None)
+            node = self.name_hash.get(key, None)
         else:
-            node = self.key_hash(key, None)
+            node = self.key_hash.get(key, None)
         if node is not None:
             self._remove_node(node)
         if not preserve_none:
@@ -361,7 +376,7 @@ class hitCacheNode(object):
         if type(val) is list:
             for v in val:
                 if hasattr(v, "name"):
-                    self.name.append(v)
+                    self.name.append(v.name)
         elif hasattr(val,"name"):
             self.name = [val.name]
 

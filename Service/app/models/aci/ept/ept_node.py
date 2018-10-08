@@ -58,6 +58,11 @@ class eptNode(Rest):
             "default": "0.0.0.0",
             "description": "32-bit physical TEP ipv4 address of node",
         },
+        "peer": {
+            "type": int,
+            "default": 0,
+            "description": "node id of vpc peer if this node is in a vpc domain",
+        },
         "nodes": {
             "type": list,
             "description": "nodes of type vpc includes a list of id/peerIp objects",

@@ -221,11 +221,6 @@ class eptSubscriber(object):
             self.slow_subscription.pause()
         self.slow_subscription.subscribe(blocking=False)
 
-        self.fabric.add_fabric_event(init_str, "collecting base managed objects")
-        if not self.build_mo():
-            self.fabric.add_fabric_event("failed", "failed to collect MOs")
-            return
-
         # build node db and vpc db
         self.fabric.add_fabric_event(init_str, "building node db")
         if not self.build_node_db():
@@ -239,6 +234,11 @@ class eptSubscriber(object):
         self.fabric.add_fabric_event(init_str, "building tunnel db")
         if not self.build_tunnel_db():
             self.fabric.add_fabric_event("failed", "failed to build tunnel db")
+            return
+
+        self.fabric.add_fabric_event(init_str, "collecting base managed objects")
+        if not self.build_mo():
+            self.fabric.add_fabric_event("failed", "failed to collect MOs")
             return
 
         # build vnid db along with vnsLIfCtxToBD db which relies on vnid db
@@ -631,7 +631,8 @@ class eptSubscriber(object):
                 logger.debug("no vpc configuration found")
                 return True
 
-        # build all known vpc groups
+        # build all known vpc groups and set peer values with existing eptNodes that are members
+        # of a vpc domain
         bulk_objects = []
         for obj in data:
             if vpc_type in obj and "attributes" in obj[vpc_type]:
@@ -649,33 +650,35 @@ class eptSubscriber(object):
                                     peer_ip = re.sub("/[0-9]+$", "", cattr["peerIp"])
                                     node_id = int(cattr["id"])
                                     if node_id in all_nodes:
-                                        child_nodes.append({
-                                            "local_node": all_nodes[node_id]
-                                        })
+                                        child_nodes.append(all_nodes[node_id])
                                     else:
                                         logger.warn("unknown node id %s in %s", node_id, vpc_type)
                                 else:
                                     logger.warn("invalid %s object: %s", node_ep, cobj)
                     if len(child_nodes) == 2:
                         vpc_domain_id = get_vpc_domain_id(
-                            child_nodes[0]["local_node"].node,
-                            child_nodes[1]["local_node"].node,
+                            child_nodes[0].node,
+                            child_nodes[1].node,
                         )
+                        child_nodes[0].peer = child_nodes[1].node
+                        child_nodes[1].peer = child_nodes[0].node
+                        bulk_objects.append(child_nodes[0])
+                        bulk_objects.append(child_nodes[1])
                         bulk_objects.append(eptNode(fabric=self.fabric.fabric,
                             addr=addr,
                             name=name,
                             node=vpc_domain_id,
-                            pod_id=child_nodes[0]["local_node"].pod_id,
+                            pod_id=child_nodes[0].pod_id,
                             role="vpc",
                             state="in-service",
                             nodes=[
                                 {
-                                    "node": child_nodes[0]["local_node"].node,
-                                    "addr": child_nodes[0]["local_node"].addr,
+                                    "node": child_nodes[0].node,
+                                    "addr": child_nodes[0].addr,
                                 },
                                 {
-                                    "node": child_nodes[1]["local_node"].node,
-                                    "addr": child_nodes[1]["local_node"].addr,
+                                    "node": child_nodes[1].node,
+                                    "addr": child_nodes[1].addr,
                                 },
                             ],
                         ))
@@ -691,7 +694,7 @@ class eptSubscriber(object):
     def build_tunnel_db(self):
         """ initialize tunnel db. return bool success """
         logger.debug("initializing tunnel db")
-        return self.initialize_ept_collection(eptTunnel, "tunnelIf", attribute_map={
+        if not self.initialize_ept_collection(eptTunnel, "tunnelIf", attribute_map={
                 "node": "dn",
                 "intf": "id",
                 "dst": "dest",
@@ -702,7 +705,29 @@ class eptSubscriber(object):
             }, regex_map = {
                 "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
                 "src": "(?P<value>[^/]+)(/[0-9]+)?",
-            }, flush=True, set_ts=True)
+            }, flush=True, set_ts=True):
+            return False
+
+        # walk through each tunnel and map remote to correct node id with pseudo vpc node awareness
+        # maintain list of all_nodes indexed by addr for quick tunnel dst lookup
+        all_nodes = {}
+        for n in eptNode.find(fabric=self.fabric.fabric):
+            all_nodes[n.addr] = n
+        bulk_objects = []
+        for t in eptTunnel.find(fabric=self.fabric.fabric):
+            if t.dst in all_nodes:
+                t.remote = all_nodes[t.dst].node
+                bulk_objects.append(t)
+            else:
+                # tunnel type of vxlan (instead of ivxlan), or flags of dci(multisite) or 
+                # proxy(spines) can be safely ignored, else print a warning
+                if t.encap == "vxlan" or "proxy" in t.flags or "dci" in t.flags:
+                    logger.debug("failed to map tunnel to remote node: %s", t)
+                else:
+                    logger.warn("failed to map tunnel to remote node: %s", t)
+        if len(bulk_objects)>0:
+            eptTunnel.bulk_save(bulk_objects, skip_validation=False)
+        return True
 
     def build_vpc_db(self):
         """ build port-channel to vpc interface mapping. return bool success """
@@ -847,34 +872,25 @@ class eptSubscriber(object):
         bulk_objects = []
         # should now have all objects that would contain a subnet 
         for classname in ["fvSubnet", "fvIpAttr"]:
-            data = get_class(self.session, classname)
-            ts = time.time()
-            if data is None:
-                logger.warn("failed to get data for classname: %s", classname)
-                continue
-            for attr in get_attributes(data=data):
-                if "ip" not in attr or "dn" not in attr:
-                    logger.warn("invalid %s object (missing dn/ip): %s", classname, attr)
-                    continue
-                dn = re.sub("(/crtrn/ipattr-.+$|/subnet-\[[^]]+\]$)","", attr["dn"])
+            for mo in self.mo_classes[classname].find(fabric=self.fabric.fabric):
                 # usually in bd so check vnid first and then epg
                 bd_vnid = None
-                if dn in vnids:
-                    bd_vnid = vnids[dn]
-                elif dn in epgs:
-                    bd_vnid = epgs[dn]
+                if mo.parent in vnids:
+                    bd_vnid = vnids[mo.parent]
+                elif mo.parent in epgs:
+                    bd_vnid = epgs[mo.parent]
                 if bd_vnid is not None:
                     # FYI - we support fvSubnet on BD and EPG for shared services so duplicate ip
                     # can exist. unique index is disabled on eptSubnet to support this... 
                     bulk_objects.append(eptSubnet(
                         fabric = self.fabric.fabric,
                         bd = bd_vnid,
-                        name = attr["dn"],
-                        ip = attr["ip"],
-                        ts = ts
+                        name = mo.dn,
+                        ip = mo.ip,
+                        ts = mo.ts
                     ))
                 else:
-                    logger.warn("failed to map subnet '%s' (%s) to a bd", attr["dn"], dn)
+                    logger.warn("failed to map subnet '%s' (%s) to a bd", mo.ip, mo.parent)
 
         logger.debug("flushing entries in %s for fabric %s",eptSubnet._classname,self.fabric.fabric)
         eptSubnet.delete(_filters={"fabric":self.fabric.fabric})

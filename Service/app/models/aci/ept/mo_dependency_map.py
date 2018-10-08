@@ -188,6 +188,7 @@ ept_map = {
         "db": eptVpc,
         "attributes": {
             "node": "dn",
+            "name": "dn",
             "intf": "tSKey",
             "vpc": "parentSKey",
         },

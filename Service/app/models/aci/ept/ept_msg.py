@@ -213,7 +213,8 @@ class eptMsgWorkEpmEvent(eptMsgWork):
     """
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set (completed only if valid event)
-        super(eptMsgWorkEpmEvent, self).__init__(addr, "worker", data, wt, fabric=fabric)
+        super(eptMsgWorkEpmEvent, self).__init__(addr, "worker", data, wt, 
+                qnum=qnum, seq=seq, fabric=fabric)
         self.ts = float(data.get("ts", 0))
         self.classname = data.get("classname", "")
         self.type = data.get("type", "")

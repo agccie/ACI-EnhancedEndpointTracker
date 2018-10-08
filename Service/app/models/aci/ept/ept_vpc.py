@@ -25,6 +25,10 @@ class eptVpc(Rest):
             "key": True,
             "description": "port-channel interface id",
         },
+        "name": {
+            "type": str,
+            "description":"name(dn) for vpcRsVpcConf that created this object",
+        },
         "vpc": {
             "type": int,
             "description": "vpc id matching between leafs in vpc domain",

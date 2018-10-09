@@ -107,14 +107,14 @@ class eptCache(object):
         keystr = self.get_key_str(**keys)
         obj = cache.search(keystr)
         if not isinstance(obj, hitCacheNotFound):
-            logger.debug("(from cache) %s %s", eptObject._classname, keys)
+            #logger.debug("(from cache) %s %s", eptObject._classname, keys)
             return obj
         if not db_lookup: 
             # if entry not in cache and db_lookup disabled, then return None 
             return None
         obj = eptObject.find(fabric=self.fabric, **keys)
         if len(obj) == 0:
-            logger.debug("db key not found: %s %s", eptObject._classname, keys)
+            logger.debug("(cache) not found in db: %s %s", eptObject._classname, keys)
             # add None to cache for keys to prevent db lookup on next check
             cache.push(keystr, None)
             return None
@@ -131,9 +131,10 @@ class eptCache(object):
         if ret is None: return 0
         return ret.peer
 
-    def get_tunnel_remote(self, node, intf):
+    def get_tunnel_remote(self, node, intf, return_object=False):
         """ get remote node for tunnel interface. If not found or an error occurs, return 0 """
         ret = self.generic_cache_lookup(self.tunnel_cache, eptTunnel, node=node, intf=intf)
+        if return_object: return ret
         if ret is None: return 0
         return ret.remote
 
@@ -224,6 +225,22 @@ class eptCache(object):
         for n in remove_nodes:
             self.offsubnet_cache._remove_node(n)
 
+    def log_stats(self):
+        """ log statistics for each cache """
+        caches = [
+            "tunnel_cache",
+            "node_cache", 
+            "vpc_cache", 
+            "epg_cache", 
+            "subnet_cache", 
+            "offsubnet_cache"
+        ]
+        logger.debug("cache stats for fabric %s", self.fabric)
+        for cache_name in caches:
+            c = getattr(self, cache_name)
+            logger.debug("[hit: 0x%08x, miss: 0x%08x, evict: 0x%08x, flush: 0x%08x] %s", 
+                c.hit_count, c.miss_count, c.evict_count, c.flush_count, cache_name)
+
 class offsubnetCachedObject(object):
     """ cache objects support a key and val where val can contain an optionally name used mainly for
         remove(flush) operations.  We want to cache the result of offsubnet check using 
@@ -264,6 +281,10 @@ class hitCache(object):
         self.key_hash = {}
         self.name_hash = {}
         self.none_hash = {}     # objects with no name set (cached 'not found' objects)
+        self.hit_count = 0
+        self.miss_count = 0
+        self.evict_count = 0
+        self.flush_count = 0
 
     def __repr__(self):
         s = ["len:%s [head-key:%s, tail-key:%s], list: " % (
@@ -291,6 +312,7 @@ class hitCache(object):
         self.none_hash = {}
         self.head = None
         self.tail = None
+        self.flush+= 1
 
     def get_size(self):
         """ get number of nodes currently in cached linked list """
@@ -305,11 +327,14 @@ class hitCache(object):
         """
         if name:
             if key in self.name_hash:
+                self.hit_count+= 1
                 return self.name_hash[key].val
         elif key in self.key_hash:
+            self.hit_count+= 1
             node = self.key_hash[key]
             self.push(node.key, node.val) 
             return node.val
+        self.miss_count+= 1
         return hitCacheNotFound()
 
     def push(self, key, val):
@@ -339,6 +364,7 @@ class hitCache(object):
             self._set_node_child(node, self.head)
             self.head = node
             if len(self.key_hash) > self.max_size:
+                self.evict_count+=1
                 self._remove_node(self.tail)
 
     def remove(self, key, name=False, preserve_none=False):

@@ -288,7 +288,7 @@ class eptSubscriber(object):
                 logger.warn("slow subscription no longer alive for %s", self.fabric.fabric)
                 self.fabric.add_fabric_event("failed", "subscription no longer alive")
                 return
-            if False and not self.epm_subscription.is_alive():
+            if not self.epm_subscription.is_alive():
                 logger.warn("epm subscription no longer alive for %s", self.fabric.fabric)
                 self.fabric.add_fabric_event("failed", "subscription no longer alive")
                 return
@@ -481,10 +481,11 @@ class eptSubscriber(object):
             # igorning the event
             logger.debug("ignoring event (in epm_initializing state): %s", event)
             return
-        logger.debug("event: %s", event)
+        #logger.debug("epm event: %s", event)
         try:
-            # TODO
-            pass 
+            for (classname, attr) in self.parse_event(event):
+                msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
+                self.send_msg(msg)
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 
@@ -722,7 +723,8 @@ class eptSubscriber(object):
                 # tunnel type of vxlan (instead of ivxlan), or flags of dci(multisite) or 
                 # proxy(spines) can be safely ignored, else print a warning
                 if t.encap == "vxlan" or "proxy" in t.flags or "dci" in t.flags:
-                    logger.debug("failed to map tunnel to remote node: %s", t)
+                    #logger.debug("failed to map tunnel to remote node: %s", t)
+                    pass
                 else:
                     logger.warn("failed to map tunnel to remote node: %s", t)
         if len(bulk_objects)>0:
@@ -959,7 +961,6 @@ class eptSubscriber(object):
         else:
             logger.debug("ignoring fabricNode event (fabricSt or dn not present in attributes)")
 
-
     def build_endpoint_db(self):
         """ all endpoint events (eptHistory and eptEndpoint) are handled by app workers. To build
             the initial database we need to simulate create or delete events for each endpoint 
@@ -1039,5 +1040,3 @@ class eptSubscriber(object):
             ts-start_time, ts2-ts, ts3 - ts2, ts3 - start_time) 
         return True
 
-
-                

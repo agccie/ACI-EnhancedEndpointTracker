@@ -566,7 +566,7 @@ class Rest(object):
             if len(bulk)>0:
                 insert_time = time.time()
                 cls.logger.debug("%s executing bulk for %s objects", cls._classname, len(bulk))
-                result = cls.__mongo(collection.bulk_write, bulk)
+                result = cls._mongo(collection.bulk_write, bulk)
                 now = time.time()
                 timing = "build_time: %0.3f, insert_time: %0.3f, total_time: %0.3f" % (
                     insert_time - ts, now - insert_time, now - ts
@@ -1199,7 +1199,7 @@ class Rest(object):
 
         # insert the update into the collection
         try:
-            _id = cls.__mongo(collection.insert_one, obj)
+            _id = cls._mongo(collection.insert_one, obj)
             if hasattr(_id, "inserted_id") and cls._access["expose_id"]:
                 ret_obj["_id"] = "%s" % _id.inserted_id
                 kwargs["_id"] = ret_obj["_id"]
@@ -1367,7 +1367,7 @@ class Rest(object):
         # acquire cursor 
         try:
             #cls.logger.debug("read filters(%s): %s", cls._classname, filters)
-            cursor = cls.__mongo(collection.find, filters, projections)
+            cursor = cls._mongo(collection.find, filters, projections)
         except PyMongoError as e:
             abort(500, "database error %s" % e)
             
@@ -1388,16 +1388,16 @@ class Rest(object):
             if len(sort) == 0:
                 abort(400, "invalid sort string: %s" % _params["sort"])
             # prepare cursor
-            cursor = cls.__mongo(cursor.sort, sort) 
+            cursor = cls._mongo(cursor.sort, sort) 
     
         # peform pagination
         if not _disable_page:
-            cursor = cls.__mongo(cursor.skip, pagesize*page)
-            cursor = cls.__mongo(cursor.limit, pagesize)
+            cursor = cls._mongo(cursor.skip, pagesize*page)
+            cursor = cls._mongo(cursor.limit, pagesize)
 
         # prepare return object
         ret = {
-            "count": cls.__mongo(cursor.count),
+            "count": cls._mongo(cursor.count),
             "objects": []
         }
         
@@ -1450,8 +1450,7 @@ class Rest(object):
             if cls._access["expose_id"]:
                 okeys.append("_id=%s" % filters.get("_id",""))
             err = "%s not found" % classname
-            if len(okeys)>0: err = "%s (%s) not found" % (classname, 
-                ", ".join(okeys))
+            if len(okeys)>0: err = "%s (%s) not found" % (classname, ", ".join(okeys))
             abort(404, err)
 
         # after read callback
@@ -1628,7 +1627,7 @@ class Rest(object):
 
         # perform db update for selected objects
         try:
-            r = cls.__mongo(collection.update_many, filters, {"$set":obj})
+            r = cls._mongo(collection.update_many, filters, {"$set":obj})
             ret_obj["count"] = r.matched_count
         except PyMongoError as e:
             abort(500, "database error %s" % e)
@@ -1762,7 +1761,7 @@ class Rest(object):
 
         # perform db update for selected objects
         try:
-            r = cls.__mongo(collection.delete_many, filters)
+            r = cls._mongo(collection.delete_many, filters)
             ret_obj["count"] = r.deleted_count
         except PyMongoError as e:
             abort(500, "database error %s" % e)
@@ -1797,7 +1796,7 @@ class Rest(object):
         return ret_obj
 
     @classmethod
-    def __mongo(cls, func, *args, **kwargs):
+    def _mongo(cls, func, *args, **kwargs):
         """ perform mongo operation with retry """
         max_retries = 3
         retry_time = 0.25

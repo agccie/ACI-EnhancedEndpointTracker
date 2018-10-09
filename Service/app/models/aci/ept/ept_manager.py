@@ -269,14 +269,13 @@ class eptManager(object):
             if fab["process"] is not None and not fab["process"].is_alive():
                 # validate auto_start is enabled on the no-longer running fabric
                 logger.warn("fabric %s no longer running", f)
-                if Fabric.load(fabric=f).auto_start and False:
+                if Fabric.load(fabric=f).auto_start:
                     self.start_fabric(f, reason="auto restarting failed monitor")
                 else: 
                     remove_list.append(f)
         # stop tracking fabrics in remove list
         for f in remove_list: self.fabrics.pop(f)
 
-                
     def increment_stats(self, queue, tx=False):
         # update stats queue
         with self.queue_stats_lock:
@@ -444,7 +443,7 @@ class WorkerTracker(object):
 
     def flush_fabric(self, fabric, qnum=-1, role=None):
         # walk through all active workers and remove any work objects from queue for this fabric
-        # NOTE, this is a costly operation if the queue is significantly backed up...
+        # note, this is a costly operation if the queue is significantly backed up...
         logger.debug("flush fabric '%s'", fabric)
         for r in self.active_workers:
             if role is None or r == role:
@@ -457,10 +456,28 @@ class WorkerTracker(object):
                         pl = self.redis.pipeline()
                         pl.lrange(worker.queues[qnum], 0, -1)
                         pl.delete(worker.queues[qnum])
-                        ret = pl.execute()
-                        logger.debug("TODO ret -> %s", ret)
-
-
+                        ret = []
+                        repush = []
+                        removed_count = 0
+                        with worker.queue_locks[qnum]:
+                            ret = pl.execute()
+                        # inspect each message and if matching fabric discard, else push back onto
+                        # worker's queue
+                        if len(ret) > 0 and type(ret[0]) is list:
+                            logger.debug("inspecting %s msg from queue %s", len(ret[0]), 
+                                                                            worker.queues[qnum])
+                            for data in ret[0]:
+                                # need to reparse message and check fabric
+                                msg = eptMsg.parse(data) 
+                                if hasattr(msg, "fabric") and msg.fabric == fabric:
+                                    removed_count+=1
+                                else:
+                                    repush.append(data)
+                        logger.debug("queue %s, removed %s msg for fabric %s, repushing %s",
+                                        worker.queues[qnum], removed_count, fabric, len(repush))
+                        if len(repush) > 0:
+                            with worker.queue_locks[qnum]:
+                                self.redis.rpush(worker.queues[qnum], *repush)
 
     def get_worker_status(self):
         # return list of dict representation of TrackedWorker objects along with queue_len list 

@@ -345,7 +345,7 @@ class WorkerTracker(object):
         new_workers = False
         for wid, w in self.known_workers.items():
             if w.last_hello + HELLO_TIMEOUT < ts:
-                logger.warn("worker timeout (%0.3f < %0.3f) %s",w.last_hello+HELLO_TIMEOUT,ts,w)
+                logger.warn("worker timeout (last hello: %.3f) %s",ts-w.last_hello, w)
                 remove_workers.append(w)
             elif not w.active:
                 # new worker that needs to be added to active list

@@ -14,19 +14,32 @@ logger = logging.getLogger(__name__)
 #
 ###############################################################################
 
-HELLO_INTERVAL = 1.0
-HELLO_TIMEOUT = 5.0
-SEQUENCE_TIMEOUT = 100
-MANAGER_CTRL_CHANNEL = "mctrl"
-MANAGER_WORK_QUEUE = "mq"
-WORKER_CTRL_CHANNEL = "wctrl"
-WORKER_UPDATE_INTERVAL = 1.0
-
-# minimum version of supported code (2.2.1n)
-MINIMUM_SUPPORTED_VERSION = "2.2.1n"
-
 # dynamic imports of MOs need base relatively to full project
-MO_BASE = "app.models.aci.mo"
+MO_BASE                             = "app.models.aci.mo"
+# minimum version of supported code (2.2.1n)
+MINIMUM_SUPPORTED_VERSION           = "2.2.1n"
+
+HELLO_INTERVAL                      = 1.0
+HELLO_TIMEOUT                       = 5.0
+CACHE_STATS_INTERVAL                = 300.0
+SEQUENCE_TIMEOUT                    = 100.0
+MANAGER_CTRL_CHANNEL                = "mctrl"
+MANAGER_WORK_QUEUE                  = "mq"
+WORKER_CTRL_CHANNEL                 = "wctrl"
+WORKER_UPDATE_INTERVAL              = 1.0
+
+# transitory timers:
+#   delete          amount of time between delete and create events to treat as a change/move
+#   offsubnet       amount of time to wait before declaring endpoint is learned offsubnet
+#   stale           amount of time to wait for new events before declaring endpoint is stale
+#   stale_no_local  amount of time to wait for new events when an endpoint is declared as stale
+#                   and there is no local endpoint learned within the fabric (i.e., expected remote
+#                   node is 0)
+TRANSITORY_DELETE                   = 2.0
+TRANSITORY_OFFSUBNET                = 2.0
+TRANSITORY_STALE                    = 30.0
+TRANSITORY_STALE_NO_LOCAL           = 300.0
+
 
 ###############################################################################
 #
@@ -72,7 +85,28 @@ def get_vpc_domain_id(n1, n2):
     n2 = int(n2)
     if n1 > n2: return (n1 << 16) + n2
     return (n2 << 16) + n1
-    
+
+def push_event(collection, key, event, rotate=None, increment=True):
+    """ push an event into the events list of a collection. If increment is true, then increment
+        the 'count' attribute of the object.
+        return bool success
+    """
+    update = {"$push": {"events": {"$each": [event], "$position": 0 } } } 
+    if rotate is not None:
+        update["$push"]["events"]["$slice"] = rotate
+    if increment:
+        update["$inc"] = {"count": 1}
+    # logger.debug("push event key: %s, event:%s", key, event)
+    r = collection.update_one(key, update, upsert=True)
+    if r.matched_count == 0:
+        if "n" in r.raw_result and "updatedExisting" in r.raw_result and \
+            not r.raw_result["updatedExisting"] and r.raw_result["n"]>0:
+            # result was upserted (new entry added to db)
+            pass
+        else:
+            logger.warn("failed to push event key:%s, event:%s", key, event)
+            return False
+    return True
 
 ###############################################################################
 #

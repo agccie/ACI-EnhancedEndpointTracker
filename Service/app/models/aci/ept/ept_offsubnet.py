@@ -74,8 +74,8 @@ class eptOffSubnet(Rest):
             "type": int,
             "description": """
             total number of offsubnet events that have occurred. Note, the events list is limited by 
-            the eptSettings max_ep_events threshold but the count will total count including the 
-            events that have wrapped.
+            the eptSettings max_endpoint_events threshold but this count will be the total count 
+            including the events that have wrapped.
             """
         },
         "events": {

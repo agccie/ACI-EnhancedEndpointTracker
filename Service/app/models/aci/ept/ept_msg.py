@@ -20,8 +20,8 @@ class MSG_TYPE(Enum):
     FABRIC_START        = "fabric_start"    # request from API to manager to start fabric monitor
     FABRIC_STOP         = "fabric_stop"     # request from API to manager to stop fabric monitor
     FABRIC_RESTART      = "fabric_restart"  # request from API or subscriber to manager for restart
-    FLUSH_FABRIC        = "flush_fabric"    # request from manager to workers to flush fabric from their
-                                            # local caches
+    FLUSH_FABRIC        = "flush_fabric"    # request from manager to workers to flush fabric from 
+                                            # their local caches
 
 # static work types sent with MSG_TYPE.WORK
 @enum_unique
@@ -30,7 +30,7 @@ class WORK_TYPE(Enum):
     FLUSH_CACHE         = "flush_cache"     # flush cache for specific collection and/or dn
     EPM_IP_EVENT        = "epm_ip "         # epmIpEp event
     EPM_MAC_EVENT       = "epm_mac"         # epmMacEp event
-    EPM_RS_IP           = "epmRsIp"         # epmRsMacEpToIpEpAtt event
+    EPM_RS_IP_EVENT     = "epmRsIp"         # epmRsMacEpToIpEpAtt event
 
 class eptMsg(object):
     """ generic ept job for messaging between workers 
@@ -144,7 +144,7 @@ class eptMsgWork(object):
         # return eptMsgWork object from received msg js
         # check if this is eptMsgWorkEpmEvent and initialize accordingly
         wt = WORK_TYPE(js["wt"])
-        if wt==WORK_TYPE.EPM_IP_EVENT or wt==WORK_TYPE.EPM_MAC_EVENT or wt==WORK_TYPE.EPM_RS_IP:
+        if wt==WORK_TYPE.EPM_IP_EVENT or wt==WORK_TYPE.EPM_MAC_EVENT or wt==WORK_TYPE.EPM_RS_IP_EVENT:
             return eptMsgWorkEpmEvent(js["addr"], js["role"], js["data"], wt,
                         qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
         else:
@@ -156,6 +156,7 @@ class eptMsgWork(object):
 # epm event is a type of eptMsgWork triggered from an epmMacEp, epmIpEp, or
 # epmRsMacEpToIpEpAtt event. The heart of this app is parsing and delivering 
 # epmEvents.
+# Remember - status can be 'created', 'deleted', or 'modified'
 #
 ###############################################################################
 
@@ -188,7 +189,7 @@ class eptEpmEventParser(object):
     def get_delete_event(self, classname, node, vnid, addr, ts):
         # return an eptMsgWorkEpmEvent with status 'delete' for provided node+vnid+addr
         msg = eptMsgWorkEpmEvent(addr, "worker", {}, None, fabric=self.fabric)
-        msg.status = "delete"
+        msg.status = "deleted"
         msg.node = node
         msg.vnid = vnid
         msg.ts = ts
@@ -199,7 +200,7 @@ class eptEpmEventParser(object):
             msg.wt = WORK_TYPE.EPM_IP_EVENT
             msg.type = "ip"
         elif classname == "epmRsMacEpToIpEpAtt":
-            msg.wt = WORK_TYPE.EPM_RS_IP
+            msg.wt = WORK_TYPE.EPM_RS_IP_EVENT
             msg.type = "ip"
             msg.ip = addr
         else:
@@ -219,9 +220,9 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         self.classname = data.get("classname", "")
         self.type = data.get("type", "")
         self.status = data.get("status", "")
-        self.flags = data.get("flags", "")
+        self.flags = data.get("flags", [])
         self.ifId = data.get("ifId", "")
-        self.pcTag = data.get("pcTag","")
+        self.pcTag = int(data.get("pcTag",0))
         self.encap = data.get("encap", "")
         self.ip = data.get("ip", "")
         self.node = int(data.get("node", 0))
@@ -244,7 +245,7 @@ class eptMsgWorkEpmEvent(eptMsgWork):
             r1 = epm_reg.search(attr["dn"])
             self.type = "mac"
         elif self.classname == "epmRsMacEpToIpEpAtt":
-            self.wt = WORK_TYPE.EPM_RS_IP
+            self.wt = WORK_TYPE.EPM_RS_IP_EVENT
             r1 = epm_rsMacToIp_reg.search(attr["dn"])
             self.type = "ip"
             self.ip = r1.group("ip")
@@ -257,9 +258,19 @@ class eptMsgWorkEpmEvent(eptMsgWork):
 
         self.ts = ts
         self.status = attr.get("status", "created")
+        # on build, status is empty string, we need assume created if not provided or empty
+        if len(self.status) == 0: 
+            self.status = "created"
         self.flags = attr.get("flags", "")
+        if len(self.flags) == 0: 
+            self.flags = []
+        else:
+            self.flags = self.flags.split(",")
         self.ifId = attr.get("ifId", "")
-        self.pcTag = attr.get("pcTag", "")
+        try:
+            self.pcTag = int(attr.get("pcTag", 0))
+        except ValueError as e:
+            self.pcTag = 0
         self.node = int(r1.group("node"))
         self.addr = r1.group("addr")
 
@@ -280,7 +291,7 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         self.vnid = self.bd if self.classname == "epmMacEp" else self.vrf
 
         # successful parse
-        #logger.debug("parse epm event on %s(%s): %s", self.classname, self.fabric, attr["dn"])
+        # logger.debug("parse epm event on %s(%s): %s", self.classname, self.fabric, attr["dn"])
         return True
 
     def jsonify(self):
@@ -309,8 +320,9 @@ class eptMsgWorkEpmEvent(eptMsgWork):
                 "vnid": self.vnid,
             }
         })
+        return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s [node:0x%04x, 0x%06x, %s, %s]" % (self.msg_type.value, self.seq, 
-                self.wt.value, self.node, self.vnid, self.addr, self.ip)
+        return "%s.0x%08x %s %s [node:0x%04x, 0x%06x, %s, %s]" % (self.msg_type.value, self.seq, 
+                self.fabric, self.wt.value, self.node, self.vnid, self.addr, self.ip)
 

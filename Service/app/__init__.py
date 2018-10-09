@@ -40,6 +40,7 @@ def create_app(config_filename="config.py"):
     from .models.rest.user import User
 
     # ept objects
+    from .models.aci.ept.ept_endpoint import eptEndpoint
     from .models.aci.ept.ept_epg import eptEpg
     from .models.aci.ept.ept_history import eptHistory
     from .models.aci.ept.ept_move import eptMove

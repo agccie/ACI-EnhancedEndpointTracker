@@ -105,7 +105,7 @@ class eptSettings(Rest):
             "description": "perform offsubnet analysis on each endpoint event (ip endpoints only)",
             "default": True,
         },
-        "max_ep_events":{
+        "max_endpoint_events":{
             "type": int,
             "description": """
             maximum number of historical endpoint events per endpoint per node.  When this number is

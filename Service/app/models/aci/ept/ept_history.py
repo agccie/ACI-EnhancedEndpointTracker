@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 @api_register(parent="fabric", path="ept/history")
 class eptHistory(Rest):
-    """ endpoint history """
+    """ per-node endpoint history """
     logger = logger
 
     META_ACCESS = {
@@ -71,11 +71,19 @@ class eptHistory(Rest):
             "default": False,
             "description": "True if the endpoint is currently learned offsubnet",
         },
+        "count": {
+            "type": int,
+            "description": """
+            total number of events that have occurred. Note, the events list is limited by 
+            the eptSettings max_endpoint_events threshold but this count will be the total count 
+            including the events that have wrapped.
+            """,
+        },
         "events": {
             "type": list,
             "subtype": dict,
             "meta": {
-                "class": {
+                "classname": {
                     "type": str,
                     "description": "epm classname that triggered the event"
                 },
@@ -103,7 +111,8 @@ class eptHistory(Rest):
                     """,
                 },
                 "flags": {
-                    "type": str,
+                    "type": list,
+                    "subtype": str,
                     "description": "epm flags for endpoint event",
                 },
                 "encap": {
@@ -128,9 +137,68 @@ class eptHistory(Rest):
                 },
                 "epg_name": {
                     "type": str,
-                    "description": "epg name of this event",
+                    "description": "epg name based on vrf and pctag at the time of this event",
                 },
             },
         },
     }
+
+
+class eptHistoryEvent(object):
+
+    def __init__(self, **kwargs):
+        self.classname = kwargs.get("classname", "")
+        self.ts = kwargs.get("ts", 0)
+        self.status = kwargs.get("status", "")
+        self.remote = kwargs.get("remote", 0)
+        self.pctag = kwargs.get("pctag", 0)
+        self.flags = sorted(kwargs.get("flags", []))
+        self.encap = kwargs.get("encap", "")
+        self.intf = kwargs.get("intf", "")
+        self.epg_name = kwargs.get("epg_name", "")
+        self.rw_mac = kwargs.get("rw_mac", "")
+        self.rw_bd = kwargs.get("rw_bd", 0)
+
+    def to_dict(self):
+        """ convert object to dict for insertion into eptHistory events list """
+        return {
+            "classname": self.classname,
+            "ts": self.ts,
+            "status": self.status,
+            "remote": self.remote,
+            "pctag": self.pctag,
+            "flags": self.flags,
+            "encap": self.encap,
+            "intf": self.intf,
+            "epg_name": self.epg_name,
+            "rw_mac": self.rw_mac,
+            "rw_bd": self.rw_bd
+        }
+
+    @staticmethod
+    def from_dict(d):
+        """ create eptHistoryEvent from dict within eptHistory event list """
+        return eptHistoryEvent(**d)
+
+    @staticmethod
+    def from_msg(msg):
+        """ create eptHistoryEvent from eptMsgWorkEpmEvent """
+        event = eptHistoryEvent()
+        event.classname = msg.classname
+        event.ts = msg.ts
+        event.status = msg.status
+
+        if msg.status != "deleted":
+            event.remote = msg.remote
+            event.pctag = msg.pcTag
+            event.flags = sorted(msg.flags)
+            event.encap = msg.encap
+            event.intf = msg.ifId
+            event.epg_name = msg.epg_name
+        return event
+
+
+
+
+
 

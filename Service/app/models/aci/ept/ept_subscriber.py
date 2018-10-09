@@ -447,6 +447,7 @@ class eptSubscriber(object):
             logger.debug("ignoring event (in initializing state): %s", event)
             return
         try:
+            logger.debug("event: %s", event)
             for (classname, attr) in self.parse_event(event):
                 if classname not in self.mo_classes or "dn" not in attr or "status" not in attr:
                     logger.warn("event received for unknown classname: %s, %s", classname, event)
@@ -481,7 +482,6 @@ class eptSubscriber(object):
             # igorning the event
             logger.debug("ignoring event (in epm_initializing state): %s", event)
             return
-        #logger.debug("epm event: %s", event)
         try:
             for (classname, attr) in self.parse_event(event):
                 msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])

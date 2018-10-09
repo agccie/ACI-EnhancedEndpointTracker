@@ -67,7 +67,7 @@ class eptCache(object):
             if name is not None: 
                 epg = self.epg_cache.search(name, name=True)
                 if not isinstance(epg, hitCacheNotFound) and epg is not None:
-                    self.offsubnet_cache.remove(epg.bd, name=True)
+                    self.offsubnet_flush(epg.bd)
                 self.epg_cache.remove(name, name=True)
             else: 
                 self.epg_cache.flush()
@@ -79,7 +79,7 @@ class eptCache(object):
                 if not isinstance(subnets, hitCacheNotFound) and subnets is not None \
                     and len(subnets)>0:
                     # subnet_cache key is bd so we can just look at the first one
-                    self.offsubnet_cache.remove(subnets[0].bd, name=True)
+                    self.offsubnet_flush(subnets[0].bd)
                 self.subnet_cache.remove(name, name=True)
             else: 
                 self.subnet_cache.flush()
@@ -109,6 +109,9 @@ class eptCache(object):
         if not isinstance(obj, hitCacheNotFound):
             logger.debug("(from cache) %s %s", eptObject._classname, keys)
             return obj
+        if not db_lookup: 
+            # if entry not in cache and db_lookup disabled, then return None 
+            return None
         obj = eptObject.find(fabric=self.fabric, **keys)
         if len(obj) == 0:
             logger.debug("db key not found: %s %s", eptObject._classname, keys)
@@ -196,7 +199,7 @@ class eptCache(object):
                 if saddr is None or smask is None:
                     logger.warn("failed to parse ip address for subnet(%s): %s", s.name, s.ip)
                     continue
-                if add & smask == saddr:
+                if addr & smask == saddr:
                     logger.debug("ip(%s) matched subnet(%s): %s", ip, s.name, s.ip)
                     offsubnet = False
                     break
@@ -209,18 +212,30 @@ class eptCache(object):
         self.offsubnet_cache.push(keystr, offsubnetCachedObject(epg.bd, offsubnet))
         return offsubnet
 
+    def offsubnet_flush(self, bd):
+        """ offsubnet_cache contains offsubnetCachedObjects with key of vrf,pctag,ip.  Flush occurs
+            based on bd so need to walk through all nodes in list and remove nodes with provided
+            bd.
+        """
+        remove_nodes = []
+        for n in self.offsubnet_cache.get_node_list():
+            if n.val is not None and hasattr(n.val, "bd") and n.val.bd == bd:
+                remove_nodes.append(n)
+        for n in remove_nodes:
+            self.offsubnet_cache._remove_node(n)
+
 class offsubnetCachedObject(object):
     """ cache objects support a key and val where val can contain an optionally name used mainly for
         remove(flush) operations.  We want to cache the result of offsubnet check using 
         key=vrf,pctag,ip and result=bool as well as supporting a flush for any change to eptEpg or
         eptSubnet that has bd corresponding to epg belonging to vrf,pctag. To do this, we create 
         an offsubnetCachedObject that has two attributes:
-            name = bd vnid corresponding to eptEpg/eptSubnet that created the entry
+            bd = bd vnid corresponding to eptEpg/eptSubnet that created the entry
             offsubnet = boolean (true if offsubnet else false)
     """
     _classname = "offsubnet_cache"
-    def __init__(self, name, offsubnet):
-        self.name = name
+    def __init__(self, bd, offsubnet):
+        self.bd = bd
         self.offsubnet = offsubnet
 
 class hitCacheNotFound(object):
@@ -256,11 +271,18 @@ class hitCache(object):
             self.head.key if self.head is not None else None,
             self.tail.key if self.tail is not None else None,
         )]
+        for n in self.get_node_list():
+            s.append("%s" % node)
+        return "|".join(s)
+
+    def get_node_list(self):
+        """ return a list of all nodes within the cache """
+        node_list = []
         node = self.head
         while node is not None:
-            s.append("%s" % node)
+            node_list.append(node)
             node = node.child
-        return "|".join(s)
+        return node_list
 
     def flush(self):
         """ remove all entries within cache """
@@ -326,6 +348,7 @@ class hitCache(object):
         """
         if name:
             node = self.name_hash.get(key, None)
+            logger.debug("remove name %s [%s]", key, node)
         else:
             node = self.key_hash.get(key, None)
         if node is not None:

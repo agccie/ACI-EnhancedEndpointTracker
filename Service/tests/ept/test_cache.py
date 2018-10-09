@@ -8,12 +8,14 @@ from app.models.aci.fabric import Fabric
 from app.models.aci.ept.ept_cache import eptCache
 from app.models.aci.ept.ept_cache import hitCache
 from app.models.aci.ept.ept_cache import hitCacheNotFound
+from app.models.aci.ept.ept_cache import offsubnetCachedObject
 from app.models.aci.ept.ept_epg import eptEpg
 from app.models.aci.ept.ept_node import eptNode
 from app.models.aci.ept.ept_subnet import eptSubnet
 from app.models.aci.ept.ept_tunnel import eptTunnel
 from app.models.aci.ept.ept_vnid import eptVnid
 from app.models.aci.ept.ept_vpc import eptVpc
+from app.models.aci.ept.common import get_ip_prefix
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -312,8 +314,110 @@ def test_ip_is_offsubnet_full(app, func_prep):
     #   epg_cache
     #   offsubnet_cache
     # A flush for a bd in epg_cache or subnet_cache should delete all cached objects within 
-    # offsubhet_cache.  Ensure that is happening correctly
+    # offsubhet_cache.  Ensure that is happening correctly.
     # Most importantly, ensure that offsubnet check is executing correctly.  I.e., an IP learned on
-    # subnet should return False (not offsubnet) and an IP learned off subnet should return (true)
-    pass
+    # subnet should return False (not offsubnet) and an IP learned off subnet should return true
+
+    cache = get_test_cache()
+
+    # create 5 subnets, four for one BD and one for an unused BD
+    vrf = 1
+    assert eptEpg.load(fabric=tfabric,name="epg1",vrf=vrf,bd=1,pctag=0x1001).save()
+    assert eptEpg.load(fabric=tfabric,name="epg2",vrf=vrf,bd=1,pctag=0x1002).save()
+    assert eptEpg.load(fabric=tfabric,name="epg3",vrf=vrf,bd=1,pctag=0x1003).save()
+    assert eptEpg.load(fabric=tfabric,name="epg4",vrf=vrf,bd=2,pctag=0x1004).save()
+    assert eptEpg.load(fabric=tfabric,name="epg5",vrf=vrf,bd=1,pctag=0x1005).save()
+    assert eptSubnet.load(fabric=tfabric,name="subnet1", bd=1,ip="10.1.1.1/24").save()
+    assert eptSubnet.load(fabric=tfabric,name="subnet2", bd=1,ip="20.1.1.1/24").save()
+    assert eptSubnet.load(fabric=tfabric,name="subnet3", bd=1,ip="2001:1:2:3:4:5:6:7/112").save()
+    assert eptSubnet.load(fabric=tfabric,name="subnet4", bd=2,ip="30.1.1.1/16").save()
+    assert eptSubnet.load(fabric=tfabric,name="subnet5", bd=1,ip="40.1.1.1/8").save()
+
+    # subnet check test first (which adds entries to cache)
+    def add_hits_to_cache():
+        assert not cache.ip_is_offsubnet(vrf, 0x1001, "10.1.1.5") 
+        assert not cache.ip_is_offsubnet(vrf, 0x1002, "10.1.1.6") 
+        assert not cache.ip_is_offsubnet(vrf, 0x1003, "10.1.1.7") 
+        assert not cache.ip_is_offsubnet(vrf, 0x1005, "10.1.1.9") 
+        assert not cache.ip_is_offsubnet(vrf, 0x1001, "10.1.1.5") 
+        assert not cache.ip_is_offsubnet(vrf, 0x1001, "20.1.1.5") 
+        assert not cache.ip_is_offsubnet(vrf, 0x1001, "2001:1:2:3:4:5:6:abcd") 
+        assert cache.ip_is_offsubnet(vrf, 0x1001, "2001:1:2:3:4:5:5:abcd") 
+        assert cache.ip_is_offsubnet(vrf, 0x1001, "2001::abcd") 
+        assert cache.ip_is_offsubnet(vrf, 0x1001, "30.1.2.5")       # wrong bd
+        assert not cache.ip_is_offsubnet(vrf, 0x1004, "30.1.2.5")   # correct bd
+        assert not cache.ip_is_offsubnet(vrf, 0x1001, "40.2.1.5") 
+        assert not cache.ip_is_offsubnet(vrf, 0x1005, "40.3.1.5") 
+        assert not cache.ip_is_offsubnet(vrf, 0xffff, "1.1.1.1")    
+
+    add_hits_to_cache()
+
+    # ensure epgs and subnets are present in their respective caches
+    assert isinstance(cache.epg_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001)),eptEpg)
+    assert isinstance(cache.epg_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1002)),eptEpg)
+    assert isinstance(cache.epg_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1003)),eptEpg)
+    assert isinstance(cache.epg_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1004)),eptEpg)
+    assert isinstance(cache.epg_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1005)),eptEpg)
+    subnets = cache.subnet_cache.search(cache.get_key_str(bd=1))
+    assert type(subnets) is list and len(subnets) == 4
+    #logger.debug("subnets for bd 1: %s", subnets)
+    subnet2 = cache.subnet_cache.search(cache.get_key_str(bd=2))
+    assert type(subnet2) is list and len(subnet2) == 1 and subnet2[0].ip == "30.1.1.1/16"
+
+    # ensure ip's are present within cache
+    assert not cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001,ip="10.1.1.5")).offsubnet
+    assert not cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001,ip="20.1.1.5")).offsubnet
+    assert not cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001,ip="2001:1:2:3:4:5:6:abcd")).offsubnet
+    assert cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001,ip="2001:1:2:3:4:5:5:abcd")).offsubnet
+    assert cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001,ip="2001::abcd")).offsubnet
+    assert cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001,ip="30.1.2.5")).offsubnet
+    assert not cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1004,ip="30.1.2.5")).offsubnet
+    assert not cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001,ip="40.2.1.5")).offsubnet
+    assert not cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1005,ip="40.3.1.5")).offsubnet
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0xffff,ip="1.1.1.1")),
+            hitCacheNotFound)
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=1,ip="30.1.2.5")),
+            hitCacheNotFound)
+
+    logger.debug("offsubnet keys: %s" % cache.offsubnet_cache.key_hash.keys())
+    logger.debug("offsubnet names: %s" % cache.offsubnet_cache.name_hash.keys())
+
+    # flush of single epg name should flush all offsubnet_cache for corresponding bd (which is name)
+    cache.handle_flush(eptEpg._classname, name="epg1")
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001,ip="10.1.1.5")),
+            hitCacheNotFound)
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1002,ip="10.1.1.6")),
+            hitCacheNotFound)
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1003,ip="10.1.1.7")),
+            hitCacheNotFound)
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1005,ip="10.1.1.9")),
+            hitCacheNotFound)
+    # entry for bd 2 still present
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1004,ip="30.1.2.5")),
+            offsubnetCachedObject)
+
+    # repeat for subnet flush by first adding values back into cache...
+    add_hits_to_cache()
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001,ip="10.1.1.5")),
+            offsubnetCachedObject)
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1002,ip="10.1.1.6")),
+            offsubnetCachedObject)
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1003,ip="10.1.1.7")),
+            offsubnetCachedObject)
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1005,ip="10.1.1.9")),
+            offsubnetCachedObject)
+
+    cache.handle_flush(eptSubnet._classname, name="subnet3")
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1001,ip="10.1.1.5")),
+            hitCacheNotFound)
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1002,ip="10.1.1.6")),
+            hitCacheNotFound)
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1003,ip="10.1.1.7")),
+            hitCacheNotFound)
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1005,ip="10.1.1.9")),
+            hitCacheNotFound)
+    # entry for bd 2 still present
+    assert isinstance(cache.offsubnet_cache.search(cache.get_key_str(vrf=vrf,pctag=0x1004,ip="30.1.2.5")),
+            offsubnetCachedObject)
+
 

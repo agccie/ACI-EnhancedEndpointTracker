@@ -74,6 +74,7 @@ def create_app(config_filename="config.py"):
     from .models.aci.mo.vnsLIfCtx import vnsLIfCtx
     from .models.aci.mo.vnsRsEPpInfoToBD import vnsRsEPpInfoToBD
     from .models.aci.mo.vnsRsLIfCtxToBD import vnsRsLIfCtxToBD
+    from .models.aci.mo.vpcRsVpcConf import vpcRsVpcConf
 
     # auto-register api objects
     from .views.api import api

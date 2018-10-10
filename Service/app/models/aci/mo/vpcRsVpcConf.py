@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 @api_register(parent="fabric", path="mo/vpcRsVpcConf")
 class vpcRsVpcConf(ManagedObject):
 
-    # vpcRsVpcConf may not be a reliable subscription, seems to work ok on E+
-    TRUST_SUBSCRIPTION = True
+    # vpcRsVpcConf is not reliable, arbitrary deletes 10 seconds after create (CSCvm84902)
+    TRUST_SUBSCRIPTION = False
 
     META_ACCESS = ManagedObject.append_meta_access({
         "namespace":"vpcRsVpcConf",

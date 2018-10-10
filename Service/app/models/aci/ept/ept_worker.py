@@ -357,7 +357,7 @@ class eptWorker(object):
             # need to recalculate local after merge
             is_local = "local" in event.flags
             if last_event.rw_mac != event.rw_mac or last_event.rw_bd != event.rw_bd:
-                logger.debug("rewrite info updated from bd:%s,mac:%s to bd:%s,mac:%s", 
+                logger.debug("rewrite info updated from [bd:%s,mac:%s] to [bd:%s,mac:%s]", 
                     last_event.rw_bd, last_event.rw_mac, event.rw_bd, event.rw_mac)
                 self.fabrics[msg.fabric].push_history_event(flt, event.to_dict())
                 if event.status == "deleted":

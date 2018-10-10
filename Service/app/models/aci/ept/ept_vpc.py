@@ -17,18 +17,20 @@ class eptVpc(Rest):
         "read": True,
         "update": False,
         "delete": False,
+        "db_index": ["fabric","name"],      # fabric+name(dn) is unique (for insert/update)
+        "db_index2": ["fabric", "intf"],    # second index for quick lookup
     }
 
     META = {
-        "intf": {
+        "name": {
             "type": str,
             "key": True,
             "key_sn": "vpc",
-            "description": "port-channel interface id",
-        },
-        "name": {
-            "type": str,
             "description":"name(dn) for vpcRsVpcConf that created this object",
+        },
+        "intf": {
+            "type": str,
+            "description": "port-channel interface id",
         },
         "vpc": {
             "type": int,

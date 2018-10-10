@@ -17,22 +17,25 @@ class eptPc(Rest):
         "read": True,
         "update": False,
         "delete": False,
+        "db_index_unique": True,  
+        "db_index": ["fabric","name"],      # fabric+name(dn) is unique (for insert/update)
+        "db_index2": ["fabric", "intf"],    # second index for quick lookup
     }
 
     META = {
-        "intf": {
+        "name": {
             "type": str,
             "key": True,
             "key_sn": "pc",
+            "description":"name(dn) for pcAggrIf that created this object",
+        },
+        "intf": {
+            "type": str,
             "description": "port-channel interface id",
         },
         "intf_name": {
             "type": str,
             "description": "policy name for port-channel interface",
-        },
-        "name": {
-            "type": str,
-            "description":"name(dn) for pcAggrIf that created this object",
         },
         "ts": {
             "type": float,

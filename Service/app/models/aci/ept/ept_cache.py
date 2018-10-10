@@ -64,7 +64,7 @@ class eptCache(object):
             if name is not None: self.vpc_cache.remove(name, name=True)
             else: self.vpc_cache.flush()
         elif collection_name == eptPc._classname:
-            if name is not None: self.Pc_cache.remove(name, name=True)
+            if name is not None: self.pc_cache.remove(name, name=True)
             else: self.pc_cache.flush()
         elif collection_name == eptVnid._classname:
             if name is not None: self.vnid_cache.remove(name, name=True)
@@ -387,7 +387,7 @@ class hitCache(object):
         """
         if name:
             node = self.name_hash.get(key, None)
-            logger.debug("remove name %s [%s]", key, node)
+            #logger.debug("remove name %s [%s]", key, node)
         else:
             node = self.key_hash.get(key, None)
         if node is not None:

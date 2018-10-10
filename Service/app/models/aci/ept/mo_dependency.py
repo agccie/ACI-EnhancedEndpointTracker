@@ -203,7 +203,8 @@ class DependencyNode(object):
             return list of ept objects that were updated
             this requires 'dn', 'status', and '_ts' within provided attribute dict
         """
-        logger.debug("sync event (fabric:%s), event: %s", fabric, attr)
+        logger.debug("sync event (fabric:%s), '%s' dn: %s",fabric,attr.get("status",""),attr["dn"])
+        #logger.debug("full event: %s", attr)
         updates = []
         mo = self.cls_mo.load(fabric=fabric, dn=attr["dn"])
         if mo.exists() and mo.ts > attr["_ts"]:
@@ -213,9 +214,9 @@ class DependencyNode(object):
         # perform manual refresh for non-trusting mo or non-existing mo with modify event
         if not mo.TRUST_SUBSCRIPTION or attr["status"] == "modified" and not mo.exists():
             logger.debug("mo dependency sync performing api refresh for dn: %s", attr["dn"])
-            full_attr = get_attributes(session=session, dn=attr["dn"])
             if session is None:
                 raise Exception("no session object provided for sync event: %s, %s" %(fabric, attr))
+            full_attr = get_attributes(session=session, dn=attr["dn"])
             if full_attr is None:
                 logger.debug("failed to refresh dn, assuming deleted: %s", attr["dn"])
                 attr["status"] = "deleted"

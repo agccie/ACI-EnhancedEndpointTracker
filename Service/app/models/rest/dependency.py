@@ -90,7 +90,8 @@ class RestDependency(object):
         """
         objs = []
         if self.obj is not None: objs.append(self)
-        for c in self.children:
+        # sort children nodes for deterministic ordering
+        for c in sorted(self.children, key=lambda c: c.classname):
             ch = c.get_ordered_objects()
             objs+= ch
         return objs

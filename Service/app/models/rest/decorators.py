@@ -289,6 +289,19 @@ def register(api, uni=True):
             uni_node.add_child(c)
             c.set_parent_classname("universe")
         root = uni_node
+
+    # raise warning for keypath collision (indexed per method)
+    unique_path = {}
+    def warn_dup(c, method, path):
+        if type(method) is not list: method = [method]
+        for m in method:
+            if m not in unique_path: unique_path[m] = {}
+            if path in unique_path[m]:
+                c.logger.warn("duplicate path %s to %s (%s)", c._classname, unique_path[m][path],
+                    path)
+            else:
+                unique_path[m][path] = c._classname
+
     for node in root.get_ordered_objects():
         c = node.obj
         #c.logger.debug("*"*80)
@@ -356,7 +369,11 @@ def register(api, uni=True):
             else:
                 key_path = path
         else:
-            key_path = "%s/%s" % (parent._key_path, key_string)
+            # add namespace if present
+            if c._access["namespace"] is not None and len(c._access["namespace"])>0:
+                key_path = "%s/%s/%s"%(parent._key_path, c._access["namespace"].lower(),key_string)
+            else:
+                key_path = "%s/%s" % (parent._key_path, key_string)
             c._dn_attributes = parent._dn_attributes + c._dn_attributes
         # remove duplicate slashes from all paths
         path = re.sub("//","/", path)
@@ -402,12 +419,14 @@ def register(api, uni=True):
                 api.add_url_rule(key_path, endpoint, c.api_read,methods=["GET"])
                 #c.logger.debug("registered read path: GET %s", key_path)
                 swagger_read(c, key_swag_path, bulk=False)
+                warn_dup(c, "GET", key_path)
 
             if c._access["bulk_read"] and bulk(c):
                 endpoint = "%s_bulk_read" % c.__name__.lower()
-                api.add_url_rule(path,endpoint, c.api_read, methods=["GET"])
+                api.add_url_rule(path, endpoint, c.api_read, methods=["GET"])
                 #c.logger.debug("registered bulk read path: GET %s", path)
                 swagger_read(c, path, bulk=True)
+                warn_dup(c, "GET", path)
 
         # add update paths
         if c._access["update"]:
@@ -417,6 +436,7 @@ def register(api, uni=True):
                     methods=["PATCH","PUT"])
                 #c.logger.debug("registered update path: PATCH,PUT %s", key_path)
                 swagger_update(c, key_swag_path, bulk=False)
+                warn_dup(c, ["PUT", "PATCH"], key_path)
 
             if c._access["bulk_update"] and bulk(c):
                 endpoint = "%s_bulk_update" % c.__name__.lower()
@@ -424,6 +444,7 @@ def register(api, uni=True):
                     methods=["PATCH","PUT"])
                 #c.logger.debug("registered bulk update path: PATCH,PUT %s",path)
                 swagger_update(c, path, bulk=True)
+                warn_dup(c, ["PUT", "PATCH"], path)
 
         # add delete paths
         if c._access["delete"]:
@@ -433,12 +454,14 @@ def register(api, uni=True):
                     methods=["DELETE"])
                 #c.logger.debug("registered delete path: DELETE %s", key_path)
                 swagger_delete(c, key_swag_path, bulk=False)
+                warn_dup(c, "DELETE", key_path)
 
             if c._access["bulk_delete"] and bulk(c):
                 endpoint = "%s_bulk_delete" % c.__name__.lower()
                 api.add_url_rule(path,endpoint,c.api_delete,methods=["DELETE"])
                 #c.logger.debug("registered bulk delete path: DELETE %s", path)
                 swagger_delete(c, path, bulk=True)
+                warn_dup(c, "DELETE", path)
 
         # handle custom routes
         for r in c._access["routes"]:
@@ -463,6 +486,7 @@ def register(api, uni=True):
             swag_rpath = re.sub("<[a-z]+:([^>]+)>",r"{\1}", rpath)
             swagger_generic_path(c, swag_rpath, r.methods[0], r.summary, r.swag_args, r.swag_ret,
                     authenticated=r.authenticated, role=r.role)
+            warn_dup(c,r.methods,rpath)
 
     # check registered_callbacks for additional callback_info (decorators used outside of class)
     # and set the method to the registered CallbackInfo object

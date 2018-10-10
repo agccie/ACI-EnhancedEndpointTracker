@@ -159,10 +159,9 @@ float timestamp `last_login`:
 
 
 
-@api_register()
+@api_register(path="/docs/")
 class Docs(Rest):
 
-    # allow only read and update requests
     META_ACCESS = {
         "read": False,
         "create": False,

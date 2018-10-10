@@ -70,6 +70,12 @@ class Rest(object):
                                 /api/user/username-<username>/groups-<group>
                             without keyed_path enabled the dn would be:
                                 /api/user/<username>/<groups>
+            "namespace":    str, (default empty) a namespace string to distinguish read requests 
+                            from other objects that have have the same key names.  The namespace is
+                            inserted after the parent keys and before the object keys. For example,
+                            if the parent is fabric with key 'fb' and universe is enabled, then 
+                            the keyed path for the object is:
+                                /uni/fb-{fabric}/namespace/[local keys]...
             "dn":           bool, (default true) include a distinguished name (dn) property in read
                             requests for an object
             "create_role":  int, role required to perform create operations
@@ -255,6 +261,7 @@ class Rest(object):
     ACCESS_DEF = {
         "expose_id": False,
         "keyed_path": True,
+        "namespace": "",
         "dn": True,
         "create_role": Role.FULL_ADMIN,
         "read_role": Role.USER,

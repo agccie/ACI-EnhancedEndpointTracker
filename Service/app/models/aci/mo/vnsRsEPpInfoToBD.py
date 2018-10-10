@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 @api_register(parent="fabric", path="mo/vnsRsEPpInfoToBD")
 class vnsRsEPpInfoToBD(ManagedObject):
 
+    META_ACCESS = ManagedObject.append_meta_access({
+        "namespace":"vnsRsEPpInfoToBD",
+    })
+
     META = ManagedObject.append_meta({
         "tDn": {},
         "parent": {

@@ -12,15 +12,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 # reusable attributes for local event piggy-backing on history meta for consistency
-common_attr = ["ts", "status", "intf", "pctag", "encap", "rw_mac", "rw_bd", "epg_name"]
+common_attr = ["ts", "status", "intf_id", "intf_name", "pctag", "encap", "rw_mac", "rw_bd",
+                "epg_name", "vnid_name"]
 local_event = {
     "node": {
         "type": int,
-        "description": "node id of local node the endpoint was learned",
-    },
-    "vnid_name": {
-        "type": str,
-        "description": "vrf or bd name at the time the event was detected",
+        "description": """
+        node id of local node where the endpoint was learned. node id may be pseudo node representing
+        a vpc domain.
+        """,
     },
 }
 # pull common attributes from eptHistory 
@@ -39,6 +39,7 @@ class eptEndpoint(Rest):
     logger = logger
 
     META_ACCESS = {
+        "namespace": "endpoint",
         "create": False,
         "read": True,
         "update": False,
@@ -84,6 +85,16 @@ class eptEndpoint(Rest):
             "description": "endpoint type (mac, ipv4, ipv6)",
             "default": "mac",
             "values": ["mac", "ipv4", "ipv6"],
+        },
+        "is_stale": {
+            "type": bool,
+            "default": False,
+            "description": """ True if the endpoint is currently stale in the fabric """,
+        },
+        "is_offsubnet": {
+            "type": bool,
+            "default": False,
+            "description": "True if the endpoint is currently learned offsubnet",
         },
         "first_learn": {
             "type": dict,

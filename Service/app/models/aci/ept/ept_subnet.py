@@ -27,6 +27,7 @@ class eptSubnet(Rest):
         "name": {
             "type": str,
             "key": True,
+            "key_sn": "subnet",
             "key_type": "path",
             "description": "dn of object that created this subnet (required for event handlers)",
         },

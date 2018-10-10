@@ -194,7 +194,7 @@ class eptEpmEventParser(object):
         msg.vnid = vnid
         msg.ts = ts
         if classname == "epmMacEp":
-            msg.wt = WORK_TYPE_EPM_MAC_EVENT
+            msg.wt = WORK_TYPE.EPM_MAC_EVENT
             msg.type = "mac"
         elif classname == "epmIpEp":
             msg.wt = WORK_TYPE.EPM_IP_EVENT

@@ -29,6 +29,7 @@ class eptEpg(Rest):
         "name": {
             "type": str,
             "key": True,
+            "key_sn": "epg",
             "description": "EPG name corresponding to provided vnid and pctag",
         },
         "vrf": {

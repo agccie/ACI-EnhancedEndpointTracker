@@ -23,9 +23,10 @@ from . ept_msg import eptMsgWork
 from . ept_epg import eptEpg
 from . ept_history import eptHistory
 from . ept_node import eptNode
-from . ept_tunnel import eptTunnel
+from . ept_pc import eptPc
 from . ept_settings import eptSettings
 from . ept_subnet import eptSubnet
+from . ept_tunnel import eptTunnel
 from . ept_vnid import eptVnid
 from . ept_vpc import eptVpc
 from . mo_dependency_map import dependency_map
@@ -65,23 +66,24 @@ class eptSubscriber(object):
 
         # classes that have corresponding mo Rest object and handled by handle_std_mo_event
         mo_classes = [
+            "fvAEPg",
             "fvCtx",
             "fvBD",
+            "fvRsBd",
             "fvSvcBD",
+            "fvSubnet",
+            "fvIpAttr",
             "l3extExtEncapAllocator",
             "l3extInstP",
             "l3extOut",
             "l3extRsEctx",
-            "fvAEPg",
-            "fvRsBd",
-            "vnsEPpInfo",
-            "vnsRsEPpInfoToBD",
             "mgmtInB",
             "mgmtRsMgmtBD",
-            "fvSubnet",
-            "fvIpAttr",
+            "pcAggrIf",
+            "vnsEPpInfo",
             "vnsLIfCtx",
             "vnsRsLIfCtxToBD",
+            "vnsRsEPpInfoToBD",
             "vpcRsVpcConf",
         ]
         # dict of classname to import mo object
@@ -221,6 +223,12 @@ class eptSubscriber(object):
             self.slow_subscription.pause()
         self.slow_subscription.subscribe(blocking=False)
 
+        # build mo db first as other objects rely on it
+        self.fabric.add_fabric_event(init_str, "collecting base managed objects")
+        if not self.build_mo():
+            self.fabric.add_fabric_event("failed", "failed to collect MOs")
+            return
+
         # build node db and vpc db
         self.fabric.add_fabric_event(init_str, "building node db")
         if not self.build_node_db():
@@ -234,11 +242,6 @@ class eptSubscriber(object):
         self.fabric.add_fabric_event(init_str, "building tunnel db")
         if not self.build_tunnel_db():
             self.fabric.add_fabric_event("failed", "failed to build tunnel db")
-            return
-
-        self.fabric.add_fabric_event(init_str, "collecting base managed objects")
-        if not self.build_mo():
-            self.fabric.add_fabric_event("failed", "failed to collect MOs")
             return
 
         # build vnid db along with vnsLIfCtxToBD db which relies on vnid db
@@ -319,6 +322,7 @@ class eptSubscriber(object):
                 - eptNode
                 - eptTunnel
                 - eptVpc
+                - eptPc
         """
         logger.debug("soft restart requested: %s", reason)
         if ts is not None and self.soft_restart_ts > ts:
@@ -336,8 +340,9 @@ class eptSubscriber(object):
             self.fabric.add_fabric_event("failed", "failed to build node db")
             return self.hard_restart("failed to build node db")
         # need to rebuild vpc db which requires a rebuild of local mo vpcRsVpcConf mo first
-        success = self.mo_classes["vpcRsVpcConf"].rebuild(self.fabric, session=self.session)
-        if not success or not self.build_vpc_db():
+        success1 = self.mo_classes["vpcRsVpcConf"].rebuild(self.fabric, session=self.session)
+        success2 = self.mo_classes["pcAggrIf"].rebuild(self.fabric, session=self.session)
+        if not success1 or not success2 or not self.build_vpc_db():
             self.fabric.add_fabric_event("failed", "failed to build node pc to vpc db")
             return self.hard_restart("failed to build node pc to vpc db")
 
@@ -456,8 +461,7 @@ class eptSubscriber(object):
                 if classname in dependency_map:
                     logger.debug("triggering sync_event for dependency %s", classname)
                     updates+= dependency_map[classname].sync_event(self.fabric.fabric, attr, 
-                        session = self.session
-                    )
+                            self.session)
                     logger.debug("updated objects: %s", len(updates))
                 else:
                     logger.warn("%s not defined in dependency_map", classname)
@@ -555,6 +559,11 @@ class eptSubscriber(object):
             attribute_map = default_attribute_map
         if regex_map is None:
             regex_map = default_regex_map
+
+        # if attribute map is empty then it wasn't provided or no corresponding entry within the 
+        # dependency map
+        if len(attribute_map) == 0:
+            logger.error("no attribute map found/provided for %s", mo_classname)
 
         ts = time.time()
         bulk_objects = []
@@ -732,10 +741,15 @@ class eptSubscriber(object):
         return True
 
     def build_vpc_db(self):
-        """ build port-channel to vpc interface mapping. return bool success """
-        logger.debug("initializing vpc db")
+        """ build port-channel to vpc interface mapping along with port-chhanel to name mapping.
+            return bool success 
+        """
+        logger.debug("initializing pc/vpc db")
         # vpcRsVpcConf exists within self.mo_classses and already defined in dependency_map
-        return self.initialize_ept_collection(eptVpc,"vpcRsVpcConf",set_ts=True, flush=True)
+        return (
+            self.initialize_ept_collection(eptVpc,"vpcRsVpcConf",set_ts=True, flush=True) and \
+            self.initialize_ept_collection(eptPc,"pcAggrIf",set_ts=True, flush=True)
+        )
 
     def build_vnid_db(self):
         """ initialize vnid database. return bool success

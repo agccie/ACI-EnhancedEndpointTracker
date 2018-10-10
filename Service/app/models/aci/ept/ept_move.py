@@ -7,17 +7,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 # reusable attributes for src/dst move events piggy-backing on history meta for consistency
-common_attr = ["ts", "intf", "pctag", "encap", "rw_mac", "rw_bd", "epg_name"]
+common_attr = ["ts", "intf_id", "intf_name", "pctag", "encap", "rw_mac", "rw_bd", "epg_name",
+                "vnid_name"]
 move_event = {
     "type": dict,
     "meta": {
         "node": {
             "type": int,
             "description": "node id of local node the endpoint was learned",
-        },
-        "vnid_name": {
-            "type": str,
-            "description": "vrf or bd name at the time the event was detected",
         },
     }
 }
@@ -31,6 +28,7 @@ class eptMove(Rest):
     logger = logger
 
     META_ACCESS = {
+        "namespace": "move",
         "create": False,
         "read": True,
         "update": False,

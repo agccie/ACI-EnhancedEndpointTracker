@@ -2,6 +2,7 @@
 from . common import get_ip_prefix
 from . ept_epg import eptEpg
 from . ept_node import eptNode
+from . ept_pc import eptPc
 from . ept_tunnel import eptTunnel
 from . ept_subnet import eptSubnet
 from . ept_vnid import eptVnid
@@ -20,6 +21,8 @@ class eptCache(object):
             get_tunnel_remote   return eptTunnel.remote for provided node and tunnel intf
 
             get_pc_vpc_id       return eptVpc.vpc for provided node and port-channel intf
+
+            get_pc_name         return eptPc.intf_name for provided node and port-channel intf
 
             get_vnid_name       return eptVnid.name for provided vnid
 
@@ -44,6 +47,7 @@ class eptCache(object):
         self.tunnel_cache = hitCache(self.max_cache_size)       # eptTunnel(node, intf) = eptTunnel
         self.node_cache = hitCache(self.max_cache_size)         # eptNode(node) = eptNode
         self.vpc_cache = hitCache(self.max_cache_size)          # eptVpc(node,intf) = eptVpc
+        self.pc_cache = hitCache(self.max_cache_size)           # eptPc(node, intf) = eptPc
         self.vnid_cache = hitCache(self.max_cache_size)         # eptVnid(vnid) = eptVnid
         self.epg_cache = hitCache(self.max_cache_size)          # eptEpg(vrf,pctag) = eptEpg
         self.subnet_cache = hitCache(self.max_cache_size)       # eptSubnet(bd) = list(eptSubnet)
@@ -59,6 +63,9 @@ class eptCache(object):
         elif collection_name == eptVpc._classname:
             if name is not None: self.vpc_cache.remove(name, name=True)
             else: self.vpc_cache.flush()
+        elif collection_name == eptPc._classname:
+            if name is not None: self.Pc_cache.remove(name, name=True)
+            else: self.pc_cache.flush()
         elif collection_name == eptVnid._classname:
             if name is not None: self.vnid_cache.remove(name, name=True)
             else: self.vnid_cache.flush()
@@ -143,6 +150,12 @@ class eptCache(object):
         ret = self.generic_cache_lookup(self.vpc_cache, eptVpc, node=node, intf=intf)
         if ret is None: return 0
         return ret.vpc
+
+    def get_pc_name(self, node, intf):
+        """ get pc name for provided port-channel interface, if not found return empty string """
+        ret = self.generic_cache_lookup(self.pc_cache, eptPc, node=node, intf=intf)
+        if ret is None: return ""
+        return ret.intf_name
 
     def get_vnid_name(self, vnid):
         """ return vnid name(dn) for corresponding bd or vrf vnid.  If an error occurs or vnid is

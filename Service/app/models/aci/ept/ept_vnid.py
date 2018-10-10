@@ -25,6 +25,7 @@ class eptVnid(Rest):
         "name": {
             "type": str,
             "key": True,
+            "key_sn": "vnid",
             "description": "BD or VRF name corresponding to provided vnid",
         },
         "vnid": {

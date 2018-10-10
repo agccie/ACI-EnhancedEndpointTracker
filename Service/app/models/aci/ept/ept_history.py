@@ -11,6 +11,7 @@ class eptHistory(Rest):
     logger = logger
 
     META_ACCESS = {
+        "namespace": "history",
         "create": False,
         "read": True,
         "update": False,
@@ -61,9 +62,8 @@ class eptHistory(Rest):
             "default": False,
             "description": """
             True if the endpoint is currently stale in the fabric. Note endpoint analysis may result
-            in a temporarily stale result while processing a queue of events. Users should ensure 
-            that eptHistory.is_stale is true AND that the event was creating in the eptStale table
-            before concluding that the endpoint is truly stale.
+            in a temporarily stale result while processing a queue of events. Users should rely on
+            eptEndpoint table is_stale state when querying stale endpoints.
             """,
         },
         "is_offsubnet": {
@@ -119,9 +119,16 @@ class eptHistory(Rest):
                     "type": str,
                     "description": "vlan or vxlan encap for local learn",
                 },
-                "intf": {
+                "intf_id": {
                     "type": str,
                     "description": "interface id where endpoint was learned",
+                },
+                "intf_name": {
+                    "type": str,
+                    "description": """ 
+                    interface name. This is only relevant for port-channels, all interface types
+                    should have identical intf_id and intf_name 
+                    """,
                 },
                 "rw_mac": {
                     "type": str,
@@ -139,6 +146,10 @@ class eptHistory(Rest):
                     "type": str,
                     "description": "epg name based on vrf and pctag at the time of this event",
                 },
+                "vnid_name": {
+                    "type": str,
+                    "description": "vnid name based on at the time of this event",
+                },
             },
         },
     }
@@ -154,8 +165,10 @@ class eptHistoryEvent(object):
         self.pctag = kwargs.get("pctag", 0)
         self.flags = sorted(kwargs.get("flags", []))
         self.encap = kwargs.get("encap", "")
-        self.intf = kwargs.get("intf", "")
+        self.intf_id = kwargs.get("intf_id", "")
+        self.intf_name = kwargs.get("intf_name", "")
         self.epg_name = kwargs.get("epg_name", "")
+        self.vnid_name = kwargs.get("vnid_name", "")
         self.rw_mac = kwargs.get("rw_mac", "")
         self.rw_bd = kwargs.get("rw_bd", 0)
 
@@ -169,8 +182,10 @@ class eptHistoryEvent(object):
             "pctag": self.pctag,
             "flags": self.flags,
             "encap": self.encap,
-            "intf": self.intf,
+            "intf_id": self.intf_id,
+            "intf_name": self.intf_name,
             "epg_name": self.epg_name,
+            "vnid_name": self.vnid_name,
             "rw_mac": self.rw_mac,
             "rw_bd": self.rw_bd
         }
@@ -193,8 +208,10 @@ class eptHistoryEvent(object):
             event.pctag = msg.pcTag
             event.flags = sorted(msg.flags)
             event.encap = msg.encap
-            event.intf = msg.ifId
+            event.intf_id = msg.ifId
+            event.intf_name = msg.ifId_name
             event.epg_name = msg.epg_name
+            event.vnid_name = msg.vnid_name
         return event
 
 

@@ -172,9 +172,12 @@ class eptWorker(object):
         ts = time.time()
         if CACHE_STATS_INTERVAL > 0 and ts - self.cache_stats_time > CACHE_STATS_INTERVAL:
             self.cache_stats_time = ts
-            logger.debug("collecting cache statistics for %s caches", len(self.fabrics))
-            for c in self.fabrics:
-                self.fabrics[c].cache.log_stats()
+            # in case fabric size changes in another thread
+            fabrics = self.fabrics.keys()
+            logger.debug("collecting cache statistics for %s caches", len(fabrics))
+            for f in fabrics:
+                if f in fabrics: 
+                    self.fabrics[f].cache.log_stats()
 
         self.hello_thread = threading.Timer(HELLO_INTERVAL, self.send_hello)
         self.hello_thread.daemon = True
@@ -195,43 +198,58 @@ class eptWorker(object):
                 name = msg.data["name"]
                 if len(name) == 0: 
                     name = None
-                self.fabrics[msg.fabric].cache.handle_flush(data["cache"], name=name)
+                self.fabrics[msg.fabric].cache.handle_flush(msg.data["cache"], name=name)
             else:
                 logger.debug("fabric %s not currently in cache", msg.fabric)
         else:
             logger.warn("invalid flush cache message")
 
     def handle_endpoint_event(self, msg):
-        """ handle EPM endpoint event """
-
-        analysis_required = self.update_endpoint_history(msg)
-
-
-    def update_endpoint_history(self, msg):
-        """ push event into eptHistory table and determine if analysis is required
-            -   inserts event into eptHistory table if different and more recent than latest event. 
+        """ handle EPM endpoint event i
+        
             -   calculates where endpoint is local relevant to all nodes in the fabric. Note, the
                 endpoint may be local on multiple nodes for vpc scenario, transistory event, or
                 misconfig.
                 If local event is different from eptEndpoint recent local (and within transitory 
                 timers), then add entry to eptEndpoint events.
             -   trigger analysis function for each analysis enabled (move, stale, offsubnet).
+
+        
         """
+
+        # create eptWorkerFabric object for this fabric if not already known
+        if msg.fabric not in self.fabrics:
+            self.fabrics[msg.fabric] = eptWorkerFabric(msg.fabric)
+
+        # update endpoint history table and determine based on event if analysis is required
+        analysis_required = self.update_endpoint_history(msg)
+        
+        if analysis_required: 
+            # 
+            if self.fabrics[msg.fabric].settings.analyze_move:
+                pass
+            if self.fabrics[msg.fabric].settings.analyze_stale:
+                pass
+            if self.fabrics[msg.fabric].settings.analyze_offsubnet:
+                pass
+
+
+    def update_endpoint_history(self, msg):
+        """ push event into eptHistory table and determine if analysis is required """
         # already have basic info logged when event was received (fabric, wt, node, vnid, addr, ip)
         # let's add ts, status, flags, ifId, pctag, vrf, bd, encap for full picture
         logger.debug("%s %.3f: vrf:0x%x, bd:0x%x, pcTag:0x%x, ifId:%s, encap:%s, flags(%s):[%s]",
                 msg.status, msg.ts, msg.vrf, msg.bd, msg.pcTag, msg.ifId, msg.encap, len(msg.flags),
                 ",".join(msg.flags))
 
-        # create eptWorkerFabric object for this fabric if not already known
-        if msg.fabric not in self.fabrics:
-            self.fabrics[msg.fabric] = eptWorkerFabric(msg.fabric)
         cache = self.fabrics[msg.fabric].cache
-
         is_local = "local" in msg.flags
         is_rs_ip_event = (msg.wt == WORK_TYPE.EPM_RS_IP_EVENT)
         is_ip_event = (msg.wt == WORK_TYPE.EPM_IP_EVENT)
         is_mac_event = (msg.wt == WORK_TYPE.EPM_MAC_EVENT)
+
+        # will need to calcaulte remote node and ifId_name (defaults to ifId)
+        ifId_name = msg.ifId
         remote = 0
 
         # determine remote node for this event if its a non-deleted XR event
@@ -247,26 +265,34 @@ class eptWorker(object):
             else:
                 remote = cache.get_tunnel_remote(msg.node, msg.ifId)
 
-        if is_local:
-            # map interface to vpc-id if mapping exists. The vpc-attached flag should also be 
-            # checked but for now we'll look only if mapping exists
-            if "po" in msg.ifId:
+        # independent of local or remote, if po is in ifId, then try to determine ifId_name
+        if "po" in msg.ifId:
+            # map ifId_name to port-channel policy name
+            intf_name = cache.get_pc_name(msg.node, msg.ifId)
+            if len(intf_name) > 0: 
+                logger.debug("mapping ifId_name %s to %s", msg.ifId, intf_name)
+                ifId_name = intf_name
+
+            # if local, map interface to vpc-id if mapping exists. The vpc-attached flag should also 
+            # be checked but for now we'll look only if mapping exists
+            if is_local:
                 vpc_id = cache.get_pc_vpc_id(msg.node, msg.ifId)
                 if vpc_id > 0:
                     logger.debug("mapping ifId %s to vpc-%s", msg.ifId, vpc_id)
                     msg.ifId = "vpc-%s" % vpc_id
-            # for VL, endpoint is local and interface is a tunnel. Remap local interface from tunnel
-            # to VL destination
-            elif "tunnel" in msg.ifId:
-                tunnel = cache.get_tunnel_remote(msg.node, msg.ifId, return_object=True)
-                if tunnel is not None and tunnel.encap == "vxlan":
-                    logger.debug("mapping ifId %s to vl-%s", msg.ifId, tunnel.dst)
-                    msg.ifId = "vl-%s" % tunnel.dst
+        # for VL, endpoint is local and interface is a tunnel. Remap local interface from tunnel
+        # to VL destination
+        elif "tunnel" in msg.ifId and is_local:
+            tunnel = cache.get_tunnel_remote(msg.node, msg.ifId, return_object=True)
+            if tunnel is not None and tunnel.encap == "vxlan":
+                logger.debug("mapping ifId %s to vl-%s", msg.ifId, tunnel.dst)
+                msg.ifId = "vl-%s" % tunnel.dst
 
         # add names to msg object and remote value to msg object
-        #setattr(msg, "vnid_name", cache.get_vnid_name(msg.vnid))
+        setattr(msg, "vnid_name", cache.get_vnid_name(msg.vnid))
         setattr(msg, "epg_name", cache.get_epg_name(msg.vrf, msg.pcTag))
         setattr(msg, "remote", remote)
+        setattr(msg, "ifId_name", ifId_name)
 
         # eptHistoryEvent representing current received event
         event = eptHistoryEvent.from_msg(msg)
@@ -325,7 +351,8 @@ class eptWorker(object):
             # remains deleted)
             event.rw_mac = msg.addr
             event.rw_bd = msg.bd
-            for a in ["status", "remote", "pctag", "flags", "encap", "intf", "epg_name"]:
+            for a in ["status", "remote", "pctag", "flags", "encap", "intf_id", "intf_name", 
+                "epg_name", "vnid_name"]:
                 setattr(event, a, getattr(last_event, a))
             # need to recalculate local after merge
             is_local = "local" in event.flags
@@ -359,7 +386,7 @@ class eptWorker(object):
         update = False
         if event.status == "created":
             # determine if any attribute has changed, if so push the new event
-            for a in ["remote", "pctag", "flags", "encap", "intf"]:
+            for a in ["remote", "pctag", "flags", "encap", "intf_id"]:
                 if getattr(last_event, a) != getattr(event, a):
                     logger.debug("node-%s '%s' updated from %s to %s", msg.node, a, 
                         getattr(last_event,a), getattr(event, a))
@@ -377,13 +404,13 @@ class eptWorker(object):
                 event.remote = last_event.remote
             if event.pctag == 0: 
                 event.pctag = last_event.pctag
-            for a in ["flags", "encap", "intf", "epg_name"]:
+            for a in ["flags", "encap", "intf_id", "intf_name", "epg_name", "vnid_name"]:
                 if len(getattr(event, a)) == 0:
                     setattr(event, a, getattr(last_event, a))
             # need to recalculate local after merge
             is_local = "local" in event.flags
             # perform comparison of interesting attributes
-            for a in ["remote", "pctag", "flags", "encap", "intf"]:
+            for a in ["remote", "pctag", "flags", "encap", "intf_id"]:
                 if getattr(event, a) != getattr(last_event, a):
                     logger.debug("node-%s '%s' updated from %s to %s", msg.node, a, 
                         getattr(last_event, a), getattr(event, a))

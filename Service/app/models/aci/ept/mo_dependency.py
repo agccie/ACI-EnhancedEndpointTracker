@@ -198,7 +198,7 @@ class DependencyNode(object):
         #logger.debug("sync_ept_to_mo %s(%s) returning %s updates",mo._classname,mo.dn,len(updates))
         return updates
 
-    def sync_event(self, fabric, attr, session=None):
+    def sync_event(self, fabric, attr, session):
         """ receive subscription event and update mo and corresponding dependent ept objects
             return list of ept objects that were updated
             this requires 'dn', 'status', and '_ts' within provided attribute dict
@@ -213,7 +213,7 @@ class DependencyNode(object):
         # perform manual refresh for non-trusting mo or non-existing mo with modify event
         if not mo.TRUST_SUBSCRIPTION or attr["status"] == "modified" and not mo.exists():
             logger.debug("mo dependency sync performing api refresh for dn: %s", attr["dn"])
-            full_attr = get_attributes(session=subscriber.session, dn=attr["dn"])
+            full_attr = get_attributes(session=session, dn=attr["dn"])
             if session is None:
                 raise Exception("no session object provided for sync event: %s, %s" %(fabric, attr))
             if full_attr is None:

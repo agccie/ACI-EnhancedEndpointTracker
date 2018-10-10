@@ -7,9 +7,9 @@ import time
 # module level logging
 logger = logging.getLogger(__name__)
 
-@api_register(parent="eptNode", path="ept/vpc")
-class eptVpc(Rest):
-    """ provide mapping of port-channel interface to vpc id """ 
+@api_register(parent="eptNode", path="ept/pc")
+class eptPc(Rest):
+    """ provide mapping of port-channel interface to port-channel name """ 
     logger = logger
 
     META_ACCESS = {
@@ -23,16 +23,16 @@ class eptVpc(Rest):
         "intf": {
             "type": str,
             "key": True,
-            "key_sn": "vpc",
+            "key_sn": "pc",
             "description": "port-channel interface id",
+        },
+        "intf_name": {
+            "type": str,
+            "description": "policy name for port-channel interface",
         },
         "name": {
             "type": str,
-            "description":"name(dn) for vpcRsVpcConf that created this object",
-        },
-        "vpc": {
-            "type": int,
-            "description": "vpc id matching between leafs in vpc domain",
+            "description":"name(dn) for pcAggrIf that created this object",
         },
         "ts": {
             "type": float,
@@ -42,7 +42,7 @@ class eptVpc(Rest):
 
     @classmethod
     @api_callback("before_create")
-    def before_vpc_create(cls, data):
+    def before_create(cls, data):
         """ set create time on object """
         data["ts"] = time.time()
         return data

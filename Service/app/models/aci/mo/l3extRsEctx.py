@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 @api_register(parent="fabric", path="mo/l3extRsEctx")
 class l3extRsEctx(ManagedObject):
 
+    META_ACCESS = ManagedObject.append_meta_access({
+        "namespace":"l3extRsEctx",
+    })
+
     META = ManagedObject.append_meta({
         "tDn": {},
         "parent": {
@@ -20,7 +24,6 @@ class l3extRsEctx(ManagedObject):
             "description": "parent l3extOut dn for this object"
         },
     })
-
 
     @staticmethod
     @api_callback("before_create")

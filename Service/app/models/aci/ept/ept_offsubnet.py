@@ -6,17 +6,9 @@ import logging
 # module level logging
 logger = logging.getLogger(__name__)
 
-common_attr = ["ts", "status", "remote", "pctag", "flags", "encap", "intf", "rw_mac", "rw_bd"]
-offsubnet_event = {
-    "epg_name": {
-        "type": str,
-        "description": "epg name at the time the event was detected",
-    },
-    "vnid_name": {
-        "type": str,
-        "description": "vrf name at the time the event was detected",
-    },
-}
+common_attr = ["ts", "status", "remote", "pctag", "flags", "encap", "intf_name", "intf_id", 
+                "rw_mac", "rw_bd", "epg_name", "vnid_name"]
+offsubnet_event = { }
 # pull common attributes from eptHistory 
 for a in common_attr:
     offsubnet_event[a] = eptHistory.META["events"]["meta"][a]
@@ -28,6 +20,7 @@ class eptOffSubnet(Rest):
     logger = logger
 
     META_ACCESS = {
+        "namespace": "offsubnet",
         "create": False,
         "read": True,
         "update": False,

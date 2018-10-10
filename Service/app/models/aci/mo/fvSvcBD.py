@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 @api_register(parent="fabric", path="mo/fvSvcBD")
 class fvSvcBD(ManagedObject):
 
+    META_ACCESS = ManagedObject.append_meta_access({
+        "namespace":"fvSvcBD",
+    })
+
     META = ManagedObject.append_meta({
         "pcTag": {},
         "scope": {},

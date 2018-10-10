@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 @api_register(parent="fabric", path="mo/fvSubnet")
 class fvSubnet(ManagedObject):
 
+    META_ACCESS = ManagedObject.append_meta_access({
+        "namespace":"fvSubnet",
+    })
+
     META = ManagedObject.append_meta({
         "ip": {},
         "parent": {

@@ -25,7 +25,7 @@ class eptTunnel(Rest):
         "intf": {
             "type": str,
             "key": True,
-            "key_sn": "if",
+            "key_sn": "tunnel",
             "description": "tunnel interface id",
         },
         "dst": {

@@ -48,6 +48,12 @@ class ManagedObject(Rest):
         return ret
 
     @classmethod
+    def append_meta_access(cls, meta_access):
+        ret = copy.copy(cls.META_ACCESS)
+        for k in meta_access: ret[k] = meta_access[k]
+        return ret
+
+    @classmethod
     def rebuild(cls, fabric, session=None):
         """ rebuild collection 
             requires instance of Fabric object and optional session object for queries

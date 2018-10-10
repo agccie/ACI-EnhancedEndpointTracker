@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 @api_register(parent="fabric", path="mo/mgmtRsMgmtBD")
 class mgmtRsMgmtBD(ManagedObject):
 
+    META_ACCESS = ManagedObject.append_meta_access({
+        "namespace":"mgmtRsMgmtBD",
+    })
+
     META = ManagedObject.append_meta({
         "tDn": {},
         "parent": {

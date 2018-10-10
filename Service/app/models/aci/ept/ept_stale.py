@@ -6,7 +6,8 @@ import logging
 # module level logging
 logger = logging.getLogger(__name__)
 
-common_attr = ["ts", "status", "remote", "pctag", "flags", "encap", "intf", "rw_mac", "rw_bd"]
+common_attr = ["ts", "status", "remote", "pctag", "flags", "encap", "intf_id", "intf_name",
+                "epg_name", "vnid_name"]
 stale_event = {
     "expected_remote": {
         "type": int,
@@ -14,14 +15,6 @@ stale_event = {
         node id of remote node the endpoint is expected to be learned.  If the endpoint was deleted
         from the fabric (no local learn exists), then the value is set to 0
         """,
-    },
-    "epg_name": {
-        "type": str,
-        "description": "epg name at the time the event was detected",
-    },
-    "vnid_name": {
-        "type": str,
-        "description": "vrf name at the time the event was detected",
     },
 }
 # pull common attributes from eptHistory 
@@ -35,6 +28,7 @@ class eptStale(Rest):
     logger = logger
 
     META_ACCESS = {
+        "namespace": "stale",
         "create": False,
         "read": True,
         "update": False,

@@ -42,6 +42,7 @@ class eptCache(object):
     KEY_DELIM = "`"             # majority of keys are integers, this should be sufficient delimiter
     def __init__(self, fabric):
         self.fabric = fabric
+        self.flush_requests = 0
         self.max_cache_size = eptCache.MAX_CACHE_SIZE
         self.key_delim = eptCache.KEY_DELIM
         self.tunnel_cache = hitCache(self.max_cache_size)       # eptTunnel(node, intf) = eptTunnel
@@ -56,6 +57,7 @@ class eptCache(object):
     def handle_flush(self, collection_name, name=None):
         """ flush one or more entries in collection name """
         logger.debug("flush request for %s: %s", collection_name, name)
+        self.flush_requests+= 1
         if collection_name == eptNode._classname:
             self.node_cache.flush()     # always full cache flush for node
         elif collection_name == eptTunnel._classname:
@@ -248,7 +250,8 @@ class eptCache(object):
             "subnet_cache", 
             "offsubnet_cache"
         ]
-        logger.debug("cache stats for fabric %s", self.fabric)
+        logger.debug("cache stats for fabric %s, flush_request: 0x%08x", self.fabric, 
+                self.flush_requests)
         for cache_name in caches:
             c = getattr(self, cache_name)
             logger.debug("[hit: 0x%08x, miss: 0x%08x, evict: 0x%08x, flush: 0x%08x] %s", 
@@ -325,7 +328,7 @@ class hitCache(object):
         self.none_hash = {}
         self.head = None
         self.tail = None
-        self.flush+= 1
+        self.flush_count+= 1
 
     def get_size(self):
         """ get number of nodes currently in cached linked list """

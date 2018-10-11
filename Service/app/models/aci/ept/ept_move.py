@@ -14,7 +14,10 @@ move_event = {
     "meta": {
         "node": {
             "type": int,
-            "description": "node id of local node the endpoint was learned",
+            "description": """
+                node id of local node where the endpoint was learned. node id may be pseudo node 
+                representing a vpc domain.
+            """,
         },
     }
 }

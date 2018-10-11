@@ -172,6 +172,12 @@ class eptHistoryEvent(object):
         self.rw_mac = kwargs.get("rw_mac", "")
         self.rw_bd = kwargs.get("rw_bd", 0)
 
+    def __repr__(self):
+        return "%s %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s], flags(%s):[%s]" % (
+                self.status, self.ts, self.pctag, self.intf_id, self.encap, self.rw_bd, self.rw_mac,
+                len(self.flags), ",".join(self.flags)
+            )
+
     def to_dict(self):
         """ convert object to dict for insertion into eptHistory events list """
         return {

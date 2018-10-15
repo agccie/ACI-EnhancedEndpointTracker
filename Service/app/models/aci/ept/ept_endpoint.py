@@ -12,7 +12,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # reusable attributes for local event piggy-backing on history meta for consistency
-common_attr = ["ts", "intf_id", "intf_name", "pctag", "encap", "flags", "rw_mac", "rw_bd", 
+common_attr = ["ts", "status", "intf_id", "intf_name", "pctag", "encap", "rw_mac", "rw_bd", 
                 "epg_name", "vnid_name"]
 local_event = {
     "node": {
@@ -143,33 +143,33 @@ class eptEndpoint(Rest):
 
 
 class eptEndpointEvent(object):
-
+    # status will only be created or deleted, used for easy detection of deleted endpoints.
     def __init__(self, **kwargs):
         self.ts = kwargs.get("ts", 0)
         self.node = kwargs.get("node", 0)
+        self.status = kwargs.get("status", "created")
         self.intf_id = kwargs.get("intf_id", "")
         self.intf_name = kwargs.get("intf_name", "")
         self.pctag = kwargs.get("pctag", 0)
         self.encap = kwargs.get("encap", "")
-        self.flags = sorted(kwargs.get("flags", []))
         self.rw_mac = kwargs.get("rw_mac", "")
         self.rw_bd = kwargs.get("rw_bd", 0)
         self.epg_name = kwargs.get("epg_name", "")
         self.vnid_name = kwargs.get("vnid_name", "")
 
     def __repr__(self):
-        return "node:0x%04x %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s], flags(%s):[%s]" % (
-                self.node, self.ts, self.pctag, self.intf_id, self.encap, self.rw_bd, self.rw_mac,
-                len(self.flags), ",".join(self.flags)
+        return "%s node:0x%04x %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
+                self.status, self.node, self.ts, self.pctag, self.intf_id, self.encap, 
+                self.rw_bd, self.rw_mac
             )
 
     def to_dict(self):
         """ convert object to dict for insertion into eptEndpoint events list """
         return {
             "node": self.node,
+            "status": self.status,
             "ts": self.ts,
             "pctag": self.pctag,
-            "flags": self.flags,
             "encap": self.encap,
             "intf_id": self.intf_id,
             "intf_name": self.intf_name,
@@ -189,9 +189,11 @@ class eptEndpointEvent(object):
         """ create eptEndpointEvent from eptHistoryEvent """
         event = eptEndpointEvent()
         event.node = node
+        # intentionally ignore status from history event, will set directly to created/deleted 
+        # before updating eptEndpoint entry
+        #event.status = h.status       
         event.ts = h.ts
         event.pctag = h.pctag
-        event.flags = h.flags
         event.encap = h.encap
         event.intf_id = h.intf_id
         event.intf_name = h.intf_name

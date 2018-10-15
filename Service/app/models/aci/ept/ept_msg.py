@@ -323,6 +323,6 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [node:0x%04x, 0x%06x, %s, %s]" % (self.msg_type.value, self.seq, 
-                self.fabric, self.wt.value, self.node, self.vnid, self.addr, self.ip)
+        return "%s.0x%08x %s %s [ts:%.3f, node:0x%04x, 0x%06x, %s, %s]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.ts, self.node, self.vnid, self.addr, self.ip)
 

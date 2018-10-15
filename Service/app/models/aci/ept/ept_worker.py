@@ -240,8 +240,8 @@ class eptWorker(object):
                     events.append(eptHistoryEvent.from_dict(event))
                 per_node_history_events[h["node"]] = events
 
-            # update ept_endpoint with local event. Return last two locals for move analyze
-            self.update_local(msg, per_node_history_events)
+            # update ept_endpoint with local event. Return last locals events for move analyze
+            (update, last_local) = self.update_local(msg, per_node_history_events)
 
             if self.fabrics[msg.fabric].settings.analyze_move:
                 pass
@@ -251,8 +251,12 @@ class eptWorker(object):
                 pass
 
     def update_local(self, msg, per_node_history_event):
-        """ update/add local entries to ept_endpoint table and return last two fabric-wide complete
-            local events (where complete requires rewrite info for ip endpoints).
+        """ update/add local entries to ept_endpoint table and return list of most recent
+            fabric-wide complete local events (where complete requires rewrite info for ip endpoints)
+            return tuple (
+                update_occurred (bool),
+                local (list of local endpoint events),
+            )
             -   calculates where endpoint is local relevant to all nodes in the fabric. Note, the
                 endpoint may be local on multiple nodes for vpc scenario, transistory event, or
                 misconfig.  If currently local on multiple non-vpc nodes, then use latest event as
@@ -262,6 +266,8 @@ class eptWorker(object):
             -   if previous event was a delete and current event is create with timestamp less than 
                 transitory time, then overwrite the delete with the create
         """
+        ret_list = []
+        update_occurred = False
         # get last local event from ept_endpoint
         projection = {
             "fabric": 1,
@@ -269,7 +275,7 @@ class eptWorker(object):
             "addr": 1,
             "is_stale": 1,
             "is_offsubnet": 1,
-            "events": {"$slice": 1}
+            "events": {"$slice": 2}
         }
         flt = {     
             "fabric": msg.fabric,
@@ -277,6 +283,11 @@ class eptWorker(object):
             "addr": msg.addr,
         }
         endpoint = self.db[eptEndpoint._classname].find_one(flt, projection)
+        if endpoint is not None and len(endpoint["events"])>0:
+            ret_list = [eptEndpointEvent.from_dict(e) for e in endpoint["events"]]
+            last_event = ret_list[0]
+        else:
+            last_event = None
 
         # determine current complete local event
         local_event = None
@@ -285,7 +296,7 @@ class eptWorker(object):
             if len(per_node_history_event[node])>0:
                 event = per_node_history_event[node][0]
                 if "local" in event.flags:
-                    logger.debug("local check node 0x%04x: %s", node, event)
+                    # logger.debug("local check node 0x%04x: %s", node, event)
                     # ensure that rewrite info is set for ip endpoints
                     if msg.type=="mac" or (event.rw_bd > 0 and len(event.rw_mac) > 0):
                         if local_event is None or local_event.ts < event.ts:
@@ -294,39 +305,78 @@ class eptWorker(object):
 
         # if local_event is none then entry is XR on all nodes or deleted on all nodes
         if local_event is None:
-            # need to add a delete event if entry currently exists within db, else ignore it
+            # need to add a delete event if entry currently exists within db and not deleted
             logger.debug("endpoint is XR or deleted on all nodes")
-            if endpoint is not None:
-                local_event = eptEndpointEvent({"ts":msg.ts})
+            if last_event is not None and last_event.node > 0:
+                local_event = eptEndpointEvent.from_dict({"ts":msg.ts, "status":"deleted"})
                 logger.debug("adding delete event to endpoint table: %s", local_event)
                 self.fabrics[msg.fabric].push_event(eptEndpoint._classname,flt,local_event.to_dict())
+                ret_list.insert(0, local_event)
+                update_occurred = True
             else:
-                logger.debug("ignoring local delete event for non-existing endpoint")
+                logger.debug("ignoring local delete event for XR/deleted/non-existing endpoint")
         else:
+            # flags is eptHistory event but not eptNode event.  Need to maintain flags before casting
+            local_event_flags = local_event.flags
             local_event = eptEndpointEvent.from_history_event(local_node, local_event)
             logger.debug("best local set to: %s", local_event)
             # map local_node to vpc value if this is a vpc
-            if "vpc-attached" in local_event.flags:
+            if "vpc-attached" in local_event_flags:
                 peer_node = self.fabrics[msg.fabric].cache.get_peer_node(local_event.node)
                 if peer_node == 0:
                     logger.warn("failed to determine peer node for node 0x%04x", local_node)
-                    return None
+                    return (False, ret_list)
                 local_event.node = get_vpc_domain_id(local_event.node, peer_node)
+            # create dict event to write to db
+            db_event = local_event.to_dict()
             # if this is the first event, then create eptEndpoint object and set first_learn
-            if endpoint is None:
+            if last_event is None:
                 logger.debug("creating new entry in endpoint table: %s", local_event)
                 if msg.type == "ip":
                     endpoint_type = "ipv6" if ":" in msg.addr else "ipv4"
                 else:
                     endpoint_type = "mac"
-                db_event = local_event.to_dict()
                 eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr, count=1, 
                     type=endpoint_type, first_learn=db_event, events=[db_event]).save()
+                ret_list.insert(0, local_event)
+                update_occurred = True
             else:
                 # ensure that this entry is different and more recent
-                # TODO
-                pass
+                updated = False
+                ts_delta = local_event.ts - last_event.ts
+                if ts_delta < 0:
+                    logger.debug("current event is less recent than eptEndpoint event (%.3f < %.3f)",
+                        local_event.ts, last_event.ts)
+                else:
+                    for a in ["node", "pctag", "encap", "intf_id", "rw_mac", "rw_bd"]:
+                        if getattr(last_event, a) != getattr(local_event, a):
+                            logger.debug("%s changed from '%s' to '%s'", a, getattr(last_event,a),
+                                    getattr(local_event,a))
+                            updated = True
+                            #break  (can add a break later as only one attribute needs to change)
+                if updated:
+                    # if the previous entry was a delete and the current entry is not a delete, 
+                    # then check for possible merge.
+                    if last_event.node==0 and local_event.node>0 and ts_delta<=TRANSITORY_DELETE:
+                        logger.debug("overwritting eptEndpoint [ts delta(%.3f) < %.3f] with: %s",
+                            ts_delta, TRANSITORY_DELETE, local_event)
+                        self.db[eptEndpoint._classname].update(flt, {"$set":{"events.0": db_event}})
+                        ret_list[0] = local_event
+                        update_occurred = True
+                    # push new event to eptEndpoint events  
+                    else:
+                        logger.debug("adding event to eptEndpoint: %s", local_event)
+                        self.fabrics[msg.fabric].push_event(eptEndpoint._classname, flt, db_event)
+                        ret_list.insert(0, local_event)
+                        update_occurred = True
+                else:
+                    logger.debug("no update detected for eptEndpoint")
 
+        # return last local endpoint events
+        logger.debug("eptEndpoint most recent local events(%s)", len(ret_list))
+        for i, l in enumerate(ret_list):
+            logger.debug("event(%s): %s", i, l)
+        return (update_occurred, ret_list)
 
 
     def update_endpoint_history(self, msg):
@@ -339,6 +389,9 @@ class eptWorker(object):
 
         cache = self.fabrics[msg.fabric].cache
         is_local = "local" in msg.flags
+        is_deleted = msg.status == "deleted"
+        is_modified = msg.status == "modified"
+        is_created = msg.status == "created"
         is_rs_ip_event = (msg.wt == WORK_TYPE.EPM_RS_IP_EVENT)
         is_ip_event = (msg.wt == WORK_TYPE.EPM_IP_EVENT)
         is_mac_event = (msg.wt == WORK_TYPE.EPM_MAC_EVENT)
@@ -347,8 +400,8 @@ class eptWorker(object):
         ifId_name = msg.ifId
         remote = 0
 
-        # determine remote node for this event if its a non-deleted XR event
-        if not is_local and not is_rs_ip_event and msg.status != "deleted":
+        # determine remote node for this event if it is a non-deleted XR event
+        if not is_local and not is_rs_ip_event and not is_deleted:
             if "cached" in msg.flags or "vtep" in msg.flags or msg.ifId=="unspecified":
                 logger.debug("skipping remote map of cached/vtep/unspecified endpoint")
             elif "peer-attached" in msg.flags or "peer-attached-rl" in msg.flags:
@@ -403,7 +456,7 @@ class eptWorker(object):
         last_event = self.db[eptHistory._classname].find_one(flt, projection)
         if last_event is None:
             logger.debug("new endpoint on node %s", msg.node)
-            if event.status != "created":
+            if not is_created:
                 logger.debug("ignorning deleted/modified event for non-existing entry")
                 return False
             # add new entry to db with most recent msg as the only event
@@ -430,12 +483,11 @@ class eptWorker(object):
         if last_event.classname == event.classname:
             # ignore if db entry is more recent than event and classname for update is the same
             if last_event.ts > event.ts:
-                logger.debug("current event is less recent than db event (%.3f < %.3f)",
+                logger.debug("current event is less recent than eptHistory event (%.3f < %.3f)",
                     event.ts, last_event.ts)
                 return False
             # ignore if modify event received if last_event is deleted
-            if last_event.status=="deleted" and \
-                (event.status=="deleted" or event.status=="modified"):
+            if last_event.status=="deleted" and (is_deleted or is_modified):
                 logger.debug("ignore deleted/modified event for existing deleted entry")
                 return False
 
@@ -447,6 +499,10 @@ class eptWorker(object):
             # remains deleted)
             event.rw_mac = msg.addr
             event.rw_bd = msg.bd
+            # for rw_mac and rw_bd to 0 if this is a delete rs_ip_event
+            if is_deleted:
+                event.rw_mac = ""
+                event.rw_bd = 0
             for a in ["status", "remote", "pctag", "flags", "encap", "intf_id", "intf_name", 
                 "epg_name", "vnid_name"]:
                 setattr(event, a, getattr(last_event, a))
@@ -456,7 +512,7 @@ class eptWorker(object):
                 logger.debug("rewrite info updated from [bd:%s,mac:%s] to [bd:%s,mac:%s]", 
                     last_event.rw_bd, last_event.rw_mac, event.rw_bd, event.rw_mac)
                 self.fabrics[msg.fabric].push_event(eptHistory._classname, flt, event.to_dict())
-                if event.status == "deleted":
+                if is_deleted:
                     logger.debug("no analysis required for delete to rewrite info")
                     return False
                 elif not is_local:
@@ -466,7 +522,7 @@ class eptWorker(object):
                     logger.debug("analysis required for rewrite update to local endpoint")
                     return True
             else:
-                logger.debug("no update detected for endpoint")
+                logger.debug("no update detected for eptHistory from rs_ip_event")
                 return False
 
         # always merge rw_mac and rw_bd with previous entry as it is only updated by 
@@ -480,17 +536,17 @@ class eptWorker(object):
         # If modified event, then merge result only changes values in modify event. If create, then
         # add full entry without merge
         update = False
-        if event.status == "created":
+        if is_created:
             # determine if any attribute has changed, if so push the new event
             for a in ["remote", "pctag", "flags", "encap", "intf_id"]:
                 if getattr(last_event, a) != getattr(event, a):
                     logger.debug("node-%s '%s' updated from %s to %s", msg.node, a, 
                         getattr(last_event,a), getattr(event, a))
                     update = True
-        elif event.status == "deleted":
+        elif is_deleted:
             # no comparision needed, rw info already merged, simply add the delete event
             update = True
-        elif event.status == "modified":
+        elif is_modified:
             # all attributes will always be present even if not in the original modified event
             # therefore, we need to compare only non-default values and merge other values with 
             # last_event.
@@ -526,7 +582,7 @@ class eptWorker(object):
                 logger.debug("update requires analysis")
                 return True
         else:
-            logger.debug("no update detected for endpoint")
+            logger.debug("no update detected for eptHistory")
             return False
 
 

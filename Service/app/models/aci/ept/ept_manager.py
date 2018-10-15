@@ -421,7 +421,7 @@ class WorkerTracker(object):
             msg.seq = worker.last_seq[msg.qnum]
             logger.debug("enqueue %s: %s", worker.queues[msg.qnum], msg)
             self.redis.rpush(worker.queues[msg.qnum], msg.jsonify())
-            self.manager.increment_stats(worker.queues[msg.qnum], tx=True)
+        self.manager.increment_stats(worker.queues[msg.qnum], tx=True)
         return True
 
     def broadcast(self, msg, qnum=0, role=None):
@@ -439,7 +439,7 @@ class WorkerTracker(object):
                             worker.last_seq[qnum]+= 1
                             msg.seq = worker.last_seq[qnum]
                             self.redis.rpush(worker.queues[qnum], msg.jsonify())
-                            self.manager.increment_stats(worker.queues[qnum], tx=True)
+                        self.manager.increment_stats(worker.queues[qnum], tx=True)
 
     def flush_fabric(self, fabric, qnum=-1, role=None):
         # walk through all active workers and remove any work objects from queue for this fabric

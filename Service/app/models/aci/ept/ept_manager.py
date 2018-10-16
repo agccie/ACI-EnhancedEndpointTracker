@@ -120,7 +120,7 @@ class eptManager(object):
                         # create hash based on address and send to specific worker
                         _hash = sum(ord(i) for i in msg.addr)
                         if not self.worker_tracker.send_msg(_hash, msg):
-                            logger.warn("[%s] failed to enqueue message(%s): %s", h, msg)
+                            logger.warn("[%s] failed to enqueue message(%s): %s", self, _hash, msg)
                 else:
                     logger.warn("[%s] unexpected messaged received on queue %s: %s", self, q, msg)
 
@@ -276,16 +276,16 @@ class eptManager(object):
         # stop tracking fabrics in remove list
         for f in remove_list: self.fabrics.pop(f)
 
-    def increment_stats(self, queue, tx=False):
+    def increment_stats(self, queue, tx=False, count=1):
         # update stats queue
         with self.queue_stats_lock:
             if queue in self.queue_stats:
                 if tx:
-                    self.queue_stats[queue].total_tx_msg+= 1
-                    self.queue_stats["total"].total_tx_msg+= 1
+                    self.queue_stats[queue].total_tx_msg+= count
+                    self.queue_stats["total"].total_tx_msg+= count
                 else:
-                    self.queue_stats[queue].total_rx_msg+= 1
-                    self.queue_stats["total"].total_rx_msg+= 1
+                    self.queue_stats[queue].total_rx_msg+= count
+                    self.queue_stats["total"].total_rx_msg+= count
 
     def update_stats(self):
         # update stats at regular interval for all queues

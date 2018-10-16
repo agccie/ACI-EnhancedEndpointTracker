@@ -27,6 +27,9 @@ class MSG_TYPE(Enum):
 @enum_unique
 class WORK_TYPE(Enum):
     WATCH_NODE          = "watch_node"      # a new node has become active/inactive
+    WATCH_MOVE          = "watch_move"      # an endpoint move event requires watch or notify
+    WATCH_STALE         = "watch_stale"     # a stale endpoint event requires watch or notify
+    WATCH_OFFSUBNET     = "watch_offsubnet" # an offsubnet endpoint event requires watch or notify
     FLUSH_CACHE         = "flush_cache"     # flush cache for specific collection and/or dn
     EPM_IP_EVENT        = "epm_ip "         # epmIpEp event
     EPM_MAC_EVENT       = "epm_mac"         # epmMacEp event

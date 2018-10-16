@@ -108,6 +108,13 @@ def push_event(collection, key, event, rotate=None, increment=True):
             return False
     return True
 
+def get_addr_type(addr, addr_type):
+    # receive an addr and addr_type (mac or ip) and return a type of mac, ipv4, or ipv6
+    if addr_type == "ip":
+        if ":" in addr: return "ipv6"
+        else: return "ipv4"
+    return addr_type
+
 ###############################################################################
 #
 # common conversion functions

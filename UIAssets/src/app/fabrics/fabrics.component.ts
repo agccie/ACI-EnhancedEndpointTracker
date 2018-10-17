@@ -7,7 +7,7 @@ import { Component, OnInit,ViewChild } from '@angular/core';
 })
 export class FabricsComponent implements OnInit {
 
-  @ViewChild('myTable') table : any ;
+  
   title = 'app';
   sorts:any ;
   rows:any ;
@@ -25,7 +25,7 @@ export class FabricsComponent implements OnInit {
     this.sorts = { name:"fabric", dir:'asc'} ;
     this.rows = [{fabric:'Fabric1' , status:'Stopped', ips:'2300', macs:'2000', 
                  events:[{time:new Date() , status:'Initializing', description:'Connecting to APIC'},{time:new Date(), status:'Restarting' , description:'User triggered restart'}]}]
-    this.tabs = [{name:'Latest Endpoint Events', active:true},{name:'Endpoint Moves',active:false},{name:'Off-Subnet Endpoints',active:false},{name:'Stale Endpoints',active:false}]
+    this.tabs = [{name:'Fabrics',path:'fabric-overview'},{name:'Endpoints',path:'endpoints'},{name:'Latest Events',path:'latest-events'},{name:'Moves',path:'moves'},{name:'Off-subnet Endpoints',path:'offsubnet-endpoints'},{name:'Stale Endpoints', path:'stale-endpoints'}]
     this.latestEvents = [{time:new Date() , fabric:'Fabric1', type:'IP', address:'172.168.0.1',vrfbd:'uni/tn-2/ctx-213'},
                          {time:new Date() , fabric:'Fabric1', type:'MAC', address:'0C:09:A4:FF',vrfbd:'uni/tn-2/ctx-213'}] ;
     this.endpointMoves = [{time:new Date() , fabric:'Fabric1', type:'IP', address:'172.168.0.1',vrfbd:'uni/tn-2/ctx-214'},
@@ -42,22 +42,8 @@ export class FabricsComponent implements OnInit {
 
   }
 
-  changeTab(index){
-    this.tabs[this.tabIndex].active = false;
-    this.tabs[index].active = true ;
-    this.tabIndex = index ;
-    this.eventRows = this.events[index] ;
-  }
 
-  onToggle(event) {
-    console.log(event) ;
-  }
 
-  toggleRow(row) {
-    console.log(row) ;
-    console.log(this.table) ;
-    console.log(this.expanded) ;
-    this.table.rowDetail.toggleExpandRow(row) ;
-  }
+  
 
 }

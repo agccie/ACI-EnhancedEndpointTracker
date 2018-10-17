@@ -14,10 +14,24 @@ import { StaleEventsComponent } from './endpoint-history/stale-events/stale-even
 import { PerNodeHistoryComponent } from './endpoint-history/per-node-history/per-node-history.component';
 import {AuthGuardService} from './_service/auth-guard.service' ;
 import {AccordionModule, ModalModule, TooltipModule} from "ngx-bootstrap";
+import { FabricOverviewComponent } from './fabrics/fabric-overview/fabric-overview.component';
+import { EndpointsComponent } from './fabrics/endpoints/endpoints.component';
+import { HistoryComponent } from './fabrics/history/history.component';
+import { MovesComponent } from './fabrics/moves/moves.component';
+import { StaleEptComponent } from './fabrics/stale-ept/stale-ept.component';
+import { OffsubnetEptComponent } from './fabrics/offsubnet-ept/offsubnet-ept.component';
 
 const appRoutes: Routes = [
   {path:'login', component:LoginComponent},
-  {path:"fabrics" , component: FabricsComponent, canActivate:[AuthGuardService]},
+  {path:"fabrics" , component: FabricsComponent, canActivate:[AuthGuardService],
+  children:[
+    {path:'fabric-overview',component:FabricOverviewComponent},
+    {path:'endpoints',component:EndpointsComponent},
+    {path:'latest-events',component:HistoryComponent},
+    {path:'moves',component:MovesComponent},
+    {path:'stale-endpoints',component:StaleEptComponent},
+    {path:'offsubnet-endpoints',component:OffsubnetEptComponent}
+  ]},
   {path:"users", component: UsersComponent, canActivate:[AuthGuardService]},
   {path:"ephistory/:address", component: EndpointHistoryComponent ,
   canActivate:[AuthGuardService], 
@@ -40,7 +54,13 @@ const appRoutes: Routes = [
     PerNodeHistoryComponent,
     MoveEventsComponent,
     OffSubnetEventsComponent,
-    StaleEventsComponent
+    StaleEventsComponent,
+    FabricOverviewComponent,
+    EndpointsComponent,
+    HistoryComponent,
+    MovesComponent,
+    StaleEptComponent,
+    OffsubnetEptComponent
   ],
   imports: [
     BrowserModule,

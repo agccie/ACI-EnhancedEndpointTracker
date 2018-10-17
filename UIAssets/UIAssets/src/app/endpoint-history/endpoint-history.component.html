@@ -1,0 +1,81 @@
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+          <h3>Endpoint History</h3>
+        </div>
+      </div>
+      <div class="row">
+          <div class="col-md-12">
+            <div class="form-group">
+                <div class="form-group__text">
+                    <input type="text" id="searchendpoint" />
+                    <label for="searchendpoint">Search Endpoints</label>
+                  </div>
+            </div>
+          </div>
+      </div>
+      <div class="panel panel--raised">
+          <div class="row">
+              <div class="col-md-12" >
+                  <blockquote class="blockquote--success">
+                    <div class="row">
+                      <div class="col-md-12">
+                        <h4>
+                            <span class="label label--success">IP</span>
+                            <span style="color:#6ebe4a">1.1.1.102</span>
+                        </h4>
+                          
+                      </div>
+                    </div>
+                      <div class="row">
+                        <div class="col-md-12">
+                            <small><strong>Not currently local on any node</strong></small>
+                        </div>
+                      </div>
+                      <div class="row">
+                        <div class="col-md-12">
+                          <span>Fabric - fab1</span>,<span>BD-VNID - 12345</span><br>
+                          <span>Total Nodes  3</span>,<span>Moves 147</span>,<span>Off-subnet 0</span>,<span>Stale 0</span>
+                        </div>
+                      </div>
+                      <div class="row">
+                        <div class="col-md-12" >
+                          <button class="btn btn--small btn--success">
+                            <span class="icon-refresh"></span> Refresh Events
+                          </button>
+                          <button class="btn btn--small btn--success">
+                              <span class="icon-trash"></span> Delete Events
+                            </button>
+                            <button class="btn btn--small btn--negative">
+                                <span class="icon-exit"></span> Clear Endpoint
+                              </button>
+                        </div>
+                      </div>
+                  </blockquote>
+              </div>
+              </div>
+              <br>
+      </div>
+      <div class="row" style="margin-top:1%;background-color:white;">
+          <div class="col-md-12">
+            <div class="secondary-tabs">
+              <ul class="tabs">
+                <li *ngFor="let tab of tabs ; let i=index" id="i" class="tab" routerLinkActive="active">
+                  <a tabindex="i" [routerLink]="[tab.path]">
+                    <div class="tab__heading" title="tab.name"><a   class="btn btn--icon btn--small" >
+                        <span [attr.class] = tab.icon></span>
+                      </a>{{tab.name}}
+                        
+                    </div>
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <router-outlet></router-outlet>
+        
+      
+      
+      
+</div>

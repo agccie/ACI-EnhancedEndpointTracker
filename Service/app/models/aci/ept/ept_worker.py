@@ -264,7 +264,7 @@ class eptWorker(object):
             if self.fabrics[msg.fabric].settings.analyze_offsubnet:
                 self.analyze_offsubnet(msg, per_node_history_events, update_local_result)
             if self.fabrics[msg.fabric].settings.analyze_stale:
-                pass
+                self.analyze_stale(msg, per_node_history_events, update_local_result)
 
     def update_endpoint_history(self, msg):
         """ push event into eptHistory table and determine if analysis is required """
@@ -350,14 +350,9 @@ class eptWorker(object):
             eptHistory(fabric=msg.fabric, node=msg.node, vnid=msg.vnid, addr=msg.addr, 
                     type=msg.type, count=1, events=[event.to_dict()]).save()
 
-            # no analysis required for new event if:
-            #   1) new event is epmRsMacEpToIpEpAtt (rewrite info without epmIpEp info)
-            #   2) new event is epmIpEp and is local (missing epmRsMacEpToIpEpAtt info)
+            # let's be conservative for analysis skip, for now only skipping one scenario
             if is_rs_ip_event:
                 logger.debug("no analysis for new epmRsMacEpToIpEpAtt with no epmIpEp")
-                return False
-            elif is_local and is_ip_event:
-                logger.debug("no analysis for new epmIpEp with no epmRsMacEpToIpEpAtt")
                 return False
             else:
                 logger.debug("new endpoint event on node %s requires analysis", msg.node)
@@ -504,6 +499,14 @@ class eptWorker(object):
             ret.local_events = [eptEndpointEvent.from_dict(e) for e in endpoint["events"]]
             last_event = ret.local_events[0]
         else:
+            # always create an eptEndpoint object for the endpoint even if no local events are 
+            # ever created for it. Without eptEndpoint object then eptHistory total endpoints will
+            # be out of sync. This is common scenario for vip/cache/svi/loopback endpoints that may
+            # never have rw info and thus never 'complete local'
+            if endpoint is None:
+                endpoint_type = get_addr_type(msg.addr, msg.type)
+                eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr,type=endpoint_type,
+                    first_learn={"status":"created"}).save()
             last_event = None
 
         # determine current complete local event
@@ -550,12 +553,14 @@ class eptWorker(object):
                 local_event.node = get_vpc_domain_id(local_event.node, peer_node)
             # create dict event to write to db
             db_event = local_event.to_dict()
-            # if this is the first event, then create eptEndpoint object and set first_learn
+            # if this is the first event, then set first_learn, count, and events in signle update
             if last_event is None:
                 logger.debug("creating new entry in endpoint table: %s", local_event)
-                endpoint_type = get_addr_type(msg.addr, msg.type)
-                eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr, count=1, 
-                    type=endpoint_type, first_learn=db_event, events=[db_event]).save()
+                self.db[eptEndpoint._classname].update_one(flt, {"$set":{
+                    "first_learn": db_event,
+                    "events": [db_event],
+                    "count": 1,
+                }})
                 ret.local_events.insert(0, local_event)
                 ret.analyze_move = True
                 ret.exists = True
@@ -596,7 +601,6 @@ class eptWorker(object):
         #    logger.debug("event(%s): %s", i, l)
         # return last local endpoint events
         return ret
-
 
     def analyze_move(self, msg, last_local):
         """ analyze move event for endpoint. If last two local events are non-deleted different 
@@ -736,6 +740,10 @@ class eptWorker(object):
                     msgs.append(wmsg)
                 logger.debug("sending %s offsubnet events to watcher", len(msgs))
                 self.send_msg(msgs)
+
+    def analyze_stale(self, msg, per_node_history_events, update_local_result):
+        pass
+
 
     def handle_watch_node(self, msg):
         # TODO

@@ -83,7 +83,6 @@ class eptMove(Rest):
 
 
 class eptMoveEvent(object):
-    # status will only be created or deleted, used for easy detection of deleted endpoints.
     def __init__(self, **kwargs):
         self.ts = kwargs.get("ts", 0)
         self.node = kwargs.get("node", 0)
@@ -137,4 +136,17 @@ class eptMoveEvent(object):
         event.rw_mac = h.rw_mac
         event.rw_bd = h.rw_bd
         return event
+
+    @staticmethod
+    def is_different(e1, e2):
+        """ compare two eptMoveEvents and return true if they are different """
+        for a in ["node", "intf_id", "pctag", "encap", "rw_mac", "rw_bd"]:
+            if getattr(e1, a) != getattr(e2, a):
+                logger.debug("move: %s changed from '%s' to '%s'",a,getattr(e1,a),getattr(e2,a))
+                return True
+        return False
+
+
+
+
 

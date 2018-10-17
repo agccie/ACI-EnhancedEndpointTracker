@@ -28,11 +28,15 @@ from . ept_msg import eptMsg
 from . ept_msg import eptMsgHello
 from . ept_msg import eptMsgWork
 from . ept_msg import eptMsgWorkEpmEvent
+from . ept_msg import eptMsgWorkWatchMove
+from . ept_msg import eptMsgWorkWatchOffSubnet
 from . ept_offsubnet import eptOffSubnet
+from . ept_offsubnet import eptOffSubnetEvent
 from . ept_queue_stats import eptQueueStats
 from . ept_settings import eptSettings
 from . ept_stale import eptStale
 
+import copy
 import json
 import logging
 import re
@@ -42,49 +46,6 @@ import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
-
-class eptWorkerFabric(object):
-    """ tracks cache and settings for each fabric actively being monitored """
-    def __init__(self, fabric):
-        self.fabric = fabric
-        self.settings = eptSettings.load(fabric=fabric)
-        self.cache = eptCache(fabric)
-        self.db = get_db()
-        # one time calculation for email address and syslog server (which requires valid port)
-        self.email_address = self.settings.email_address
-        self.syslog_server = self.settings.syslog_server
-        self.syslog_port = self.settings.syslog_port
-        if len(self.email_address) == 0: 
-            self.email_address = None
-        if len(self.syslog_server) == 0:
-            self.syslog_server = None
-            self.syslog_port = None
-
-    def push_event(self, table, key, event):
-        # wrapper to push an event to eptHistory events list
-        return push_event(self.db[table], key, event, rotate = self.settings.max_endpoint_events)
-
-    def notification_enabled(self, notify_type):
-        # return dict with email address, syslog server, syslog port for notify type. If not enabled,
-        # then return None for each field.
-        ret = {"enabled": False, "email_address": None, "syslog_server": None, "syslog_port": None}
-        if notify_type == "move":
-            attr = ("notify_move_email", "notify_move_syslog")
-        elif notify_type == "stale":
-            attr = ("notify_stale_email", "notify_stale_syslog")
-        elif notify_type == "offsubnet":
-            attr = ("notify_offsubnet_email", "notify_offsubnet_syslog")
-        else:
-            logger.warn("invalid notification type '%s", notify_type)
-            return ret
-        if getattr(self.settings, attr[0]):
-            ret["enabled"] = True
-            ret["email_address"] = self.email_address
-        if getattr(self.settings, attr[1]):
-            ret["enabled"] = True
-            ret["syslog_server"] = self.syslog_server
-            ret["syslog_port"] = self.syslog_port
-        return ret
 
 class eptWorker(object):
     """ endpoint tracker worker node handles epm events to update various history tables and perform
@@ -133,8 +94,10 @@ class eptWorker(object):
             WORK_TYPE.EPM_IP_EVENT: self.handle_endpoint_event,
             WORK_TYPE.EPM_MAC_EVENT: self.handle_endpoint_event,
             WORK_TYPE.EPM_RS_IP_EVENT: self.handle_endpoint_event,
-            #WORK_TYPE.WATCH_NODE: self.handle_watch_node,
+            WORK_TYPE.WATCH_NODE: self.handle_watch_node,
             WORK_TYPE.WATCH_MOVE: self.handle_watch_move,
+            WORK_TYPE.WATCH_OFFSUBNET: self.handle_watch_offsubnet,
+            WORK_TYPE.WATCH_STALE: self.handle_watch_stale,
         }
 
     def __repr__(self):
@@ -213,10 +176,10 @@ class eptWorker(object):
                 # rpush requires at least one event, if msg is empty list then just return
                 return
             self.redis.rpush(MANAGER_WORK_QUEUE, *work)
-            self.increment_stats(WORKER_WORK_QUEUE, tx=True, count=len(work))
+            self.increment_stats(MANAGER_WORK_QUEUE, tx=True, count=len(work))
         else:
             self.redis.rpush(MANAGER_WORK_QUEUE, msg.jsonify())
-            self.increment_stats(WORKER_WORK_QUEUE, tx=True)
+            self.increment_stats(MANAGER_WORK_QUEUE, tx=True)
 
     def send_hello(self):
         """ send hello/keepalives at regular interval, this also serves as registration """
@@ -262,8 +225,7 @@ class eptWorker(object):
             logger.warn("invalid flush cache message")
 
     def handle_endpoint_event(self, msg):
-        """ handle EPM endpoint event
-        """
+        """ handle EPM endpoint event """
 
         # create eptWorkerFabric object for this fabric if not already known
         if msg.fabric not in self.fabrics:
@@ -278,7 +240,7 @@ class eptWorker(object):
             # value for EPM_RS_IP_EVENTs.
             msg.addr = msg.ip if (msg.wt == WORK_TYPE.EPM_RS_IP_EVENT) else msg.addr
             # use msg fields to get last event for endpoint across all nodes for analysis
-            projection = {"node": 1, "events": {"$slice": 1}}
+            projection = {"node": 1, "events": {"$slice": 4}}
             flt = {
                 "fabric": msg.fabric,
                 "vnid": msg.vnid,
@@ -292,15 +254,15 @@ class eptWorker(object):
                 per_node_history_events[h["node"]] = events
 
             # update ept_endpoint with local event. Return last locals events for move analyze
-            (update, last_local) = self.update_local(msg, per_node_history_events)
+            update_local_result = self.update_local(msg, per_node_history_events)
 
             if self.fabrics[msg.fabric].settings.analyze_move:
-                if update:
-                    self.analyze_move(msg, last_local)
+                if update_local_result.analyze_move:
+                    self.analyze_move(msg, update_local_result.local_events)
                 else:
                     logger.debug("skipping analyze move since update_local produced no update")
             if self.fabrics[msg.fabric].settings.analyze_offsubnet:
-                pass
+                self.analyze_offsubnet(msg, per_node_history_events, update_local_result)
             if self.fabrics[msg.fabric].settings.analyze_stale:
                 pass
 
@@ -508,10 +470,6 @@ class eptWorker(object):
     def update_local(self, msg, per_node_history_event):
         """ update/add local entries to ept_endpoint table and return list of most recent
             fabric-wide complete local events (where complete requires rewrite info for ip endpoints)
-            return tuple (
-                update_occurred (bool),
-                local (list of local endpoint events),
-            )
             -   calculates where endpoint is local relevant to all nodes in the fabric. Note, the
                 endpoint may be local on multiple nodes for vpc scenario, transistory event, or
                 misconfig.  If currently local on multiple non-vpc nodes, then use latest event as
@@ -520,9 +478,10 @@ class eptWorker(object):
                 eptEndpoint events. 
             -   if previous event was a delete and current event is create with timestamp less than 
                 transitory time, then overwrite the delete with the create
+
+            return eptWorkerUpdateLocalResult object
         """
-        ret_list = []
-        update_occurred = False
+        ret = eptWorkerUpdateLocalResult()
         # get last local event from ept_endpoint
         projection = {
             "fabric": 1,
@@ -539,8 +498,11 @@ class eptWorker(object):
         }
         endpoint = self.db[eptEndpoint._classname].find_one(flt, projection)
         if endpoint is not None and len(endpoint["events"])>0:
-            ret_list = [eptEndpointEvent.from_dict(e) for e in endpoint["events"]]
-            last_event = ret_list[0]
+            ret.exists = True
+            ret.is_offsubnet = endpoint["is_offsubnet"]
+            ret.is_stale = endpoint["is_stale"]
+            ret.local_events = [eptEndpointEvent.from_dict(e) for e in endpoint["events"]]
+            last_event = ret.local_events[0]
         else:
             last_event = None
 
@@ -570,8 +532,8 @@ class eptWorker(object):
                 })
                 logger.debug("adding delete event to endpoint table: %s", local_event)
                 self.fabrics[msg.fabric].push_event(eptEndpoint._classname,flt,local_event.to_dict())
-                ret_list.insert(0, local_event)
-                update_occurred = True
+                ret.local_events.insert(0, local_event)
+                ret.analyze_move = True
             else:
                 logger.debug("ignoring local delete event for XR/deleted/non-existing endpoint")
         else:
@@ -584,7 +546,7 @@ class eptWorker(object):
                 peer_node = self.fabrics[msg.fabric].cache.get_peer_node(local_event.node)
                 if peer_node == 0:
                     logger.warn("failed to determine peer node for node 0x%04x", local_node)
-                    return (False, ret_list)
+                    return ret
                 local_event.node = get_vpc_domain_id(local_event.node, peer_node)
             # create dict event to write to db
             db_event = local_event.to_dict()
@@ -594,8 +556,9 @@ class eptWorker(object):
                 endpoint_type = get_addr_type(msg.addr, msg.type)
                 eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr, count=1, 
                     type=endpoint_type, first_learn=db_event, events=[db_event]).save()
-                ret_list.insert(0, local_event)
-                update_occurred = True
+                ret.local_events.insert(0, local_event)
+                ret.analyze_move = True
+                ret.exists = True
             else:
                 # ensure that this entry is different and more recent
                 updated = False
@@ -617,22 +580,22 @@ class eptWorker(object):
                         logger.debug("overwritting eptEndpoint [ts delta(%.3f) < %.3f] with: %s",
                             ts_delta, TRANSITORY_DELETE, local_event)
                         self.db[eptEndpoint._classname].update(flt, {"$set":{"events.0": db_event}})
-                        ret_list[0] = local_event
-                        update_occurred = True
+                        ret.local_events[0] = local_event
+                        ret.analyze_move = True
                     # push new event to eptEndpoint events  
                     else:
                         logger.debug("adding event to eptEndpoint: %s", local_event)
                         self.fabrics[msg.fabric].push_event(eptEndpoint._classname, flt, db_event)
-                        ret_list.insert(0, local_event)
-                        update_occurred = True
+                        ret.local_events.insert(0, local_event)
+                        ret.analyze_move = True
                 else:
                     logger.debug("no update detected for eptEndpoint")
 
+        #logger.debug("eptEndpoint most recent local events(%s)", len(ret.local_events))
+        #for i, l in enumerate(ret.local_events):
+        #    logger.debug("event(%s): %s", i, l)
         # return last local endpoint events
-        logger.debug("eptEndpoint most recent local events(%s)", len(ret_list))
-        for i, l in enumerate(ret_list):
-            logger.debug("event(%s): %s", i, l)
-        return (update_occurred, ret_list)
+        return ret
 
 
     def analyze_move(self, msg, last_local):
@@ -646,17 +609,13 @@ class eptWorker(object):
         if len(last_local)<2 or last_local[0].status=="deleted" or last_local[1].status=="deleted":
             logger.debug("two non-deleted last local events required for move analysis")
             return
+        logger.debug("analyze move")
         
-        move_compare_attributes = ["node", "intf_id", "pctag", "encap", "rw_mac", "rw_bd"]
         update = False
         src = eptMoveEvent.from_endpoint_event(last_local[1])
         dst = eptMoveEvent.from_endpoint_event(last_local[0])
         move_event = {"src": src.to_dict(), "dst": dst.to_dict()}
-        for a in move_compare_attributes:
-            if getattr(src, a) != getattr(dst, a):
-                logger.debug("move: %s changed from '%s' to '%s'",a,getattr(src,a),getattr(dst,a))
-                update = True
-        if not update:
+        if not eptMoveEvent.is_different(src, dst):
             logger.debug("no move detected")
             return
 
@@ -677,11 +636,8 @@ class eptWorker(object):
         else:
             db_src = eptMoveEvent.from_dict(db_move["events"][0]["src"])
             db_dst = eptMoveEvent.from_dict(db_move["events"][0]["dst"])
-            move_uniq = False
-            for a in move_compare_attributes:
-                if getattr(db_src, a) != getattr(src, a) or getattr(db_dst, a) != getattr(dst, a):
-                    move_uniq = True
-                    break
+            logger.debug("checking if move event is different from last eptMove event")
+            move_uniq=eptMoveEvent.is_different(db_src,src) or eptMoveEvent.is_different(db_dst,dst)
             if not move_uniq:
                 logger.debug("move is duplicate of previous move event")
                 return
@@ -690,24 +646,165 @@ class eptWorker(object):
 
         if self.fabrics[msg.fabric].notification_enabled("move")["enabled"]:
             # send msg for WATCH_MOVE
-            data = {
-                "addr": msg.addr,
-                "vnid": msg.vnid,
-                "event": move_event
-            }
-            msg = eptMsgWork(msg.addr, "watcher", data, WORK_TYPE.WATCH_MOVE, fabric=msg.fabric)
+            mmsg = eptMsgWorkWatchMove(msg.addr,"watcher",{},WORK_TYPE.WATCH_MOVE,fabric=msg.fabric)
+            mmsg.vnid = msg.vnid
+            mmsg.src = move_event["src"]
+            mmsg.dst = move_event["dst"]
             logger.debug("sending move event to watcher")
-            self.send_msg(msg)
+            self.send_msg(mmsg)
         else:
             logger.debug("move notification not enabled")
 
+
+    def analyze_offsubnet(self, msg, per_node_history_events, update_local_result):
+        """ analyze offsubnet
+            perform offsubnet analysis across all nodes. Perform two eptHistory updates:
+                1) clear is_offsubnet flag for this endpoint on all nodes
+                2) set is_offsubnet flag for each node that is current is_offsbnet
+            perform at most one eptEndpoint update:
+                - if eptEndpoint.is_offsubnet flag is True but all nodes have is_offsubnet false,
+                  then set eptEndpoint.is_offsubnet flag to false
+                  Note, only watcher WATCH_OFFSUBNET sets eptEndpoint.is_offsubnet to true
+                - current eptEndpoint.is_offsubnet value is within update_local_result.is_offsubnet
+            for node that is_offsubnet, ensure that it is not duplicate of last eptOffSubnet event
+                - for new/unique is_offsubnet then create WATCH_OFFSUBNET msg to handle
+                  notifications, remediation, and insertion into eptOffsubnet table
+        """ 
+        if msg.type == "mac":
+            logger.debug("skipping offsubnet analyze for mac event")
+            return
+        logger.debug("analyze offsubnet")
+        offsubnet_nodes = {}    # indexed by node-id containing eptOffSubnetEvent
+        for node in per_node_history_events:
+            if len(per_node_history_events[node])>0:
+                event = per_node_history_events[node][0]
+                if event.pctag > 0:
+                    #logger.debug("checking if [node:0x%04x 0x%06x, 0x%x, %s] is offsubnet", 
+                    #    node, msg.vnid, event.pctag, msg.addr)
+                    if self.fabrics[msg.fabric].cache.ip_is_offsubnet(msg.vnid,event.pctag,msg.addr):
+                        offsubnet_nodes[node] = eptOffSubnetEvent.from_history_event(event)
+        # update eptHistory is_offsubnet flags
+        logger.debug("offsubnet on %s nodes", len(offsubnet_nodes))
+        flt = {
+            "fabric": msg.fabric,
+            "vnid": msg.vnid,
+            "addr": msg.addr,
+        }
+        self.db[eptOffSubnet._classname].update_many(flt, {"$set":{"is_offsubnet":False}})
+        for node in offsubnet_nodes:
+            logger.debug("setting is_offsubnet to True for node 0x%04x", node)
+            flt["node"] = node
+            self.db[eptOffSubnet._classname].update_one(flt, {"$set":{"is_offsubnet":True}})
+        # clear eptEndpoint is_offsubnet flag if not currently offsubnet on any node
+        if update_local_result.is_offsubnet and len(offsubnet_nodes) == 0:
+            logger.debug("clearing eptEndpoint is_offsubnet flag")
+            flt.pop("node",None)
+            self.db[eptEndpoint._classname].update_one(flt, {"$set":{"is_offsubnet":False}})
+        # check current offsubnet events against existing eptOffSubnet entry. here if there is an
+        # existing eptOffSubnet event with same pctag and same remote entry AND there is a delete
+        # after the timestamp within the per_node_event_history, then also consider this a new event
+        projection = {"node":1, "events": {"$slice":1}}
+        if len(offsubnet_nodes)>0:
+            duplicate_nodes = []
+            for db_obj in self.db[eptOffSubnet._classname].find(flt, projection):
+                if db_obj["node"] in offsubnet_nodes and len(db_obj["events"])>0:
+                    new_event = offsubnet_nodes[db_obj["node"]]
+                    db_event = eptOffSubnetEvent.from_dict(db_obj["events"][0])
+                    if db_event.remote == new_event.remote and db_event.pctag == new_event.pctag:
+                        # check if this endpoint learn has been deleted and re-learned on node 
+                        # since last eptOffSubnet event.  If so, clear is_duplicate flag
+                        for h_event in per_node_history_events[db_obj["node"]]:
+                            if h_event.ts > db_event.ts and h_event.status == "deleted":
+                                is_duplicate = False
+                                break
+                        if is_duplicate:
+                            logger.debug("offsubnet event for 0x%04x is duplicate", db_obj["node"])
+                            duplicate_nodes.append(db_obj["node"])
+            # remove duplicate_nodes from offsubnet_nodes list
+            for node in duplicate_nodes:
+                offsubnet_nodes.pop(node, None)
+            # create work for WATCH_OFFSUBNET for each non-duplicate offsubnet events
+            if len(offsubnet_nodes) > 0:
+                msgs = []
+                for node in offsubnet_nodes:
+                    wmsg = eptMsgWorkWatchOffSubnet(msg.addr,"watcher",{},WORK_TYPE.WATCH_OFFSUBNET,
+                            fabric=msg.fabric)
+                    wmsg.ts = msg.ts
+                    wmsg.node = node
+                    wmsg.vnid = msg.vnid
+                    wmsg.event = offsubnet_nodes[node].to_dict()
+                    msgs.append(wmsg)
+                logger.debug("sending %s offsubnet events to watcher", len(msgs))
+                self.send_msg(msgs)
+
+    def handle_watch_node(self, msg):
+        # TODO
+        pass
 
     def handle_watch_move(self, msg):
         # TODO
         pass
 
+    def handle_watch_offsubnet(self, msg):
+        # TODO
+        pass
+
+    def handle_watch_stale(self, msg):
+        # TODO
+        pass
 
 
 
+class eptWorkerFabric(object):
+    """ tracks cache and settings for each fabric actively being monitored """
+    def __init__(self, fabric):
+        self.fabric = fabric
+        self.settings = eptSettings.load(fabric=fabric)
+        self.cache = eptCache(fabric)
+        self.db = get_db()
+        # one time calculation for email address and syslog server (which requires valid port)
+        self.email_address = self.settings.email_address
+        self.syslog_server = self.settings.syslog_server
+        self.syslog_port = self.settings.syslog_port
+        if len(self.email_address) == 0: 
+            self.email_address = None
+        if len(self.syslog_server) == 0:
+            self.syslog_server = None
+            self.syslog_port = None
 
+    def push_event(self, table, key, event):
+        # wrapper to push an event to eptHistory events list
+        return push_event(self.db[table], key, event, rotate = self.settings.max_endpoint_events)
+
+    def notification_enabled(self, notify_type):
+        # return dict with email address, syslog server, syslog port for notify type. If not enabled,
+        # then return None for each field.
+        ret = {"enabled": False, "email_address": None, "syslog_server": None, "syslog_port": None}
+        if notify_type == "move":
+            attr = ("notify_move_email", "notify_move_syslog")
+        elif notify_type == "stale":
+            attr = ("notify_stale_email", "notify_stale_syslog")
+        elif notify_type == "offsubnet":
+            attr = ("notify_offsubnet_email", "notify_offsubnet_syslog")
+        else:
+            logger.warn("invalid notification type '%s", notify_type)
+            return ret
+        if getattr(self.settings, attr[0]):
+            ret["enabled"] = True
+            ret["email_address"] = self.email_address
+        if getattr(self.settings, attr[1]):
+            ret["enabled"] = True
+            ret["syslog_server"] = self.syslog_server
+            ret["syslog_port"] = self.syslog_port
+        return ret
+
+class eptWorkerUpdateLocalResult(object):
+    """ return object for eptWorker.update_loal method """
+    def __init__(self):
+        self.analyze_move = False       # an update requiring move analysis occurred
+        self.local_events = []          # recent (0-3) local events
+        self.is_offsubnet = False       # eptEndpoint object is currently offsubnet
+        self.is_stale = False           # eptEndpoint object is currently stale
+        self.exists = False             # eptEndpoint entry exists
+        
 

@@ -20,6 +20,7 @@ from . ept_msg import WORK_TYPE
 from . ept_msg import eptEpmEventParser
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgWork
+from . ept_msg import eptMsgWorkWatchNode
 from . ept_epg import eptEpg
 from . ept_history import eptHistory
 from . ept_node import eptNode
@@ -957,8 +958,9 @@ class eptSubscriber(object):
                         self.hard_restart(reason="leaf '%s' became active" % node.node)
                     else:
                         logger.debug("node %s '%s', sending watch_node event", node.node, status)
-                        data = {"pod": node.pod_id, "node": node.node}
-                        msg = eptMsgWork("node-%s" % node.node, "watcher",data,WORK_TYPE.WATCH_NODE)
+                        msg = eptMsgWorkWatchNode(0, "watcher", {}, WORK_TYPE.WATCH_NODE)
+                        msg.node = node.node
+                        msg.status = status
                         self.send_msg(msg)
             else:
                 if status != "active":

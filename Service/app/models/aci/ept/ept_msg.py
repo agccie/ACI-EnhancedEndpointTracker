@@ -150,9 +150,115 @@ class eptMsgWork(object):
         if wt==WORK_TYPE.EPM_IP_EVENT or wt==WORK_TYPE.EPM_MAC_EVENT or wt==WORK_TYPE.EPM_RS_IP_EVENT:
             return eptMsgWorkEpmEvent(js["addr"], js["role"], js["data"], wt,
                         qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+        elif wt == WORK_TYPE.WATCH_MOVE:
+            return eptMsgWorkWatchMove(js["addr"], js["role"], js["data"], wt,
+                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+        elif wt == WORK_TYPE.WATCH_OFFSUBNET:
+            return eptMsgWorkWatchOffSubnet(js["addr"], js["role"], js["data"], wt,
+                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+        elif wt == WORK_TYPE.WATCH_NODE:
+            return eptMsgWorkWatchNode(js["addr"], js["role"], js["data"], wt,
+                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
         else:
             return eptMsgWork(js["addr"], js["role"], js["data"], wt,
                         qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+
+class eptMsgWorkWatchNode(eptMsgWork):
+    """ fixed message type for WATCH_NODE """
+    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+        # initialize as eptMsgWork with empty data set
+        super(eptMsgWorkWatchNode, self).__init__(addr, "watcher", data, wt, 
+                qnum=qnum, seq=seq, fabric=fabric)
+        self.node = int(data.get("node", 0))
+        self.status = data.get("status", "")
+
+    def jsonify(self):
+        """ jsonify for transport across messaging queue """
+        return json.dumps({
+            "msg_type": self.msg_type.value,
+            "seq": self.seq,
+            "wt": self.wt.value,
+            "addr": self.addr,
+            "role": self.role,
+            "qnum": self.qnum,
+            "fabric": self.fabric,
+            "data": {
+                "node": self.node,
+                "status": self.status,
+            }
+        })
+        return ret
+
+    def __repr__(self):
+        return "%s.0x%08x %s %s [node:0x%04x, %s]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.node, self.status)
+
+class eptMsgWorkWatchMove(eptMsgWork):
+    """ fixed message type for WATCH_MOVE """
+    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+        # initialize as eptMsgWork with empty data set
+        super(eptMsgWorkWatchMove, self).__init__(addr, "watcher", data, wt, 
+                qnum=qnum, seq=seq, fabric=fabric)
+        self.vnid = int(data.get("vnid", 0))
+        self.src = data.get("src", {})
+        self.dst = data.get("dst", {})
+
+    def jsonify(self):
+        """ jsonify for transport across messaging queue """
+        return json.dumps({
+            "msg_type": self.msg_type.value,
+            "seq": self.seq,
+            "wt": self.wt.value,
+            "addr": self.addr,
+            "role": self.role,
+            "qnum": self.qnum,
+            "fabric": self.fabric,
+            "data": {
+                "vnid": self.vnid,
+                "src": self.src,
+                "dst": self.dst
+            }
+        })
+        return ret
+
+    def __repr__(self):
+        return "%s.0x%08x %s %s [0x%06x, %s]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.vnid, self.addr)
+
+
+class eptMsgWorkWatchOffSubnet(eptMsgWork):
+    """ fixed message type for WATCH_OFFSUBNET """
+    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+        # initialize as eptMsgWork with empty data set
+        super(eptMsgWorkWatchOffSubnet, self).__init__(addr, "watcher", data, wt, 
+                qnum=qnum, seq=seq, fabric=fabric)
+        self.ts = float(data.get("ts", 0))
+        self.vnid = int(data.get("vnid", 0))
+        self.node = int(data.get("node", 0))
+        self.event = data.get("event", {})
+
+    def jsonify(self):
+        """ jsonify for transport across messaging queue """
+        return json.dumps({
+            "msg_type": self.msg_type.value,
+            "seq": self.seq,
+            "wt": self.wt.value,
+            "addr": self.addr,
+            "role": self.role,
+            "qnum": self.qnum,
+            "fabric": self.fabric,
+            "data": {
+                "ts": self.ts,
+                "node": self.node,
+                "vnid": self.vnid,
+                "event": self.event,
+            }
+        })
+        return ret
+
+    def __repr__(self):
+        return "%s.0x%08x %s %s [ts:%.03f node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.ts, self.node, self.vnid, self.addr)
 
 ###############################################################################
 #
@@ -216,7 +322,7 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         include all attributes with default of empty string if not present
     """
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
-        # initialize as eptMsgWork with empty data set (completed only if valid event)
+        # initialize as eptMsgWork with empty data set 
         super(eptMsgWorkEpmEvent, self).__init__(addr, "worker", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
         self.ts = float(data.get("ts", 0))

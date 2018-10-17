@@ -118,7 +118,7 @@ class eptMoveEvent(object):
 
     @staticmethod
     def from_dict(d):
-        """ create eptMoveEvent from dict within eptMove event list """
+        """ create eptMoveEvent from dict """
         return eptMoveEvent(**d)
 
     @staticmethod

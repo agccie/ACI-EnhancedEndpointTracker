@@ -105,7 +105,7 @@ class eptSettings(Rest):
             "description": "perform offsubnet analysis on each endpoint event (ip endpoints only)",
             "default": True,
         },
-        "max_endpoint_events":{
+        "max_per_node_endpoint_events":{
             "type": int,
             "description": """
             maximum number of historical endpoint events per endpoint per node.  When this number is
@@ -115,6 +115,13 @@ class eptSettings(Rest):
             "default": 64,
             "min_val": 8, 
             "max_val": 1024,
+        },
+        "max_endpoint_events": {
+            "type": int,
+            "description": "maximum number of historical endpoint events for eptEndpoint object",
+            "default": 64,
+            "min": 8,
+            "max": 8192,
         },
         "queue_init_events": {
             "type": bool,
@@ -138,6 +145,21 @@ class eptSettings(Rest):
             initial epm db build.
             """,
         },
+        "stale_no_local": {
+            "type": bool,
+            "default": True,
+            "description": """ treat remote(XR) learns without a corresponding local learn (PL/VL)
+            within the fabric as a stale endpoint.
+            """,
+        },
+        "stale_multiple_local": {
+            "type": bool,
+            "default": True,
+            "description": """ treat local entries that do not match expected local entry during 
+            stale analysis as a stale endpoint.
+            """,
+        },
+        # state settings
         "overlay_vnid": {
             "type": int,
             "write": False,

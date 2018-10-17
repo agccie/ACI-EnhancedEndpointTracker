@@ -114,7 +114,7 @@ class eptOffSubnetEvent(object):
 
     @staticmethod
     def from_dict(d):
-        """ create eptOffSubnetEvent from dict within eptOffsubnet event list """
+        """ create eptOffSubnetEvent from dict """
         return eptOffSubnetEvent(**d)
 
     @staticmethod

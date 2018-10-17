@@ -9,10 +9,13 @@ from . common import TRANSITORY_DELETE
 from . common import TRANSITORY_OFFSUBNET
 from . common import TRANSITORY_STALE
 from . common import TRANSITORY_STALE_NO_LOCAL
+from . common import SUPPRESS_WATCH_OFFSUBNET
+from . common import SUPPRESS_WATCH_STALE
 from . common import WORKER_CTRL_CHANNEL
 from . common import push_event
 from . common import get_vpc_domain_id
 from . common import get_addr_type
+from . common import split_vpc_domain_id
 from . common import wait_for_db
 from . common import wait_for_redis
 from . ept_cache import eptCache
@@ -30,11 +33,13 @@ from . ept_msg import eptMsgWork
 from . ept_msg import eptMsgWorkEpmEvent
 from . ept_msg import eptMsgWorkWatchMove
 from . ept_msg import eptMsgWorkWatchOffSubnet
+from . ept_msg import eptMsgWorkWatchStale
 from . ept_offsubnet import eptOffSubnet
 from . ept_offsubnet import eptOffSubnetEvent
 from . ept_queue_stats import eptQueueStats
 from . ept_settings import eptSettings
 from . ept_stale import eptStale
+from . ept_stale import eptStaleEvent
 
 import copy
 import json
@@ -284,8 +289,35 @@ class eptWorker(object):
         is_mac_event = (msg.wt == WORK_TYPE.EPM_MAC_EVENT)
 
         # will need to calcaulte remote node and ifId_name (defaults to ifId)
-        ifId_name = msg.ifId
         remote = 0
+        ifId_name = msg.ifId
+        tunnel = None
+        tunnel_flags = ""
+
+        # independent of local or remote, if po is in ifId, then try to determine ifId_name
+        if "po" in msg.ifId:
+            # map ifId_name to port-channel policy name
+            intf_name = cache.get_pc_name(msg.node, msg.ifId)
+            if len(intf_name) > 0: 
+                logger.debug("mapping ifId_name %s to %s", msg.ifId, intf_name)
+                ifId_name = intf_name
+            # if local, map interface to vpc-id if mapping exists. The vpc-attached flag should also 
+            # be checked but for now we'll look only if mapping exists
+            if is_local:
+                vpc_id = cache.get_pc_vpc_id(msg.node, msg.ifId)
+                if vpc_id > 0:
+                    logger.debug("mapping ifId %s to vpc-%s", msg.ifId, vpc_id)
+                    msg.ifId = "vpc-%s" % vpc_id
+        # for tunnels, need to record tunnel_flags within history so do unconditional remap
+        elif "tunnel" in msg.ifId:
+            tunnel = cache.get_tunnel_remote(msg.node, msg.ifId, return_object=True)
+            if tunnel is not None:
+                tunnel_flags = tunnel.flags
+                # for VL, endpoint is local and interface is a tunnel. Remap local interface from 
+                # tunnel to VL destination
+                if is_local and tunnel.encap == "vxlan":
+                    logger.debug("mapping ifId %s to vl-%s", msg.ifId, tunnel.dst)
+                    msg.ifId = "vl-%s" % tunnel.dst
 
         # determine remote node for this event if it is a non-deleted XR event
         if not is_local and not is_rs_ip_event and not is_deleted:
@@ -295,39 +327,15 @@ class eptWorker(object):
                 # if endpoint is peer-attached then remote is peer node, tunnel ifId should also
                 # point to remote node but we'll give epm some slack if flag is set
                 remote = cache.get_peer_node(msg.node)
-            elif "tunnel" not in msg.ifId:
-                logger.debug("skipping remote map of XR non-tunnel interface (ok on modify)")
-            else:
-                remote = cache.get_tunnel_remote(msg.node, msg.ifId)
-
-        # independent of local or remote, if po is in ifId, then try to determine ifId_name
-        if "po" in msg.ifId:
-            # map ifId_name to port-channel policy name
-            intf_name = cache.get_pc_name(msg.node, msg.ifId)
-            if len(intf_name) > 0: 
-                logger.debug("mapping ifId_name %s to %s", msg.ifId, intf_name)
-                ifId_name = intf_name
-
-            # if local, map interface to vpc-id if mapping exists. The vpc-attached flag should also 
-            # be checked but for now we'll look only if mapping exists
-            if is_local:
-                vpc_id = cache.get_pc_vpc_id(msg.node, msg.ifId)
-                if vpc_id > 0:
-                    logger.debug("mapping ifId %s to vpc-%s", msg.ifId, vpc_id)
-                    msg.ifId = "vpc-%s" % vpc_id
-        # for VL, endpoint is local and interface is a tunnel. Remap local interface from tunnel
-        # to VL destination
-        elif "tunnel" in msg.ifId and is_local:
-            tunnel = cache.get_tunnel_remote(msg.node, msg.ifId, return_object=True)
-            if tunnel is not None and tunnel.encap == "vxlan":
-                logger.debug("mapping ifId %s to vl-%s", msg.ifId, tunnel.dst)
-                msg.ifId = "vl-%s" % tunnel.dst
+            elif tunnel is not None:
+                remote = tunnel.remote
 
         # add names to msg object and remote value to msg object
         setattr(msg, "vnid_name", cache.get_vnid_name(msg.vnid))
         setattr(msg, "epg_name", cache.get_epg_name(msg.vrf, msg.pcTag) if msg.pcTag>0 else "")
         setattr(msg, "remote", remote)
         setattr(msg, "ifId_name", ifId_name)
+        setattr(msg, "tunnel_flags", tunnel_flags)
 
         # eptHistoryEvent representing current received event
         event = eptHistoryEvent.from_msg(msg)
@@ -385,8 +393,8 @@ class eptWorker(object):
             if is_deleted:
                 event.rw_mac = ""
                 event.rw_bd = 0
-            for a in ["status", "remote", "pctag", "flags", "encap", "intf_id", "intf_name", 
-                "epg_name", "vnid_name"]:
+            for a in ["status", "remote", "pctag", "flags", "tunnel_flags", "encap", "intf_id", 
+                "intf_name", "epg_name", "vnid_name"]:
                 setattr(event, a, getattr(last_event, a))
             # need to recalculate local after merge
             is_local = "local" in event.flags
@@ -433,7 +441,7 @@ class eptWorker(object):
                 event.remote = last_event.remote
             if event.pctag == 0: 
                 event.pctag = last_event.pctag
-            for a in ["flags", "encap", "intf_id", "intf_name", "epg_name", "vnid_name"]:
+            for a in ["flags","tunnel_flags","encap","intf_id","intf_name","epg_name","vnid_name"]:
                 if len(getattr(event, a)) == 0:
                     setattr(event, a, getattr(last_event, a))
             # need to recalculate local after merge
@@ -688,28 +696,32 @@ class eptWorker(object):
                     if self.fabrics[msg.fabric].cache.ip_is_offsubnet(msg.vnid,event.pctag,msg.addr):
                         offsubnet_nodes[node] = eptOffSubnetEvent.from_history_event(event)
         # update eptHistory is_offsubnet flags
-        logger.debug("offsubnet on %s nodes", len(offsubnet_nodes))
+        logger.debug("offsubnet on total of %s nodes", len(offsubnet_nodes))
         flt = {
             "fabric": msg.fabric,
             "vnid": msg.vnid,
             "addr": msg.addr,
         }
-        self.db[eptOffSubnet._classname].update_many(flt, {"$set":{"is_offsubnet":False}})
+        self.db[eptHistory._classname].update_many(flt, {"$set":{"is_offsubnet":False}})
         for node in offsubnet_nodes:
             logger.debug("setting is_offsubnet to True for node 0x%04x", node)
             flt["node"] = node
-            self.db[eptOffSubnet._classname].update_one(flt, {"$set":{"is_offsubnet":True}})
+            self.db[eptHistory._classname].update_one(flt, {"$set":{"is_offsubnet":True}})
         # clear eptEndpoint is_offsubnet flag if not currently offsubnet on any node
         if update_local_result.is_offsubnet and len(offsubnet_nodes) == 0:
             logger.debug("clearing eptEndpoint is_offsubnet flag")
             flt.pop("node",None)
             self.db[eptEndpoint._classname].update_one(flt, {"$set":{"is_offsubnet":False}})
         # check current offsubnet events against existing eptOffSubnet entry. here if there is an
-        # existing eptOffSubnet event with same pctag and same remote entry AND there is a delete
-        # after the timestamp within the per_node_event_history, then also consider this a new event
-        projection = {"node":1, "events": {"$slice":1}}
+        # existing eptOffSubnet event with same pctag and same remote entry AND there is no delete
+        # after the timestamp within the per_node_event_history, then also consider this a dup
+        projection = {"node":1, "watch_offsubnet_ts":1, "events": {"$slice":1}}
         if len(offsubnet_nodes)>0:
             duplicate_nodes = []
+            # need to suppress rapid offsubnet events if recent watch job created
+            # TODO this has a dependency on per_node_history_event
+
+
             for db_obj in self.db[eptOffSubnet._classname].find(flt, projection):
                 if db_obj["node"] in offsubnet_nodes and len(db_obj["events"])>0:
                     new_event = offsubnet_nodes[db_obj["node"]]
@@ -717,17 +729,21 @@ class eptWorker(object):
                     if db_event.remote == new_event.remote and db_event.pctag == new_event.pctag:
                         # check if this endpoint learn has been deleted and re-learned on node 
                         # since last eptOffSubnet event.  If so, clear is_duplicate flag
+                        is_duplicate = True
                         for h_event in per_node_history_events[db_obj["node"]]:
                             if h_event.ts > db_event.ts and h_event.status == "deleted":
                                 is_duplicate = False
                                 break
                         if is_duplicate:
-                            logger.debug("offsubnet event for 0x%04x is duplicate", db_obj["node"])
+                            logger.debug("offsubnet event for 0x%04x is dup/suppress",db_obj["node"])
                             duplicate_nodes.append(db_obj["node"])
+
             # remove duplicate_nodes from offsubnet_nodes list
             for node in duplicate_nodes:
                 offsubnet_nodes.pop(node, None)
-            # create work for WATCH_OFFSUBNET for each non-duplicate offsubnet events
+            # create work for WATCH_OFFSUBNET for each non-duplicate offsubnet events and set 
+            # watch_offsubnet_ts for the node.  This is an extra db write but will suppress events
+            # sent to watcher
             if len(offsubnet_nodes) > 0:
                 msgs = []
                 for node in offsubnet_nodes:
@@ -738,11 +754,192 @@ class eptWorker(object):
                     wmsg.vnid = msg.vnid
                     wmsg.event = offsubnet_nodes[node].to_dict()
                     msgs.append(wmsg)
+                    # mark watch ts for suppression of future events
+                    flt["node"] = node
+                    self.db[eptHistory._classname].update_one(flt, {"$set":{
+                        "watch_offsubnet_ts":msg.ts
+                    }})
                 logger.debug("sending %s offsubnet events to watcher", len(msgs))
                 self.send_msg(msgs)
 
     def analyze_stale(self, msg, per_node_history_events, update_local_result):
-        pass
+        """ analyze stale 
+            stale analysis ensures that all nodes are pointing to expected the node. The 'expected' 
+            node is the one with the current local learn. Nodes with XR entries can also have a 
+            tunnel with proxy flag set (which indicates proxy lookup to spine) or point to a node 
+            which currently has bounce flag set AND pointing toward correct node.
+
+            if a node is claiming the endpoint as local and it is not the same node previously
+            calculated as the current local node, then this is indication of the following:
+                - a transient event that will be fixed up shortly by next event on websocket
+                - loss of events on websocket subscription 
+                    (would invaliate entire app if epm subscription is unreliable)
+                - a coop update miss on the leaf causing multiple leafs to have the endpoint 
+                  programmed locally. There are a few bugs where this can occur
+            This app assumes the last event received is the most accurate state so we will consider 
+            multiple local as a stale event if enabled within settings (multiple_local_stale)
+
+            If not is_stale on any node but eptEndpoint entry has is_stale set, then clear the flag
+            on eptEndpoint.  Else, for each node that has is_stale set and is not duplicate of 
+            previous eptStale event, create a WATCH_STALE job to handle notification, remedation, 
+            and insertion into eptStale table.
+
+            stale analysis is skipped for mac endpoint. Although possible to have a mac endpoint that
+            is stale, that has never been seen in production so we will skip that check to save some
+            cycles on the app.
+
+            stale analyis is also skipped on nodes with cached, vip, svi, psvi, vtep, static,
+            bounce-to-proxy, or loopback flags set.
+        """
+        if msg.type == "mac":
+            logger.debug("skipping stale analyze for mac event")
+            return
+
+        if len(update_local_result.local_events) == 0 or \
+                update_local_result.local_events[0].node == 0:
+            local_node = 0
+            vpc_nodes = []
+        else:
+            local_node = update_local_result.local_events[0].node
+            vpc_nodes = split_vpc_domain_id(local_node)
+            if vpc_nodes[1] == 0:
+                vpc_nodes.remove(1)
+            if vpc_nodes[0] == 0:
+                vpc_nodes.remove(0)
+
+        stale_nodes = {}    # indexed by node with stale eptHistory event
+        for node in per_node_history_events:
+            h_event = per_node_history_events[node][0]
+            event = eptStaleEvent.from_history_event(local_node, h_event)
+            # only perform analysis on non-deleted entries
+            if h_event.status != "deleted":
+                if "bounce-to-proxy" in h_event.flags or \
+                    "loopback" in h_event.flags or \
+                    "vtep" in h_event.flags or \
+                    "svi" in h_event.flags or \
+                    "psvi" in h_event.flags or \
+                    "cached" in h_event.flags or \
+                    "static" in h_event.flags:
+                    logger.debug("skipping stale analysis on node 0x%04x with flags: [%s]", node,
+                        ",".join(h_event.flags))
+                    continue
+                # if this is a tunnel and tunnel flags have proxy or dci flags, then skip it:
+                #   - proxy-acast-v4, proxy-acast-v6, proxy-acast-mac
+                #   - dci-unicast    (remote pod DCI unicast)
+                #   - dci-mcast-hrep (remote site mcast tep)
+                # covers 
+                if "proxy" in h_event.tunnel_flags or "dci" in h_event.tunnel_flags:
+                    logger.debug("skipping stale analysis on node 0x%04x with tunnel flags: %s",
+                        node, h_event.tunnel_flags)
+                    continue
+                if local_node > 0:
+                    if "local" in h_event.flags:
+                        # this node thinks the endpoint is local. If it matches local_node or is a 
+                        # member within vpc_nodes then skip it
+                        if node != local_node and node not in vpc_nodes:
+                            logger.debug("node %s claiming local != node %s (%s)", node, local_node,
+                                    vpc_nodes)
+                            if self.fabrics[msg.fabric].settings.stale_multiple_local:
+                                stale_nodes[node] = event
+                            else:
+                                logger.debug("ignroing stale_multiple_local")
+                    else:
+                        # ensure that this node has correct remote pointer or is pointing to a node
+                        # with bounce and correct node pointer.  Need to come back and validate if
+                        # bounce-to-proxy will actually bounce a frame, will revisit...
+                        if h_event.remote != local_node:
+                            if h_event.remote in per_node_history_events:
+                                remote_node_event = per_node_history_events[h_event.remote][0]
+                                if remote_node_event.remote != local_node or (
+                                    "bounce" not in remote_node_event.flags and \
+                                    "bounce-to-proxy" not in remote_node_event.flags
+                                    ):
+                                    logger.debug("stale on %s to %s [flags [%s], to %s]", node, 
+                                        h_event.remote, ",".join(remote_node_event.flags),
+                                        remote_node_event.remote)
+                                    stale_nodes[node] = event
+                            else:
+                                logger.debug("stale on %s to %s", node, h_event.remote)
+                                stale_nodes[node] = event
+                else:
+                    # non-deleted event when endpoint is not currently learned within the fabric
+                    if self.fabrics[msg.fabric].settings.stale_no_local:
+                        logger.debug("stale on %s to %s (no local)", node, h_event.remote)
+                        stale_nodes[node] = event
+                    else:
+                        logger.debug("ignoring stale_no_local")
+
+        # update eptHistory is_stale flags
+        logger.debug("stale on total of %s nodes", len(stale_nodes))
+        flt = {
+            "fabric": msg.fabric,
+            "vnid": msg.vnid,
+            "addr": msg.addr,
+        }
+        self.db[eptHistory._classname].update_many(flt, {"$set":{"is_stale":False}})
+        for node in stale_nodes:
+            logger.debug("setting is_stale to True for node 0x%04x", node)
+            flt["node"] = node
+            self.db[eptHistory._classname].update_one(flt, {"$set":{"is_stale":True}})
+        # clear eptEndpoint is_stale flag if not currently stale on any node
+        if update_local_result.is_stale and len(stale_nodes) == 0:
+            logger.debug("clearing eptEndpoint is_stale flag")
+            flt.pop("node",None)
+            self.db[eptEndpoint._classname].update_one(flt, {"$set":{"is_stale":False}})
+
+        # check current stale events against existing eptStale entry. here if there is an
+        # existing eptStale event with same remote and expected remote AND there is no delete
+        # after the timestamp within the per_node_event_history, then consider this a dup
+        projection = {"node":1, "watch_stale_ts":1, "events": {"$slice":1}}
+        if len(stale_nodes)>0:
+            duplicate_nodes = []
+            for db_obj in self.db[eptStale._classname].find(flt, projection):
+                # need to suppress rapid offsubnet events if recent watch job created
+                delta = msg.ts - db_obj["watch_stale_ts"]
+                if delta < SUPPRESS_WATCH_STALE:
+                    logger.debug("suppressing watch_stale (delta %.03f < %0.3f)", delta, 
+                            SUPPRESS_WATCH_STALE)
+                    if db_obj["node"] not in duplicate_nodes:
+                        duplicate_nodes.append(db_obj["node"])
+                elif db_obj["node"] in stale_nodes and len(db_obj["events"])>0:
+                    new_event = stale_nodes[db_obj["node"]]
+                    db_event = eptStaleEvent.from_dict(db_obj["events"][0])
+                    if db_event.remote == new_event.remote and \
+                        db_event.expected_remote == new_event.expected_remote:
+                        # check if this endpoint learn has been deleted and re-learned on node 
+                        # since last eptStale event.  If so, clear is_duplicate flag
+                        is_duplicate = True
+                        for h_event in per_node_history_events[db_obj["node"]]:
+                            if h_event.ts > db_event.ts and h_event.status == "deleted":
+                                is_duplicate = False
+                                break
+                        if is_duplicate:
+                            logger.debug("stale event for 0x%04x is dup/suppres", db_obj["node"])
+                            duplicate_nodes.append(db_obj["node"])
+
+            # remove duplicate_nodes from stale_nodes list
+            for node in duplicate_nodes:
+                stale_nodes.pop(node, None)
+            # create work for WATCH_STALE for each non-duplicate stale events and set
+            # watch_stale_ts for the node.  This is an extra db write but will suppress events
+            # sent to watcher
+            if len(stale_nodes) > 0:
+                msgs = []
+                for node in stale_nodes:
+                    wmsg = eptMsgWorkWatchStale(msg.addr,"watcher",{},WORK_TYPE.WATCH_STALE,
+                            fabric=msg.fabric)
+                    wmsg.ts = msg.ts
+                    wmsg.node = node
+                    wmsg.vnid = msg.vnid
+                    wmsg.event = stale_nodes[node].to_dict()
+                    msgs.append(wmsg)
+                    # mark watch ts for suppression of future events
+                    flt["node"] = node
+                    self.db[eptHistory._classname].update_one(flt, {"$set":{
+                        "watch_stale_ts":msg.ts
+                    }})
+                logger.debug("sending %s stale events to watcher", len(msgs))
+                self.send_msg(msgs)
 
 
     def handle_watch_node(self, msg):
@@ -782,7 +979,12 @@ class eptWorkerFabric(object):
 
     def push_event(self, table, key, event):
         # wrapper to push an event to eptHistory events list
-        return push_event(self.db[table], key, event, rotate = self.settings.max_endpoint_events)
+        if table == eptEndpoint._classname:
+            return push_event(self.db[table], key, event, 
+                    rotate=self.settings.max_endpoint_events)
+        else:
+            return push_event(self.db[table], key, event, 
+                    rotate=self.settings.max_per_node_endpoint_events)
 
     def notification_enabled(self, notify_type):
         # return dict with email address, syslog server, syslog port for notify type. If not enabled,
@@ -810,7 +1012,7 @@ class eptWorkerUpdateLocalResult(object):
     """ return object for eptWorker.update_loal method """
     def __init__(self):
         self.analyze_move = False       # an update requiring move analysis occurred
-        self.local_events = []          # recent (0-3) local events
+        self.local_events = []          # recent (0-3) local eptEndpointEvent objects
         self.is_offsubnet = False       # eptEndpoint object is currently offsubnet
         self.is_stale = False           # eptEndpoint object is currently stale
         self.exists = False             # eptEndpoint entry exists

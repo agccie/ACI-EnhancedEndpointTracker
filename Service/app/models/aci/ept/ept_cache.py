@@ -220,7 +220,7 @@ class eptCache(object):
                     offsubnet = False
                     break
             if offsubnet:
-                logger.debug("ip(%s) not matched against any of the %s subnets in bd %s", ip, 
+                logger.debug("addr %s not matched against any of the %s subnets in bd %s", ip, 
                     len(subnets), epg.bd)
 
         # add result to cache for next lookup

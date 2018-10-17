@@ -35,10 +35,15 @@ WORKER_UPDATE_INTERVAL              = 1.0
 #   stale_no_local  amount of time to wait for new events when an endpoint is declared as stale
 #                   and there is no local endpoint learned within the fabric (i.e., expected remote
 #                   node is 0)
+# suppress timers
+#   watch_offsubnet amount of time to suppress new watch_offsubnet events for single node/ep
+#   watch_stale     amount of time to suppress new watch_stale events for single node/ep
 TRANSITORY_DELETE                   = 2.0
-TRANSITORY_OFFSUBNET                = 2.0
+TRANSITORY_OFFSUBNET                = 10.0
 TRANSITORY_STALE                    = 30.0
 TRANSITORY_STALE_NO_LOCAL           = 300.0
+SUPPRESS_WATCH_OFFSUBNET            = 8.0
+SUPPRESS_WATCH_STALE                = 25.0
 
 
 ###############################################################################
@@ -85,6 +90,13 @@ def get_vpc_domain_id(n1, n2):
     n2 = int(n2)
     if n1 > n2: return (n1 << 16) + n2
     return (n2 << 16) + n1
+
+def split_vpc_domain_id(n):
+    """ receives node id and split to member node ids. Note, if domain id is invalid then result 
+        can contain node values of 0
+        returns list of length 2 (node1, node2)
+    """
+    return [(n & 0xffff0000)>>16, n & 0x0000ffff]
 
 def push_event(collection, key, event, rotate=None, increment=True):
     """ push an event into the events list of a collection. If increment is true, then increment

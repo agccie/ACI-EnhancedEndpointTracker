@@ -16,8 +16,8 @@
           <ul class="tabs">
             <li *ngFor="let tab of tabs ; let i=index" id="i" class="tab" routerLinkActive="active">
               <a tabindex="i" [routerLink]="[tab.path]">
-                <div class="tab__heading" title="tab.name">{{tab.name}}
-                    
+                <div class="tab__heading" title="tab.name">
+                  {{tab.name}}  
                 </div>
               </a>
             </li>

@@ -1,49 +1,58 @@
 <div class="row">
-    <div class="col-md-12 panel panel--raised">
-      <ngx-datatable
-      [columnMode]="'flex'"
-                  [headerHeight]="25"
-                  [footerHeight]="50"
-                  [rowHeight]="'auto'"
-                  [sorts]="[sorts]"
-                  [limit]="10"
-                  [loadingIndicator]="loading"
-                  [rows]="eventRows"
-                  [cssClasses]="{
-                  sortAscending: 'icon-chevron-down',
-                  sortDescending: 'icon-chevron-up',
-                  pagerLeftArrow: 'icon-step-prev',
-                  pagerRightArrow: 'icon-step-next',
-                  pagerPrevious: 'icon-step-backward',
-                  pagerNext: 'icon-step-forward'
-                  }">
-                  <ngx-datatable-column prop="time" name="Timestamp" [sortable]="true" [flexGrow]="0.2">
-                      <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                          {{value}}
-                      </ng-template>
-                  </ngx-datatable-column> 
-                  <ngx-datatable-column prop="fabric" name="Fabric" [sortable]="true" [flexGrow]="0.2">
-                      <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                          {{value}}
-                      </ng-template>
-                  </ngx-datatable-column>   
-                  <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.2">
-                      <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                          <span class="label label--raised" [ngClass]="{'label--success':value==='IP','label--warning':value==='MAC'}">
-                              {{value}}
-                          </span>
-                      </ng-template>
-                  </ngx-datatable-column>
-                  <ngx-datatable-column prop="address" name="Address" [sortable]="true" [flexGrow]="0.2">
-                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        <a [routerLink]="['/ephistory',value]">{{value}}</a>
-                    </ng-template>
-                </ngx-datatable-column>  
-                  <ngx-datatable-column prop="vrfbd" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
-                      <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                          {{value}}
-                      </ng-template>
-                  </ngx-datatable-column>    
-      </ngx-datatable>
-    </div>
-  </div>
+        <div class="col-md-12">
+            <ngx-datatable
+            [columnMode]="'flex'"
+                        [headerHeight]="25"
+                        [footerHeight]="50"
+                        [rowHeight]="'auto'"
+                        
+                        [limit]="10"
+                        [loadingIndicator]="loading"
+                        [rows]="eventRows"
+                        [cssClasses]="{
+                        sortAscending: 'icon-chevron-down',
+                        sortDescending: 'icon-chevron-up',
+                        pagerLeftArrow: 'icon-step-prev',
+                        pagerRightArrow: 'icon-step-next',
+                        pagerPrevious: 'icon-step-backward',
+                        pagerNext: 'icon-step-forward'
+                        }">
+                        <ngx-datatable-column prop="timestamp" name="Time" [sortable]="true" [flexGrow]="0.2">
+                                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                    {{value}}
+                                </ng-template>
+                            </ngx-datatable-column> 
+                        <ngx-datatable-column prop="fabric" name="Fabric Name" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{value}}
+                            </ng-template>
+                        </ngx-datatable-column> 
+                        <ngx-datatable-column prop="status" name="Status" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{value}}
+                            </ng-template>
+                        </ngx-datatable-column> 
+                        <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]="0.2">
+                                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                    {{value}}
+                                </ng-template>
+                            </ngx-datatable-column> 
+                        <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{value}}
+                            </ng-template>
+                        </ngx-datatable-column> 
+                        <ngx-datatable-column prop="address" name="Address" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{value}}
+                            </ng-template>
+                        </ngx-datatable-column> 
+                        <ngx-datatable-column prop="vnid" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{value}}
+                            </ng-template>
+                        </ngx-datatable-column> 
+                        </ngx-datatable>
+        </div>
+      </div>
+      

@@ -98,4 +98,9 @@
     padding: 5px ;
     }
 
+    .content {
+      height:100%;
+      background-color:white;
+    }
+
     

@@ -60,7 +60,7 @@ class eptWorker(object):
     def __init__(self, worker_id, role):
         self.worker_id = "%s" % worker_id
         self.role = role
-        self.db = get_db()
+        self.db = get_db(uniq=True, overwrite_global=True)
         self.redis = get_redis()
         # dict of eptWorkerFabric objects
         self.fabrics = {}

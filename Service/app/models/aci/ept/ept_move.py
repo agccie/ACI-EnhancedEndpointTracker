@@ -1,5 +1,6 @@
 from ...rest import Rest
 from ...rest import api_register
+from . common import get_vpc_domain_name
 from . ept_history import eptHistory
 import logging
 
@@ -116,6 +117,17 @@ class eptMoveEvent(object):
             "vnid_name": self.vnid_name,
         }
 
+    def notify_string(self, include_rw=False):
+        """ return string formatted for notify message """
+        return "[node:%s, interface:%s, encap:%s, pctag:%s, epg:%s%s]" % (
+            get_vpc_domain_name(self.node),
+            self.intf_name,
+            self.encap,
+            self.pctag,
+            self.epg_name,
+            ", mac:%s"%self.rw_mac if include_rw else ""
+        )
+
     @staticmethod
     def from_dict(d):
         """ create eptMoveEvent from dict """
@@ -145,8 +157,5 @@ class eptMoveEvent(object):
                 logger.debug("move: %s changed from '%s' to '%s'",a,getattr(e1,a),getattr(e2,a))
                 return True
         return False
-
-
-
 
 

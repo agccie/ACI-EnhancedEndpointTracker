@@ -173,6 +173,7 @@ class eptMsgWorkWatchNode(eptMsgWork):
         super(eptMsgWorkWatchNode, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.WATCH_NODE
+        self.ts = float(data.get("ts", 0))
         self.node = int(data.get("node", 0))
         self.status = data.get("status", "")
 
@@ -187,6 +188,7 @@ class eptMsgWorkWatchNode(eptMsgWork):
             "qnum": self.qnum,
             "fabric": self.fabric,
             "data": {
+                "ts": self.ts,
                 "node": self.node,
                 "status": self.status,
             }
@@ -194,8 +196,8 @@ class eptMsgWorkWatchNode(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [node:0x%04x, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.node, self.status)
+        return "%s.0x%08x %s %s [ts:%.03f node:0x%04x, %s]" % (self.msg_type.value, self.seq, 
+                self.fabric, self.wt.value, self.ts, self.node, self.status)
 
 class eptMsgWorkWatchMove(eptMsgWork):
     """ fixed message type for WATCH_MOVE """
@@ -205,6 +207,7 @@ class eptMsgWorkWatchMove(eptMsgWork):
                 qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.WATCH_MOVE
         self.vnid = int(data.get("vnid", 0))
+        self.type = data.get("type", "")
         self.src = data.get("src", {})
         self.dst = data.get("dst", {})
 
@@ -220,6 +223,7 @@ class eptMsgWorkWatchMove(eptMsgWork):
             "fabric": self.fabric,
             "data": {
                 "vnid": self.vnid,
+                "type": self.type,
                 "src": self.src,
                 "dst": self.dst
             }
@@ -227,8 +231,8 @@ class eptMsgWorkWatchMove(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [0x%06x, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.vnid, self.addr)
+        return "%s.0x%08x %s %s [0x%06x, %s, %s]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.vnid, self.type, self.addr)
 
 
 class eptMsgWorkWatchOffSubnet(eptMsgWork):
@@ -238,6 +242,7 @@ class eptMsgWorkWatchOffSubnet(eptMsgWork):
         super(eptMsgWorkWatchOffSubnet, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.WATCH_OFFSUBNET
+        self.xts = float(data.get("xts", 0))        # watcher execute timestamp
         self.ts = float(data.get("ts", 0))
         self.vnid = int(data.get("vnid", 0))
         self.node = int(data.get("node", 0))
@@ -273,6 +278,7 @@ class eptMsgWorkWatchStale(eptMsgWork):
         super(eptMsgWorkWatchStale, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.WATCH_STALE
+        self.xts = float(data.get("xts", 0))        # watcher execute timestamp
         self.ts = float(data.get("ts", 0))
         self.vnid = int(data.get("vnid", 0))
         self.node = int(data.get("node", 0))
@@ -325,7 +331,7 @@ epm_reg = re.compile(epm_reg)
 class eptEpmEventParser(object):
     """ shim for creating/parsing epmEvents """
     def __init__(self, fabric, overlay_vnid):
-        logger.debug("new epm event parser '%s' with overlay-vnid: %s", fabric, overlay_vnid)
+        logger.debug("init parser for fab %s with overlay-vnid: %s", fabric, overlay_vnid)
         self.fabric = fabric
         self.overlay_vnid = int(overlay_vnid)
 

@@ -1,7 +1,10 @@
 
+from ... utils import get_app_config
 from ... utils import get_redis
 from ... utils import get_db
 from ... utils import pretty_print
+from .. utils import email
+from .. utils import syslog
 from . common import CACHE_STATS_INTERVAL
 from . common import HELLO_INTERVAL
 from . common import MANAGER_WORK_QUEUE
@@ -27,6 +30,7 @@ from . ept_move import eptMove
 from . ept_move import eptMoveEvent
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
+from . ept_msg import eptEpmEventParser
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgHello
 from . ept_msg import eptMsgWork
@@ -94,16 +98,22 @@ class eptWorker(object):
         self.hello_msg = eptMsgHello(self.worker_id, self.role, self.queues, start_ts)
         self.hello_msg.seq = 0
 
-        self.work_type_handlers = {
-            WORK_TYPE.FLUSH_CACHE: self.flush_cache,
-            WORK_TYPE.EPM_IP_EVENT: self.handle_endpoint_event,
-            WORK_TYPE.EPM_MAC_EVENT: self.handle_endpoint_event,
-            WORK_TYPE.EPM_RS_IP_EVENT: self.handle_endpoint_event,
-            WORK_TYPE.WATCH_NODE: self.handle_watch_node,
-            WORK_TYPE.WATCH_MOVE: self.handle_watch_move,
-            WORK_TYPE.WATCH_OFFSUBNET: self.handle_watch_offsubnet,
-            WORK_TYPE.WATCH_STALE: self.handle_watch_stale,
-        }
+        # handlers registered based on configured role
+        if self.role == "watcher":
+            self.work_type_handlers = {
+                WORK_TYPE.FLUSH_CACHE: self.flush_cache,
+                WORK_TYPE.WATCH_NODE: self.handle_watch_node,
+                WORK_TYPE.WATCH_MOVE: self.handle_watch_move,
+                WORK_TYPE.WATCH_OFFSUBNET: self.handle_watch_offsubnet,
+                WORK_TYPE.WATCH_STALE: self.handle_watch_stale,
+            }
+        else:
+            self.work_type_handlers = {
+                WORK_TYPE.FLUSH_CACHE: self.flush_cache,
+                WORK_TYPE.EPM_IP_EVENT: self.handle_endpoint_event,
+                WORK_TYPE.EPM_MAC_EVENT: self.handle_endpoint_event,
+                WORK_TYPE.EPM_RS_IP_EVENT: self.handle_endpoint_event,
+            }
 
     def __repr__(self):
         return self.worker_id
@@ -135,8 +145,10 @@ class eptWorker(object):
             try:
                 msg = eptMsg.parse(data) 
                 logger.debug("[%s] msg on q(%s): %s", self, q, msg)
+
                 if msg.msg_type == MSG_TYPE.WORK:
                     if msg.wt in self.work_type_handlers:
+                        self.check_fabric_cache(msg)
                         self.work_type_handlers[msg.wt](msg)
                     else:
                         logger.warn("unsupported work type: %s", msg.wt)
@@ -229,20 +241,23 @@ class eptWorker(object):
         else:
             logger.warn("invalid flush cache message")
 
-    def handle_endpoint_event(self, msg):
-        """ handle EPM endpoint event """
-
-        # create eptWorkerFabric object for this fabric if not already known
+    def check_fabric_cache(self, msg):
+        """ create eptWorkerFabric object for this fabric if not already known """
         if msg.fabric not in self.fabrics:
             self.fabrics[msg.fabric] = eptWorkerFabric(msg.fabric)
+
+    def handle_endpoint_event(self, msg):
+        """ handle EPM endpoint event """
 
         # update endpoint history table and determine based on event if analysis is required
         analysis_required = self.update_endpoint_history(msg)
 
         # we no longer care what the original msg event type. However, we need to maintain the 
         # correct key (fabric, vnid, addr, node) and to ensure that addr is pointing to correct
-        # value for EPM_RS_IP_EVENTs.
-        msg.addr = msg.ip if (msg.wt == WORK_TYPE.EPM_RS_IP_EVENT) else msg.addr
+        # value for EPM_RS_IP_EVENTs. Also, we need to update type to 'ip'.
+        if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
+            msg.addr = msg.ip
+            msg.type = "ip"
         # use msg fields to get last event for endpoint across all nodes for analysis
         projection = {
             "node": 1,
@@ -682,6 +697,7 @@ class eptWorker(object):
             # send msg for WATCH_MOVE
             mmsg = eptMsgWorkWatchMove(msg.addr,"watcher",{},WORK_TYPE.WATCH_MOVE,fabric=msg.fabric)
             mmsg.vnid = msg.vnid
+            mmsg.type = msg.type
             mmsg.src = move_event["src"]
             mmsg.dst = move_event["dst"]
             logger.debug("sending move event to watcher")
@@ -712,7 +728,7 @@ class eptWorker(object):
         for node in per_node_history_events:
             if len(per_node_history_events[node])>0:
                 event = per_node_history_events[node][0]
-                if event.pctag > 0:
+                if event.pctag > 0 and event.status != "deleted":
                     #logger.debug("checking if [node:0x%04x 0x%06x, 0x%x, %s] is offsubnet", 
                     #    node, msg.vnid, event.pctag, msg.addr)
                     if self.fabrics[msg.fabric].cache.ip_is_offsubnet(msg.vnid,event.pctag,msg.addr):
@@ -876,7 +892,9 @@ class eptWorker(object):
                         # ensure that this node has correct remote pointer or is pointing to a node
                         # with bounce and correct node pointer.  Need to come back and validate if
                         # bounce-to-proxy will actually bounce a frame, will revisit...
-                        if h_event.remote != local_node:
+                        # NOTE, for vpc there's no way to know from flags whether the peer's pc is 
+                        # down. Therefore, allow remote to point to vpc TEP or member nodes
+                        if h_event.remote != local_node and h_event.remote not in vpc_nodes:
                             if h_event.remote in per_node_history_events:
                                 remote_node_event = per_node_history_events[h_event.remote][0]
                                 if remote_node_event.remote != local_node or (
@@ -977,12 +995,58 @@ class eptWorker(object):
 
 
     def handle_watch_node(self, msg):
-        # TODO
-        pass
+        """ watch node triggered any time a node goes into non-active state.  When this occurs, a 
+            delete job needs to be created for all current non-deleted history events for that node
+            and requeued through manager process
+        """
+        if msg.status == "active":
+            logger.debug("ignorning watch event for active node")
+            return
+
+        delete_msgs = []
+        parser = self.fabrics[msg.fabric].ept_epm_parser
+        flt = {
+            "fabric": msg.fabric,
+            "node": msg.node,
+            "events.0.status": {"$ne": "deleted"},
+        }
+        projection = {
+            "node": 1,
+            "vnid": 1,
+            "addr": 1,
+            "type": 1,
+        }
+        for obj in self.db[eptHistory._classname].find(flt, projection):
+            if obj["type"] == "mac":
+                m = parser.get_delete_event("epmMacEp",obj["node"],obj["vnid"],obj["addr"],msg.ts)
+                if m is not None:
+                    delete_msgs.append(m)
+            else:
+                # create an epmRsMacEpToIpEpAtt and epmIpEp delete event
+                m = parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"], obj["vnid"], 
+                        obj["addr"], msg.ts)
+                if m is not None:
+                    delete_msgs.append(m)
+                m = parser.get_delete_event("epmIpEp", obj["node"], obj["vnid"], obj["addr"],msg.ts)
+                if m is not None:
+                    delete_msgs.append(m)
+
+        # requeue delete msgs
+        logger.debug("sending %s deletes for node 0x%04x", len(delete_msgs), msg.node)
+        self.send_msg(delete_msgs)
 
     def handle_watch_move(self, msg):
-        # TODO
-        pass
+        """ send proper move notifications if enabled """
+        # build notification msg and execute notify send
+        subject = "move detected for %s" % msg.addr
+        txt = "move detected [fabric: %s, %s, addr: %s] from %s to %s" % (
+            msg.fabric,
+            msg.src["vnid_name"] if len(msg.src["vnid_name"]) else "vnid:%d" % msg.vnid,
+            msg.addr,
+            eptMoveEvent(**msg.src).notify_string(include_rw=(msg.type!="mac")),
+            eptMoveEvent(**msg.dst).notify_string(include_rw=(msg.type!="mac")),
+        )
+        self.fabrics[msg.fabric].send_notification("move", subject, txt)
 
     def handle_watch_offsubnet(self, msg):
         # TODO
@@ -992,7 +1056,14 @@ class eptWorker(object):
         # TODO
         pass
 
-
+class eptWorkerUpdateLocalResult(object):
+    """ return object for eptWorker.update_loal method """
+    def __init__(self):
+        self.analyze_move = False       # an update requiring move analysis occurred
+        self.local_events = []          # recent (0-3) local eptEndpointEvent objects
+        self.is_offsubnet = False       # eptEndpoint object is currently offsubnet
+        self.is_stale = False           # eptEndpoint object is currently stale
+        self.exists = False             # eptEndpoint entry exists
 
 class eptWorkerFabric(object):
     """ tracks cache and settings for each fabric actively being monitored """
@@ -1001,6 +1072,8 @@ class eptWorkerFabric(object):
         self.settings = eptSettings.load(fabric=fabric)
         self.cache = eptCache(fabric)
         self.db = get_db()
+        # epm parser used with eptWorker for creating pseudo eevents
+        self.ept_epm_parser = eptEpmEventParser(self.fabric, self.settings.overlay_vnid)
         # one time calculation for email address and syslog server (which requires valid port)
         self.email_address = self.settings.email_address
         self.syslog_server = self.settings.syslog_server
@@ -1042,13 +1115,22 @@ class eptWorkerFabric(object):
             ret["syslog_port"] = self.syslog_port
         return ret
 
-class eptWorkerUpdateLocalResult(object):
-    """ return object for eptWorker.update_loal method """
-    def __init__(self):
-        self.analyze_move = False       # an update requiring move analysis occurred
-        self.local_events = []          # recent (0-3) local eptEndpointEvent objects
-        self.is_offsubnet = False       # eptEndpoint object is currently offsubnet
-        self.is_stale = False           # eptEndpoint object is currently stale
-        self.exists = False             # eptEndpoint entry exists
+    def send_notification(self, notify_type, subject, txt):
+        # send proper notifications for this fabric 
+        notify = self.notification_enabled(notify_type)
+        if notify["enabled"]:
+            if notify["email_address"] is not None:
+                email(
+                    msg=txt,
+                    subject=subject,
+                    sender = get_app_config().get("EMAIL_SENDER", None),
+                    receiver=notify["email_address"],
+                )
+            if notify["syslog_server"] is not None:
+                syslog(txt, server=notify["syslog_server"], server_port=notify["syslog_port"])
+        else:
+            logger.debug("skipping send notification as '%s' is not enabled", notify_type)
+
+
         
 

@@ -955,11 +955,13 @@ class eptSubscriber(object):
                     # delete jobs for all previous entries on node.  This includes XRs to account
                     # for bounce along with generally cleanup of node state.
                     if status == "active":
+                        # TODO - perform soft reset and per node epm query instead of full reset
                         self.hard_restart(reason="leaf '%s' became active" % node.node)
                     else:
                         logger.debug("node %s '%s', sending watch_node event", node.node, status)
-                        msg = eptMsgWorkWatchNode(0, "watcher", {}, WORK_TYPE.WATCH_NODE)
+                        msg = eptMsgWorkWatchNode("%s"%node.node,"watcher",{},WORK_TYPE.WATCH_NODE)
                         msg.node = node.node
+                        msg.ts = attr["_ts"]
                         msg.status = status
                         self.send_msg(msg)
             else:

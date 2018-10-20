@@ -238,29 +238,39 @@ class eptWorker(object):
 
         # update endpoint history table and determine based on event if analysis is required
         analysis_required = self.update_endpoint_history(msg)
-        
-        if analysis_required: 
-            # we no longer care what the original msg event type. However, we need to maintain the 
-            # correct key (fabric, vnid, addr, node) and to ensure that addr is pointing to correct
-            # value for EPM_RS_IP_EVENTs.
-            msg.addr = msg.ip if (msg.wt == WORK_TYPE.EPM_RS_IP_EVENT) else msg.addr
-            # use msg fields to get last event for endpoint across all nodes for analysis
-            projection = {"node": 1, "events": {"$slice": 4}}
-            flt = {
-                "fabric": msg.fabric,
-                "vnid": msg.vnid,
-                "addr": msg.addr,
-            }
-            per_node_history_events = {}    # one entry per node, indexed by node-id
-            for h in self.db[eptHistory._classname].find(flt, projection):
-                events = []
-                for event in h["events"]:
-                    events.append(eptHistoryEvent.from_dict(event))
+
+        # we no longer care what the original msg event type. However, we need to maintain the 
+        # correct key (fabric, vnid, addr, node) and to ensure that addr is pointing to correct
+        # value for EPM_RS_IP_EVENTs.
+        msg.addr = msg.ip if (msg.wt == WORK_TYPE.EPM_RS_IP_EVENT) else msg.addr
+        # use msg fields to get last event for endpoint across all nodes for analysis
+        projection = {
+            "node": 1,
+            "watch_stale_ts":1,         # will embed value into events.0
+            "watch_offsubnet_ts": 1,    # will embed value into events.0
+            "events": {"$slice": 4}     # offsubnet/stale dup check needs to see if obj was deleted
+        }
+        flt = {
+            "fabric": msg.fabric,
+            "vnid": msg.vnid,
+            "addr": msg.addr,
+        }
+        per_node_history_events = {}    # one entry per node, indexed by node-id
+        for h in self.db[eptHistory._classname].find(flt, projection):
+            events = []
+            for event in h["events"]:
+                events.append(eptHistoryEvent.from_dict(event))
+            # embed watch_ts into events.0
+            if len(events) > 0:
+                events[0].watch_stale_ts = h["watch_stale_ts"]
+                events[0].watch_offsubnet_ts = h["watch_offsubnet_ts"]
                 per_node_history_events[h["node"]] = events
 
-            # update ept_endpoint with local event. Return last locals events for move analyze
-            update_local_result = self.update_local(msg, per_node_history_events)
+        # update ept_endpoint with local event. Return last locals events for move analyze
+        update_local_result = self.update_local(msg, per_node_history_events)
 
+        # perform move/offsubnet/stale analysis
+        if analysis_required: 
             if self.fabrics[msg.fabric].settings.analyze_move:
                 if update_local_result.analyze_move:
                     self.analyze_move(msg, update_local_result.local_events)
@@ -358,9 +368,14 @@ class eptWorker(object):
             eptHistory(fabric=msg.fabric, node=msg.node, vnid=msg.vnid, addr=msg.addr, 
                     type=msg.type, count=1, events=[event.to_dict()]).save()
 
-            # let's be conservative for analysis skip, for now only skipping one scenario
+            # no analysis required for new event if:
+            #   1) new event is epmRsMacEpToIpEpAtt (rewrite info without epmIpEp info)
+            #   2) new event is epmIpEp and is local (missing epmRsMacEpToIpEpAtt info)
             if is_rs_ip_event:
                 logger.debug("no analysis for new epmRsMacEpToIpEpAtt with no epmIpEp")
+                return False
+            elif is_local and is_ip_event:
+                logger.debug("no analysis for new epmIpEp with no epmRsMacEpToIpEpAtt")
                 return False
             else:
                 logger.debug("new endpoint event on node %s requires analysis", msg.node)
@@ -402,8 +417,15 @@ class eptWorker(object):
                 logger.debug("rewrite info updated from [bd:%s,mac:%s] to [bd:%s,mac:%s]", 
                     last_event.rw_bd, last_event.rw_mac, event.rw_bd, event.rw_mac)
                 self.fabrics[msg.fabric].push_event(eptHistory._classname, flt, event.to_dict())
-                logger.debug("analysis required for rewrite update to local endpoint")
-                return True
+                if is_deleted:
+                    logger.debug("no analysis required for delete to rewrite info")
+                    return False
+                elif not is_local:
+                    logger.debug("no analysis required for rewrite update to XR endpoint")
+                    return False
+                else:
+                    logger.debug("analysis required for rewrite update to local endpoint")
+                    return True
             else:
                 logger.debug("no update detected for eptHistory from rs_ip_event")
                 return False
@@ -619,7 +641,7 @@ class eptWorker(object):
         """
         # need at least two non-deleted local events to compare
         if len(last_local)<2 or last_local[0].status=="deleted" or last_local[1].status=="deleted":
-            logger.debug("two non-deleted last local events required for move analysis")
+            logger.debug("skip move analysis, two non-deleted last local events required")
             return
         logger.debug("analyze move")
         
@@ -718,9 +740,16 @@ class eptWorker(object):
         projection = {"node":1, "watch_offsubnet_ts":1, "events": {"$slice":1}}
         if len(offsubnet_nodes)>0:
             duplicate_nodes = []
-            # need to suppress rapid offsubnet events if recent watch job created
-            # TODO this has a dependency on per_node_history_event
-
+            # need to suppress rapid events if recent watch job created
+            # last watch ts is embedded in per_node_history_events
+            for node in offsubnet_nodes:
+                if node in per_node_history_events:
+                    delta = msg.ts - per_node_history_events[node][0].watch_offsubnet_ts
+                    if delta != 0 and delta < SUPPRESS_WATCH_OFFSUBNET:
+                        logger.debug("suppress watch_offsubnet for node 0x%04x (delta %.03f<%.03f)", 
+                                node, delta, SUPPRESS_WATCH_OFFSUBNET)
+                        if node not in duplicate_nodes:
+                            duplicate_nodes.append(node)
 
             for db_obj in self.db[eptOffSubnet._classname].find(flt, projection):
                 if db_obj["node"] in offsubnet_nodes and len(db_obj["events"])>0:
@@ -734,7 +763,7 @@ class eptWorker(object):
                             if h_event.ts > db_event.ts and h_event.status == "deleted":
                                 is_duplicate = False
                                 break
-                        if is_duplicate:
+                        if is_duplicate and db_obj["node"] not in duplicate_nodes:
                             logger.debug("offsubnet event for 0x%04x is dup/suppress",db_obj["node"])
                             duplicate_nodes.append(db_obj["node"])
 
@@ -890,18 +919,23 @@ class eptWorker(object):
         # check current stale events against existing eptStale entry. here if there is an
         # existing eptStale event with same remote and expected remote AND there is no delete
         # after the timestamp within the per_node_event_history, then consider this a dup
-        projection = {"node":1, "watch_stale_ts":1, "events": {"$slice":1}}
+        projection = {"node":1, "events": {"$slice":1}}
         if len(stale_nodes)>0:
             duplicate_nodes = []
+
+            # need to suppress rapid events if recent watch job created
+            # last watch ts is embedded in per_node_history_events
+            for node in stale_nodes:
+                if node in per_node_history_events:
+                    delta = msg.ts - per_node_history_events[node][0].watch_stale_ts
+                    if delta != 0 and delta < SUPPRESS_WATCH_STALE:
+                        logger.debug("suppress watch_stale for node 0x%04x (delta %.03f<%.03f)", 
+                                node, delta, SUPPRESS_WATCH_STALE)
+                        if node not in duplicate_nodes:
+                            duplicate_nodes.append(node)
+
             for db_obj in self.db[eptStale._classname].find(flt, projection):
-                # need to suppress rapid offsubnet events if recent watch job created
-                delta = msg.ts - db_obj["watch_stale_ts"]
-                if delta < SUPPRESS_WATCH_STALE:
-                    logger.debug("suppressing watch_stale (delta %.03f < %0.3f)", delta, 
-                            SUPPRESS_WATCH_STALE)
-                    if db_obj["node"] not in duplicate_nodes:
-                        duplicate_nodes.append(db_obj["node"])
-                elif db_obj["node"] in stale_nodes and len(db_obj["events"])>0:
+                if db_obj["node"] in stale_nodes and len(db_obj["events"])>0:
                     new_event = stale_nodes[db_obj["node"]]
                     db_event = eptStaleEvent.from_dict(db_obj["events"][0])
                     if db_event.remote == new_event.remote and \
@@ -913,8 +947,8 @@ class eptWorker(object):
                             if h_event.ts > db_event.ts and h_event.status == "deleted":
                                 is_duplicate = False
                                 break
-                        if is_duplicate:
-                            logger.debug("stale event for 0x%04x is dup/suppres", db_obj["node"])
+                        if is_duplicate and db_obj["node"] not in duplicate_nodes:
+                            logger.debug("stale event for 0x%04x is dup/suppres",db_obj["node"])
                             duplicate_nodes.append(db_obj["node"])
 
             # remove duplicate_nodes from stale_nodes list

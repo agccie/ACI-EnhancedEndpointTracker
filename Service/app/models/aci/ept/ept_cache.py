@@ -216,7 +216,7 @@ class eptCache(object):
                     logger.warn("failed to parse ip address for subnet(%s): %s", s.name, s.ip)
                     continue
                 if addr & smask == saddr:
-                    logger.debug("ip(%s) matched subnet(%s): %s", ip, s.name, s.ip)
+                    logger.debug("addr %s matched subnet: %s", ip, s.name)
                     offsubnet = False
                     break
             if offsubnet:

@@ -184,6 +184,11 @@ class eptHistoryEvent(object):
         self.vnid_name = kwargs.get("vnid_name", "")
         self.rw_mac = kwargs.get("rw_mac", "")
         self.rw_bd = kwargs.get("rw_bd", 0)
+        # workaround - embed object watch_ts within event 0 when ept_worker is generating 
+        # per_node_history_event.  These values will be set manually, they are never added to the
+        # db or transmit via eptMsg and therefore intentionally not referenced in other functions.
+        self.watch_stale_ts = 0
+        self.watch_offsubnet_ts = 0
 
     def __repr__(self):
         return "%s %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s], flags(%s):[%s], tflags:%s"%(

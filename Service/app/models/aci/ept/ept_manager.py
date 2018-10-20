@@ -84,6 +84,9 @@ class eptManager(object):
         """
         # first check/wait on redis and mongo connection, then start
         wait_for_redis(self.redis)
+        # as soon as redis is online, manager must trigger a flush to purge any old data
+        logger.info("manager only, flushing full redis db")
+        self.redis.flushall()
         wait_for_db(self.db)
         self.worker_tracker = WorkerTracker(manager=self)
         self.update_stats()

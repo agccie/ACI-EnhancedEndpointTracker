@@ -84,12 +84,19 @@ def wait_for_db(db, check_interval=1):
 
 def get_vpc_domain_id(n1, n2):
     """ calculate interger vpc_domain_id for two node ids
-        id is always (highest node id) << 16 + (lower node id)
+        id is always (lower node id) << 16 + (higher node id)
     """
     n1 = int(n1)
     n2 = int(n2)
-    if n1 > n2: return (n1 << 16) + n2
-    return (n2 << 16) + n1
+    if n1 > n2: return (n2 << 16) + n1
+    return (n1 << 16) + n2
+
+def get_vpc_domain_name(n):
+    """ receives a node id and returns str value.  If a vpc domain then string is in form (n1,2) """
+    (n1, n2) = split_vpc_domain_id(n)
+    if n1 > 0 and n2 > 0:
+        return "(%s,%s)" % (n1, n2)
+    return "%s" % n
 
 def split_vpc_domain_id(n):
     """ receives node id and split to member node ids. Note, if domain id is invalid then result 

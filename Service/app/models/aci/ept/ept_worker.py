@@ -4,6 +4,7 @@ from ... utils import get_redis
 from ... utils import get_db
 from ... utils import pretty_print
 from .. utils import email
+from .. utils import execute_worker
 from .. utils import syslog
 from . common import CACHE_STATS_INTERVAL
 from . common import HELLO_INTERVAL
@@ -14,10 +15,12 @@ from . common import TRANSITORY_STALE
 from . common import TRANSITORY_STALE_NO_LOCAL
 from . common import SUPPRESS_WATCH_OFFSUBNET
 from . common import SUPPRESS_WATCH_STALE
+from . common import WATCH_INTERVAL
 from . common import WORKER_CTRL_CHANNEL
 from . common import push_event
-from . common import get_vpc_domain_id
 from . common import get_addr_type
+from . common import get_vpc_domain_id
+from . common import get_vrf_name
 from . common import split_vpc_domain_id
 from . common import wait_for_db
 from . common import wait_for_redis
@@ -72,9 +75,17 @@ class eptWorker(object):
         self.hello_thread = None
         # update stats db at regular interval
         self.stats_thread = None
+        # check execute_ts for watch events at regular interval
+        self.watch_thread = None
+
+        # watcher active keys where key is unique fabric+addr+vnid+node
+        self.watch_stale = {}
+        self.watch_offsubnet = {}
 
         # multithreading locks
         self.queue_stats_lock = threading.Lock()
+        self.watch_stale_lock = threading.Lock()
+        self.watch_offsubnet_lock = threading.Lock()
 
         # queues that this worker will listen on 
         self.queues = ["q0_%s" % self.worker_id, "q1_%s" % self.worker_id]
@@ -125,12 +136,16 @@ class eptWorker(object):
             wait_for_db(self.db)
             self.send_hello()
             self.update_stats()
+            if self.role == "watcher":
+                self.execute_watch()
             self._run()
         except (Exception, SystemExit, KeyboardInterrupt) as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
         finally:
             if self.hello_thread is not None:
                 self.hello_thread.cancel()
+            if self.watch_thread is not None:
+                self.watch_thread.cancel()
             if self.stats_thread is not None:
                 self.stats_thread.cancel()
 
@@ -222,10 +237,24 @@ class eptWorker(object):
 
     def flush_fabric(self, fabric):
         """ flush only requires removing fabric from local fabrics, manager will handle removing any
-            pending work from queue
+            pending work from queue.  If this is a watcher, then also need to purge any watch events
+            for this fabric.
         """
         logger.debug("[%s] flush fabric: %s", self, fabric)
         self.fabrics.pop(fabric, None)
+        if self.role == "watcher":
+            pop = []
+            with self.watch_offsubnet_lock:
+                for (key, msg) in self.watch_offsubnet:
+                    if msg.fabric == fabric: pop.append(key)
+                for k in pop: self.watch_offsubnet.pop(k, None)
+            logger.debug("[%s] %s events removed from watch_offsubnet", self, len(pop))
+            with self.watch_stale_lock:
+                pop = []
+                for (key, msg) in self.watch_stale:
+                    if msg.fabric == fabric: pop.append(key)
+                for k in pop: self.watch_stale.pop(k, None)
+            logger.debug("[%s] %s events removed from watch_stale", self, len(pop))
 
     def flush_cache(self, msg):
         """ receive flush cache work containing cache and optional object name """
@@ -797,6 +826,7 @@ class eptWorker(object):
                     wmsg.ts = msg.ts
                     wmsg.node = node
                     wmsg.vnid = msg.vnid
+                    wmsg.type = get_addr_type(msg.addr, msg.type)
                     wmsg.event = offsubnet_nodes[node].to_dict()
                     msgs.append(wmsg)
                     # mark watch ts for suppression of future events
@@ -983,6 +1013,7 @@ class eptWorker(object):
                     wmsg.ts = msg.ts
                     wmsg.node = node
                     wmsg.vnid = msg.vnid
+                    wmsg.type = get_addr_type(msg.addr, msg.type)
                     wmsg.event = stale_nodes[node].to_dict()
                     msgs.append(wmsg)
                     # mark watch ts for suppression of future events
@@ -992,7 +1023,6 @@ class eptWorker(object):
                     }})
                 logger.debug("sending %s stale events to watcher", len(msgs))
                 self.send_msg(msgs)
-
 
     def handle_watch_node(self, msg):
         """ watch node triggered any time a node goes into non-active state.  When this occurs, a 
@@ -1041,7 +1071,7 @@ class eptWorker(object):
         subject = "move detected for %s" % msg.addr
         txt = "move detected [fabric: %s, %s, addr: %s] from %s to %s" % (
             msg.fabric,
-            msg.src["vnid_name"] if len(msg.src["vnid_name"]) else "vnid:%d" % msg.vnid,
+            msg.src["vnid_name"] if len(msg.src["vnid_name"])>0 else "vnid:%d" % msg.vnid,
             msg.addr,
             eptMoveEvent(**msg.src).notify_string(include_rw=(msg.type!="mac")),
             eptMoveEvent(**msg.dst).notify_string(include_rw=(msg.type!="mac")),
@@ -1049,12 +1079,130 @@ class eptWorker(object):
         self.fabrics[msg.fabric].send_notification("move", subject, txt)
 
     def handle_watch_offsubnet(self, msg):
-        # TODO
-        pass
+        """ recieves a eptMsgWorkWatchOffSubnet message and adds object to watch_offsubnet dict with 
+            execute timestamp (xts) of current ts + TRANSITORY_OFFSUBNET timer. If object already
+            exists it is overwrittent with the new watch event.
+        """
+        key = "%s%s%s%s" % (msg.fabric, msg.addr, msg.vnid, msg.node)
+        msg.xts = msg.ts + TRANSITORY_OFFSUBNET
+        with self.watch_offsubnet_lock:
+            self.watch_offsubnet[key] = msg
+        logger.debug("watch offsubnet added to dict with xts: %.03f", msg.xts)
 
     def handle_watch_stale(self, msg):
-        # TODO
-        pass
+        """ recevie a eptMsgWorkWatchStale message and adds object to watch_stale dict with execute
+            timestamp (xts) of current ts + TRANSITORY_STALE or TRANSITORY_STALE_NO_LOCAL timer.
+            If object already exists it is overwritten with the new watch event.
+        """
+        key = "%s%s%s%s" % (msg.fabric, msg.addr, msg.vnid, msg.node)
+        if msg.event["expected_remote"] == 0:
+            msg.xts = msg.ts + TRANSITORY_STALE_NO_LOCAL
+        else:
+            msg.xts = msg.ts + TRANSITORY_STALE
+        with self.watch_stale_lock:
+            self.watch_stale[key] = msg
+        logger.debug("watch stale added to dict with xts: %.03f", msg.xts)
+
+    def execute_watch(self):
+        """ check for watch events with execute ts ready and perform corresponding actions
+            reset timer to perform event again at next WATCH_INTERVAL
+        """
+        self._execute_watch("offsubnet")
+        self._execute_watch("stale")
+
+        # set timer to trigger at next interval
+        self.watch_thread = threading.Timer(WATCH_INTERVAL, self.execute_watch)
+        self.watch_thread.daemon = True
+        self.watch_thread.start()
+
+    def _execute_watch(self, watch_type):
+        """ loop through all events in watch_type dict. for each event with xts ready check if 
+            watch_type (is_offsubnet/is_stale) value within corresponding eptHistory object is set.
+            If true, update eptEndpoint (is_offsubnet/is_stale) attribute and then perform 
+            configured notify and remediate actions.  Add object ept collection (no dup check here)
+        """
+        work = []               # tuple of (key, msg) of watch event that is ready
+
+        if watch_type == "offsubnet":
+            lock = self.watch_offsubnet_lock
+            msgs = self.watch_offsubnet
+            ept_db = eptOffSubnet
+            ept_db_attr = "is_offsubnet"
+            event_class = eptOffSubnetEvent
+            remediate_attr = "auto_clear_offsubnet"
+        elif watch_type == "stale":
+            lock = self.watch_stale_lock
+            msgs = self.watch_stale
+            ept_db = eptStale
+            ept_db_attr = "is_stale"
+            event_class = eptStaleEvent
+            remediate_attr = "auto_clear_stale"
+        else:
+            logger.error("unsupported watch type '%s'", watch_type)
+            return
+
+        ts = time.time()
+        with lock:
+            # get msg events that are ready, remove key from corresponding dict
+            for k, msg in msgs.items():
+                if msg.xts <= ts: work.append((k, msg))
+            for (k, msg) in work: msgs.pop(k, None)
+
+        if len(work) > 0:
+            clear_cmds = []      # list of clear commands to execute in parallel
+            logger.debug("execute %s ready watch %s events", len(work), watch_type)
+            for (key, msg) in work:
+                logger.debug("checking: %s", msg)
+                flt = {
+                    "fabric": msg.fabric,
+                    "vnid": msg.vnid,
+                    "addr": msg.addr,
+                    "node": msg.node,
+                }
+                projection = {
+                    ept_db_attr: 1
+                }
+                h = self.db[eptHistory._classname].find_one(flt, projection)
+                if h is not None and h[ept_db_attr]: 
+                    logger.debug("%s is true, updating eptEndpoint and pushing event", ept_db_attr)
+                    # update eptEndpoint object 
+                    self.db[eptHistory._classname].update_one(flt, {"$set":{ept_db_attr:True}})
+                    # push event to db. Here, the only non-key value not present is 'type' which we
+                    # will set as a key to allow proper upsert functionality if object does not 
+                    # exists (upsert = no extra read!)
+                    key = copy.copy(flt)
+                    key["type"] = msg.type
+                    event = event_class.from_dict(msg.event)
+                    self.fabrics[msg.fabric].push_event(ept_db._classname, key, event.to_dict())
+                    # send notification if enabled
+                    subject = "%s event for %s" % (watch_type, msg.addr)
+                    txt = "%s event [fabric: %s, %s, addr: %s] %s" % (
+                        watch_type,
+                        msg.fabric,
+                        event.vnid_name if len(event.vnid_name)>0 else "vnid:%d" % msg.vnid,
+                        msg.addr,
+                        event.notify_string()
+                    )
+                    self.fabrics[msg.fabric].send_notification(watch_type, subject, txt)
+                    # add to clear list if remediation is enabled
+                    if getattr(self.fabrics[msg.fabric].settings, remediate_attr):
+                        logger.debug("%s enabled, adding endpoint to clear list", remediate_attr)
+                        cmd = "clear --fabric %s --pod %s --node %s --addr %s --vnid %s " % (
+                                msg.fabric,
+                                self.fabrics[msg.fabric].cache.get_pod_id(msg.node),
+                                msg.node,
+                                msg.addr,
+                                msg.vnid)
+                        if msg.type == "mac":
+                            cmd+= "--addr_type mac"
+                        else:
+                            cmd+= "--addr_type ip --vrf_name \"%s\"" % get_vrf_name(event.vnid_name)
+                        clear_cmds.append(cmd) 
+            # perform clear action for all clear cmds
+            if len(clear_cmds) > 0:
+                logger.debug("executing %s clear endpoint commands", len(clear_cmds))
+                for cmd in clear_cmds:
+                    execute_worker(cmd)
 
 class eptWorkerUpdateLocalResult(object):
     """ return object for eptWorker.update_loal method """
@@ -1130,7 +1278,4 @@ class eptWorkerFabric(object):
                 syslog(txt, server=notify["syslog_server"], server_port=notify["syslog_port"])
         else:
             logger.debug("skipping send notification as '%s' is not enabled", notify_type)
-
-
-        
 

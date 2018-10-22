@@ -123,6 +123,17 @@ class eptStaleEvent(object):
             "vnid_name": self.vnid_name,
         }
 
+    def notify_string(self):
+        """ return string formatted for notify message """
+        return "[interface:%s, encap:%s, pctag:%s, epg:%s%s, remote:%s, expected:%s]" % (
+            self.intf_name,
+            self.encap,
+            self.pctag,
+            self.epg_name,
+            "-" if self.remote==0 else get_vpc_domain_name(self.remote),
+            "-" if self.expected_remote==0 else get_vpc_domain_name(self.expected_remote),
+        )
+
     @staticmethod
     def from_dict(d):
         """ create eptStaleEvent from dict """

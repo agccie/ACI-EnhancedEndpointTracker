@@ -112,6 +112,17 @@ class eptOffSubnetEvent(object):
             "vnid_name": self.vnid_name,
         }
 
+    def notify_string(self, include_rw=False):
+        """ return string formatted for notify message """
+        return "[interface:%s, encap:%s, pctag:%s, epg:%s, mac:%s, remote:%s]" % (
+            self.intf_name,
+            self.encap,
+            self.pctag,
+            self.epg_name,
+            "-" if len(self.rw_mac)==0 else self.rw_mac,
+            "-" if self.remote==0 else get_vpc_domain_name(self.remote),
+        )
+
     @staticmethod
     def from_dict(d):
         """ create eptOffSubnetEvent from dict """

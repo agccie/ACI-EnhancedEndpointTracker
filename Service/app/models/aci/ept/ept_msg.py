@@ -246,6 +246,7 @@ class eptMsgWorkWatchOffSubnet(eptMsgWork):
         self.ts = float(data.get("ts", 0))
         self.vnid = int(data.get("vnid", 0))
         self.node = int(data.get("node", 0))
+        self.type = data.get("type", "")
         self.event = data.get("event", {})
 
     def jsonify(self):
@@ -262,14 +263,15 @@ class eptMsgWorkWatchOffSubnet(eptMsgWork):
                 "ts": self.ts,
                 "node": self.node,
                 "vnid": self.vnid,
+                "type": self.type,
                 "event": self.event,
             }
         })
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.ts, self.node, self.vnid, self.addr)
+        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.ts, self.type,self.node,self.vnid,self.addr)
 
 class eptMsgWorkWatchStale(eptMsgWork):
     """ fixed message type for WATCH_STALE """
@@ -282,6 +284,7 @@ class eptMsgWorkWatchStale(eptMsgWork):
         self.ts = float(data.get("ts", 0))
         self.vnid = int(data.get("vnid", 0))
         self.node = int(data.get("node", 0))
+        self.type = data.get("type", "")
         self.event = data.get("event", {})
 
     def jsonify(self):
@@ -298,14 +301,15 @@ class eptMsgWorkWatchStale(eptMsgWork):
                 "ts": self.ts,
                 "node": self.node,
                 "vnid": self.vnid,
+                "type": self.type,
                 "event": self.event,
             }
         })
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.ts, self.node, self.vnid, self.addr)
+        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.ts,self.type,self.node,self.vnid,self.addr)
 
 ###############################################################################
 #

@@ -156,6 +156,9 @@ class eptMsgWork(object):
         elif wt == WORK_TYPE.WATCH_OFFSUBNET:
             return eptMsgWorkWatchOffSubnet(js["addr"], js["role"], js["data"], wt,
                         qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+        elif wt == WORK_TYPE.WATCH_STALE:
+            return eptMsgWorkWatchStale(js["addr"], js["role"], js["data"], wt,
+                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
         elif wt == WORK_TYPE.WATCH_NODE:
             return eptMsgWorkWatchNode(js["addr"], js["role"], js["data"], wt,
                         qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
@@ -169,6 +172,8 @@ class eptMsgWorkWatchNode(eptMsgWork):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchNode, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
+        self.wt = WORK_TYPE.WATCH_NODE
+        self.ts = float(data.get("ts", 0))
         self.node = int(data.get("node", 0))
         self.status = data.get("status", "")
 
@@ -183,6 +188,7 @@ class eptMsgWorkWatchNode(eptMsgWork):
             "qnum": self.qnum,
             "fabric": self.fabric,
             "data": {
+                "ts": self.ts,
                 "node": self.node,
                 "status": self.status,
             }
@@ -190,8 +196,8 @@ class eptMsgWorkWatchNode(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [node:0x%04x, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.node, self.status)
+        return "%s.0x%08x %s %s [ts:%.03f node:0x%04x, %s]" % (self.msg_type.value, self.seq, 
+                self.fabric, self.wt.value, self.ts, self.node, self.status)
 
 class eptMsgWorkWatchMove(eptMsgWork):
     """ fixed message type for WATCH_MOVE """
@@ -199,7 +205,9 @@ class eptMsgWorkWatchMove(eptMsgWork):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchMove, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
+        self.wt = WORK_TYPE.WATCH_MOVE
         self.vnid = int(data.get("vnid", 0))
+        self.type = data.get("type", "")
         self.src = data.get("src", {})
         self.dst = data.get("dst", {})
 
@@ -215,6 +223,7 @@ class eptMsgWorkWatchMove(eptMsgWork):
             "fabric": self.fabric,
             "data": {
                 "vnid": self.vnid,
+                "type": self.type,
                 "src": self.src,
                 "dst": self.dst
             }
@@ -222,8 +231,8 @@ class eptMsgWorkWatchMove(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [0x%06x, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.vnid, self.addr)
+        return "%s.0x%08x %s %s [0x%06x, %s, %s]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.vnid, self.type, self.addr)
 
 
 class eptMsgWorkWatchOffSubnet(eptMsgWork):
@@ -232,9 +241,12 @@ class eptMsgWorkWatchOffSubnet(eptMsgWork):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchOffSubnet, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
+        self.wt = WORK_TYPE.WATCH_OFFSUBNET
+        self.xts = float(data.get("xts", 0))        # watcher execute timestamp
         self.ts = float(data.get("ts", 0))
         self.vnid = int(data.get("vnid", 0))
         self.node = int(data.get("node", 0))
+        self.type = data.get("type", "")
         self.event = data.get("event", {})
 
     def jsonify(self):
@@ -251,14 +263,53 @@ class eptMsgWorkWatchOffSubnet(eptMsgWork):
                 "ts": self.ts,
                 "node": self.node,
                 "vnid": self.vnid,
+                "type": self.type,
                 "event": self.event,
             }
         })
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.ts, self.node, self.vnid, self.addr)
+        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.ts, self.type,self.node,self.vnid,self.addr)
+
+class eptMsgWorkWatchStale(eptMsgWork):
+    """ fixed message type for WATCH_STALE """
+    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+        # initialize as eptMsgWork with empty data set
+        super(eptMsgWorkWatchStale, self).__init__(addr, "watcher", data, wt, 
+                qnum=qnum, seq=seq, fabric=fabric)
+        self.wt = WORK_TYPE.WATCH_STALE
+        self.xts = float(data.get("xts", 0))        # watcher execute timestamp
+        self.ts = float(data.get("ts", 0))
+        self.vnid = int(data.get("vnid", 0))
+        self.node = int(data.get("node", 0))
+        self.type = data.get("type", "")
+        self.event = data.get("event", {})
+
+    def jsonify(self):
+        """ jsonify for transport across messaging queue """
+        return json.dumps({
+            "msg_type": self.msg_type.value,
+            "seq": self.seq,
+            "wt": self.wt.value,
+            "addr": self.addr,
+            "role": self.role,
+            "qnum": self.qnum,
+            "fabric": self.fabric,
+            "data": {
+                "ts": self.ts,
+                "node": self.node,
+                "vnid": self.vnid,
+                "type": self.type,
+                "event": self.event,
+            }
+        })
+        return ret
+
+    def __repr__(self):
+        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.ts,self.type,self.node,self.vnid,self.addr)
 
 ###############################################################################
 #
@@ -284,7 +335,7 @@ epm_reg = re.compile(epm_reg)
 class eptEpmEventParser(object):
     """ shim for creating/parsing epmEvents """
     def __init__(self, fabric, overlay_vnid):
-        logger.debug("new epm event parser '%s' with overlay-vnid: %s", fabric, overlay_vnid)
+        logger.debug("init parser for fab %s with overlay-vnid: %s", fabric, overlay_vnid)
         self.fabric = fabric
         self.overlay_vnid = int(overlay_vnid)
 

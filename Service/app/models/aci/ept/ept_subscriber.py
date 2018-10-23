@@ -47,7 +47,7 @@ class eptSubscriber(object):
     def __init__(self, fabric):
         # receive instance of Fabric rest object
         self.fabric = fabric
-        self.settings = eptSettings.load(fabric=self.fabric.fabric)
+        self.settings = eptSettings.load(fabric=self.fabric.fabric, settings="default")
         self.initializing = True    # set to queue events until fully initialized
         self.epm_initializing = True # different initializing flag for epm events
         self.stopped = False        # set to ignore events after hard_restart triggered
@@ -955,11 +955,13 @@ class eptSubscriber(object):
                     # delete jobs for all previous entries on node.  This includes XRs to account
                     # for bounce along with generally cleanup of node state.
                     if status == "active":
+                        # TODO - perform soft reset and per node epm query instead of full reset
                         self.hard_restart(reason="leaf '%s' became active" % node.node)
                     else:
                         logger.debug("node %s '%s', sending watch_node event", node.node, status)
-                        msg = eptMsgWorkWatchNode(0, "watcher", {}, WORK_TYPE.WATCH_NODE)
+                        msg = eptMsgWorkWatchNode("%s"%node.node,"watcher",{},WORK_TYPE.WATCH_NODE)
                         msg.node = node.node
+                        msg.ts = attr["_ts"]
                         msg.status = status
                         self.send_msg(msg)
             else:

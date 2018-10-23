@@ -13,6 +13,7 @@ from . common import WORKER_UPDATE_INTERVAL
 from . common import wait_for_db
 from . common import wait_for_redis
 from . ept_msg import MSG_TYPE
+from . ept_msg import WORK_TYPE
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgHello
 from . ept_queue_stats import eptQueueStats
@@ -35,7 +36,7 @@ class eptManager(object):
 
     def __init__(self, worker_id):
         self.worker_id = "%s" % worker_id
-        self.db = get_db()
+        self.db = get_db(uniq=True, overwrite_global=True)
         self.redis = get_redis()
         self.fabrics = {}               # running fabrics indexed by fabric name
         self.subscribe_thread = None
@@ -83,6 +84,9 @@ class eptManager(object):
         """
         # first check/wait on redis and mongo connection, then start
         wait_for_redis(self.redis)
+        # as soon as redis is online, manager must trigger a flush to purge any old data
+        logger.info("manager only, flushing full redis db")
+        self.redis.flushall()
         wait_for_db(self.db)
         self.worker_tracker = WorkerTracker(manager=self)
         self.update_stats()
@@ -114,11 +118,16 @@ class eptManager(object):
                 if q == MANAGER_WORK_QUEUE and msg.msg_type == MSG_TYPE.WORK:
                     self.increment_stats(MANAGER_WORK_QUEUE, tx=False)
                     if msg.addr == 0:
-                        # and addr of 0 is a broadcast to all workers of specified role
+                        # an addr of 0 is a broadcast to all workers of specified role
                         self.worker_tracker.broadcast(msg, qnum=msg.qnum, role=msg.role)
                     else:
                         # create hash based on address and send to specific worker
-                        _hash = sum(ord(i) for i in msg.addr)
+                        # need to ensure that we has on ip for EPM_RS_IP_EVENT so it goes to the 
+                        # correct worker...
+                        if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
+                            _hash = sum(ord(i) for i in msg.ip)
+                        else:
+                            _hash = sum(ord(i) for i in msg.addr)
                         if not self.worker_tracker.send_msg(_hash, msg):
                             logger.warn("[%s] failed to enqueue message(%s): %s", self, _hash, msg)
                 else:

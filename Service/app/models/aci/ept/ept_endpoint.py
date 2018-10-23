@@ -181,7 +181,7 @@ class eptEndpointEvent(object):
 
     @staticmethod
     def from_dict(d):
-        """ create eptEndpointEvent from dict within eptHistory event list """
+        """ create eptEndpointEvent from dict """
         return eptEndpointEvent(**d)
 
     @staticmethod

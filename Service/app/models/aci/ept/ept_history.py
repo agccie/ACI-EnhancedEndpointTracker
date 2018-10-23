@@ -71,6 +71,14 @@ class eptHistory(Rest):
             "default": False,
             "description": "True if the endpoint is currently learned offsubnet",
         },
+        "watch_stale_ts": {
+            "type": float,
+            "description": "timestamp last stale watch was set on endpoint",
+        },
+        "watch_offsubnet_ts": {
+            "type": float,
+            "description": "timestamp last offsubnet watch was set on endpoint",
+        },
         "count": {
             "type": int,
             "description": """
@@ -114,6 +122,10 @@ class eptHistory(Rest):
                     "type": list,
                     "subtype": str,
                     "description": "epm flags for endpoint event",
+                },
+                "tunnel_flags": {
+                    "type": str,
+                    "description": """ interface flags if intf_id is a tunnel """,
                 },
                 "encap": {
                     "type": str,
@@ -164,6 +176,7 @@ class eptHistoryEvent(object):
         self.remote = kwargs.get("remote", 0)
         self.pctag = kwargs.get("pctag", 0)
         self.flags = sorted(kwargs.get("flags", []))
+        self.tunnel_flags = kwargs.get("tunnel_flags", "")
         self.encap = kwargs.get("encap", "")
         self.intf_id = kwargs.get("intf_id", "")
         self.intf_name = kwargs.get("intf_name", "")
@@ -171,11 +184,17 @@ class eptHistoryEvent(object):
         self.vnid_name = kwargs.get("vnid_name", "")
         self.rw_mac = kwargs.get("rw_mac", "")
         self.rw_bd = kwargs.get("rw_bd", 0)
+        # workaround - embed object watch_ts within event 0 when ept_worker is generating 
+        # per_node_history_event.  These values will be set manually, they are never added to the
+        # db or transmit via eptMsg and therefore intentionally not referenced in other functions.
+        self.watch_stale_ts = 0
+        self.watch_offsubnet_ts = 0
 
     def __repr__(self):
-        return "%s %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s], flags(%s):[%s]" % (
+        return "%s %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s], flags(%s):[%s], tflags:%s"%(
                 self.status, self.ts, self.pctag, self.intf_id, self.encap, self.rw_bd, self.rw_mac,
-                len(self.flags), ",".join(self.flags)
+                len(self.flags), ",".join(self.flags),
+                self.tunnel_flags
             )
 
     def to_dict(self):
@@ -187,6 +206,7 @@ class eptHistoryEvent(object):
             "remote": self.remote,
             "pctag": self.pctag,
             "flags": self.flags,
+            "tunnel_flags": self.tunnel_flags,
             "encap": self.encap,
             "intf_id": self.intf_id,
             "intf_name": self.intf_name,
@@ -213,6 +233,7 @@ class eptHistoryEvent(object):
             event.remote = msg.remote
             event.pctag = msg.pcTag
             event.flags = sorted(msg.flags)
+            event.tunnel_flags = msg.tunnel_flags
             event.encap = msg.encap
             event.intf_id = msg.ifId
             event.intf_name = msg.ifId_name

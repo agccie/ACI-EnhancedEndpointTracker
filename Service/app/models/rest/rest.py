@@ -635,8 +635,8 @@ class Rest(object):
 
             If _bulk is set to False(default):
                 this function returns a single object either loaded from db or based on provided 
-                kwargs.
-
+                kwargs. Note, if missing required key then an exception is returned. Caller should
+                use find if searching for a subset of objects.
 
             TODO (handle children on load)
             _rsp_include to [self, children, subtree] to build children objects
@@ -649,11 +649,17 @@ class Rest(object):
         try:
             kwargs["_read_all"] = True
             read_kwargs = {"_read_all":True}
-            for attr in cls._attributes:
-                if cls._attributes[attr]["key"] and attr in kwargs:
-                    read_kwargs[attr] = kwargs[attr]
             if "_id" in kwargs and cls._access["expose_id"]:
                 read_kwargs["_id"] = kwargs["_id"]
+            else:
+                for attr in cls._attributes:
+                    if cls._attributes[attr]["key"]:
+                        if attr in kwargs:
+                            read_kwargs[attr] = kwargs[attr]
+                        else:
+                            if not _bulk:
+                                raise Exception("non-bulk load called for %s missing key %s" % (
+                                    cls._classname, attr))
             if _bulk: ret = cls.read(_disable_page=True, **read_kwargs)
             else: ret = cls.read(_params={"page-size":1}, **read_kwargs)
             if "objects" in ret and isinstance(ret["objects"], list):

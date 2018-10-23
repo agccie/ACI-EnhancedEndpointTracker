@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 class eptCache(object):
     """ cache for ept_worker to cache common lookups
 
+            get_pod_id          return eptNode.pod_id for provided node id
+
             get_peer_node       return eptNode.peer for provided node id
         
             get_tunnel_remote   return eptTunnel.remote for provided node and tunnel intf
@@ -133,7 +135,13 @@ class eptCache(object):
             # add result to cache for keys to prevent db lookup on next check
             cache.push(keystr, val)
             return val
-    
+  
+    def get_pod_id(self, node):
+        """ get node's pod_id.  If not found or an error occurs, return 0 """
+        ret = self.generic_cache_lookup(self.node_cache, eptNode, node=node)
+        if ret is None: return 0
+        return ret.pod_id
+
     def get_peer_node(self, node):
         """ get node's peer id if in vpc domain.  If not found or an error occurs, return 0 """
         ret = self.generic_cache_lookup(self.node_cache, eptNode, node=node)
@@ -216,11 +224,11 @@ class eptCache(object):
                     logger.warn("failed to parse ip address for subnet(%s): %s", s.name, s.ip)
                     continue
                 if addr & smask == saddr:
-                    logger.debug("ip(%s) matched subnet(%s): %s", ip, s.name, s.ip)
+                    logger.debug("addr %s matched subnet: %s", ip, s.name)
                     offsubnet = False
                     break
             if offsubnet:
-                logger.debug("ip(%s) not matched against any of the %s subnets in bd %s", ip, 
+                logger.debug("addr %s not matched against any of the %s subnets in bd %s", ip, 
                     len(subnets), epg.bd)
 
         # add result to cache for next lookup

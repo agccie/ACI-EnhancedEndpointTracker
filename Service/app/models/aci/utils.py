@@ -3,11 +3,18 @@
     @author agossett@cisco.com
 """
 
-import logging, logging.handlers, json, re, time, dateutil.parser, datetime
-import subprocess, os, signal, sys, traceback, requests
-from pymongo import UpdateOne, InsertOne
-from pymongo.errors import BulkWriteError
-from ..utils import pretty_print, get_app
+from ..utils import get_app
+from ..utils import get_app_config
+from ..utils import pretty_print
+
+import logging
+import logging.handlers
+import os
+import re
+import signal
+import subprocess
+import time
+import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -286,7 +293,7 @@ def get_ssh_connection(fabric, pod_id, node_id, session=None):
     if isinstance(fabric, Fabric): f = fabric
     else: f = Fabric.load(fabric=fabric)
     if not f.exists():
-        logger.warn("unknown fabric: %s", fabric)
+        logger.warn("unknown fabric: %s", f.fabric)
         return
     
     # verify credentials are configured
@@ -406,10 +413,9 @@ def execute_worker(arg_str, background=True):
     """
 
     # set log directory for stdout and stderr
-    app = get_app()
-    stdout = "%s/worker.stdout.log" % app.config.get("LOG_DIR", "/home/app/log")
-    stderr = "%s/worker.stderr.log" % app.config.get("LOG_DIR", "/home/app/log")
-    
+    config = get_app_config()
+    stdout = "%s/worker.stdout.log" % config.get("LOG_DIR", "/home/app/log")
+    stderr = "%s/worker.stderr.log" % config.get("LOG_DIR", "/home/app/log")
 
     # get absolute path for top of app
     p = os.path.realpath(__file__)
@@ -418,8 +424,7 @@ def execute_worker(arg_str, background=True):
     p = os.path.abspath(os.path.join(p, os.pardir))
     p = os.path.abspath(os.path.join(p, os.pardir))
     os.chdir(p)
-    cmd = "python -m app.models.aci.worker %s >%s 2>%s" % (arg_str,
-            stdout, stderr)
+    cmd = "python -m app.models.aci.worker %s >%s 2>%s" % (arg_str,stdout, stderr)
     if background: cmd = "%s &" % cmd
     try:
         logger.debug("execute worker: %s", cmd)
@@ -496,3 +501,229 @@ def get_file_md5(path):
     logger.warn("unexpected md5sum result: %s, returning None", out)
     return None
     
+###############################################################################
+#
+# notification functions
+#
+###############################################################################
+
+def syslog(msg, server="localhost", server_port=514, severity="info", process="EPT", 
+        facility=logging.handlers.SysLogHandler.LOG_LOCAL7):
+    """ send a syslog message to remote server.  return boolean success
+        for acceptible facilities see:
+            https://docs.python.org/2/library/logging.handlers.html
+            15.9.9. SysLogHandler
+    """
+    if msg is None:
+        logger.error("unable to send syslog: no message provided")
+        return False
+    if server is None:
+        logger.error("unable to send syslog: no server provided")
+        return False
+    try:
+        if(isinstance(server_port, int)):
+            port = int(server_port)
+        else:
+            port = 514
+    except ValueError as e:
+        logger.error("unable to send syslog: invalid port number %s", port)
+        return False
+
+    if isinstance(severity, str): severity = severity.lower()
+    severity = {
+        "alert"     : logging.handlers.SysLogHandler.LOG_ALERT,
+        "crit"      : logging.handlers.SysLogHandler.LOG_CRIT,
+        "debug"     : logging.handlers.SysLogHandler.LOG_DEBUG,
+        "emerg"     : logging.handlers.SysLogHandler.LOG_EMERG,
+        "err"       : logging.handlers.SysLogHandler.LOG_ERR,
+        "info"      : logging.handlers.SysLogHandler.LOG_INFO,
+        "notice"    : logging.handlers.SysLogHandler.LOG_NOTICE,
+        "warning"   : logging.handlers.SysLogHandler.LOG_WARNING,
+        0           : logging.handlers.SysLogHandler.LOG_EMERG,
+        1           : logging.handlers.SysLogHandler.LOG_ALERT,
+        2           : logging.handlers.SysLogHandler.LOG_CRIT,
+        3           : logging.handlers.SysLogHandler.LOG_ERR,
+        4           : logging.handlers.SysLogHandler.LOG_WARNING,
+        5           : logging.handlers.SysLogHandler.LOG_NOTICE,
+        6           : logging.handlers.SysLogHandler.LOG_INFO,
+        7           : logging.handlers.SysLogHandler.LOG_DEBUG,
+    }.get(severity, logging.handlers.SysLogHandler.LOG_INFO)
+
+    facility_name = {
+        logging.handlers.SysLogHandler.LOG_AUTH: "LOG_AUTH",
+        logging.handlers.SysLogHandler.LOG_AUTHPRIV: "LOG_AUTHPRIV",
+        logging.handlers.SysLogHandler.LOG_CRON: "LOG_CRON",
+        logging.handlers.SysLogHandler.LOG_DAEMON: "LOG_DAEMON",
+        logging.handlers.SysLogHandler.LOG_FTP: "LOG_FTP",
+        logging.handlers.SysLogHandler.LOG_KERN: "LOG_KERN",
+        logging.handlers.SysLogHandler.LOG_LPR: "LOG_LPR",
+        logging.handlers.SysLogHandler.LOG_MAIL: "LOG_MAIL",
+        logging.handlers.SysLogHandler.LOG_NEWS: "LOG_NEWS",
+        logging.handlers.SysLogHandler.LOG_SYSLOG: "LOG_SYSLOG",
+        logging.handlers.SysLogHandler.LOG_USER: "LOG_USER",
+        logging.handlers.SysLogHandler.LOG_UUCP: "LOG_UUCP",
+        logging.handlers.SysLogHandler.LOG_LOCAL0: "LOG_LOCAL0",
+        logging.handlers.SysLogHandler.LOG_LOCAL1: "LOG_LOCAL1",
+        logging.handlers.SysLogHandler.LOG_LOCAL2: "LOG_LOCAL2",
+        logging.handlers.SysLogHandler.LOG_LOCAL3: "LOG_LOCAL3",
+        logging.handlers.SysLogHandler.LOG_LOCAL4: "LOG_LOCAL4",
+        logging.handlers.SysLogHandler.LOG_LOCAL5: "LOG_LOCAL5",
+        logging.handlers.SysLogHandler.LOG_LOCAL6: "LOG_LOCAL6",
+        logging.handlers.SysLogHandler.LOG_LOCAL7: "LOG_LOCAL7",
+    }.get(facility, "LOG_LOCAL7")
+
+    # get old handler and save it, but remove from module logger
+    old_handlers = []
+    for h in list(logger.handlers):
+        old_handlers.append(h)
+        logger.removeHandler(h)
+
+    # setup logger for syslog
+    syslogger = logging.getLogger("syslog")
+    syslogger.setLevel(logging.DEBUG)
+    fmt = "%(asctime)s %(message)s"
+    remote_syslog = logging.handlers.SysLogHandler(address=(server,port),facility=facility)
+    remote_syslog.setFormatter(logging.Formatter(fmt=fmt,datefmt=": %Y %b %d %H:%M:%S %Z:"))
+    syslogger.addHandler(remote_syslog)
+
+    # send syslog (only supporting native python priorities for now)
+    s = "%%%s-%s-%s: %s" % (facility_name, severity, process, msg)
+    method = {
+        0: syslogger.critical,
+        1: syslogger.critical,
+        2: syslogger.critical,
+        3: syslogger.error,
+        4: syslogger.warning,
+        5: syslogger.warning,
+        6: syslogger.info,
+        7: syslogger.debug,
+    }.get(severity, syslogger.info)
+    logger.debug("sending syslog(%s,%s): %s", server, port, s)
+    method(s)
+    # remove syslogger from handler and restore old loggers
+    syslogger.removeHandler(remote_syslog)
+    for h in old_handlers: logger.addHandler(h)
+    # return success
+    return True
+
+def email(receiver=None, subject=None, msg=None, sender=None):
+    """ send an email and return boolean success """
+    if receiver is None:
+        logger.error("email recipient not specified")
+        return False
+    # build sendmail command
+    if subject is not None: 
+        subject = re.sub("\"", "\\\"", subject)
+        cmd = ["mail", "-s", subject]
+    else:
+        cmd = ["mail"]
+    if sender is not None and len(sender)>0:
+        cmd+= ["-r", sender]
+
+    cmd.append(receiver)
+    try:
+        logger.debug("send mail: (%s), msg: %s", cmd, msg)
+        ps = subprocess.Popen(("echo", msg), stdout=subprocess.PIPE)
+        output = subprocess.check_output(cmd, stdin=ps.stdout, stderr=subprocess.STDOUT)
+        ps.wait()
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.warn("send mail error:\n%s", e)
+        logger.debug("stderr:\n%s", e.output)
+        return False
+    except Exception as e:
+        logger.error("unknown error occurred: %s", e)
+        return False
+
+###############################################################################
+#
+# clear ept endpoint (triggered by worker or via api)
+#
+###############################################################################
+
+def clear_endpoint(fabric, pod, node, vnid, addr, addr_type="ip", vrf_name=""):
+    """ ssh to node id and clear endpoint. fabric can be fabric name or Fabric object. If addr_type
+        is a mac, then vnid is remapped to FD vlan before clear is executed.
+        return bool success
+    """
+    from . fabric import Fabric
+    from . ept.common import parse_vrf_name
+    from . ept.common import get_mac_string
+    from . ept.common import get_mac_value
+    from . ept.ept_vnid import eptVnid
+    if isinstance(fabric, Fabric): f = fabric
+    else: f = Fabric.load(fabric=fabric)
+
+    logger.debug("clear endpoint [%s, node:%s, vnid:%s, addr:%s]", f.fabric, node, vnid, addr)
+    if not f.exists():
+        logger.warn("unknown fabric: %s", f.fabric)
+        return False
+    session = get_apic_session(f)
+    if session is None:
+        logger.warn("failed to get apic session for fabric: %s", f.fabric)
+        return False
+    ssh = get_ssh_connection(f, pod, node, session=session)
+    if ssh is None:
+        logger.warn("failed to ssh to pod:%s node:%s", pod, node)
+        return False
+
+    if addr_type == "ip":
+        if len(vrf_name) == 0:
+            # try to determine vrf name from eptVnid table
+            v = eptVnid.find(fabric=f.fabric, vnid=vnid)
+            if len(v) > 0:
+                vrf_name = parse_vrf_name(v[0].name)
+                if vrf_name is None:
+                    logger.warn("failed to parse vrf name from ept vnid_name: %s", v.name)
+                    return False
+            else:
+                logger.warn("failed to determine vnid_name for fabric: %s, vnid: %s",f.fabric,vnid)
+                return False
+        cmd = "vsh -c 'clear system internal epm endpoint key vrf %s ip %s'" % (vrf_name, addr)
+        if ssh.cmd(cmd) == "prompt":
+            logger.debug("successfully cleared endpoint: %s", cmd)
+            return True
+        else:
+            logger.warn("failed to execute clear cmd: %s", cmd)
+            return False
+    else:
+        # first cast mac into correct format
+        addr = get_mac_string(get_mac_value(addr),fmt="std")
+        
+        # to determine mac FD need to first verify mac exists and then use parent dn to query
+        # l2BD, vlanCktEp, vxlanCktEp object (good thing here is that we don't care which object 
+        # type, each will have id attribute that is the PI vlan)
+        # here we have two choices, first is APIC epmMacEp query which hits all nodes or, since ssh
+        # session is already up, we can execute directly on the leaf. For that later case, it will
+        # be easier to use moquery with grep then parsing json with extra terminal characters...
+        cmd = "moquery -c epmMacEp -f 'epm.MacEp.addr==\"%s\"' | egrep '^dn' | egrep 'vxlan-%s'"%(
+                addr, vnid)
+        if ssh.cmd(cmd) == "prompt":
+            r1 = re.search("dn[ ]*:[ ]*(?P<dn>sys/.+)/db-ep", ssh.output)
+            if r1 is not None:
+                cmd = "moquery -d '%s' | egrep '^id'" % r1.group("dn")
+                if ssh.cmd(cmd) == "prompt":
+                    r2 = re.search("id[ ]*:[ ]*(?P<pi>[0-9]+)", ssh.output)
+                    if r2 is not None:
+                        cmd = "vsh -c 'clear system internal epm endpoint key vlan %s mac %s'" % (
+                            r2.group("pi"), addr)
+                        if ssh.cmd(cmd) == "prompt":
+                            logger.debug("successfully cleared endpoint: %s", cmd)
+                            return True
+                        else:
+                            logger.warn("failed to execute clear cmd: %s", cmd)
+                            return False
+                    else:
+                        logger.warn("failed to extract pi-vlan id from %s: %s", r1.group("dn"), 
+                            ssh.output)
+                        return False
+                else:
+                    logger.warn("failed to execute command: %s", cmd)
+            else:
+                logger.debug("failed to parse bd/cktEp from dn or endpoint not found: %s",ssh.output)
+                # assume parsing was fine and that endpoint is no longer present (so cleared!)
+                return True
+        else:
+            logger.warn("failed to execute moquery command to determine mac fd on leaf")
+            return False
+        

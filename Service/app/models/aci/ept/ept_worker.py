@@ -20,7 +20,7 @@ from . common import WORKER_CTRL_CHANNEL
 from . common import push_event
 from . common import get_addr_type
 from . common import get_vpc_domain_id
-from . common import get_vrf_name
+from . common import parse_vrf_name
 from . common import split_vpc_domain_id
 from . common import wait_for_db
 from . common import wait_for_redis
@@ -1196,7 +1196,7 @@ class eptWorker(object):
                         if msg.type == "mac":
                             cmd+= "--addr_type mac"
                         else:
-                            cmd+= "--addr_type ip --vrf_name \"%s\"" % get_vrf_name(event.vnid_name)
+                            cmd+= "--addr_type ip --vrf_name \"%s\""%parse_vrf_name(event.vnid_name)
                         clear_cmds.append(cmd) 
             # perform clear action for all clear cmds
             if len(clear_cmds) > 0:
@@ -1217,7 +1217,7 @@ class eptWorkerFabric(object):
     """ tracks cache and settings for each fabric actively being monitored """
     def __init__(self, fabric):
         self.fabric = fabric
-        self.settings = eptSettings.load(fabric=fabric)
+        self.settings = eptSettings.load(fabric=fabric, settings="default")
         self.cache = eptCache(fabric)
         self.db = get_db()
         # epm parser used with eptWorker for creating pseudo eevents

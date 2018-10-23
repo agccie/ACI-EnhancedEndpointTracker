@@ -47,7 +47,7 @@ class eptSubscriber(object):
     def __init__(self, fabric):
         # receive instance of Fabric rest object
         self.fabric = fabric
-        self.settings = eptSettings.load(fabric=self.fabric.fabric)
+        self.settings = eptSettings.load(fabric=self.fabric.fabric, settings="default")
         self.initializing = True    # set to queue events until fully initialized
         self.epm_initializing = True # different initializing flag for epm events
         self.stopped = False        # set to ignore events after hard_restart triggered

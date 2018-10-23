@@ -579,8 +579,9 @@ class eptWorker(object):
             # never have rw info and thus never 'complete local'
             if endpoint is None:
                 endpoint_type = get_addr_type(msg.addr, msg.type)
+                dummy_event = eptEndpointEvent.from_dict({"vnid_name":msg.vnid_name}).to_dict()
                 eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr,type=endpoint_type,
-                    first_learn={"status":"created"}).save()
+                    first_learn = dummy_event).save()
             last_event = None
 
         # determine current complete local event
@@ -1087,7 +1088,7 @@ class eptWorker(object):
         msg.xts = msg.ts + TRANSITORY_OFFSUBNET
         with self.watch_offsubnet_lock:
             self.watch_offsubnet[key] = msg
-        logger.debug("watch offsubnet added to dict with xts: %.03f", msg.xts)
+        logger.debug("watch offsubnet added with xts: %.03f", msg.xts)
 
     def handle_watch_stale(self, msg):
         """ recevie a eptMsgWorkWatchStale message and adds object to watch_stale dict with execute
@@ -1101,7 +1102,7 @@ class eptWorker(object):
             msg.xts = msg.ts + TRANSITORY_STALE
         with self.watch_stale_lock:
             self.watch_stale[key] = msg
-        logger.debug("watch stale added to dict with xts: %.03f", msg.xts)
+        logger.debug("watch stale added with xts: %.03f", msg.xts)
 
     def execute_watch(self):
         """ check for watch events with execute ts ready and perform corresponding actions
@@ -1166,7 +1167,9 @@ class eptWorker(object):
                 if h is not None and h[ept_db_attr]: 
                     logger.debug("%s is true, updating eptEndpoint and pushing event", ept_db_attr)
                     # update eptEndpoint object 
-                    self.db[eptHistory._classname].update_one(flt, {"$set":{ept_db_attr:True}})
+                    flt2 = copy.copy(flt)
+                    flt2.pop("node",None)
+                    self.db[eptEndpoint._classname].update_one(flt2, {"$set":{ept_db_attr:True}})
                     # push event to db. Here, the only non-key value not present is 'type' which we
                     # will set as a key to allow proper upsert functionality if object does not 
                     # exists (upsert = no extra read!)

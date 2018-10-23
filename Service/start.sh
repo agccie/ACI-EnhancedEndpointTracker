@@ -32,6 +32,7 @@ ALL_SERVICES=(
     "cron" 
     "apache2"
     "mongodb"
+    "redis-server"
 )
 
 # python logging levels integers for reference
@@ -184,7 +185,7 @@ function mongodb_reconfigure_and_restart(){
 function mongodb_accept_connections(){
     local wait_time=3
     local i="0"
-    local cmd="cd $SCRIPT_DIR ; python -m app.models.aci.worker --check_db"
+    local cmd="cd $SCRIPT_DIR ; python -m app.models.aci.worker --stdout check_db >> $LOG_FILE"
     while [ $i -lt "$MONGO_MAX_WAIT_COUNT" ] ; do
         set_status "checking mongodb is accepting connections $i/$MONGO_MAX_WAIT_COUNT"
         log "command: $cmd"
@@ -269,14 +270,6 @@ function main(){
 
     log `touch $STARTED_FILE 2>&1`
     set_status "running"
-
-    # conditionally start all fabric monitors
-    local cmd="cd $SCRIPT_DIR"
-    cmd="$cmd ; python -m app.models.aci.worker --all_start --all_conditional" 
-    log "command: $cmd"
-    if ! su - -s /bin/bash www-data -c "$cmd" ; then
-        log "failed to start fabric monitors"
-    fi
 
     # sleep forever
     log "sleeping..."

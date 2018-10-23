@@ -23,6 +23,7 @@ RUN apt-get update && \
         libffi-dev \
         libssl-dev \
         logrotate \
+        redis-server \
         ntp \
         python \
         python-dev \
@@ -32,6 +33,13 @@ RUN apt-get update && \
 
 # update config for exim4 for internet email
 RUN sed -i -e "s/dc_eximconfig_configtype.*/dc_eximconfig_configtype='internet'/g" /etc/exim4/update-exim4.conf.conf
+
+# setup redis which only requires copying over config file
+COPY ./conf/redis.conf /etc/redis/redis.conf
+RUN mkdir -p $LOG_DIR && \
+    chmod 777 $LOG_DIR && \
+    chmod 640 /etc/redis/redis.conf && \
+    chown redis:redis /etc/redis/redis.conf
 
 # install and configure apache
 RUN apt-get -y install \
@@ -67,6 +75,9 @@ RUN mkdir -p /etc/cron.minute && \
 COPY ./conf/crontab /etc/crontab
 COPY ./conf/cron.minute.logrotate /etc/cron.minute/logrotate
 COPY ./conf/logrotate.d.app /etc/logrotate.d/app
+RUN chmod 644 /etc/logrotate.d/app && \
+    chmod 755 /etc/cron.minute/logrotate && \
+    chmod 600 /etc/crontab
 
 # upgrade pip
 RUN pip install --upgrade pip

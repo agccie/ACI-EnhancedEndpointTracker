@@ -8,6 +8,7 @@ from . common import HELLO_TIMEOUT
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_WORK_QUEUE
 from . common import SEQUENCE_TIMEOUT
+from . common import SUPPRESS_FABRIC_RESTART
 from . common import WORKER_CTRL_CHANNEL
 from . common import WORKER_UPDATE_INTERVAL
 from . common import wait_for_db
@@ -232,6 +233,8 @@ class eptManager(object):
                 self.fabrics[fabric]["process"] = Process(target=sub.run)
                 self.fabrics[fabric]["process"].start()
                 self.fabrics[fabric]["waiting_for_retry"] = False
+                f.restart_ts = time.time()
+                f.save()
                 return True
             else:
                 logger.warn("start requested for fabric '%s' which does not exist", fabric)
@@ -273,13 +276,20 @@ class eptManager(object):
     def check_fabric_processes(self):
         # check if each running fabric is still running. If not attempt to restart process
         # triggered by worker_tracker thread at WORKER_UDPATE_INTERVAL interval
+        ts = time.time()
         remove_list = []
         for f, fab in self.fabrics.items():
             if fab["process"] is not None and not fab["process"].is_alive():
                 # validate auto_start is enabled on the no-longer running fabric
                 logger.warn("fabric %s no longer running", f)
-                if Fabric.load(fabric=f).auto_start:
-                    self.start_fabric(f, reason="auto restarting failed monitor")
+                db_fab = Fabric.load(fabric=f)
+                if db_fab.auto_start:
+                    ts_delta = (ts - db_fab.restart_ts)
+                    if ts_delta >= SUPPRESS_FABRIC_RESTART:
+                        self.start_fabric(f, reason="auto restarting")
+                    else:
+                        logger.debug("suppressing fabric %s restart (%.3f < %.3f)", db_fab.fabric,
+                            ts_delta, SUPPRESS_FABRIC_RESTART)
                 else: 
                     remove_list.append(f)
         # stop tracking fabrics in remove list

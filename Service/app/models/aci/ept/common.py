@@ -39,12 +39,14 @@ WORKER_UPDATE_INTERVAL              = 1.0
 # suppress timers
 #   watch_offsubnet amount of time to suppress new watch_offsubnet events for single node/ep
 #   watch_stale     amount of time to suppress new watch_stale events for single node/ep
+#   fabric_restart  amount of time to suppress new fabric monitor restart events
 TRANSITORY_DELETE                   = 2.0
 TRANSITORY_OFFSUBNET                = 10.0
 TRANSITORY_STALE                    = 30.0
 TRANSITORY_STALE_NO_LOCAL           = 300.0
 SUPPRESS_WATCH_OFFSUBNET            = 8.0
 SUPPRESS_WATCH_STALE                = 25.0
+SUPPRESS_FABRIC_RESTART             = 60.0
 
 
 ###############################################################################

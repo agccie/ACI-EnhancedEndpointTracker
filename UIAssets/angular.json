@@ -13,9 +13,10 @@
         "build": {
           "builder": "@angular-devkit/build-angular:browser",
           "options": {
-            "outputPath": "dist/eptracker",
+            "outputPath": "dist",
             "index": "src/index.html",
             "main": "src/main.ts",
+            "deleteOutputPath":false,
             "polyfills": "src/polyfills.ts",
             "tsConfig": "src/tsconfig.app.json",
             "assets": [

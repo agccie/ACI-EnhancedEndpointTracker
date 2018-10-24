@@ -3,21 +3,21 @@
     <div class="panel">
         <div class="form-group form-group--inline">
             <label class="radio">
-                <input type="radio" name="inline-radio" checked>
+                <input type="radio" name="inline-radio" value='nf' ng-control='inline-radio' checked [(ngModel)]="radioFilter" (click)="onClickOfRadio($event)">
                 <span class="radio__input"></span>
                 <span class="radio__label hidden-xs">No filter</span>
             </label>
         </div>
         <div class="form-group form-group--inline">
             <label class="radio">
-                <input type="radio" name="inline-radio">
+                <input type="radio" name="inline-radio" value='os' [(ngModel)]="radioFilter">
                 <span class="radio__input"></span>
                 <span class="radio__label hidden-xs">Show offsubnet endpoints only</span>
             </label>
         </div>
         <div class="form-group form-group--inline">
             <label class="radio">
-                <input type="radio" name="inline-radio">
+                <input type="radio" name="inline-radio" value='st' [(ngModel)]="radioFilter">
                 <span class="radio__input"></span>
                 <span class="radio__label hidden-xs">Show stale endpoints only</span>
             </label>
@@ -26,14 +26,13 @@
   </div>
   <div class="col-md-12">
       <ngx-datatable
-      [columnMode]="'flex'"
+                  [columnMode]="'flex'"
                   [headerHeight]="25"
                   [footerHeight]="50"
                   [rowHeight]="'auto'"
-                  
                   [limit]="10"
                   [loadingIndicator]="loading"
-                  [rows]="eventRows"
+                  [rows]="rows"
                   [cssClasses]="{
                   sortAscending: 'icon-chevron-down',
                   sortDescending: 'icon-chevron-up',
@@ -43,8 +42,8 @@
                   pagerNext: 'icon-step-forward'
                   }">
                   <ngx-datatable-column prop="fabric" name="Fabric Name" [sortable]="true" [flexGrow]="0.2">
-                      <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                          {{value}}
+                      <ng-template let-row="row" ngx-datatable-cell-template>
+                          {{row['ept.endpoint']['fabric']}}
                       </ng-template>
                   </ngx-datatable-column> 
                   <ngx-datatable-column prop="status" name="Status" [sortable]="true" [flexGrow]="0.2">
@@ -54,17 +53,19 @@
                   </ngx-datatable-column> 
                   <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.2">
                       <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                          {{value}}
+                          <span class="label label--raised" [ngClass]="{'label--warning':row['ept.endpoint']['type'] === 'mac', 'label--success':row['ept.endpoint']['type']==='ipv4', 'label--info':row['ept.endpoint']['type']==='ipv6'}">
+                            {{ row['ept.endpoint']['type'] }}
+                        </span>
                       </ng-template>
                   </ngx-datatable-column> 
-                  <ngx-datatable-column prop="address" name="Address" [sortable]="true" [flexGrow]="0.2">
+                  <ngx-datatable-column prop="ept.endpoint" name="Address" [sortable]="true" [flexGrow]="0.2">
                       <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                          {{value}}
+                          {{value.addr}}
                       </ng-template>
                   </ngx-datatable-column> 
-                  <ngx-datatable-column prop="vnid" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
+                  <ngx-datatable-column prop="ept.endpoint" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
                       <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                          {{value}}
+                          {{value.events.length > 0 ? value.events[0].vnid_name : value.first_learn.vnid_name }}
                       </ng-template>
                   </ngx-datatable-column> 
                   </ngx-datatable>

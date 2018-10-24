@@ -8,7 +8,7 @@
                     
                     [limit]="10"
                     [loadingIndicator]="loading"
-                    [rows]="eventRows"
+                    [rows]="rows"
                     [cssClasses]="{
                     sortAscending: 'icon-chevron-down',
                     sortDescending: 'icon-chevron-up',
@@ -17,9 +17,9 @@
                     pagerPrevious: 'icon-step-backward',
                     pagerNext: 'icon-step-forward'
                     }">
-                    <ngx-datatable-column prop="timestamp" name="Time" [sortable]="true" [flexGrow]="0.2">
+                    <ngx-datatable-column prop="ept.move" name="Time" [sortable]="true" [flexGrow]="0.2">
                             <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                {{value}}
+                                {{ (value.events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
                             </ng-template>
                         </ngx-datatable-column> 
                     <ngx-datatable-column prop="fabric" name="Fabric Name" [sortable]="true" [flexGrow]="0.2">

@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { BackendService } from '../../_service/backend.service';
 
 @Component({
   selector: 'app-history',
@@ -6,10 +7,24 @@ import { Component, OnInit } from '@angular/core';
   styleUrls: ['./history.component.css']
 })
 export class HistoryComponent implements OnInit {
-
-  constructor() { }
+  rows:any ;
+  constructor(private bs : BackendService) { }
 
   ngOnInit() {
+      this.getLatestEventsForFabrics() ;
   }
+
+  getLatestEventsForFabrics() {
+    this.bs.getLatestEventsForFabrics().subscribe(
+      (data)=>{
+        
+        this.rows = data['objects'] ;
+      } , 
+      (error)=>{
+        console.log(error) ;
+      })
+  }
+
+  
 
 }

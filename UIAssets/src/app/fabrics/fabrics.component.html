@@ -28,7 +28,25 @@
         </div>
       </div>
     </div>
-    
+    <div class="modal-backdrop hide" [ngClass]="{'hide':showModal === false}" style="left:0"></div>
+    <div class="modal modal--small hide" [ngClass]="{'hide':showModal === false}" id="modal-small">
+        <div class="modal__dialog">
+            <div class="modal__content">
+                <a class="modal__close" (click)="showModal = false"><span class="icon-close"></span></a>
+                <div class="modal__header">
+                    <h1><span class="icon-error"></span></h1>
+                    <h1 class="modal__title">{{modalTitle}}</h1>
+                </div>
+                <div class="modal__body">
+                   <p class="subtitle">{{modalBody}}</p>
+                </div>
+                <div class="modal__footer">
+                    <button class="btn" (click)="showModal = false">Ok</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     
     
     

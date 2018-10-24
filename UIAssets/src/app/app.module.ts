@@ -20,9 +20,15 @@ import { HistoryComponent } from './fabrics/history/history.component';
 import { MovesComponent } from './fabrics/moves/moves.component';
 import { StaleEptComponent } from './fabrics/stale-ept/stale-ept.component';
 import { OffsubnetEptComponent } from './fabrics/offsubnet-ept/offsubnet-ept.component';
+import { BackendService } from './_service/backend.service';
+import { HttpClientModule } from '@angular/common/http';
+import {MomentModule} from 'ngx-moment' ;
+import { SettingsComponent } from './settings/settings.component';
+
+
 
 const appRoutes: Routes = [
-  {path:'login', component:LoginComponent},
+  {path:'', component:LoginComponent},
   {path:"fabrics" , component: FabricsComponent, canActivate:[AuthGuardService],
   children:[
     {path:'fabric-overview',component:FabricOverviewComponent},
@@ -40,7 +46,8 @@ const appRoutes: Routes = [
     {path:'moveevents', component: MoveEventsComponent},
     {path:'offsubnetevents',component: OffSubnetEventsComponent},
     {path:'staleevents',component:StaleEventsComponent}
-  ]}
+  ]},
+  {path:'settings/:fabric', component:SettingsComponent}
   
 ]
 
@@ -60,7 +67,9 @@ const appRoutes: Routes = [
     HistoryComponent,
     MovesComponent,
     StaleEptComponent,
-    OffsubnetEptComponent
+    OffsubnetEptComponent,
+    SettingsComponent
+    
   ],
   imports: [
     BrowserModule,
@@ -68,9 +77,11 @@ const appRoutes: Routes = [
     RouterModule.forRoot(appRoutes),
     FormsModule,
     ReactiveFormsModule,
-    AccordionModule.forRoot()
+    AccordionModule.forRoot(),
+    HttpClientModule,
+    MomentModule
   ],
-  providers: [],
+  providers: [BackendService],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

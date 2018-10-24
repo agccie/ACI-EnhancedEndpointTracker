@@ -7,7 +7,7 @@ import time
 # module level logging
 logger = logging.getLogger(__name__)
 
-@api_register(parent="eptNode", path="ept/pc")
+@api_register(parent="fabric", path="ept/pc")
 class eptPc(Rest):
     """ provide mapping of port-channel interface to port-channel name """ 
     logger = logger
@@ -19,7 +19,7 @@ class eptPc(Rest):
         "delete": False,
         "db_index_unique": True,  
         "db_index": ["fabric","name"],      # fabric+name(dn) is unique (for insert/update)
-        "db_index2": ["fabric", "intf"],    # second index for quick lookup
+        "db_index2": ["fabric", "node", "intf"],    # second index for quick lookup
     }
 
     META = {
@@ -28,6 +28,12 @@ class eptPc(Rest):
             "key": True,
             "key_sn": "pc",
             "description":"name(dn) for pcAggrIf that created this object",
+        },
+        "node": {
+            "type": int,
+            "min": 1,
+            "max": 0xffffffff,
+            "description": "node id in which this vpc belongs",
         },
         "intf": {
             "type": str,

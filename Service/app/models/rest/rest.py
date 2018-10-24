@@ -658,7 +658,7 @@ class Rest(object):
                             read_kwargs[attr] = kwargs[attr]
                         else:
                             if not _bulk:
-                                raise Exception("non-bulk load called for %s missing key %s" % (
+                                raise RestLoadError("non-bulk load called for %s missing key %s"%(
                                     cls._classname, attr))
             if _bulk: ret = cls.read(_disable_page=True, **read_kwargs)
             else: ret = cls.read(_params={"page-size":1}, **read_kwargs)
@@ -667,6 +667,9 @@ class Rest(object):
                     if cls._classname in o: db_objs.append(o[cls._classname])
         except NotFound as e:
             cls.logger.debug("%s", e)
+        except RestLoadError as e:
+            cls.logger.error(e)
+            raise
         except Exception as e:
             cls.logger.debug("traceback: %s", traceback.format_exc())
             cls.logger.warn("%s load failed: %s", cls._classname, e)
@@ -1964,5 +1967,10 @@ def default_validator(**kwargs):
 
     # should never get here, abort with server error
     abort(500, "unable to validate %s.%s value %s" % (classname, attribute_name, original_value))
+
+
+class RestLoadError(Exception):
+    """ raised on invalid load """
+    pass
 
 

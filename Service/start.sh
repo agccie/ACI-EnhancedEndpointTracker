@@ -380,9 +380,9 @@ function run_db_cluster() {
 function main(){
     # update LOG_FILE to unique service name if HOSTED_PLATFORM set and not all-in-one
     if [ "$role" != "all-in-one" ] && [ "$HOSTED_PLATFORM" == "APIC" ] ; then
-        LOG_FILE="$LOG_DIR/$role"
+        LOG_FILE="$LOG_DIR/start_$role"
         if [ "$LOCAL_REPLICA" != "" ] ; then
-            LOG_FILE="$LOG_FILE\_$LOCAL_REPLICA"
+            LOG_FILE="$LOG_FILE-$LOCAL_REPLICA"
         fi
         LOG_FILE="$LOG_FILE.log"
     fi

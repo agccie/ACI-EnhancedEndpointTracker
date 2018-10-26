@@ -1,3 +1,5 @@
+
+import copy
 import logging
 import json
 import os
@@ -22,8 +24,6 @@ class KronConfig(object):
         self.shards = 3
         self.db_memory = 2
         self.containers = []
-        self.db_cfg_replica_set = "cfg"
-        self.db_sh_replica_set = "sh"
         
         # import config
         self.import_config(configfile)
@@ -59,6 +59,8 @@ class KronConfig(object):
                                 "name": c["name"],
                                 "base_port": c["base_port"],
                             })
+            if len(self.containers) == 0:
+                raise Exception("no valid database containers defined")
 
     def build_cluster_config(self):
         """ build kron cluster configfile """
@@ -74,37 +76,45 @@ class KronConfig(object):
         }
         shared_environment = {
             "HOSTED_PLATFORM": "APIC",
+            "WEB_PORT": self.https_port,
             "REDIS_PORT": self.redis_port,
             "REDIS_HOST": self.service_name.format(self.redis_name),
             "DB_MEMORY": self.db_memory,
             "DB_SHARD_COUNT": self.shards,
             "DB_REPLICA_COUNT": len(self.containers),
-            "DB_CFG_REPLICA_SET": self.db_cfg_replica_set,
+            "MONGO_HOST": self.service_name.format("%s-mongos" % self.containers[0]["name"]),
+            "MONGO_PORT": self.containers[0]["base_port"],
         }
-        self.db_cfg_replica_set = "cfg"
-        self.db_sh_replica_set = "sh"
         cfg_srvs = []
         for i, c in enumerate(self.containers):
-            hostname = "%s:%s" % (self.service_name.format("%s_cfg" % c["name"]), c["base_port"])
-            cfg_srvs.append(hostname)
-            shared_environment["DB_CFG_REPLICA_%s" % i] =  hostname
+            shared_environment["DB_PORT_%s" % c["name"]] = c["base_port"]
+            cfg = "%s:%s" % (self.service_name.format("%s-cfg" % c["name"]), c["base_port"]+1)
+            cfg_srvs.append(cfg)
             for s in xrange(0, self.shards):
                 shared_hostname = "%s:%s" % (
-                    self.service_name.format("%s_sh%s" % (c["name"], s)),
-                    c["base_port"] + s + 1
+                    self.service_name.format("%s-sh%s" % (c["name"], s)),
+                    c["base_port"] + s + 2
                 )
                 shared_environment["DB_SHARD_%s_REPLICA_%s" % (s, i)] = shared_hostname
-        shared_environment["DB_CFG_SRV"] = "%s/%s" % (self.db_cfg_replica_set, ",".join(cfg_srvs))
+        shared_environment["DB_CFG_SRV"] = "cfg/%s" % (",".join(cfg_srvs))
 
-        def get_generic_service(srv_name,srv_args=[],memory=None,cpu=None,ports={},services=[]):
+        # ensure all environment variables are casted to strings
+        for a in shared_environment:
+            shared_environment[a] = "%s" % shared_environment[a]
+
+        def get_generic_service(srv_name,srv_args=[],memory=None,cpu=None,ports={},services=[],
+            service_type="service", environment={}):
             # build a generic service to add to config["jobs"]
             resources = {}
+            env = copy.copy(shared_environment)
+            for a in environment:
+                env[a] = "%s" % environment[a]
             if memory is not None:
                 resources["MemoryLabel"] = memory
             if cpu is not None:
                 resources["CPULabel"] = cpu
             return {
-                "type": "service",
+                "type": service_type,
                 "meta": {
                     "tag": srv_name
                 },
@@ -113,9 +123,9 @@ class KronConfig(object):
                         "containers": {
                              srv_name: {
                                 "image": KronConfig.APP_IMAGE,
-                                "command": "/home/app/src/service/start.sh",
+                                "command": "/home/app/src/Service/start.sh",
                                 "args": srv_args,
-                                "environment": shared_environment,
+                                "environment": env,
                             "meta": resources,
                             "ports": ports,
                             "services": services,
@@ -131,6 +141,7 @@ class KronConfig(object):
         web_name = "%s_web" % self.short_name
         config["jobs"]["service-%s" % web_name] = get_generic_service(
             web_name, 
+            service_type="system",
             srv_args=["-r","web"], 
             ports={"apiserver-port": self.https_port},
             services=[{"name":"apiserver-service", "port":"apiserver-port"}]
@@ -153,18 +164,22 @@ class KronConfig(object):
         # add each db container
         for c in self.containers:
             srv_name = "%s_%s" % (self.short_name, c["name"])
-            ports = {"cfg": c["base_port"]}
-            services = [{"name":"%s_cfg" % c["name"], "port":"cfg"}]
+            ports = {"mongos": c["base_port"], "cfg": c["base_port"]+1}
+            services = [
+                {"name":"%s-mongos" % c["name"], "port":"mongos"},
+                {"name":"%s-cfg" % c["name"], "port":"cfg"},
+            ]
             for s in xrange(0, self.shards):
-                ports["sh%s" % s] = c["base_port"] + s + 1
-                services.append({"name":"%s_sh%s" % (c["name"], s), "port": "sh%s" % s})
+                ports["sh%s" % s] = c["base_port"] + s + 2
+                services.append({"name":"%s-sh%s" % (c["name"], s), "port": "sh%s" % s})
             config["jobs"]["service-%s" % srv_name] = get_generic_service(
                 srv_name,
                 srv_args=["-r", "db"],
                 cpu="ludicrous",
                 memory="jumbo",
                 ports=ports,
-                services=services
+                services=services,
+                environment={"LOCAL_REPLICA": c["name"]},
             )
 
         return config

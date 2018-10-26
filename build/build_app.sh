@@ -35,6 +35,7 @@ if [ "$?" == "0" ] ; then
 fi
 
 self=$0
+app_pack="1.2_min"
 docker_image=""
 intro_video=""
 private_key=""
@@ -157,7 +158,7 @@ function check_packager_dependencies() {
         echo "" >&2
         echo "Missing required python dependency 'cisco-aci-app-tools', aborting build" >&2
         echo "You can install via:" >&2
-        echo "  pip install build/app_package/cisco_aci_app_tools-1.1_min.tar.gz" >&2
+        echo "  pip install build/app_package/cisco_aci_app_tools-$app_pack.tar.gz" >&2
         echo "" >&2
         exit 1
     fi
@@ -216,6 +217,7 @@ function build_app() {
     mkdir -p $TMP_DIR/$APP_ID/UIAssets
     mkdir -p $TMP_DIR/$APP_ID/Service
     mkdir -p $TMP_DIR/$APP_ID/Image
+    mkdir -p $TMP_DIR/$APP_ID/ClusterMgrConfig
     mkdir -p $TMP_DIR/$APP_ID/Legal
     mkdir -p $TMP_DIR/$APP_ID/Media/Snapshots
     mkdir -p $TMP_DIR/$APP_ID/Media/Readme
@@ -228,6 +230,8 @@ function build_app() {
     # include app.json in Service directory for config.py to pick up required variables
     cp -p ./app.json $TMP_DIR/$APP_ID/Service/
     cp -p ./version.txt $TMP_DIR/$APP_ID/Service/
+    # dynamically create clusterMgrConfig
+    python ./cluster/apic/create_config.py > $TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
 
     # create media and legal files
     # (note, snapshots are required in order for intro_video to be displayed on appcenter
@@ -286,11 +290,11 @@ function build_app() {
 
     # execute packager
     log "packaging application"
-    tar -zxf ./build/app_package/cisco_aci_app_tools-1.1_min.tar.gz -C $TMP_DIR/$APP_ID.build/ 
+    tar -zxf ./build/app_package/cisco_aci_app_tools-$app_pack.tar.gz -C $TMP_DIR/$APP_ID.build/ 
     if [ "$private_key" ] ; then
-        python $TMP_DIR/$APP_ID.build/cisco_aci_app_tools-1.1_min/tools/aci_app_packager.py -f $TMP_DIR/$APP_ID -p $private_key
+        python $TMP_DIR/$APP_ID.build/cisco_aci_app_tools-$app_pack/tools/aci_app_packager.py -f $TMP_DIR/$APP_ID -p $private_key
     else
-        python $TMP_DIR/$APP_ID.build/cisco_aci_app_tools-1.1_min/tools/aci_app_packager.py -f $TMP_DIR/$APP_ID
+        python $TMP_DIR/$APP_ID.build/cisco_aci_app_tools-$app_pack/tools/aci_app_packager.py -f $TMP_DIR/$APP_ID
     fi
 
     # cleanup

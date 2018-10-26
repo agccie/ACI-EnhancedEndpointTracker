@@ -2,12 +2,13 @@
     "api":{
         "proxy.json":"dynamic api workaround"
     },
-    "apicversion":"2.2(1n)",
+    "apicversion":"4.0(1g)",
     "appid":"EnhancedEndpointTracker",
     "author":"Andy Gossett",
     "category":[
         "Visibility and Monitoring"
     ],
+    "clustermanager": "kron",
     "contact":{
         "contact-email":"aciappcenter-support@external.cisco.com ",
         "contact-phone":"555-123-4567",

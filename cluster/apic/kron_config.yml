@@ -1,0 +1,31 @@
+
+# this config is APIC app deployment only, do not alter in standalone deployment
+# this is yml file is used to auto-generate clusterMgrConfig
+
+name: "EnhancedEndpointTracker"
+short_name: "ept"
+# apiserver-service port
+https_port: 8443
+# redis info
+redis_name: "redis"
+redis_port: 6379
+# number of workers to process events in all-in-one-mode
+workers: 6
+
+# mongodb cluster configuration
+database:
+    # shards per container
+    shards: 3
+    # tigerWired memory per db instance (note there is 1+shards db's running per container)
+    memory: 2
+    # in kron all-in-one-mode, cfg and all shards are deployed within same container. The number
+    # of containers configured implicitly represent the number of replicas. Each container has 
+    # configurable number of shards.  The base_port number is assigned to the cfg server and each
+    # shard is base_port + shard number + 1.  Name is the service name for the container.  The 
+    # replica set names are hard coded to 'cfg' and 'shX' where X is the shard number starting at 0.
+    containers:
+        - name: "db1"
+          base_port: 5900
+        - name: "db2"
+          base_port: 5910
+

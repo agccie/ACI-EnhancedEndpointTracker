@@ -1,5 +1,5 @@
 """
-Script to deploy app on Docker swarm
+Script to deploy app on Docker swarm or create kron config
 """
 import argparse
 import logging

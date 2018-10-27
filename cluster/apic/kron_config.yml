@@ -5,7 +5,7 @@
 name: "EnhancedEndpointTracker"
 short_name: "ept"
 # apiserver-service port
-https_port: 8443
+https_port: 6443
 # redis info
 redis_name: "redis"
 redis_port: 6379
@@ -27,7 +27,9 @@ database:
     # replica set names are hard coded to 'cfg' and 'shX' where X is the shard number starting at 0.
     containers:
         - name: "db1"
-          base_port: 5900
+          base_port: 6200
         - name: "db2"
-          base_port: 5910
+          base_port: 6210
+        - name: "db3"
+          base_port: 6220
 

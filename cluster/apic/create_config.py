@@ -103,7 +103,7 @@ class KronConfig(object):
             shared_environment[a] = "%s" % shared_environment[a]
 
         def get_generic_service(srv_name,srv_args=[],memory=None,cpu=None,ports={},services=[],
-            service_type="service", environment={}):
+            service_type="service", environment={}, group=None, container_only=False):
             # build a generic service to add to config["jobs"]
             resources = {}
             env = copy.copy(shared_environment)
@@ -113,13 +113,15 @@ class KronConfig(object):
                 resources["MemoryLabel"] = memory
             if cpu is not None:
                 resources["CPULabel"] = cpu
-            return {
+            if group is None:
+                group = "group-%s" % srv_name
+            ret = {
                 "type": service_type,
                 "meta": {
                     "tag": srv_name
                 },
                 "groups": {
-                    "group-%s" % srv_name: {
+                    group: {
                         "containers": {
                              srv_name: {
                                 "image": KronConfig.APP_IMAGE,
@@ -136,6 +138,10 @@ class KronConfig(object):
                     },
                 },
             }
+            if container_only: 
+                return ret["groups"][group]["containers"][srv_name]
+            else:
+                return ret
 
         # add required apiserver-service (web) first
         web_name = "%s_web" % self.short_name
@@ -146,23 +152,29 @@ class KronConfig(object):
             ports={"apiserver-port": self.https_port},
             services=[{"name":"apiserver-service", "port":"apiserver-port"}]
         )
-        # add redis service
+        # add redis service, manager, and db1 all to the same taskgroup group service-primary to 
+        # pin to same node
+        group = "group-primary"
         redis_name = "%s_redis" % self.short_name
-        config["jobs"]["service-%s" % redis_name] = get_generic_service(
+        config["jobs"]["service-primary"] = get_generic_service(
             redis_name, 
             srv_args=["-r","redis"], 
             ports={"redis-port": self.redis_port},
-            services=[{"name":self.redis_name, "port":"redis-port"}]
+            services=[{"name":self.redis_name, "port":"redis-port"}],
+            group=group
         )
+        primary_containers = config["jobs"]["service-primary"]["groups"][group]["containers"]
         # add manager services (includes workers)
         mgr_name = "%s_mgr" % self.short_name
-        config["jobs"]["service-%s" % mgr_name] = get_generic_service(
+        primary_containers[mgr_name] = get_generic_service(
             mgr_name,
             srv_args=["-r", "mgr"],
-            cpu="ludicrous"
+            memory="large",
+            cpu="ludicrous",
+            container_only=True,
         )
         # add each db container
-        for c in self.containers:
+        for r, c in enumerate(self.containers):
             srv_name = "%s_%s" % (self.short_name, c["name"])
             ports = {"mongos": c["base_port"], "cfg": c["base_port"]+1}
             services = [
@@ -172,15 +184,28 @@ class KronConfig(object):
             for s in xrange(0, self.shards):
                 ports["sh%s" % s] = c["base_port"] + s + 2
                 services.append({"name":"%s-sh%s" % (c["name"], s), "port": "sh%s" % s})
-            config["jobs"]["service-%s" % srv_name] = get_generic_service(
-                srv_name,
-                srv_args=["-r", "db"],
-                cpu="ludicrous",
-                memory="jumbo",
-                ports=ports,
-                services=services,
-                environment={"LOCAL_REPLICA": c["name"]},
-            )
+            group = "service-primary"
+            if r > 0:
+                config["jobs"]["service-rep-%s" % r] = get_generic_service(
+                    srv_name,
+                    srv_args=["-r", "db"],
+                    cpu="ludicrous",
+                    memory="jumbo",
+                    ports=ports,
+                    services=services,
+                    environment={"LOCAL_REPLICA": c["name"]},
+                )
+            else:
+                primary_containers[srv_name] = get_generic_service(
+                    srv_name,
+                    srv_args=["-r", "db"],
+                    cpu="ludicrous",
+                    memory="jumbo",
+                    ports=ports,
+                    services=services,
+                    environment={"LOCAL_REPLICA": c["name"]},
+                    container_only=True
+                )
 
         return config
 

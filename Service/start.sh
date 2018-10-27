@@ -125,7 +125,7 @@ function service_is_running(){
 # start a particular service and return error code on failure
 function start_service(){
     local service=$1
-    local sleep_time=1
+    local sleep_time=5
     if [ ! "$service" ] ; then return 1 ; fi
     set_status "starting service $service"
     log `service $service start 2>&1`
@@ -232,11 +232,15 @@ function create_app_config_file() {
             EIV=`cat $CRED_DIR/plugin.key | md5sum | egrep -o "^[^ ]+"`
             echo "EIV=\"$EIV\"" >> $PRIVATE_CONFIG
         fi
-        # if running as app-infra, update db info
+        # if running as app-infra, update db, redis, and proxy info (apache doesn't pick up env)
         if [ "$HOSTED_PLATFORM" == "APIC" ] ; then
             log "updating $config_file with app-infra settings"
             echo "REDIS_HOST=\"$REDIS_HOST\"" >> $config_file
             echo "REDIS_PORT=$REDIS_PORT" >> $config_file
+            echo "MONGO_HOST=\"$MONGO_HOST\"" >> $config_file
+            echo "MONGO_PORT=$MONGO_PORT" >> $config_file
+            echo "PROXY_URL=\"https://localhost:$WEB_PORT\"" >> $config_file
+            echo 
         fi
     fi
     chmod 755 $config_file
@@ -405,8 +409,6 @@ function main(){
         log "sleeping..."
         sleep infinity 
     elif [ "$role" == "web" ] ; then
-        # start cron for logrotate and then monitor web health
-        start_service "cron"
         if ! update_apache ; then
             log "error: failed to update apache config"
             exit_script
@@ -418,28 +420,22 @@ function main(){
         set_running
         poll_web
     elif [ "$role" == "redis" ] ; then
-        # start cron for logrotate 
-        start_service "cron"
         # start redis and stop if it exits
         cmd="/usr/bin/redis-server --bind 0.0.0.0 "
-        if [ "$REDIS_PORT" != "" ] ; then
-            cmd="$cmd --port $REDIS_PORT "
-        else
+        if [ "$REDIS_PORT" == "" ] ; then
             log "error: REDIS_PORT not set, using default"
+        else
+            cmd="$cmd --port $REDIS_PORT "
         fi
         set_running
         cmd="$cmd --logfile $LOG_DIR/redis-server.log"
         log "starting redis: $cmd"
         log `eval $cmd 2>&1`
     elif [ "$role" == "db" ] ; then
-        # start cron for logrotate 
-        start_service "cron"
         # setup db files and start each db service, exits on error
         set_running
         run_db_cluster 
     elif [ "$role" == "mgr" ] ; then
-        # start cron for logrotate 
-        start_service "cron"
         # TODO
         log "COMING BACK TO THIS GUY"
         sleep infinity 

@@ -17,33 +17,39 @@
       <div class="panel panel--raised">
           <div class="row">
               <div class="col-md-12" >
-                  <blockquote class="blockquote--success">
+                  <blockquote class="blockquote" [ngClass]="{'blockquote--success': endpoint.type === 'ipv4', 'blockquote--info': endpoint.type==='ipv6','blockquote--warning':endpoint.type === 'mac' , 'blockquote--danger':endpoint.is_offsubnet || endpoint.is_stale}">
                     <div class="row">
                       <div class="col-md-12">
                         <h4>
-                            <span class="label label--success">IP</span>
-                            <span style="color:#6ebe4a">1.1.1.102</span>
+                            <span class="label label--raised" [ngClass]="{'label--success': endpoint.type === 'ipv4', 'label--info': endpoint.type==='ipv6','label--warning':endpoint.type === 'mac'}"> {{endpoint.type.toUpperCase() }}</span>
+                            <span [ngClass]="{'text--success': endpoint.type === 'ipv4', 'text--info': endpoint.type==='ipv6','text--warning':endpoint.type === 'mac'}">{{endpoint.addr}}</span>
                         </h4>
                           
                       </div>
                     </div>
-                      <div class="row">
+                    <div class="row">
+                      <div class="col-md-12">
+                        {{staleoffsubnetDetails}}
+                      </div>
+                    </div>
+                    <div class="row">
                         <div class="col-md-12">
-                            <small><strong>Not currently local on any node</strong></small>
+                          {{ fabricDetails }}
                         </div>
                       </div>
+
                       <div class="row">
                         <div class="col-md-12">
-                          <span>Fabric - fab1</span>,<span>BD-VNID - 12345</span><br>
-                          <span>Total Nodes  3</span>,<span>Moves 147</span>,<span>Off-subnet 0</span>,<span>Stale 0</span>
+                            <strong>{{ endpointStatus }}</strong>
                         </div>
                       </div>
+                     
                       <div class="row">
                         <div class="col-md-12" >
-                          <button class="btn btn--small btn--success">
+                          <button class="btn btn--small btn--success" (click)="refresh()">
                             <span class="icon-refresh"></span> Refresh Events
                           </button>
-                          <button class="btn btn--small btn--success">
+                          <button class="btn btn--small btn--success" (click)="onClickOfDelete()">
                               <span class="icon-trash"></span> Delete Events
                             </button>
                             <button class="btn btn--small btn--negative">
@@ -73,7 +79,28 @@
           </div>
         </div>
         <router-outlet></router-outlet>
-        
+        <div class="modal-backdrop hide" [ngClass]="{'hide':showModal === false}" style="left:0"></div>
+    <div class="modal modal--small hide" [ngClass]="{'hide':showModal === false}" id="modal-small">
+        <div class="modal__dialog">
+            <div class="modal__content">
+                <a class="modal__close" (click)="showModal = false"><span class="icon-close"></span></a>
+                <div class="modal__header">
+                    <div class="row">
+                      <div class="col-md-3"></div>
+                         <h1> <span class="icon-warning"></span>
+                          {{modalTitle}}</h1>
+                    </div>  
+                </div>
+                <div class="modal__body">
+                   <p class="subtitle">{{modalBody}}</p>
+                </div>
+                <div class="modal__footer">
+                    <button class="btn" (click)="deleteEndpoint()">Yes</button>
+                    <button class="btn" (click)="showModal = false">No</button>
+                </div>
+            </div>
+        </div>
+    </div>
       
       
       

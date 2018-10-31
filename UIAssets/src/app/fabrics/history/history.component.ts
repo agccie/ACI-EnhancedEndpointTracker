@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { BackendService } from '../../_service/backend.service';
+import { PreferencesService } from '../../_service/preferences.service';
 
 @Component({
   selector: 'app-history',
@@ -8,7 +9,11 @@ import { BackendService } from '../../_service/backend.service';
 })
 export class HistoryComponent implements OnInit {
   rows:any ;
-  constructor(private bs : BackendService) { }
+  pageSize:number;
+  loading = true ;
+  constructor(private bs : BackendService, private prefs:PreferencesService) { 
+    this.pageSize = this.prefs.pageSize ;
+  }
 
   ngOnInit() {
       this.getLatestEventsForFabrics() ;
@@ -17,7 +22,7 @@ export class HistoryComponent implements OnInit {
   getLatestEventsForFabrics() {
     this.bs.getLatestEventsForFabrics().subscribe(
       (data)=>{
-        
+        this.loading = false ;
         this.rows = data['objects'] ;
       } , 
       (error)=>{

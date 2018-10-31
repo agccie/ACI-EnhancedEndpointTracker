@@ -1,6 +1,10 @@
 import { Component, OnInit,ViewChild } from '@angular/core';
 import { BackendService } from '../_service/backend.service';
 import { Router } from '../../../node_modules/@angular/router';
+import {Observable} from 'rxjs' ;
+import {debounceTime, distinctUntilChanged, map, switchMap} from 'rxjs/operators';
+import { EventEmitter } from 'events';
+
 
 @Component({
   selector: 'app-fabrics',
@@ -25,9 +29,11 @@ export class FabricsComponent implements OnInit {
   showModal:boolean ;
   modalTitle:string ;
   modalBody:string;
-  
+  placeholder = "Search MAC or IP address (Ex: 00:50:56:01:11:12, 10.1.1.101, or 2001:a::65)" ;
+  searchKey:string ;
+  epTaEmitter= new EventEmitter<string>() ;
 
-  constructor(private bs: BackendService, private router: Router){
+  constructor(public bs: BackendService, private router: Router){
     this.sorts = { name:"fabric", dir:'asc'} ;
     this.rows = [{fabric:'Fabric1' , status:'Stopped', ips:'2300', macs:'2000', 
                  events:[{time:new Date() , status:'Initializing', description:'Connecting to APIC'},{time:new Date(), status:'Restarting' , description:'User triggered restart'}]}]
@@ -36,13 +42,14 @@ export class FabricsComponent implements OnInit {
     {name:'Endpoints',path:'endpoints'},
     {name:'Latest Events',path:'latest-events'},
     {name:'Moves',path:'moves'},
-    {name:'Off-subnet Endpoints',path:'offsubnet-endpoints'},
+    {name:'offSubnet Endpoints',path:'offsubnet-endpoints'},
     {name:'Stale Endpoints', path:'stale-endpoints'}
     ] ;
     this.showModal = false ;
     this.modalBody='' ;
     this.modalTitle='' ;
-    
+    this.searchKey='' ;
+    this.events = [] ;
   }
 
   ngOnInit() {
@@ -79,6 +86,37 @@ export class FabricsComponent implements OnInit {
       }
     )
   }
+
+  onSearch(address) {
+    if(address.length > 3) {
+    this.bs.getSearchResults(address).subscribe(
+      (data)=>{
+        this.events = data['objects'] ;
+      },
+    (error)=>{
+
+    }
+    
+  )
+  
+  }
+}
+
+  epTypeahead() {
+    this.epTaEmitter.pipe(
+      distinctUntilChanged(),
+      debounceTime(300),
+      switchMap(term => this.bs.getSearchResults(term))
+
+     
+  ) .subscribe(x => {
+        
+    this.events = x;
+})
+  }
+
+  
+  
 
 
 

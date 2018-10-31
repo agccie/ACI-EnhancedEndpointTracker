@@ -1,4 +1,6 @@
 import { Component, OnInit } from '@angular/core';
+import { BackendService } from '../../_service/backend.service';
+import { PreferencesService } from '../../_service/preferences.service';
 
 @Component({
   selector: 'app-off-subnet-events',
@@ -6,10 +8,30 @@ import { Component, OnInit } from '@angular/core';
   styleUrls: ['./off-subnet-events.component.css']
 })
 export class OffSubnetEventsComponent implements OnInit {
-
-  constructor() { }
+  rows:any;
+  nodes=[];
+  endpoint:any ;
+  constructor(private bs:BackendService, private prefs:PreferencesService) {
+    this.rows=[] ;
+    this.endpoint = this.prefs.selectedEndpoint
+    this.getNodesForOffsubnetEndpoints(this.endpoint.fabric ,this.endpoint.vnid , this.endpoint.addr) ;
+   }
 
   ngOnInit() {
+  }
+
+  getNodesForOffsubnetEndpoints(fabric,vnid,address) {
+    this.bs.getNodesForOffsubnetEndpoints(fabric,vnid,address,'offsubnet').subscribe(
+      (data)=>{
+        for(let i of data['objects']) {
+          this.nodes.push(i['ept.offsubnet']['node']) ;
+        }
+        console.log(this.nodes) ;
+      },
+      (error)=>{
+
+      }
+    )
   }
 
 }

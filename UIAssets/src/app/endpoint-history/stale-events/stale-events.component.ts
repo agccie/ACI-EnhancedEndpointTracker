@@ -1,4 +1,6 @@
 import { Component, OnInit } from '@angular/core';
+import { BackendService } from '../../_service/backend.service';
+import { PreferencesService } from '../../_service/preferences.service';
 
 @Component({
   selector: 'app-stale-events',
@@ -6,10 +8,26 @@ import { Component, OnInit } from '@angular/core';
   styleUrls: ['./stale-events.component.css']
 })
 export class StaleEventsComponent implements OnInit {
-
-  constructor() { }
+  rows:any;
+  endpoint:any;
+  nodes = [] ;
+  constructor(private bs:BackendService,private prefs:PreferencesService) { 
+    this.rows = [];
+    this.endpoint = this.prefs.selectedEndpoint ;
+    this.getNodesForStaleEndpoints(this.endpoint.fabric,this.endpoint.vnid,this.endpoint.addr) ;
+  }
 
   ngOnInit() {
+  }
+
+  getNodesForStaleEndpoints(fabric,vnid,address) {
+    this.bs.getNodesForOffsubnetEndpoints(fabric,vnid,address,'stale').subscribe(
+      (data) => {
+        for(let i of data['objects']) {
+          this.nodes.push(i['ept.stale']['node']) ;
+        }
+      }
+    );
   }
 
 }

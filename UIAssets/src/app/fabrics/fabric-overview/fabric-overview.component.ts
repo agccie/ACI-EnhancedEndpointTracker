@@ -1,6 +1,7 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { BackendService } from '../../_service/backend.service';
 import { Router } from '../../../../node_modules/@angular/router';
+import { PreferencesService } from '../../_service/preferences.service';
 
 @Component({
   selector: 'app-fabric-overview',
@@ -13,13 +14,15 @@ export class FabricOverviewComponent implements OnInit {
   showFabricModal:boolean ;
   fabrics:any ;
   fabricName:string;
+  pageSize:number ;
   @ViewChild('myTable') table : any ;
-  constructor(private bs : BackendService, private router : Router) { 
+  constructor(private bs : BackendService, private router : Router, private prefs:PreferencesService) { 
     this.sorts = {prop:'fabric'}
     this.rows = [] ;
     this.showFabricModal = false ;
     this.fabrics=[] ;
     this.fabricName='' ;
+    this.pageSize = this.prefs.pageSize ;
   }
 
   ngOnInit() {
@@ -58,8 +61,8 @@ export class FabricOverviewComponent implements OnInit {
   getActiveMacAndIps(fabricName, addressType, index) {
     this.bs.getActiveMacAndIps(fabricName,addressType).subscribe(
       (data)=>{
-        if(data['objects'] !== undefined && data['objects'].length > 0) {
-        this.fabrics[index].fabric[addressType] = data['objects'][0]['ept.endpoint']['addr'] ;
+        if(data.hasOwnProperty('count')) {
+        this.fabrics[index].fabric[addressType] = data['count'] ;
         this.rows = this.fabrics ;
         }
         console.log(this.fabrics) ;

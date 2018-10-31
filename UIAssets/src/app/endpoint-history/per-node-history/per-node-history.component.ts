@@ -1,4 +1,7 @@
 import { Component, OnInit } from '@angular/core';
+import { BackendService } from '../../_service/backend.service';
+import { ActivatedRoute } from '../../../../node_modules/@angular/router';
+import { PreferencesService } from '../../_service/preferences.service';
 
 @Component({
   selector: 'app-per-node-history',
@@ -7,11 +10,15 @@ import { Component, OnInit } from '@angular/core';
 })
 export class PerNodeHistoryComponent implements OnInit {
   rows:any ;
-  constructor() { 
-    this.rows=[{node:'101'}]
+  endpoint:any;
+  constructor(private bs:BackendService, private prefs:PreferencesService) { 
+    this.endpoint = this.prefs.selectedEndpoint ;
+    this.rows = this.endpoint.events ;
   }
 
   ngOnInit() {
   }
+
+  
 
 }

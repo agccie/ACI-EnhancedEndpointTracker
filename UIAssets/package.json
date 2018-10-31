@@ -20,12 +20,15 @@
     "@angular/platform-browser": "^6.0.3",
     "@angular/platform-browser-dynamic": "^6.0.3",
     "@angular/router": "^6.0.3",
+    "@ng-bootstrap/ng-bootstrap": "^1.1.1",
+    "@ng-select/ng-select": "^2.11.2",
     "@swimlane/ngx-datatable": "^13.1.0",
     "core-js": "^2.5.4",
     "moment": "^2.22.2",
     "ngx-bootstrap": "^3.0.1",
     "ngx-moment": "^3.1.0",
     "rxjs": "^6.0.0",
+    "rxjs-compat": "^6.3.3",
     "zone.js": "^0.8.26"
   },
   "devDependencies": {

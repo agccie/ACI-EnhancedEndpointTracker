@@ -28,7 +28,8 @@ RUN apt-get update && \
         python-dev \
         python-pip \
         rsyslog \
-        vim 
+        vim \
+	redis-server
 
 # update config for exim4 for internet email
 RUN sed -i -e "s/dc_eximconfig_configtype.*/dc_eximconfig_configtype='internet'/g" /etc/exim4/update-exim4.conf.conf

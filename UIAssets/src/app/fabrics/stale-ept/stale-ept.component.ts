@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { BackendService } from '../../_service/backend.service';
+import { PreferencesService } from '../../_service/preferences.service';
 
 @Component({
   selector: 'app-stale-ept',
@@ -8,7 +9,10 @@ import { BackendService } from '../../_service/backend.service';
 })
 export class StaleEptComponent implements OnInit {
   rows:any ;
-  constructor(private bs: BackendService) { }
+  pageSize:number ;
+  constructor(private bs: BackendService, private prefs:PreferencesService) {
+    this.pageSize = this.prefs.pageSize ;
+   }
 
   ngOnInit() {
     this.getStaleEndpoints() ;

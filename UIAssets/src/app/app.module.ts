@@ -24,6 +24,9 @@ import { BackendService } from './_service/backend.service';
 import { HttpClientModule } from '@angular/common/http';
 import {MomentModule} from 'ngx-moment' ;
 import { SettingsComponent } from './settings/settings.component';
+import { NgSelectModule } from '@ng-select/ng-select';
+import {NgbModule} from '@ng-bootstrap/ng-bootstrap' ;
+
 
 
 
@@ -39,7 +42,7 @@ const appRoutes: Routes = [
     {path:'offsubnet-endpoints',component:OffsubnetEptComponent}
   ]},
   {path:"users", component: UsersComponent, canActivate:[AuthGuardService]},
-  {path:"ephistory/:address", component: EndpointHistoryComponent ,
+  {path:"ephistory/:fabric/:vnid/:address", component: EndpointHistoryComponent ,
   canActivate:[AuthGuardService], 
   children:[
     {path:'pernodehistory', component:PerNodeHistoryComponent},
@@ -47,7 +50,8 @@ const appRoutes: Routes = [
     {path:'offsubnetevents',component: OffSubnetEventsComponent},
     {path:'staleevents',component:StaleEventsComponent}
   ]},
-  {path:'settings/:fabric', component:SettingsComponent}
+  {path:'settings/:fabric', component:SettingsComponent},
+  {path:'settings',component:SettingsComponent}
   
 ]
 
@@ -79,7 +83,9 @@ const appRoutes: Routes = [
     ReactiveFormsModule,
     AccordionModule.forRoot(),
     HttpClientModule,
-    MomentModule
+    MomentModule,
+    NgSelectModule,
+    NgbModule.forRoot()
   ],
   providers: [BackendService],
   bootstrap: [AppComponent]

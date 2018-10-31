@@ -1,19 +1,16 @@
 <div class="row" style="margin-top:1%">
       <div class="col-md-12">
-        
             <button class="btn btn--small btn--primary" (click)="showFabricModal = true">
-                <span class="icon-add"></span>
                 <span>Add</span>
                 </button>
-            <button class="btn btn--small btn--success" (click)="getFabrics()">
-              <span class="icon-refresh">
-              </span>
+          <button class="btn btn--small btn--success" (click)="getFabrics()">
               <span>Refresh</span>
             </button>
       </div>
+</div>
   
-  
-  <div class="col-md-12" style="margin-top:1%">
+  <div class="row">
+  <div class="col-md-12">
     <div class="panel panel--raised">
         <ngx-datatable
         #myTable
@@ -22,8 +19,9 @@
         [headerHeight]="25"
         [footerHeight]="50"
         [rowHeight]="'auto'"
+        [sortType]="'multi'"
         [sorts]="[sorts]"
-        [limit]="10"
+        [limit]="pageSize"
         [loadingIndicator]="loading"
         [rows]="rows"
         [cssClasses]="{
@@ -34,7 +32,7 @@
           pagerPrevious: 'icon-step-backward',
           pagerNext: 'icon-step-forward'
         }"
-        (sort)="onSort($event)">
+        >
         <ngx-datatable-row-detail [rowHeight]="'auto'" (toggle)="onToggle($event)" >
             <ng-template let-row="row" let-expanded="expanded" ngx-datatable-row-detail-template>
               <div class="row">
@@ -78,23 +76,23 @@
               </div>
             </ng-template>
           </ngx-datatable-row-detail>
-      <ngx-datatable-column prop="fabric" name="Fabric Name" [sortable]="true" [flexGrow]="0.2">
+      <ngx-datatable-column prop="fabric.fabric" name="Fabric Name" [sortable]="true" [flexGrow]="0.2">
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-          {{value.fabric}}
+          {{value}}
         </ng-template>
       </ngx-datatable-column>
-      <ngx-datatable-column prop="status" name="Fabric Status" [sortable]="true" [flexGrow]="0.2">
+      <ngx-datatable-column prop="fabric" name="Fabric Status" [sortable]="true" [flexGrow]="0.2">
           <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
               <span class="label label--raised" [ngClass]="{'label--success':row.fabric.events[0].status === 'running', 'label--dkgray':row.fabric.events[0].status === 'stopped'}">
                 <span>
-                  {{row.fabric.events[0].status}}
+                  {{value.events[0].status}}
                 </span>
               </span>
           </ng-template>
         </ngx-datatable-column>
-        <ngx-datatable-column prop="macs" name="Active MAC" [sortable]="true" [flexGrow]="0.2">
+        <ngx-datatable-column prop="fabric.mac" name="Active MAC" [sortable]="true" [flexGrow]="0.2">
             <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                {{row.fabric.mac !== '' && row.fabric.mac !== undefined ? row.fabric.mac : '-'}}
+                {{value!== '' && value !== undefined ? value : '-'}}
             </ng-template>
         </ngx-datatable-column>
         <ngx-datatable-column prop="ipv4" name="Active IPv4" [sortable]="true" [flexGrow]="0.2">

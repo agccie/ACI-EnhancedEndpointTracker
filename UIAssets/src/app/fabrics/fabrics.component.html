@@ -1,13 +1,16 @@
 <div class="content">
     <div class="container">     
     <div class="row" style="margin-top:1%">
-        <div class="col-md-12">
-          <div class="form-group">
+        <div class="col-md-12" style="padding-left:0;padding-right:0;">
+          <div class="form-group input--icon">
               <div class="form-group__text">
-                  <input type="text" id="searchendpoint" />
-                  <label for="searchendpoint">Search Events</label>
+                  <input type="text" id="searchendpoint" [attr.placeholder]='placeholder' [(ngModel)]="searchKey" (keyup) = "onSearch(searchKey)"/>
+                  <button type="button" class="link" tabindex="-1">
+                      <span class="icon-search"></span>
+                  </button>
+                  
                 </div>
-          </div>
+            </div>
         </div>
     </div>
     <div class="row" style="margin-top:1%;background-color:white;">
@@ -46,10 +49,6 @@
             </div>
         </div>
     </div>
-
-    
-    
-    
   </div>
     </div>
    

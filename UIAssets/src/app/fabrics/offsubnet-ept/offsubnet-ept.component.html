@@ -1,12 +1,16 @@
 <div class="row">
     <div class="col-md-12">
+            <div class="alert" style="margin-top:1%">
+                    <div class="alert__icon icon-info-outline"></div>
+                    <div class="alert__message">This is historic data. The endpoints shown may not be offsubnet anymore. Please check <b>Endpoints</b> tab for current status.</div>
+                </div>
         <ngx-datatable
         [columnMode]="'flex'"
                     [headerHeight]="25"
                     [footerHeight]="50"
                     [rowHeight]="'auto'"
                     
-                    [limit]="10"
+                    [limit]="pageSize"
                     [loadingIndicator]="loading"
                     [rows]="rows"
                     [cssClasses]="{

@@ -19,15 +19,15 @@ MO_BASE                             = "app.models.aci.mo"
 # minimum version of supported code (2.2.1n)
 MINIMUM_SUPPORTED_VERSION           = "2.2.1n"
 
-HELLO_INTERVAL                      = 1.0
-HELLO_TIMEOUT                       = 5.0
+HELLO_INTERVAL                      = 5.0
+HELLO_TIMEOUT                       = 60.0
 WATCH_INTERVAL                      = 1.0
 CACHE_STATS_INTERVAL                = 300.0
 SEQUENCE_TIMEOUT                    = 100.0
 MANAGER_CTRL_CHANNEL                = "mctrl"
 MANAGER_WORK_QUEUE                  = "mq"
 WORKER_CTRL_CHANNEL                 = "wctrl"
-WORKER_UPDATE_INTERVAL              = 1.0
+WORKER_UPDATE_INTERVAL              = 15.0
 
 # transitory timers:
 #   delete          amount of time between delete and create events to treat as a change/move

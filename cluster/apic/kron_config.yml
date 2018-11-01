@@ -17,7 +17,9 @@ database:
     # shards per container
     shards: 3
     # tigerWired memory per db instance (note there is 1+shards db's running per container)
-    memory: 2
+    # note, ( shards + cfg ) * memory < container memory 
+    # in this case (3 + 1) * 1.9 < 8
+    memory: 1.9
     # in kron all-in-one-mode, mongos, cfg and all shards are deployed within same container. The 
     # number of containers configured implicitly represent the number of replicas. Each container has 
     # configurable number of shards.  The port numbers are assigned as follows:

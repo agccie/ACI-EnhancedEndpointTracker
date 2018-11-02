@@ -43,3 +43,5 @@ urllib3==1.22
 validators==0.12.1
 websocket-client==0.44.0
 Werkzeug==0.14.1
+hiredis==0.2.0
+redis==2.10.6

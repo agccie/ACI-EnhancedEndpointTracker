@@ -1,0 +1,77 @@
+<div class="row">
+  <div class="col-md-12">
+    <div class="panel">
+           
+                    <div class="subheader">Filters</div>
+                    <div class="form-group form-group--inline">
+                        <label class="switch">
+                            <input type="checkbox" [(ngModel)]="osFilter" (change)="onFilterToggle()">
+                            <span class="switch__input"></span>
+                            <span class="switch__label">Offsubnet Endpoints</span>
+                        </label>
+                    </div>
+                    <div class="form-group form-group--inline">
+                        <label class="switch">
+                            <input type="checkbox" [(ngModel)]="stFilter" (change)="onFilterToggle()">
+                            <span class="switch__input"></span>
+                            <span class="switch__label">Stale Endpoints</span>
+                        </label>
+                    </div>
+    </div>
+  </div>
+  <div class="col-md-12">
+      <ngx-datatable
+                  [columnMode]="'flex'"
+                  [headerHeight]="25"
+                  [footerHeight]="50"
+                  [rowHeight]="'auto'"
+                  [limit]="pageSize"
+                  [loadingIndicator]="loading"
+                  [rows]="rows"
+                  [rowClass]="getRowClass"
+                  [cssClasses]="{
+                  sortAscending: 'icon-chevron-down',
+                  sortDescending: 'icon-chevron-up',
+                  pagerLeftArrow: 'icon-step-prev',
+                  pagerRightArrow: 'icon-step-next',
+                  pagerPrevious: 'icon-step-backward',
+                  pagerNext: 'icon-step-forward'
+                  }">
+                  <ngx-datatable-column prop="fabric" name="Fabric Name" [sortable]="true" [flexGrow]="0.2">
+                      <ng-template let-row="row" ngx-datatable-cell-template>
+                          {{row['ept.endpoint']['fabric']}}
+                      </ng-template>
+                  </ngx-datatable-column>
+                  <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.2">
+                      <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                          <span class="label label--raised" [ngClass]="{'label--warning':row['ept.endpoint']['type'] === 'mac', 'label--success':row['ept.endpoint']['type']==='ipv4', 'label--info':row['ept.endpoint']['type']==='ipv6'}">
+                            {{ row['ept.endpoint']['type'].toUpperCase() }}
+                        </span>
+                      </ng-template>
+
+                  </ngx-datatable-column> 
+                  <ngx-datatable-column prop="ept.endpoint" name="Address" [sortable]="true" [flexGrow]="0.2">
+                      <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                          <a (click)="goToDetailsPage(value)" >
+                            {{value.addr}}
+                        </a>
+                          <a data-balloon='Offsubnet endpoint' data-balloon-pos='right'>
+                          <span class="icon-warning" *ngIf="value.is_offsubnet" data-balloon="Offsubnet" data-balloon-pos="left"></span>
+                        </a>
+                        <a data-balloon='Stale Endpoint' data-balloon-pos='right'>
+                          <span class="icon-time" *ngIf="value.is_stale"></span>
+                          </a>
+                         <a data-balloon="Deleted endpoint" data-balloon-pos="right">
+                          <span class="icon-error" *ngIf="(value.events.length>0 && value.events[0].status === 'deleted') || value.first_learn.status === 'deleted'">
+                          </span>
+                        </a>
+                      </ng-template>
+                  </ngx-datatable-column> 
+                  <ngx-datatable-column prop="ept.endpoint" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
+                      <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                          {{value.events.length > 0 ? value.events[0].vnid_name : value.first_learn.vnid_name }}
+                      </ng-template>
+                  </ngx-datatable-column> 
+                  </ngx-datatable>
+  </div>
+</div>

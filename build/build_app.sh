@@ -193,8 +193,9 @@ function build_standalone_container() {
 
     # run the container with volume mount based on BASE_DIR and user provided http and https ports
     local cmd="docker run -dit --name $container_name "
-    cmd="$cmd -v $BASE_DIR/Service:/home/app/src/Service:ro "
-    cmd="$cmd -v $BASE_DIR/UIAssets:/home/app/src/UIAssets:ro "
+    cmd="$cmd -v $BASE_DIR/Service:/home/app/src/Service:ro"
+    cmd="$cmd -v $BASE_DIR/UIAssets:/home/app/src/UIAssets.src"
+    cmd="$cmd -v $BASE_DIR/UIAssets/dist:/home/app/src/UIAssets"
     cmd="$cmd -v $BASE_DIR/build:/home/app/src/build:ro "
     cmd="$cmd -p $standalone_http_port:80 "
     cmd="$cmd -p $standalone_https_port:443 "

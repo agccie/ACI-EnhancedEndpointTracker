@@ -1,0 +1,64 @@
+<div class="row">
+        <div class="col-md-12">
+            <ngx-datatable
+            [columnMode]="'flex'"
+                        [headerHeight]="25"
+                        [footerHeight]="50"
+                        [rowHeight]="'auto'"
+                        [limit]="pageSize"
+                        [loadingIndicator]="loading"
+                        [rows]="rows"
+                        [cssClasses]="{
+                        sortAscending: 'icon-chevron-down',
+                        sortDescending: 'icon-chevron-up',
+                        pagerLeftArrow: 'icon-step-prev',
+                        pagerRightArrow: 'icon-step-next',
+                        pagerPrevious: 'icon-step-backward',
+                        pagerNext: 'icon-step-forward'
+                        }">
+                        <ngx-datatable-column prop="ept.history" name="Time" [sortable]="true" [flexGrow]="0.2">
+                                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                    {{ (value.events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                                </ng-template>
+                            </ngx-datatable-column> 
+                        <ngx-datatable-column prop="ept.history" name="Fabric Name" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{value.fabric}}
+                            </ng-template>
+                        </ngx-datatable-column> 
+                        <ngx-datatable-column prop="ept.history" name="Status" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <span *ngIf="value.events.length > 0" class="label label--raised" [ngClass]="{'label--danger':value.events[0].status === 'deleted', 'label--vibblue':value.events[0].status === 'created'}">
+                                        {{ value.events[0].status}}
+                                </span> 
+                                <span *ngIf="value.events.length === 0">
+                                    -
+                                </span>
+                            </ng-template>
+                        </ngx-datatable-column> 
+                        <ngx-datatable-column prop="ept.history" name="Node" [sortable]="true" [flexGrow]="0.2">
+                                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                    {{value.node}}
+                                </ng-template>
+                            </ngx-datatable-column> 
+                        <ngx-datatable-column prop="ept.history" name="Type" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <span class="label label--raised" [ngClass]="{'label--warning':value.type === 'mac' , 'label--success':value.type === 'ip'}">
+                                {{value.type.toUpperCase()}}
+                            </span>
+                            </ng-template>
+                        </ngx-datatable-column> 
+                        <ngx-datatable-column prop="ept.history" name="Address" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{value.addr}}
+                            </ng-template>
+                        </ngx-datatable-column> 
+                        <ngx-datatable-column prop="ept.history" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{value.events.length > 0 ? value.events[0].vnid_name : value.first_learn.vnid_name }}
+                            </ng-template>
+                        </ngx-datatable-column> 
+                        </ngx-datatable>
+        </div>
+      </div>
+      

@@ -1,0 +1,59 @@
+<div class="row">
+    <div class="col-md-12">
+            <div class="alert" style="margin-top:1%">
+                    <div class="alert__icon icon-info-outline"></div>
+                    <div class="alert__message">This is historic data. The endpoints shown may not be offsubnet anymore. Please check <b>Endpoints</b> tab for current status.</div>
+                </div>
+        <ngx-datatable
+        [columnMode]="'flex'"
+                    [headerHeight]="25"
+                    [footerHeight]="50"
+                    [rowHeight]="'auto'"
+                    
+                    [limit]="pageSize"
+                    [loadingIndicator]="loading"
+                    [rows]="rows"
+                    [cssClasses]="{
+                    sortAscending: 'icon-chevron-down',
+                    sortDescending: 'icon-chevron-up',
+                    pagerLeftArrow: 'icon-step-prev',
+                    pagerRightArrow: 'icon-step-next',
+                    pagerPrevious: 'icon-step-backward',
+                    pagerNext: 'icon-step-forward'
+                    }">
+                    <ngx-datatable-column prop="ept.offsubnet" name="Time" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{ (value.events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                            </ng-template>
+                        </ngx-datatable-column> 
+                    <ngx-datatable-column prop="ept.offsubnet" name="Fabric Name" [sortable]="true" [flexGrow]="0.2">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                            {{value.fabric}}
+                        </ng-template>
+                    </ngx-datatable-column> 
+                    <ngx-datatable-column prop="ept.offsubnet" name="Node" [sortable]="true" [flexGrow]="0.2">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                            {{value.node}}
+                        </ng-template>
+                    </ngx-datatable-column> 
+                    <ngx-datatable-column prop="ept.offsubnet" name="Type" [sortable]="true" [flexGrow]="0.2">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <span class="label label--raised" [ngClass]="{'label--warning':value.type === 'mac', 'label--success':value.type==='ipv4', 'label--info':value.type==='ipv6'}">
+                            {{value.type}}
+                            </span>
+                        </ng-template>
+                    </ngx-datatable-column> 
+                    <ngx-datatable-column prop="ept.offsubnet" name="Address" [sortable]="true" [flexGrow]="0.2">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                            {{value.addr}}
+                        </ng-template>
+                    </ngx-datatable-column> 
+                    <ngx-datatable-column prop="ept.offsubnet" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                            {{value.events[0].vnid_name}}
+                        </ng-template>
+                    </ngx-datatable-column> 
+                    </ngx-datatable>
+    </div>
+  </div>
+  

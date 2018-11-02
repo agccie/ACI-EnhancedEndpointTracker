@@ -30,7 +30,8 @@ RUN apt-get update && \
         python-dev \
         python-pip \
         rsyslog \
-        vim 
+        vim \
+	redis-server
 
 # ensure required directories always exists within container even before bind mount
 RUN mkdir -p $LOG_DIR && \

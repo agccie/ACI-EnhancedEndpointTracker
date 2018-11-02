@@ -9,6 +9,7 @@ instance/*
 Service/app.json
 UIAssets/app.json
 UIAssets.build/
+UIAssets/node_modules
 # ignore build info
 version.txt
 

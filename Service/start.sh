@@ -380,6 +380,38 @@ function run_db_cluster() {
 
 }
 
+# conditionally build frontend UI if not present
+function check_frontend(){
+
+    local src="$APP_DIR/src/UIAssets.src"
+    local dst="$APP_DIR/src/UIAssets"
+    local tmp="/tmp/build/"
+    if [ "$APP_MODE" == "0" ] ; then
+        log "checking for frontend UI build"
+        local cmd="$APP_DIR/src/build/build_frontend.sh -r -s $src -d $dst -t $tmp -m standalone"
+        cmd="$cmd >> $LOG_FILE 2>> $LOG_FILE"
+        if [ -z "$(ls -A $dst)" ] ; then
+            # bail out if frontend src files don't exist or already built
+            if [ ! -d $src ] ; then
+                set_status "frontend source ($src) does not exist"
+                exit_script
+            fi
+            log "building: $cmd"
+            set_status "building frontend UI, please wait"
+            eval $cmd
+            if [ -z "$(ls -A $dst)" ] ; then
+                set_status "frontend build failed"
+                exit_script
+            else
+                log "frontend build complete"
+            fi
+        else
+            log "frontend source already present, skipping build"
+            log "Note, manually trigger a build via: $cmd"
+        fi
+    fi
+}
+
 # main container startup
 function main(){
     # update LOG_FILE to unique service name if HOSTED_PLATFORM set and not all-in-one
@@ -405,6 +437,7 @@ function main(){
     if [ "$role" == "all-in-one" ] ; then
         start_all_services
         init_db
+        check_frontend
         set_running
         log "sleeping..."
         sleep infinity 
@@ -417,6 +450,7 @@ function main(){
             log "error: failed to start apache"
             exit_script
         fi
+        check_frontend
         set_running
         poll_web
     elif [ "$role" == "redis" ] ; then

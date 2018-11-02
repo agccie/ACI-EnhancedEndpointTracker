@@ -18,6 +18,7 @@ aci_app_packager.log
 cisco_aci_app_tools-1.2_min.tar.gz
 *.aci
 *.mp4
+.tmpDocker
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

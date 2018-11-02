@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import {HttpClient} from '@angular/common/http' ;
 import {interval as observableInterval, Observable, of as observableOf, throwError} from 'rxjs';
 import {concat, delay, map, mergeMap, retryWhen, switchMap, take, filter} from 'rxjs/operators';
+import {environment} from '../../environments/environment' ;
 
 
 @Injectable({
@@ -12,7 +13,7 @@ export class BackendService {
   domain:any;
   constructor(private http: HttpClient) {
     this.domain='http://esc-aci-compute:9080' ;
-    this.baseUrl = this.domain + '/api' ;
+    this.baseUrl = this.domain + environment.api_entry ;
    }
 
    getAppStatus() {
@@ -20,7 +21,7 @@ export class BackendService {
    }
 
    getAppManagerStatus() {
-     return this.http.get(this.baseUrl + '/app-status/manager') ;
+     return this.http.get(this.baseUrl + '/app-status/manager',{withCredentials:true}) ;
    }
 
    getFabrics() {
@@ -49,7 +50,7 @@ export class BackendService {
    }
 
    getFilteredEndpoints(offsubnetFilter, staleFilter) {
-     return this.http.get(this.baseUrl + '/ept/endpoint?filter=and(eq("is_offsubnet","' + offsubnetFilter + '"),eq("is_stale","' + staleFilter + '"))&page-size=25') ;
+     return this.http.get(this.baseUrl + '/ept/endpoint?filter=and(eq("is_offsubnet",' + offsubnetFilter + '),eq("is_stale",' + staleFilter + '))&page-size=25') ;
    }
 
    getStalePointsForFabrics() {
@@ -57,7 +58,12 @@ export class BackendService {
    }
 
    getSearchResults(address) {
-     return this.http.get(this.baseUrl + '/ept/endpoint?filter=regex("addr","' + address + '")&page-size=15') ;
+     return this.http.get(this.baseUrl + '/ept/endpoint?filter=regex("addr","' + address + '")&page-size=15').pipe(
+       map((res: Response) => { 
+         return res['objects'] ; 
+        }
+      )) ;
+       
    }
 
    getSingleEndpoint(fabric,vnid,address) {
@@ -70,6 +76,18 @@ export class BackendService {
 
    getNodesForOffsubnetEndpoints(fabric,vnid,address,tab) {
      return this.http.get(this.baseUrl + '/ept/' + tab + '?filter=and(eq("fabric","' + fabric +'"),eq("vnid",' + vnid +'),eq("addr","' + address +'"))&include=node') ;
+   }
+
+   deleteEndpoint(address) {
+     return new Observable<any>() ;
+   }
+
+   login(username,password) {
+     return this.http.post(this.baseUrl + '/user/login', {username:username , password:password},{withCredentials:true}) ;
+   }
+
+   logout() {
+     return this.http.post(this.baseUrl + '/user/logout',{}) ;
    }
 
 

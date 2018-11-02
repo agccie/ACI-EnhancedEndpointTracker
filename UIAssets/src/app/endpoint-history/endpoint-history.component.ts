@@ -21,6 +21,9 @@ export class EndpointHistoryComponent implements OnInit {
   fab:string ;
   vnid:string;
   address:string;
+  clearEndpointOptions:any ;
+  clearNodes = [] ;
+  showClearModal = false ;
 
   constructor(private prefs:PreferencesService, private bs : BackendService, private activatedRoute:ActivatedRoute) {
     this.tabs = [
@@ -39,6 +42,12 @@ export class EndpointHistoryComponent implements OnInit {
       this.setupStatusAndInfoStrings() ;
       this.prefs.selectedEndpoint = this.endpoint ;
     }
+
+    this.clearEndpointOptions = [
+      {label:'Select all' , value:0},
+      {label:'Offsubnet endpoints', value:1},
+      {label:'Stale Endpoints',value:2}
+    ]
     
   }
 
@@ -89,6 +98,15 @@ export class EndpointHistoryComponent implements OnInit {
 
   deleteEndpoint() {
     this.showModal = false ;
+    this.bs.deleteEndpoint(this.endpoint.addr).subscribe(
+      (data) => {
+
+      },
+    (error) => {
+
+    }
+    )
+
   }
 
   getSingleEndpoint(fabric,vnid,address) {
@@ -106,6 +124,53 @@ export class EndpointHistoryComponent implements OnInit {
 
   refresh() {
     this.getSingleEndpoint(this.endpoint.fabric , this.endpoint.vnid, this.endpoint.addr) ;
+  }
+
+  addNodes = (term) => {
+    return {label: term, value: term};
+  }
+
+
+  public filterNodes(nodes): any[] {
+    let newarr: any[] = [];
+    if (nodes !== undefined) {
+      for (let i = 0; i < nodes.length; i++) {
+        if (typeof(nodes[i]) === 'string') {
+          if (nodes[i] !== 'global') {
+            if (nodes[i].includes(',')) {
+              nodes[i] = nodes[i].replace(/\s/g, '');
+              const csv = nodes[i].split(',');
+              for (let j = 0; j < csv.length; j++) {
+                if (csv[j].includes('-')) {
+                  newarr = newarr.concat(this.getArrayForRange(csv[j]));
+                }
+              }
+            } else if (nodes[i].includes('-')) {
+              newarr = newarr.concat(this.getArrayForRange(nodes[i]));
+            } else {
+              newarr.push(nodes[i]);
+            }
+          } else {
+            newarr.push(0);
+          }
+        }
+      }
+    }
+    return newarr;
+  }
+
+  public getArrayForRange(range: string) {
+    const r = range.split('-');
+    const arr = [];
+    r.sort();
+    for (let i = parseInt(r[0], 10); i <= parseInt(r[1], 10); i++) {
+      arr.push(i);
+    }
+    return arr;
+  }
+
+  public clearEndpoints() {
+    
   }
 
 

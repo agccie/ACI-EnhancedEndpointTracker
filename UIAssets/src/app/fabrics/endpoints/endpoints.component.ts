@@ -11,8 +11,8 @@ import { Router } from '../../../../node_modules/@angular/router';
 export class EndpointsComponent implements OnInit {
   rows:any ;
   radioFilter:any ;
-  osFilter:boolean;
-  stFilter:boolean;
+  osFilter = false;
+  stFilter = false;
   endpoints:any ;
   pageSize:number ;
 

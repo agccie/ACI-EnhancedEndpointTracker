@@ -21,11 +21,14 @@ import { MovesComponent } from './fabrics/moves/moves.component';
 import { StaleEptComponent } from './fabrics/stale-ept/stale-ept.component';
 import { OffsubnetEptComponent } from './fabrics/offsubnet-ept/offsubnet-ept.component';
 import { BackendService } from './_service/backend.service';
-import { HttpClientModule } from '@angular/common/http';
+import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import {MomentModule} from 'ngx-moment' ;
 import { SettingsComponent } from './settings/settings.component';
 import { NgSelectModule } from '@ng-select/ng-select';
 import {NgbModule} from '@ng-bootstrap/ng-bootstrap' ;
+import { BackendInterceptorService } from './_service/backend-interceptor.service';
+import { CookieService } from '../../node_modules/ngx-cookie-service';
+import {TypeaheadModule} from 'ngx-bootstrap' ;
 
 
 
@@ -85,9 +88,10 @@ const appRoutes: Routes = [
     HttpClientModule,
     MomentModule,
     NgSelectModule,
-    NgbModule.forRoot()
+    NgbModule.forRoot(),
+    TypeaheadModule.forRoot()
   ],
-  providers: [BackendService],
+  providers: [BackendService,{ provide: HTTP_INTERCEPTORS, useClass: BackendInterceptorService, multi: true },CookieService ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

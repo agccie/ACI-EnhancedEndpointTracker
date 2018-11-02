@@ -1,3 +1,7 @@
 export const environment = {
-  production: true
+  app_mode:true,
+  api_entry: '/appcenter/Cisco/eptracker/proxy.json',
+  production:true,
+  aci_vendor:'Cisco',
+  aci_appId:'eptracker'
 };

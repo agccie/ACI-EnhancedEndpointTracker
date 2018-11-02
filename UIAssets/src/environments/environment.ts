@@ -3,7 +3,12 @@
 // The list of file replacements can be found in `angular.json`.
 
 export const environment = {
-  production: false
+  app_mode: false,
+  api_entry: '/api',
+  production:false,
+  aci_vendor:'Cisco',
+  aci_appId:'eptracker'
+
 };
 
 /*

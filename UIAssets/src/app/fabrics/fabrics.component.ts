@@ -1,8 +1,8 @@
 import { Component, OnInit,ViewChild } from '@angular/core';
 import { BackendService } from '../_service/backend.service';
 import { Router } from '../../../node_modules/@angular/router';
-import {Observable} from 'rxjs' ;
-import {debounceTime, distinctUntilChanged, map, switchMap} from 'rxjs/operators';
+import {Observable,of} from 'rxjs' ;
+import {debounceTime, distinctUntilChanged, map, switchMap, mergeMap} from 'rxjs/operators';
 import { EventEmitter } from 'events';
 
 
@@ -30,8 +30,8 @@ export class FabricsComponent implements OnInit {
   modalTitle:string ;
   modalBody:string;
   placeholder = "Search MAC or IP address (Ex: 00:50:56:01:11:12, 10.1.1.101, or 2001:a::65)" ;
-  searchKey:string ;
-  epTaEmitter= new EventEmitter<string>() ;
+  searchKey='' ;
+  eventObservable:Observable<any> ;
 
   constructor(public bs: BackendService, private router: Router){
     this.sorts = { name:"fabric", dir:'asc'} ;
@@ -49,7 +49,14 @@ export class FabricsComponent implements OnInit {
     this.modalBody='' ;
     this.modalTitle='' ;
     this.searchKey='' ;
-    this.events = [] ;
+    this.events = ['event1'] ;
+    this.eventObservable = Observable.create((observer: any) => {
+      // Runs on every search
+      observer.next(this.searchKey);
+    })
+      .pipe(
+        mergeMap((token: string) =>  this.bs.getSearchResults(token))
+      );
   }
 
   ngOnInit() {
@@ -92,6 +99,7 @@ export class FabricsComponent implements OnInit {
     this.bs.getSearchResults(address).subscribe(
       (data)=>{
         this.events = data['objects'] ;
+        this.eventObservable = of()
       },
     (error)=>{
 
@@ -102,18 +110,7 @@ export class FabricsComponent implements OnInit {
   }
 }
 
-  epTypeahead() {
-    this.epTaEmitter.pipe(
-      distinctUntilChanged(),
-      debounceTime(300),
-      switchMap(term => this.bs.getSearchResults(term))
 
-     
-  ) .subscribe(x => {
-        
-    this.events = x;
-})
-  }
 
   
   

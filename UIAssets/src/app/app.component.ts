@@ -1,5 +1,6 @@
 import { Component, ViewChild, OnInit } from '@angular/core';
 import { Router } from '../../node_modules/@angular/router';
+import { BackendService } from './_service/backend.service';
 
 @Component({
   selector: 'app-root',
@@ -11,7 +12,7 @@ export class AppComponent implements OnInit {
   currentMenuItem = 0 ;
   cul:string ;
   ls:Storage ;
-  constructor(private router : Router) {
+  constructor(private router : Router, private bs:BackendService) {
     this.menu = [{name:'Fabrics',icon:'icon-computer',active:true},{name:'Users',icon:'icon-user',active:false},{name:'Settings',icon:'icon-cog',active:false}] ;
     this.cul = localStorage.getItem('cul') ;
     this.ls = localStorage ;
@@ -28,9 +29,17 @@ export class AppComponent implements OnInit {
   }
 
   logout(){
-    localStorage.setItem('cul','0') ;
-    this.cul = '0' ;
-    this.router.navigate(['login']) ;  
+    this.bs.logout().subscribe(
+      (data)=>{
+        console.log(data) ;
+        localStorage.setItem('cul','0') ;
+        this.cul='0' ;
+        this.router.navigate(['login']) ;
+      },
+    (error)=>{
+
+    }
+    )
   }
 
 }

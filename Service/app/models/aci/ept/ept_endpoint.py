@@ -7,8 +7,11 @@ from .. utils import clear_endpoint
 from . common import get_mac_value
 from . common import parse_vrf_name
 from . ept_history import eptHistory
+from . ept_move import eptMove
 from . ept_node import eptNode
+from . ept_offsubnet import eptOffSubnet
 from . ept_subnet import eptSubnet
+from . ept_stale import eptStale
 from flask import abort
 from flask import jsonify
 
@@ -50,7 +53,7 @@ class eptEndpoint(Rest):
         "create": False,
         "read": True,
         "update": False,
-        "delete": False,
+        "delete": True,
         "db_index": ["addr", "vnid", "fabric"],
         "db_shard_enable": True,
         "db_shard_index": ["addr"],
@@ -153,6 +156,14 @@ class eptEndpoint(Rest):
         else:
             (data["addr_byte"], _) = eptSubnet.get_prefix_array("ipv4",data["addr"])
         return data
+
+    @api_callback("after_delete")
+    def after_delete(cls, filters):
+        """ after delete ensure that eptHistory, eptMove, eptOffsubnet, and eptStale are deleted """
+        eptMove.delete(_filters=filters)
+        eptOffSubnet.delete(_filters=filters)
+        eptStale.delete(_filters=filters)
+        eptHistory.delete(_filters=filters)
 
     @api_route(path="clear", methods=["POST"], swag_ret=["success", "error"])
     def clear_endpoint(self, nodes=[]):

@@ -44,11 +44,10 @@ def get_args():
     parser = argparse.ArgumentParser(description=desc,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-    parser.add_argument("--check_db", action="store_true", dest="check_db",
-        help="validate successful database connection")
     parser.add_argument("--stdout", dest="stdout", action="store_true",
         help="send logger output to stdout")
     subparsers = parser.add_subparsers(title="worker options", dest="worker_op")
+    parser0 = subparsers.add_parser("check_db", help="validate successful database connection")
     parser1 = subparsers.add_parser("clear", help="clear endpoint in fabric")
     parser1.add_argument("--fabric", required=True, dest="fabric", help="fabric name")
     parser1.add_argument("--pod", required=True, type=int, dest="pod", help="pod id")
@@ -79,7 +78,7 @@ if __name__ == "__main__":
         setup_logger(logging.getLogger(l), fname=fname, stdout=stdout,
                 quiet=True,thread=True)
 
-    if args.check_db: 
+    if args.worker_op == "check_db":
         logger.debug("worker request: check_db")
         method = db_is_alive
     elif args.worker_op == "clear":

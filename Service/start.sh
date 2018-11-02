@@ -1,22 +1,25 @@
 #!/bin/bash
 
-# startup script for app_mode on APIC or standalone application
-# this script is responsible for starting up following background services:
-#   1) apache2
-#   2) cron     (required for logrotate)
-#   3) mongo
-#
+# startup script for app_mode on APIC or standalone application. This script runs in all-in-one mode
+# by default in which all services are started. Else, a specific role and optional arguments are 
+# provided to startup a subset of services.
+#   1) cron     ( required for services for logrotate )
+#   2) apache2  (role web)
+#       If HOSTED_PLATFORM=APIC then update apache2 config file listen on only WEB_PORT for https.
+#   3) redis    (role redis)
+#   4) mongo    (role db)
+#       TODO
 
-# start.sh will be executed from either base of project or from ./bash directory
-# force it to always be base of project
+# force start.sh to be executed in base of Service directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"
-SCRIPT_DIR=`echo $SCRIPT_DIR | sed -e 's/bash\/$//'`
 
-# this variables should already be set within container but creating defaults 
-# just in case
+# this variables should already be set within container but creating defaults just in case
+self=$0
+role="all-in-one"
 APP_MODE=${APP_MODE:-0}
 APP_DIR=${APP_DIR:-/home/app}
 DATA_DIR=${DATA_DIR:-/home/app/data}
+LOCAL_DATA_DIR=${LOCAL_DATA_DIR:-/home/app/local-data}
 LOG_DIR=${LOG_DIR:-/home/app/log}
 SRC_DIR="$APP_DIR/src/Service"
 CRED_DIR="$APP_DIR/credentials"
@@ -32,14 +35,8 @@ ALL_SERVICES=(
     "cron" 
     "apache2"
     "mongodb"
+    "redis-server"
 )
-
-# python logging levels integers for reference
-LOGGING_LEVEL_DEBUG=10
-LOGGING_LEVEL_INF0=20
-LOGGING_LEVEL_WARN=30
-LOGGING_LEVEL_ERROR=40
-LOGGING_LEVEL_CRITICAL=50
 
 # log message to stdout and to logfile
 function log(){
@@ -60,6 +57,12 @@ function set_status(){
     fi
 }
 
+function set_running(){
+    # update started flag and start running
+    log `touch $STARTED_FILE 2>&1`
+    set_status "running"
+}
+
 # force script to exit after timeout
 function exit_script(){
     local timeout=10
@@ -69,7 +72,7 @@ function exit_script(){
     #exit 1
 }
 
-# required dictories for logging and database datastore
+# required dictories for logging and database datastore (all-in-one-mode)
 function setup_directories() {
     set_status "setting up backend directories"
 
@@ -114,7 +117,7 @@ function service_is_running(){
         log "service $service is running"
         return 0
     else
-        log "service $service is NOT running"
+        log "error: service $service is NOT running"
         return 1
     fi
 }
@@ -130,7 +133,7 @@ function start_service(){
     log "pause $sleep_time seconds before checking service status"
     sleep $sleep_time
     if ! service_is_running $service ; then
-        set_status "failed to start service $service"
+        set_status "error: failed to start service $service"
         return 1
     fi
     # for mongo, ensure we can connect to the db
@@ -184,7 +187,7 @@ function mongodb_reconfigure_and_restart(){
 function mongodb_accept_connections(){
     local wait_time=3
     local i="0"
-    local cmd="cd $SCRIPT_DIR ; python -m app.models.aci.worker --check_db"
+    local cmd="cd $SCRIPT_DIR ; python -m app.models.aci.worker --stdout check_db >> $LOG_FILE"
     while [ $i -lt "$MONGO_MAX_WAIT_COUNT" ] ; do
         set_status "checking mongodb is accepting connections $i/$MONGO_MAX_WAIT_COUNT"
         log "command: $cmd"
@@ -218,6 +221,7 @@ function create_app_config_file() {
         echo "LOG_DIR=\"$LOG_DIR/\"" >> $config_file
         echo "LOG_ROTATE=0" >> $config_file
         echo "ACI_APP_MODE=1" >> $config_file
+        echo "LOGIN_ENABLED=0" >> $config_file
         # update iv and ev against seed
         echo "" > $PRIVATE_CONFIG
         if [ -s "$CRED_DIR/plugin.key" ] && [ -s "$CRED_DIR/plugin.crt" ] ; then
@@ -227,6 +231,16 @@ function create_app_config_file() {
         if [ -s "$CRED_DIR/plugin.key" ] ; then
             EIV=`cat $CRED_DIR/plugin.key | md5sum | egrep -o "^[^ ]+"`
             echo "EIV=\"$EIV\"" >> $PRIVATE_CONFIG
+        fi
+        # if running as app-infra, update db, redis, and proxy info (apache doesn't pick up env)
+        if [ "$HOSTED_PLATFORM" == "APIC" ] ; then
+            log "updating $config_file with app-infra settings"
+            echo "REDIS_HOST=\"$REDIS_HOST\"" >> $config_file
+            echo "REDIS_PORT=$REDIS_PORT" >> $config_file
+            echo "MONGO_HOST=\"$MONGO_HOST\"" >> $config_file
+            echo "MONGO_PORT=$MONGO_PORT" >> $config_file
+            echo "PROXY_URL=\"https://localhost:$WEB_PORT\"" >> $config_file
+            echo 
         fi
     fi
     chmod 755 $config_file
@@ -254,37 +268,215 @@ function init_db() {
 
 }
 
+function update_apache() {
+    set_status "updating apache config"
+    if [ "$WEB_PORT" == "" ] ; then
+        log "error: WEB_PORT env not set"
+        return 1
+    else
+        # update listening ports
+        ports="/etc/apache2/ports.conf"
+        echo "" > $ports
+        echo "<IfModule ssl_module>" >> $ports
+        echo "  Listen $WEB_PORT" >> $ports
+        echo "</IfModule>" >> $ports
+        echo "<IfModule mod_gnutls.c>" >> $ports
+        echo "  Listen $WEB_PORT" >> $ports
+        echo "</IfModule>" >> $ports
+        # update disable 000-default to prevent locked ports, and restart ssl-default
+        ssl_conf="/etc/apache2/sites-available/default-ssl.conf"
+        sed -i -E "s/_default_:[0-9]+/_default_:$WEB_PORT/" $ssl_conf
+        /usr/sbin/a2dissite 000-default
+        /usr/sbin/a2dissite default-ssl 
+        /usr/sbin/a2ensite default-ssl
+    fi
+}
+
+function poll_web() {
+    # continuous poll web to ensure it is still alive, stop on error
+    set_status "poll web"
+    while true ; do
+        if ! curl -sk https://localhost:$WEB_PORT/api/app-status/ > /dev/null ; then
+            log "error: web poll failed(1)"
+            log `curl -k https://localhost:$WEB_PORT/api/app-status/`
+            sleep 5
+            if ! curl -sk https://localhost:$WEB_PORT/api/app-status/ ; then
+                log "error: web poll failed(2) - quit"
+                return 1
+            else
+                log "web connectivity successfully resumed"
+            fi
+        fi
+        sleep 600
+    done
+}
+
+function run_db_cluster() {
+    # create a folder for cfg and each shard then start each service
+    set_status "run db cluster" 
+
+    # check for required env variables first
+    required_env=( "LOCAL_REPLICA" "DB_SHARD_COUNT" "DB_MEMORY" "DB_CFG_SRV" )    
+    for e in "${required_env[@]}" ; do
+        if [[ ! "${!e}" =~ [0-9a-zA-Z] ]] ; then
+            log "error: required env $e not set"
+            log `env`
+            return 1
+        fi
+    done
+    # calculate base port used for mongos, cfg, and each shard
+    db_port="DB_PORT_$LOCAL_REPLICA"
+    db_port="${!db_port}"
+    if [ "$db_port" == "" ] ; then
+        log "error: env DB_PORT_$LOCAL_REPLICA not set"
+        return 1
+    fi
+
+    # all mongo logging to mongo directory
+    MONGO_LOG_DIR="$LOG_DIR/mongo/$LOCAL_REPLICA"
+    if [ ! -d $MONGO_LOG_DIR ] ; then
+        log "create $MONGO_LOG_DIR"
+        mkdir -p $MONGO_LOG_DIR
+    fi
+
+    # setup files and start cfg
+    MONGO_DATA_DIR="$LOCAL_DATA_DIR/db/$LOCAL_REPLICA"
+    if [ ! -d $MONGO_DATA_DIR/cfg ] ; then
+        log "creating $MONGO_DATA_DIR/cfg"
+        mkdir -p $MONGO_DATA_DIR/cfg
+    fi
+    cfg_port=$[$db_port+1]
+    cmd="/usr/bin/mongod --configsvr --replSet cfg "
+    cmd="$cmd --bind_ip_all --port $cfg_port --dbpath $MONGO_DATA_DIR/cfg "
+    cmd="$cmd --wiredTigerCacheSizeGB $DB_MEMORY "
+    cmd="$cmd --logpath $MONGO_LOG_DIR/cfg.log --logappend &"
+    log "starting cfg server: $cmd"
+    eval $cmd
+
+    # create directory for each shard and start service
+    shard="0"
+    while [ $shard -lt $DB_SHARD_COUNT ] ; do
+        log "setting up shard $shard"
+        if [ ! -d $MONGO_DATA_DIR/sh$shard ] ; then
+            log "creating $MONGO_DATA_DIR/sh$shard"
+            mkdir -p $MONGO_DATA_DIR/sh$shard
+        fi
+        shard_port=$[$shard+1+$cfg_port]
+        cmd="/usr/bin/mongod --shardsvr --replSet sh$shard "
+        cmd="$cmd --bind_ip_all --port $shard_port --dbpath $MONGO_DATA_DIR/sh$shard "
+        cmd="$cmd --wiredTigerCacheSizeGB $DB_MEMORY "
+        cmd="$cmd --logpath $MONGO_LOG_DIR/sh$shard.log --logappend &"
+        log "starting shard $shard: $cmd"
+        eval $cmd
+        shard=$[$shard+1]
+    done
+
+    # start mongos last, exit if mongos stops running
+    cmd="/usr/bin/mongos --configdb $DB_CFG_SRV "
+    cmd="$cmd --bind_ip_all --port $db_port "
+    cmd="$cmd --logpath $MONGO_LOG_DIR/mongos.log --logappend "
+    log "starting mongos server: $cmd"
+    eval $cmd
+
+}
+
 # main container startup
 function main(){
+    # update LOG_FILE to unique service name if HOSTED_PLATFORM set and not all-in-one
+    if [ "$role" != "all-in-one" ] && [ "$HOSTED_PLATFORM" == "APIC" ] ; then
+        LOG_FILE="$LOG_DIR/start_$role"
+        if [ "$LOCAL_REPLICA" != "" ] ; then
+            LOG_FILE="$LOG_FILE-$LOCAL_REPLICA"
+        fi
+        LOG_FILE="$LOG_FILE.log"
+    fi
+
     log "======================================================================"
-    set_status "restarting"
+    set_status "restarting ($role)"
     log "======================================================================"
     log `rm -f $STARTED_FILE 2>&1`
+    log "env: `env`"
 
     # setup required directories with proper write access and custom app config
     setup_directories
     create_app_config_file
-    start_all_services
-    init_db
 
-    log `touch $STARTED_FILE 2>&1`
-    set_status "running"
-
-    # conditionally start all fabric monitors
-    local cmd="cd $SCRIPT_DIR"
-    cmd="$cmd ; python -m app.models.aci.worker --all_start --all_conditional" 
-    log "command: $cmd"
-    if ! su - -s /bin/bash www-data -c "$cmd" ; then
-        log "failed to start fabric monitors"
+    # execute requested role
+    if [ "$role" == "all-in-one" ] ; then
+        start_all_services
+        init_db
+        set_running
+        log "sleeping..."
+        sleep infinity 
+    elif [ "$role" == "web" ] ; then
+        if ! update_apache ; then
+            log "error: failed to update apache config"
+            exit_script
+        fi
+        if ! start_service "apache2" ; then
+            log "error: failed to start apache"
+            exit_script
+        fi
+        set_running
+        poll_web
+    elif [ "$role" == "redis" ] ; then
+        # start redis and stop if it exits
+        cmd="/usr/bin/redis-server --bind 0.0.0.0 "
+        if [ "$REDIS_PORT" == "" ] ; then
+            log "error: REDIS_PORT not set, using default"
+        else
+            cmd="$cmd --port $REDIS_PORT "
+        fi
+        set_running
+        cmd="$cmd --logfile $LOG_DIR/redis-server.log"
+        log "starting redis: $cmd"
+        log `eval $cmd 2>&1`
+    elif [ "$role" == "db" ] ; then
+        # setup db files and start each db service, exits on error
+        set_running
+        run_db_cluster 
+    elif [ "$role" == "mgr" ] ; then
+        # TODO
+        log "COMING BACK TO THIS GUY"
+        sleep infinity 
+    else
+        log "error: unknown startup role '$role'"
     fi
 
-    # sleep forever
-    log "sleeping..."
-    sleep infinity 
-    set_status "error: bash sleep killed"
+    set_status "error: unexpected exit"
     exit_script
 }
 
+
+# help options
+function display_help() {
+    echo ""
+    echo "Help documentation for $self"
+    echo "    -r [role] role to execute (defaults to all-in-one)"
+    echo ""
+    exit 0
+}
+
+optspec=":r:h"
+while getopts "$optspec" optchar; do
+  case $optchar in
+    r)
+        role=$OPTARG
+        ;;
+    h)
+        display_help
+        exit 0
+        ;;
+    :)
+        echo "Option -$OPTARG requires an argument." >&2
+        exit 1
+        ;;
+    \?)
+        echo "Invalid option: \"-$OPTARG\"" >&2
+        exit 1
+        ;;
+  esac
+done
 
 # execute main 
 main

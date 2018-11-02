@@ -268,10 +268,9 @@ class eptSubscriber(object):
         self.slow_subscription.resume()    # safe to call even if never paused
 
         # setup epm subscriptions to catch events occurring during epm build
+        # NOTE - epm_subscription.subscribe is triggered within build_endpoint_db function after
+        # initial query is completed
         self.ept_epm_parser = eptEpmEventParser(self.fabric.fabric, self.settings.overlay_vnid)
-        if self.settings.queue_init_epm_events:
-            self.epm_subscription.pause()
-        self.epm_subscription.subscribe(blocking=False)
 
         # build endpoint database
         self.fabric.add_fabric_event(init_str, "building endpoint db")
@@ -993,6 +992,12 @@ class eptSubscriber(object):
         start_time = time.time()
         data = get_class(self.session, "epmDb", queryTarget="subtree",
                 targetSubtreeClass="epmMacEp,epmIpEp,epmRsMacEpToIpEpAtt")
+
+        # we will start epn subscription AFTER get_class (which can take a long time) but before 
+        # processing endpoints.  This minimizes amount of time we lose data without having to buffer
+        # all events that are recieved during get requests.
+        self.epm_subscription.subscribe(blocking=False)
+
         ts = time.time()
         if data is None:
             logger.warn("failed to get data for epmDb")

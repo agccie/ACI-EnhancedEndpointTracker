@@ -123,7 +123,15 @@ class Fabric(Rest):
             "max": 8192,
             "default": 1024,
         },
-
+        # internal state attributes
+        "restart_ts": {
+            "type": float,
+            "write": False,
+            "read": False,
+            "description": """
+            last timestamp fabric monitor was started used to throttle rapid restarts
+            """,
+        },
         # reference attributes only
         "status": {
             "reference": True,

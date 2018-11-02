@@ -77,7 +77,7 @@ JSONIFY_PRETTYPRINT_REGULAR = bool(int(
 # authentication settings
 REMEMBER_COOKIE_DURATION = timedelta(days=int(os.environ.get("REMEMBER_COOKIE_DURATION",0)))
 BCRYPT_LOG_ROUNDS = 12
-LOGIN_ENABLED = bool(int(os.environ.get("LOGIN_ENABLED",0)))
+LOGIN_ENABLED = bool(int(os.environ.get("LOGIN_ENABLED",1)))
 DEFAULT_USERNAME = os.environ.get("DEFAULT_USERNAME", "admin")
 DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD", "cisco")
 PROXY_URL = os.environ.get("PROXY_URL", "http://127.0.0.1:80/")

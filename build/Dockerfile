@@ -10,6 +10,7 @@ ENV APP_MODE $APP_MODE
 ENV DEV_MODE $DEV_MODE
 ENV APP_DIR "/home/app"
 ENV DATA_DIR "$APP_DIR/data"
+ENV LOCAL_DATA_DIR "$APP_DIR/local-data"
 ENV LOG_DIR "$APP_DIR/log"
 ENV BACKEND_DIR "$APP_DIR/src/Service"
 
@@ -23,6 +24,7 @@ RUN apt-get update && \
         libffi-dev \
         libssl-dev \
         logrotate \
+        redis-server \
         ntp \
         python \
         python-dev \
@@ -31,8 +33,20 @@ RUN apt-get update && \
         vim \
 	redis-server
 
+# ensure required directories always exists within container even before bind mount
+RUN mkdir -p $LOG_DIR && \
+    mkdir -p $DATA_DIR && \
+    mkdir -p $LOCAL_DATA_DIR && \
+    mkdir -p $BACKEND_DIR
+
 # update config for exim4 for internet email
 RUN sed -i -e "s/dc_eximconfig_configtype.*/dc_eximconfig_configtype='internet'/g" /etc/exim4/update-exim4.conf.conf
+
+# setup redis which only requires copying over config file
+COPY ./conf/redis.conf /etc/redis/redis.conf
+RUN chmod 777 $LOG_DIR && \
+    chmod 640 /etc/redis/redis.conf && \
+    chown redis:redis /etc/redis/redis.conf
 
 # install and configure apache
 RUN apt-get -y install \
@@ -68,13 +82,15 @@ RUN mkdir -p /etc/cron.minute && \
 COPY ./conf/crontab /etc/crontab
 COPY ./conf/cron.minute.logrotate /etc/cron.minute/logrotate
 COPY ./conf/logrotate.d.app /etc/logrotate.d/app
+RUN chmod 644 /etc/logrotate.d/app && \
+    chmod 755 /etc/cron.minute/logrotate && \
+    chmod 600 /etc/crontab
 
 # upgrade pip
 RUN pip install --upgrade pip
 
 # copy python requirements and install
 # pull backend source and install requirements
-RUN mkdir -p $BACKEND_DIR
 COPY ./requirements.txt $BACKEND_DIR/
 RUN pip install -r $BACKEND_DIR/requirements.txt
 WORKDIR $BACKEND_DIR

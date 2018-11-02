@@ -27,6 +27,15 @@
        notifempty
        missingok
 }
+/home/app/log/mongo/*/*.log {
+       size 5M
+       rotate 10
+       copytruncate
+       delaycompress
+       compress
+       notifempty
+       missingok
+}
 /home/app/log/*.log {
        size 50M
        rotate 10

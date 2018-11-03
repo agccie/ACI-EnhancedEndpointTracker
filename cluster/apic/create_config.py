@@ -76,6 +76,7 @@ class KronConfig(object):
         }
         shared_environment = {
             "HOSTED_PLATFORM": "APIC",
+            "WEB_HOST": self.service_name.format(self.https_name),
             "WEB_PORT": self.https_port,
             "REDIS_PORT": self.redis_port,
             "REDIS_HOST": self.service_name.format(self.redis_name),

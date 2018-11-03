@@ -126,7 +126,7 @@ class eptStaleEvent(object):
 
     def notify_string(self):
         """ return string formatted for notify message """
-        return "[interface:%s, encap:%s, pctag:%s, epg:%s%s, remote:%s, expected:%s]" % (
+        return "[interface:%s, encap:%s, pctag:%s, epg:%s, remote:%s, expected:%s]" % (
             self.intf_name,
             self.encap,
             self.pctag,

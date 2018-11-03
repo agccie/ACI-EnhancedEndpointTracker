@@ -281,8 +281,8 @@ class SubscriptionCtrl(object):
             if interest_found: 
                 self.last_heartbeat = ts
             elif (ts-self.last_heartbeat) > self.heartbeat:
-                logger.debug("checking session status, last_heartbeat: %s",
-                    self.last_heartbeat)
+                logger.debug("checking session status, last_heartbeat: %.3f (delta: %.3f)",
+                    self.last_heartbeat, (ts-self.last_heartbeat))
                 if not self.check_session_subscription_health():
                     logger.warn("session no longer alive")
                     self._close_subscription()

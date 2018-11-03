@@ -8,7 +8,7 @@
 #       If HOSTED_PLATFORM=APIC then update apache2 config file listen on only WEB_PORT for https.
 #   3) redis    (role redis)
 #   4) mongo    (role db)
-#       TODO
+#   5) mgr      (role mgr)
 
 # force start.sh to be executed in base of Service directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"
@@ -17,6 +17,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"
 self=$0
 role="all-in-one"
 worker_count=10
+log_rotate=0
 APP_MODE=${APP_MODE:-0}
 APP_DIR=${APP_DIR:-/home/app}
 DATA_DIR=${DATA_DIR:-/home/app/data}
@@ -514,6 +515,11 @@ function main(){
     setup_directories
     create_app_config_file
 
+    # if log_rotate is enabled, start cront
+    if [ "$log_rotate" == "1" ] ; then
+        start_service "cron"
+    fi
+
     # execute requested role
     if [ "$role" == "all-in-one" ] ; then
         start_all_services
@@ -574,11 +580,12 @@ function display_help() {
     echo "Help documentation for $self"
     echo "    -r [role] role to execute (defaults to all-in-one)"
     echo "    -w [count] number of workers to run when executing role mgmr or all-in-one"
+    echo "    -l enable log rotation"
     echo ""
     exit 0
 }
 
-optspec=":r:w:h"
+optspec=":r:w:lh"
 while getopts "$optspec" optchar; do
   case $optchar in
     r)
@@ -586,6 +593,9 @@ while getopts "$optspec" optchar; do
         ;;
     w)
         worker_count=$OPTARG
+        ;;
+    l)
+        log_rotate="1"
         ;;
     h)
         display_help

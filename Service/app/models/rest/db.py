@@ -1,15 +1,20 @@
 
+from .. utils import get_db
 from . import Role
 from . import Universe
 from . import registered_classes
-from ..utils import get_db
-from .settings import Settings
-from .user import User
+from . settings import Settings
+from . user import User
 
 from pymongo import ASCENDING
+from pymongo import MongoClient
+from pymongo.errors import OperationFailure
 from werkzeug.exceptions import BadRequest
 
 import logging
+import re
+import time
+import traceback
 import uuid
 
 # module level logging
@@ -115,5 +120,116 @@ def db_setup(app_name="App", username="admin", password="cisco", sharding=False,
     #successful setup
     return True
 
+def db_add_shard(rs, timeout=60):
+    """ add a shard replica set to current db
+        return bool success
+    """
+    logger.debug("addShard replica set %s", rs)
+    db = get_db()
+    sh = db.client.admin
+    # wait until db (mongos) is ready
+    def db_alive():
+        try:
+            db.collection_names()
+            logger.debug("successfully connected to db")
+            return True
+        except Exception as e:
+            logger.debug("failed to connect to db: %s", e)
+    ts = time.time()
+    while True:
+        if not db_alive():
+            if ts + timeout > time.time():
+                logger.warn("failed to connect to db within timeout %s",timeout)
+                return False
+        else: break
+    # add the shard, even if it is already present which is a no-op
+    try:
+        logger.debug("adding shard: %s", rs)
+        sh.command("addShard", rs)
+        return True 
+    except OperationFailure as op_status:
+        logger.warn("failed to add shard (%s): %s", op_status.code, op_status.details)
+    return False
+
+def db_init_replica_set(rs, configsvr=False, primary=True, timeout=60, retry_interval=5,
+        socketTimeoutMS=5000, connectTimeoutMS=5000, serverSelectionTimeoutMS=5000):
+    """ receive a mongo replica set connection string and perform replica set initialization
+        rs string must be in the standard mongo replica set form:
+            <replica_set_name>/<device1_hostname:device1_port>,<device2>...,<deviceN>
+
+        kwargs:
+            configsvr           (bool) set to true if this replica set for configsvr
+            primary             (bool) force device 0 to primary by setting priority to 2 and 
+                                defaulting all other devices within replica set to default of 1
+            timeout             (int) time in seconds to wait for other members in replica set to 
+                                become available.
+            retry_interval      (int) time in seconds between initialization attempts if a node 
+                                within the replica set is unavailable
+            PyMongo options
+            http://api.mongodb.com/python/current/api/pymongo/mongo_client.html
+            socketTimeoutMS     
+            connectTimeoutMS   
+            serverSelectionTimeoutMS
+
+        This func will attempt to connect to the first device within the replica set to perform the
+        initialization.  If unable to connected after provided timeout, then abort the operation.
+        For each replica set, the following is performed to initialize it:
+            1) check rs.status() to see if replica set already initialized
+                "ok": 0, "code" : 94, not yet initialized 
+                "ok": 1, initiated (even if all other replicas are down)
+            2) if not initialized execute initialization command
+                "ok": 0, "code": 74, other nodes in replica set not ready (need to retry)
+                "ok": 0, "code": 93, invalid replica set config (will always fail)
+                "ok": 1, success
+
+        return boolean success
+    """
+    # validate replica-set string
+    r1 = re.search("^(?P<rs>[^/]+)/(?P<devices>.{2,})$", rs)
+    if r1 is None:
+        logger.error("unable to parse replica set string: %s", rs)
+        return False
+    logger.debug("initiate replica set for %s", rs)
+    # build initiate command
+    config = {"_id": r1.group("rs"), "configsvr":configsvr, "members": []}
+    devices = r1.group("devices").split(",")
+    for i, d in enumerate(devices):
+        m = {"_id": i, "host": d}
+        if primary and i == 0:
+            m["priority"] = 2
+        config["members"].append(m)
+
+    # try to connect to device 0
+    uri = "mongodb://%s" % devices[0]
+    client = MongoClient(uri, socketTimeoutMS=socketTimeoutMS, connectTimeoutMS=connectTimeoutMS,
+                serverSelectionTimeoutMS=serverSelectionTimeoutMS)
+    try:
+        ret = client.admin.command("replSetGetStatus")
+        logger.debug("replica set already initialized")
+        return True
+    except OperationFailure as op_status:
+        if op_status.code == 94:
+            logger.debug("replica set not yet initialized")
+            # try to initiate replica set with retry on error code 93
+            ts = time.time()
+            while ts + timeout > time.time():
+                try:
+                    ret = client.admin.command("replSetInitiate", config)
+                    logger.debug("replica set initialization success: %s", config)
+                    return True
+                except OperationFailure as op:
+                    logger.debug("initiate operation failure (%s): %s", op.code, op.details)
+                    if op.code == 74:
+                        logger.debug("one or more nodes in replica set not yet available")
+                    else:
+                        logger.warn("failed to initialize replica set")
+                        return False
+                logger.debug("retry replica set initiate in %s seconds", retry_interval)
+                time.sleep(retry_interval)
+            logger.warn("failed to initiate replica set after %s seconds", timeout)
+        else:
+            logger.warn("failed to determine current replica state status: (%s) %s", op_status.code,
+                op_status.details)
+    return False
 
 

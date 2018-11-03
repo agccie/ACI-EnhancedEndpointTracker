@@ -41,12 +41,17 @@ function build_frontend() {
     if [ "$build_mode" == "app" ] ; then
         npm run build-app
         log "copying build dist to $DST_DIR"
-        cp -rp $TMP_DIR/dist/. $DST_DIR/
-        if [ -f $DST_DIR/index.html ] ; then
-            # app mode requires app-start and app files where are identical to index.html
-            # for this project...
-            cp $DST_DIR/index.html $DST_DIR/app-start.html
-            cp $DST_DIR/index.html $DST_DIR/app.html
+        if [ "$(ls -A $TMP_DIR/dist)" ] ; then
+            cp -rp $TMP_DIR/dist/. $DST_DIR/
+            if [ -f $DST_DIR/index.html ] ; then
+                # app mode requires app-start and app files where are identical to index.html
+                # for this project...
+                cp $DST_DIR/index.html $DST_DIR/app-start.html
+                cp $DST_DIR/index.html $DST_DIR/app.html
+            fi
+        else
+            log "app build FAILED"
+            return 1
         fi
     else
         npm run build-standalone

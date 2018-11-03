@@ -16,6 +16,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"
 # this variables should already be set within container but creating defaults just in case
 self=$0
 role="all-in-one"
+worker_count=10
 APP_MODE=${APP_MODE:-0}
 APP_DIR=${APP_DIR:-/home/app}
 DATA_DIR=${DATA_DIR:-/home/app/data}
@@ -69,7 +70,7 @@ function exit_script(){
     log "exiting in $timeout seconds"
     sleep $timeout
     log "exit"
-    #exit 1
+    exit 1
 }
 
 # required dictories for logging and database datastore (all-in-one-mode)
@@ -255,7 +256,7 @@ function init_db() {
     local cmd=""
     # app mode specific settings
     if [ "$APP_MODE" == "1" ] ; then
-        setup_args="--apic_app_init --no_https"
+        setup_args="--apic_app_init "
     fi
     cmd="python $SCRIPT_DIR/setup_db.py $setup_args"
     log "command: $cmd"
@@ -265,7 +266,37 @@ function init_db() {
         set_status "error: failed to initialize db"
         exit_script
     fi
+}
 
+# conditionally build frontend UI if not present
+function check_frontend(){
+    local src="$APP_DIR/src/UIAssets.src"
+    local dst="$APP_DIR/src/UIAssets"
+    local tmp="/tmp/build/"
+    if [ "$APP_MODE" == "0" ] ; then
+        log "checking for frontend UI build"
+        local cmd="$APP_DIR/src/build/build_frontend.sh -r -s $src -d $dst -t $tmp -m standalone"
+        cmd="$cmd >> $LOG_FILE 2>> $LOG_FILE"
+        if [ -z "$(ls -A $dst)" ] ; then
+            # bail out if frontend src files don't exist or already built
+            if [ ! -d $src ] ; then
+                set_status "frontend source ($src) does not exist"
+                exit_script
+            fi
+            log "building: $cmd"
+            set_status "building frontend UI, please wait"
+            eval $cmd
+            if [ -z "$(ls -A $dst)" ] ; then
+                set_status "frontend build failed"
+                exit_script
+            else
+                log "frontend build complete"
+            fi
+        else
+            log "frontend source already present, skipping build"
+            log "Note, manually trigger a build via: $cmd"
+        fi
+    fi
 }
 
 function update_apache() {
@@ -377,39 +408,89 @@ function run_db_cluster() {
     cmd="$cmd --logpath $MONGO_LOG_DIR/mongos.log --logappend "
     log "starting mongos server: $cmd"
     eval $cmd
-
 }
 
-# conditionally build frontend UI if not present
-function check_frontend(){
-
-    local src="$APP_DIR/src/UIAssets.src"
-    local dst="$APP_DIR/src/UIAssets"
-    local tmp="/tmp/build/"
-    if [ "$APP_MODE" == "0" ] ; then
-        log "checking for frontend UI build"
-        local cmd="$APP_DIR/src/build/build_frontend.sh -r -s $src -d $dst -t $tmp -m standalone"
-        cmd="$cmd >> $LOG_FILE 2>> $LOG_FILE"
-        if [ -z "$(ls -A $dst)" ] ; then
-            # bail out if frontend src files don't exist or already built
-            if [ ! -d $src ] ; then
-                set_status "frontend source ($src) does not exist"
-                exit_script
-            fi
-            log "building: $cmd"
-            set_status "building frontend UI, please wait"
-            eval $cmd
-            if [ -z "$(ls -A $dst)" ] ; then
-                set_status "frontend build failed"
-                exit_script
-            else
-                log "frontend build complete"
-            fi
+# init replica set with continuous retry
+function init_rs(){
+    local rs=$1
+    local configsvr=$2
+    while true ; do
+        set_status "init replica set $rs"
+        cmd="python $SCRIPT_DIR/setup_db.py --init_rs $rs $configsvr"
+        log "command: $cmd"
+        if `eval $cmd` ; then
+            log "successfully initiated replica set $rs"
+            return 0
         else
-            log "frontend source already present, skipping build"
-            log "Note, manually trigger a build via: $cmd"
+            log "failed to initiate replica set $rs, retrying in 10 seconds..."
+            sleep 10
         fi
+    done
+}
+
+# init db cluster
+function init_db_cluster() {
+    # this function needs to first initialize cfg and replica sets, add shards, and then setup db 
+    set_status "init db cluster" 
+    local setup_args=""
+    local cmd=""
+    # check for required env variables first
+    required_env=( "DB_SHARD_COUNT" "DB_CFG_SRV" )    
+    for e in "${required_env[@]}" ; do
+        if [[ ! "${!e}" =~ [0-9a-zA-Z] ]] ; then
+            log "error: required env $e not set"
+            log `env`
+            return 1
+        fi
+    done
+    # init replica set for cfg server
+    init_rs $DB_CFG_SRV --configsvr
+    # init replica set for each shard
+    shard="0"
+    while [ $shard -lt $DB_SHARD_COUNT ] ; do
+        shardname="DB_RS_SHARD_$shard"
+        log "setup replica set for shard $shard"
+        if [[ ! "${!shardname}" =~ [0-9a-zA-Z] ]] ; then
+            log "error: required env $shardname not set"
+            return 1
+        fi
+        init_rs ${!shardname}
+        shard=$[$shard+1]
+    done
+    # now that all replia sets are initialized, add each shard to db
+    shard="0"
+    while [ $shard -lt $DB_SHARD_COUNT ] ; do
+        shardname="DB_RS_SHARD_$shard"
+        log "adding shard $shard to db: $shardname: ${!shardname}"
+        cmd="python $SCRIPT_DIR/setup_db.py --add_shard ${!shardname}"
+        log "command: $cmd"
+        if ! `eval $cmd` ; then
+            log "failed to add shard to db"
+            return 1
+        fi
+        shard=$[$shard+1]
+    done
+    
+    
+    # finally, setup db and discover apic
+    set_status "setting up db"
+    if [ "$APP_MODE" == "1" ] ; then
+        setup_args="--apic_app_init "
     fi
+    cmd="python $SCRIPT_DIR/setup_db.py --sharding $setup_args"
+    log "command: $cmd"
+    if ! `eval $cmd` ; then
+        log "failed to setup db"
+        return 1
+    fi 
+}
+
+# execute ept main to start mgmr and workers, return if script exits
+function run_all_in_one_mgr_workers() {
+    set_status "starting mgr with $worker_count workers"
+    cd $SCRIPT_DIR
+    python -m app.models.aci.ept.main --all-in-one --worker $worker_count >> $LOG_FILE 2>> $LOG_FILE 
+    log "unexpected mgr exit"
 }
 
 # main container startup
@@ -439,6 +520,7 @@ function main(){
         init_db
         check_frontend
         set_running
+        run_all_in_one_mgr_workers
         log "sleeping..."
         sleep infinity 
     elif [ "$role" == "web" ] ; then
@@ -470,9 +552,13 @@ function main(){
         set_running
         run_db_cluster 
     elif [ "$role" == "mgr" ] ; then
-        # TODO
-        log "COMING BACK TO THIS GUY"
-        sleep infinity 
+        # init db cluster (replicas and conditional db setup with sharding), then start 
+        if ! init_db_cluster ; then
+            log "failed to init db cluster"
+            exit_script
+        fi
+        set_running
+        run_all_in_one_mgr_workers
     else
         log "error: unknown startup role '$role'"
     fi
@@ -487,15 +573,19 @@ function display_help() {
     echo ""
     echo "Help documentation for $self"
     echo "    -r [role] role to execute (defaults to all-in-one)"
+    echo "    -w [count] number of workers to run when executing role mgmr or all-in-one"
     echo ""
     exit 0
 }
 
-optspec=":r:h"
+optspec=":r:w:h"
 while getopts "$optspec" optchar; do
   case $optchar in
     r)
         role=$OPTARG
+        ;;
+    w)
+        worker_count=$OPTARG
         ;;
     h)
         display_help

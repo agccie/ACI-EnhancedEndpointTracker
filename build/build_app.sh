@@ -180,10 +180,17 @@ function build_app() {
         local bf_tmp="$TMP_DIR/$APP_ID.build/UIAssets/"
         local bf_src="$BASE_DIR/UIAssets/"
         local bf_dst="$TMP_DIR/$APP_ID/UIAssets/"
-        ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
-        # need to manually copy over logo.png into UIAssets folder
-        if [ -f "$BASE_DIR/UIAssets/logo.png" ] ; then
+        if [ "$SKIP_FRONTEND" == "1" ] ; then
+            log "skipping frontend build, adding minimum files to support packaging"
+            echo "hello" > $bf_dst/app.html
+            echo "hello" > $bf_dst/app-start.html
             cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
+        else
+            ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
+            # need to manually copy over logo.png into UIAssets folder
+            if [ -f "$BASE_DIR/UIAssets/logo.png" ] ; then
+                cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
+            fi
         fi
     fi
 

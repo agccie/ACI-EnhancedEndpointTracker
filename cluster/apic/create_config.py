@@ -86,17 +86,23 @@ class KronConfig(object):
             "MONGO_PORT": self.containers[0]["base_port"],
         }
         cfg_srvs = []
+        shard_rs = {}   # shard replica sets indexed by shard number
         for i, c in enumerate(self.containers):
             shared_environment["DB_PORT_%s" % c["name"]] = c["base_port"]
             cfg = "%s:%s" % (self.service_name.format("%s-cfg" % c["name"]), c["base_port"]+1)
             cfg_srvs.append(cfg)
             for s in xrange(0, self.shards):
-                shared_hostname = "%s:%s" % (
+                shard_hostname = "%s:%s" % (
                     self.service_name.format("%s-sh%s" % (c["name"], s)),
                     c["base_port"] + s + 2
                 )
-                shared_environment["DB_SHARD_%s_REPLICA_%s" % (s, i)] = shared_hostname
+                if s not in shard_rs: shard_rs[s] = []
+                shard_rs[s].append(shard_hostname)
         shared_environment["DB_CFG_SRV"] = "cfg/%s" % (",".join(cfg_srvs))
+        # add each shard replica set environment variable
+        for sh in sorted(shard_rs):
+            shared_environment["DB_RS_SHARD_%s" % sh] = "sh%s/%s" % (sh, ",".join(shard_rs[sh]))
+
 
         # ensure all environment variables are casted to strings
         for a in shared_environment:

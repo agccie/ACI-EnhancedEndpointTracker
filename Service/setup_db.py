@@ -3,8 +3,11 @@
 from app.models.rest import registered_classes
 from app.models.rest import Role
 from app.models.rest import Universe
+from app.models.rest.db import db_add_shard
+from app.models.rest.db import db_init_replica_set
 from app.models.rest.db import db_setup
 from app.models.utils import get_app
+from app.models.utils import get_app_config
 from app.models.utils import setup_logger
 from pymongo.errors import ServerSelectionTimeoutError
 
@@ -24,8 +27,10 @@ import traceback
 # setup logger
 logger = logging.getLogger(__name__)
 
-# global app for config info
+# need to trigger get_app to build model before looping through dependancies
 app = get_app()
+# global app for config info
+app_config = get_app_config()
 
 def get_gateway():
     """ return IP address of default gateway used for aci_app
@@ -63,7 +68,11 @@ def apic_app_init(args):
 
     # set hostname to gateway of docker containiner if not provided
     hostname = args.hostname
-    if hostname is None: hostname = get_gateway()
+    if hostname is None: 
+        if app_config.get("HOSTED_PLATFORM","") == "APIC":
+            hostname = "https://api.service.apic.local"
+        else:
+            hostname = get_gateway()
     if hostname is None:
         logger.error("failed to determine gateway/hostname for app")
         return False
@@ -141,22 +150,26 @@ def get_args():
     conditionally trigger db_setup.  Else, user can execute without any args
     and will be prompted as needed for any required settings.
  
-    """ % (app.config["APP_VENDOR_DOMAIN"], app.config["APP_ID"])
+    """ % (app_config["APP_VENDOR_DOMAIN"], app_config["APP_ID"])
     parser = argparse.ArgumentParser(description=desc,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         )
     parser.add_argument("--username", action="store", dest="username",
         help="default username with admin privileges", 
-        default=app.config.get("DEFAULT_USERNAME", "admin"))
+        default=app_config.get("DEFAULT_USERNAME", "admin"))
     parser.add_argument("--password", action="store", dest="password",
         help="password for default user", 
-        default=app.config.get("DEFAULT_PASSWORD", None))
+        default=app_config.get("DEFAULT_PASSWORD", None))
     parser.add_argument("--sharding", action="store_true", dest="sharding",
         help="enable sharding on the database")
+    parser.add_argument("--add_shard", action="store", dest="add_shard",
+        help="add shard to database")
+    parser.add_argument("--init_rs", action="store", dest="add_rs", 
+        help="initialize replica set")
+    parser.add_argument("--configsvr", action="store_true", dest="configsvr",
+        help="combine with --init_rs to flag replica set as a configsvr")
     parser.add_argument("--app_name", action="store", dest="app_name",
         help="application Name", default="ExampleApp")
-    parser.add_argument("--no_https", action="store_true", 
-        dest="no_https", help="disable https default enforcement")
     parser.add_argument("--force", action="store_true", dest="force",
         help="force db setup even if db currently exists")
     parser.add_argument("--hostname", action="store",
@@ -166,7 +179,7 @@ def get_args():
     parser.add_argument("--apic_app_username", action="store", 
         dest="apic_app_username",
         help="appuser username and cert_name used by apic_init",
-        default="%s_%s"%(app.config["APP_VENDOR_DOMAIN"],app.config["APP_ID"]))
+        default="%s_%s"%(app_config["APP_VENDOR_DOMAIN"],app_config["APP_ID"]))
     parser.add_argument("--stdout", action="store_true", 
         help="redirect debugs to stdout")
     
@@ -189,6 +202,14 @@ if __name__ == "__main__":
                 sys.exit(0)
             else:
                 logger.error("failed to initialize app")
+                sys.exit(1)
+        elif args.add_rs:
+            if not db_init_replica_set(args.add_rs, configsvr=args.configsvr, primary=True):
+                logger.error("failed to initialize replica set: %s", args.rs)
+                sys.exit(1)
+        elif args.add_shard:
+            if not db_add_shard(args.add_shard):
+                logger.error("failed to add shard: %s"< args.add_shard)
                 sys.exit(1)
         else:
             if not db_setup(

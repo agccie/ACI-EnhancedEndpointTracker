@@ -138,7 +138,7 @@ def db_add_shard(rs, timeout=60):
     ts = time.time()
     while True:
         if not db_alive():
-            if ts + timeout > time.time():
+            if ts + timeout < time.time():
                 logger.warn("failed to connect to db within timeout %s",timeout)
                 return False
         else: break

@@ -158,12 +158,13 @@ class eptEndpoint(Rest):
         return data
 
     @api_callback("after_delete")
-    def after_delete(cls, filters):
+    def after_delete(cls, api, filters):
         """ after delete ensure that eptHistory, eptMove, eptOffsubnet, and eptStale are deleted """
-        eptMove.delete(_filters=filters)
-        eptOffSubnet.delete(_filters=filters)
-        eptStale.delete(_filters=filters)
-        eptHistory.delete(_filters=filters)
+        if api:
+            eptMove.delete(_filters=filters)
+            eptOffSubnet.delete(_filters=filters)
+            eptStale.delete(_filters=filters)
+            eptHistory.delete(_filters=filters)
 
     @api_route(path="clear", methods=["POST"], swag_ret=["success", "error"])
     def clear_endpoint(self, nodes=[]):

@@ -49,7 +49,7 @@ def execute_all_in_one(worker_count, unique_log=True, debug_modules=[]):
         processes["manager"].start()
         logger.info("started process 'manager' with pid: %s", processes["manager"].pid)
         processes["watcher"].start()
-        logger.info("started process 'watcher' with pid: %s", processes["manager"].pid)
+        logger.info("started process 'watcher' with pid: %s", processes["watcher"].pid)
         for i, p in enumerate(processes["workers"]): 
             p.start()
             logger.info("started 'worker(%s)' with pid: %s", i+1, p.pid)
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     if args.aio:
         fname = "allInOne.log"
     else:
-        fname="worker_%s.log" % args.worker_id
+        fname="%s_%s.log" % (args.role, args.worker_id)
     debug_modules = [
         "app.models.aci"
     ]

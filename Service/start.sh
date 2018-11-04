@@ -8,7 +8,7 @@
 #       If HOSTED_PLATFORM=APIC then update apache2 config file listen on only WEB_PORT for https.
 #   3) redis    (role redis)
 #   4) mongo    (role db)
-#   5) mgr      (role mgr)
+#   5) mgr/watcher/worker (role X, identity Y)
 
 # force start.sh to be executed in base of Service directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -16,6 +16,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # this variables should already be set within container but creating defaults just in case
 self=$0
 role="all-in-one"
+identity=""
 worker_count=10
 log_rotate=0
 APP_MODE=${APP_MODE:-0}
@@ -494,6 +495,14 @@ function run_all_in_one_mgr_workers() {
     log "unexpected mgr exit"
 }
 
+# ensure identity was provided, else exit script
+function validate_identity() {
+    if [ "$identity" == "" ] ; then
+        log "validate identity failed, identity not provided"
+        exit_script
+    fi
+}
+
 # main container startup
 function main(){
     # update LOG_FILE to unique service name if HOSTED_PLATFORM set and not all-in-one
@@ -559,12 +568,26 @@ function main(){
         run_db_cluster 
     elif [ "$role" == "mgr" ] ; then
         # init db cluster (replicas and conditional db setup with sharding), then start 
+        validate_identity
         if ! init_db_cluster ; then
             log "failed to init db cluster"
             exit_script
         fi
         set_running
-        run_all_in_one_mgr_workers
+        cd $SCRIPT_DIR
+        python -m app.models.aci.ept.main --role manager --id $identity >> $LOG_FILE 2>> $LOG_FILE 
+    elif [ "$role" == "watcher" ] ; then
+        # run watcher script
+        validate_identity
+        set_running
+        cd $SCRIPT_DIR
+        python -m app.models.aci.ept.main --role watcher --id $identity >> $LOG_FILE 2>> $LOG_FILE 
+    elif [ "$role" == "worker" ] ; then
+        # run worker script
+        validate_identity
+        set_running
+        cd $SCRIPT_DIR
+        python -m app.models.aci.ept.main --role worker --id $identity >> $LOG_FILE 2>> $LOG_FILE 
     else
         log "error: unknown startup role '$role'"
     fi
@@ -579,13 +602,15 @@ function display_help() {
     echo ""
     echo "Help documentation for $self"
     echo "    -r [role] role to execute (defaults to all-in-one)"
-    echo "    -w [count] number of workers to run when executing role mgmr or all-in-one"
+    echo "              options: web, db, redis, mgr, watcher, worker, all-in-one"
+    echo "    -w [count] number of workers to run when executing all-in-one mode"
+    echo "    -i [identity] manager/worker identity"
     echo "    -l enable log rotation"
     echo ""
     exit 0
 }
 
-optspec=":r:w:lh"
+optspec=":r:w:i:lh"
 while getopts "$optspec" optchar; do
   case $optchar in
     r)
@@ -596,6 +621,9 @@ while getopts "$optspec" optchar; do
         ;;
     l)
         log_rotate="1"
+        ;;
+    i)
+        identity=$OPTARG
         ;;
     h)
         display_help

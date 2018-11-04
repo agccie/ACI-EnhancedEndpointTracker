@@ -996,6 +996,8 @@ class eptSubscriber(object):
         # we will start epn subscription AFTER get_class (which can take a long time) but before 
         # processing endpoints.  This minimizes amount of time we lose data without having to buffer
         # all events that are recieved during get requests.
+        if self.settings.queue_init_epm_events:
+            self.epm_subscription.pause()
         self.epm_subscription.subscribe(blocking=False)
 
         ts = time.time()

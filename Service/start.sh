@@ -11,7 +11,7 @@
 #   5) mgr      (role mgr)
 
 # force start.sh to be executed in base of Service directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # this variables should already be set within container but creating defaults just in case
 self=$0

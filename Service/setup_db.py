@@ -57,9 +57,15 @@ def apic_app_init(args):
     # local login username/password
     if args.username is None: args.username = "admin"
     if args.password is None: args.password = "cisco"
-    if not db_setup(args):
-        logger.error("failed to initialize db")
-        return False
+    if not db_setup(
+            app_name = args.app_name,
+            username = args.username,
+            password = args.password,
+            sharding = args.sharding,
+            force = args.force
+            ):
+            logger.error("failed to initialize db")
+            return False
 
     app_username = args.apic_app_username
     if app_username is None:

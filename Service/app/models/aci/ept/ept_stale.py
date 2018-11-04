@@ -34,6 +34,9 @@ class eptStale(Rest):
         "read": True,
         "update": False,
         "delete": False,
+        "db_index": ["addr", "vnid", "node", "fabric"],
+        "db_shard_enable": True,
+        "db_shard_index": ["addr"],
     }
 
     META = {

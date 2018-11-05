@@ -264,7 +264,7 @@ class SubscriptionCtrl(object):
                 url = self.interests[cname]["url"]
                 count = self.session.get_event_count(url)
                 if count > 0:
-                    #logger.debug("1/%s events found for %s", count, cname)
+                    logger.debug("1/%s events found for %s", count, cname)
                     if self.paused:
                         self.queued_events.append((
                             self.interests[cname]["handler"], 

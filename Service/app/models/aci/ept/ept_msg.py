@@ -128,7 +128,7 @@ class eptMsgWork(object):
         self.fabric = fabric
 
     def __repr__(self):
-        return "%s.0x%08x %s %s" % (self.msg_type.value, self.seq, self.fabric, self.wt.value, 
+        return "%s.0x%08x %s %s %s" % (self.msg_type.value, self.seq, self.fabric, self.wt.value, 
                 self.addr)
 
     def jsonify(self):

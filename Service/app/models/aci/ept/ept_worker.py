@@ -246,13 +246,13 @@ class eptWorker(object):
         if self.role == "watcher":
             pop = []
             with self.watch_offsubnet_lock:
-                for (key, msg) in self.watch_offsubnet:
+                for (key, msg) in self.watch_offsubnet.items():
                     if msg.fabric == fabric: pop.append(key)
                 for k in pop: self.watch_offsubnet.pop(k, None)
             logger.debug("[%s] %s events removed from watch_offsubnet", self, len(pop))
             with self.watch_stale_lock:
                 pop = []
-                for (key, msg) in self.watch_stale:
+                for (key, msg) in self.watch_stale.items():
                     if msg.fabric == fabric: pop.append(key)
                 for k in pop: self.watch_stale.pop(k, None)
             logger.debug("[%s] %s events removed from watch_stale", self, len(pop))

@@ -305,14 +305,17 @@ class eptSubscriber(object):
         # try to kill local subscriptions first
         try:
             self.stopped = True
-            reason = "restarting: %s" % reason
-            data = {"fabric":self.fabric.fabric, "reason":reason}
-            msg = eptMsg(MSG_TYPE.FABRIC_RESTART,data=data)
-            with self.manager_ctrl_channel_lock:
-                self.redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
-        finally:
             self.slow_subscription.unsubscribe()
             self.epm_subscription.unsubscribe()
+        except Exception as e:
+            logger.debug("failed to quit subscription")
+            logger.error("Traceback:\n%s", traceback.format_exc())
+
+        reason = "restarting: %s" % reason
+        data = {"fabric":self.fabric.fabric, "reason":reason}
+        msg = eptMsg(MSG_TYPE.FABRIC_RESTART,data=data)
+        with self.manager_ctrl_channel_lock:
+            self.redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
 
     def soft_restart(self, ts=None, reason=""):
         """ soft restart sets initializing to True to block new updates along with restarting 

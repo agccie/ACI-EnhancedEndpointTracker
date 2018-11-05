@@ -26,6 +26,7 @@ class MSG_TYPE(Enum):
 # static work types sent with MSG_TYPE.WORK
 @enum_unique
 class WORK_TYPE(Enum):
+    RAW                 = "raw"             # raw/unparsed epm event
     WATCH_NODE          = "watch_node"      # a new node has become active/inactive
     WATCH_MOVE          = "watch_move"      # an endpoint move event requires watch or notify
     WATCH_STALE         = "watch_stale"     # a stale endpoint event requires watch or notify
@@ -127,7 +128,8 @@ class eptMsgWork(object):
         self.fabric = fabric
 
     def __repr__(self):
-        return "%s.0x%08x %s %s" % (self.msg_type.value, self.seq, self.role, self.wt.value)
+        return "%s.0x%08x %s %s" % (self.msg_type.value, self.seq, self.fabric, self.wt.value, 
+                self.addr)
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """
@@ -150,6 +152,9 @@ class eptMsgWork(object):
         if wt==WORK_TYPE.EPM_IP_EVENT or wt==WORK_TYPE.EPM_MAC_EVENT or wt==WORK_TYPE.EPM_RS_IP_EVENT:
             return eptMsgWorkEpmEvent(js["addr"], js["role"], js["data"], wt,
                         qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+        elif wt == WORK_TYPE.RAW:
+            return eptMsgWorkRaw(js["addr"], js["role"], js["data"], wt,
+                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
         elif wt == WORK_TYPE.WATCH_MOVE:
             return eptMsgWorkWatchMove(js["addr"], js["role"], js["data"], wt,
                         qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
@@ -165,6 +170,13 @@ class eptMsgWork(object):
         else:
             return eptMsgWork(js["addr"], js["role"], js["data"], wt,
                         qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+
+class eptMsgWorkRaw(eptMsgWork):
+    """ raw/unparsed epm event """
+    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+        # initialize as eptMsgWork with empty data set
+        super(eptMsgWorkRaw, self).__init__(addr, role, data, wt, qnum=qnum, seq=seq, fabric=fabric)
+        self.wt = WORK_TYPE.RAW
 
 class eptMsgWorkWatchNode(eptMsgWork):
     """ fixed message type for WATCH_NODE """

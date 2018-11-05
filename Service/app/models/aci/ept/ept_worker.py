@@ -121,6 +121,7 @@ class eptWorker(object):
         else:
             self.work_type_handlers = {
                 WORK_TYPE.FLUSH_CACHE: self.flush_cache,
+                WORK_TYPE.RAW: self.handle_raw_endpoint_event,
                 WORK_TYPE.EPM_IP_EVENT: self.handle_endpoint_event,
                 WORK_TYPE.EPM_MAC_EVENT: self.handle_endpoint_event,
                 WORK_TYPE.EPM_RS_IP_EVENT: self.handle_endpoint_event,
@@ -274,6 +275,14 @@ class eptWorker(object):
         """ create eptWorkerFabric object for this fabric if not already known """
         if msg.fabric not in self.fabrics:
             self.fabrics[msg.fabric] = eptWorkerFabric(msg.fabric)
+
+    def handle_raw_endpoint_event(self, msg):
+        """ receive eptMsgWorkRaw, parse the event, and then execute handle endpoint event """
+        classname = msg.data.keys()[0]
+        attr = msg.data[classname]
+        parsed_msg = self.fabrics[msg.fabric].ept_epm_parser.parse(classname, attr, attr["_ts"])
+        logger.debug(parsed_msg)
+        self.handle_endpoint_event(parsed_msg)
 
     def handle_endpoint_event(self, msg):
         """ handle EPM endpoint event """

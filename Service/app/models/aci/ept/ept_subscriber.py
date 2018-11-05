@@ -20,6 +20,7 @@ from . ept_msg import WORK_TYPE
 from . ept_msg import eptEpmEventParser
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgWork
+from . ept_msg import eptMsgWorkRaw
 from . ept_msg import eptMsgWorkWatchNode
 from . ept_epg import eptEpg
 from . ept_history import eptHistory
@@ -488,8 +489,13 @@ class eptSubscriber(object):
             return
         try:
             for (classname, attr) in self.parse_event(event):
-                msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
-                self.send_msg(msg)
+                #msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
+                # dn for each possible epm event:
+                #   .../db-ep/mac-00:AA:00:00:28:1A
+                #   .../db-ep/ip-[10.1.55.220]
+                #   rsmacEpToIpEpAtt-.../db-ep/ip-[10.1.1.74]]
+                addr = re.sub("[\[\]]","", attr["dn"].split("/")[-1])
+                self.send_msg(eptMsgWorkRaw(addr, "worker", {classname:attr}, WORK_TYPE.RAW))
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 

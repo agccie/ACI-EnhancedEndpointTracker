@@ -178,6 +178,9 @@ class SubscriptionCtrl(object):
                 with self.lock:
                     self.ctrl = SubscriptionCtrl.CTRL_CONTINUE
                     restarting = True
+            else:
+                # if subscription returns without restart request then break loop
+                break
 
     def _subscribe(self, restarting=False):
         """ handle subscription within thread """
@@ -197,7 +200,7 @@ class SubscriptionCtrl(object):
 
         for cname in self.interests:
             if type(self.interests[cname]) is not dict or "handler" not in self.interests[cname]:
-                logger.error("invalid interest %s: %s", cname, self.interest[cname])
+                logger.error("invalid interest %s: %s", cname, self.interests[cname])
                 self.alive = False
                 return
             if not callable(self.interests[cname]["handler"]):
@@ -236,26 +239,20 @@ class SubscriptionCtrl(object):
         # successfully subscribed to all objects
         self.alive = True
 
-        def continue_subscription():
-            # return true if ok to continue monitoring subscription, else cleanup and return false
-            if self.ctrl != SubscriptionCtrl.CTRL_CONTINUE:
-                logger.debug("exiting subscription due to ctrl: %s",self.ctrl)
-                self._close_subscription()
-                return False
-            return True
+
 
         # listen for events and send to handler
         self.last_heartbeat = time.time()
         while True:
             # check ctrl flags and exit if set to quit
-            if not continue_subscription(): return
+            if not self._continue_subscription(): return
 
             # flush queued events if no longer paused
             if not self.paused and len(self.queued_events) > 0:
                 logger.debug("unpaused, triggering callback of %s events", len(self.queued_events))
                 for (func, event) in self.queued_events:
                     func(event)
-                    if not continue_subscription(): return
+                    if not self._continue_subscription(): return
                 self.queued_events = []
 
             interest_found = False
@@ -275,7 +272,7 @@ class SubscriptionCtrl(object):
                         self.interests[cname]["handler"](self.session.get_event(url))
                     interest_found = True
                     # if event forced subscription closed, don't pick up next event
-                    if not continue_subscription(): return
+                    if not self._continue_subscription(): return
 
             # update last_heartbeat or if exceed heartbeat, check session health
             if interest_found: 
@@ -289,6 +286,14 @@ class SubscriptionCtrl(object):
                     return
                 self.last_heartbeat = ts
             else: time.sleep(self.inactive_interval)
+
+    def _continue_subscription(self):
+        # return true if ok to continue monitoring subscription, else cleanup and return false
+        if self.ctrl != SubscriptionCtrl.CTRL_CONTINUE:
+            logger.debug("exiting subscription due to ctrl: %s",self.ctrl)
+            self._close_subscription()
+            return False
+        return True
 
     def _close_subscription(self):
         """ try to close any open subscriptions """

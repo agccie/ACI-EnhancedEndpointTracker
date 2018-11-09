@@ -28,7 +28,11 @@ import { NgSelectModule } from '@ng-select/ng-select';
 import {NgbModule} from '@ng-bootstrap/ng-bootstrap' ;
 import { BackendInterceptorService } from './_service/backend-interceptor.service';
 import { CookieService } from '../../node_modules/ngx-cookie-service';
-import {TypeaheadModule} from 'ngx-bootstrap' ;
+import {TypeaheadModule} from 'ngx-bootstrap';
+import { ConnectivityComponent } from './settings/connectivity/connectivity.component';
+import { NotificationComponent } from './settings/notification/notification.component';
+import { RemediationComponent } from './settings/remediation/remediation.component';
+import { AdvancedComponent } from './settings/advanced/advanced.component' ;
 
 
 
@@ -53,8 +57,21 @@ const appRoutes: Routes = [
     {path:'offsubnetevents',component: OffSubnetEventsComponent},
     {path:'staleevents',component:StaleEventsComponent}
   ]},
-  {path:'settings/:fabric', component:SettingsComponent},
-  {path:'settings',component:SettingsComponent}
+  {path:'settings', component:SettingsComponent,canActivate:[AuthGuardService],
+  children:[
+    {path:'connectivity',component:ConnectivityComponent},
+    {path:'notification',component:NotificationComponent},
+    {path:'remediation',component:RemediationComponent},
+    {path:'advanced',component:AdvancedComponent}
+  ]
+},
+{path:'settings/:fabric',component:SettingsComponent,canActivate:[AuthGuardService],
+children:[
+  {path:'connectivity',component:ConnectivityComponent},
+  {path:'notification',component:NotificationComponent},
+  {path:'remediation',component:RemediationComponent},
+  {path:'advanced',component:AdvancedComponent}
+]}
   
 ]
 
@@ -75,7 +92,11 @@ const appRoutes: Routes = [
     MovesComponent,
     StaleEptComponent,
     OffsubnetEptComponent,
-    SettingsComponent
+    SettingsComponent,
+    ConnectivityComponent,
+    NotificationComponent,
+    RemediationComponent,
+    AdvancedComponent
     
   ],
   imports: [
@@ -89,7 +110,8 @@ const appRoutes: Routes = [
     MomentModule,
     NgSelectModule,
     NgbModule.forRoot(),
-    TypeaheadModule.forRoot()
+    TypeaheadModule.forRoot(),
+    ModalModule.forRoot()
   ],
   providers: [BackendService,{ provide: HTTP_INTERCEPTORS, useClass: BackendInterceptorService, multi: true },CookieService ],
   bootstrap: [AppComponent]

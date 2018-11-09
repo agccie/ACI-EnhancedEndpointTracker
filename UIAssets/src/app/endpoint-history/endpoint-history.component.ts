@@ -33,6 +33,7 @@ export class EndpointHistoryComponent implements OnInit {
       {name:' Stale Events',path:'staleevents',icon:'icon-warning'}
     ] ;
     this.endpoint = this.prefs.endpointDetailsObject ;
+    
     if(this.endpoint === undefined || this.endpoint === null) {
       this.fab = this.activatedRoute.snapshot.params.fabric;
       this.vnid = this.activatedRoute.snapshot.params.vnid ;
@@ -55,12 +56,12 @@ export class EndpointHistoryComponent implements OnInit {
   }
 
   setupStatusAndInfoStrings() {
-    const status = this.endpoint.length > 0 ? this.endpoint.events[0].status : this.endpoint.first_learn.status ;
-    const node = this.endpoint.length > 0 ? this.endpoint.events[0].node : this.endpoint.first_learn.node ;
-    const intf = this.endpoint.length > 0 ? this.endpoint.events[0].intf_name : this.endpoint.first_learn.intf_name ;
-    const encap = this.endpoint.length > 0 ? this.endpoint.events[0].encap : this.endpoint.first_learn.encap ;
-    const epgname = this.endpoint.length > 0 ? this.endpoint.events[0].epg_name : this.endpoint.first_learn.epg_name ;
-    const vrfbd = this.endpoint.length > 0 ? this.endpoint.events[0].vnid_name : this.endpoint.first_learn.vnid_name ;
+    const status = this.endpoint.events.length > 0 ? this.endpoint.events[0].status : this.endpoint.first_learn.status ;
+    const node = this.endpoint.events.length > 0 ? this.endpoint.events[0].node : this.endpoint.first_learn.node ;
+    const intf = this.endpoint.events.length > 0 ? this.endpoint.events[0].intf_name : this.endpoint.first_learn.intf_name ;
+    const encap = this.endpoint.events.length > 0 ? this.endpoint.events[0].encap : this.endpoint.first_learn.encap ;
+    const epgname = this.endpoint.events.length > 0 ? this.endpoint.events[0].epg_name : this.endpoint.first_learn.epg_name ;
+    const vrfbd = this.endpoint.events.length > 0 ? this.endpoint.events[0].vnid_name : this.endpoint.first_learn.vnid_name ;
     if(this.endpoint.is_offsubnet) {
       this.staleoffsubnetDetails += 'Currently offsubnet on node ' + node + '\n' ;
     }

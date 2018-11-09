@@ -107,13 +107,16 @@
             </ngx-datatable-column>
           <ngx-datatable-column name="Controls" [flexGrow]="0.2">
             <ng-template let-row="row" let-expanded="expanded" ngx-datatable-cell-template>
-              <a class="btn btn--small btn--icon btn--primary" data-balloon='Start' data-balloon-pos='right'>
-                <span tabindex="0" class="icon-animation"></span>
+              <a class="btn btn--small btn--icon btn--primary" *ngIf="row['fabric'].events[0].status === 'running' " (click)="startStopFabric('stop',row['fabric']['fabric'])"data-balloon='Stop' data-balloon-pos='right'>
+                <span tabindex="0" class="icon-stop"></span>
               </a>
-              <a class="btn btn--small btn--icon btn--negative" data-balloon='Delete' data-balloon-pos='right'>
+              <a class="btn btn--small btn--icon btn--primary" *ngIf="row['fabric'].events[0].status !== 'running' " (click)="startStopFabric('start',row['fabric']['fabric'])"data-balloon='Start' data-balloon-pos='right'>
+                  <span tabindex="0" class="icon-play"></span>
+                </a>
+              <a class="btn btn--small btn--icon btn--negative" data-balloon='Delete' data-balloon-pos='right' (click)="deleteFabric(row['fabric']['fabric'])">
                 <span class="icon-close"></span>
               </a>
-              <a class="btn btn--small btn--icon" data-balloon='Edit' data-balloon-pos='right'>
+              <a class="btn btn--small btn--icon" data-balloon='Edit' data-balloon-pos='right' [routerLink]="['/settings',row['fabric']['fabric']]">
                 <span class="icon-edit"></span>
               </a>
               <a class="btn btn--small btn--icon btn--secondary" (click)="toggleRow(row)" data-balloon='History' data-balloon-pos='left'>
@@ -152,7 +155,7 @@
                         <div class="col-md-1"></div>
                         <div class="col-md-5">
                           <div class="form-group">
-                            <button class="btn btn--primary" [disabled]='fabricName.trim() === ""' (click)="onFabricNameSubmit()">Submit</button>
+                            <button class="btn btn--primary" [disabled]='fabricName.trim() === ""' (click)="onFabricNameSubmit({fabric:fabricName})">Submit</button>
                           </div>
                         </div>
                         <div class="col-md-1"></div>

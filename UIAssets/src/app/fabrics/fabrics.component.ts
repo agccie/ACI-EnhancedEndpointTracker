@@ -1,4 +1,4 @@
-import { Component, OnInit,ViewChild } from '@angular/core';
+import { Component, OnInit,ViewChild, OnDestroy, AfterViewInit, OnChanges } from '@angular/core';
 import { BackendService } from '../_service/backend.service';
 import { Router } from '../../../node_modules/@angular/router';
 import {Observable,of} from 'rxjs' ;
@@ -11,7 +11,7 @@ import { EventEmitter } from 'events';
   templateUrl: './fabrics.component.html',
   styleUrls: ['./fabrics.component.css']
 })
-export class FabricsComponent implements OnInit {
+export class FabricsComponent implements OnInit, OnDestroy{
 
   
   title = 'app';
@@ -59,8 +59,14 @@ export class FabricsComponent implements OnInit {
       );
   }
 
+
   ngOnInit() {
     this.getAppStatus() ;
+    this.router.navigate(['fabric-overview'])
+  }
+
+  ngOnDestroy() {
+    localStorage.removeItem('cul') ;
   }
 
   getAppStatus() {

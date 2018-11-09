@@ -15,6 +15,10 @@ export class EndpointsComponent implements OnInit {
   stFilter = false;
   endpoints:any ;
   pageSize:number ;
+  count = 100 ;
+  pageNumber=0; 
+  sorts = [] ;
+  loading = true ;
 
   constructor(private backendService : BackendService, private prefs:PreferencesService, private router: Router) { 
     this.rows = [] ;
@@ -23,16 +27,17 @@ export class EndpointsComponent implements OnInit {
   }
   
   ngOnInit() {
-    this.getEndpoints() ;
+    this.getEndpoints(0) ;
     
   }
 
-  getEndpoints() {
-    this.backendService.getEndpoints().subscribe(
+  getEndpoints(pageOffset = 0, sorts = []) {
+    this.backendService.getEndpoints(pageOffset,sorts).subscribe(
       (data) => {
-        console.log(data) ;
+        this.count = data['count'] ;
         this.rows = data['objects'] ;
         this.endpoints=data['objects'] ;
+        this.loading = false ;
       } , (error) => {
         console.log(error) ;
       }
@@ -45,7 +50,11 @@ export class EndpointsComponent implements OnInit {
        this.rows = data['objects'] ;
      },
      (error)=>{
-       console.log(error) ;
+      let err = 'Failed to fetch filtered data' ; 
+      if(error.hasOwnProperty('error') && error.error.hasOwnProperty('error')) {
+        err = error['error']['error'] ;
+       }
+       console.log(err) ;
      }
    )
     
@@ -72,6 +81,17 @@ export class EndpointsComponent implements OnInit {
     this.prefs.endpointDetailsObject = value ;
     this.router.navigate(["/ephistory",value.fabric,value.vnid,address]) ;
 
+  }
+
+  setPage(event) {
+    this.pageNumber = event.offset ;
+    this.getEndpoints(event.offset,this.sorts) ;
+  }
+
+  onSort(event) {
+    console.log(event.sorts) ;
+    this.sorts = event.sorts ;
+   this.getEndpoints(this.pageNumber,event.sorts) ;
   }
 
 

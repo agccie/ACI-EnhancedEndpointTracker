@@ -10,6 +10,7 @@ Service/app.json
 UIAssets/app.json
 UIAssets.build/
 UIAssets/node_modules
+UIAssets/.vscode
 # ignore build info
 version.txt
 

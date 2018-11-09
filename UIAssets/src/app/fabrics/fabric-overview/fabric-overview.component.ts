@@ -15,6 +15,7 @@ export class FabricOverviewComponent implements OnInit {
   fabrics:any ;
   fabricName:string;
   pageSize:number ;
+  loading = true ;
   @ViewChild('myTable') table : any ;
   constructor(private bs : BackendService, private router : Router, private prefs:PreferencesService) { 
     this.sorts = {prop:'fabric'}
@@ -29,10 +30,6 @@ export class FabricOverviewComponent implements OnInit {
     this.getFabrics() ;
   }
 
-  onToggle(event) {
-    console.log(event) ;
-  }
-
   toggleRow(row) {
     console.log(row) ;
     console.log(this.table) ;
@@ -40,6 +37,7 @@ export class FabricOverviewComponent implements OnInit {
   }
 
   getFabrics() {
+    this.loading = true ;
     this.bs.getFabrics().subscribe(
       (data)=>{
         this.fabrics = data['objects'] ;
@@ -51,6 +49,7 @@ export class FabricOverviewComponent implements OnInit {
           i = i+1 ;
         }
         this.rows = data['objects'] ;
+        this.loading = false ;
       },
       (error)=> {
 
@@ -65,7 +64,6 @@ export class FabricOverviewComponent implements OnInit {
         this.fabrics[index].fabric[addressType] = data['count'] ;
         this.rows = this.fabrics ;
         }
-        console.log(this.fabrics) ;
       } ,
       (error)=>{
         console.log(error) ;
@@ -73,8 +71,41 @@ export class FabricOverviewComponent implements OnInit {
     )
   }
 
-  onFabricNameSubmit() {
-    this.router.navigate(['/settings', this.fabricName]) ;
+  onFabricNameSubmit(fabric) {
+    this.bs.createFabric(fabric).subscribe(
+      (data)=>{
+        this.router.navigate(['/settings', this.fabricName]) ;
+      }) ;
+    
   }
+
+  startStopFabric(action,fabricName) {
+    this.bs.startStopFabric(action,fabricName,'testing').subscribe(
+      (data)=>{
+        if(data['success'] === true) {
+          console.log('success') ;
+        }
+      },
+      (error) => {
+        console.log(error) ;
+      }
+    )
+
+  }
+
+  deleteFabric(fabric) {
+    this.bs.deleteFabric(fabric).subscribe(
+      (data)=>{
+        if(data['success'] === true) {
+          console.log('success') ;
+        }
+      },
+      (error)=>{
+        console.log(error) ;
+      }
+    )
+  }
+
+
 
 }

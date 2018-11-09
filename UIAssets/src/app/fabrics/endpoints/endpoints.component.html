@@ -25,10 +25,17 @@
                   [headerHeight]="25"
                   [footerHeight]="50"
                   [rowHeight]="'auto'"
-                  [limit]="pageSize"
                   [loadingIndicator]="loading"
                   [rows]="rows"
                   [rowClass]="getRowClass"
+                  [externalPaging]="true"
+                  [externalSorting]="true"
+                  [count]="count"
+                  [offset]="pageNumber"
+                  [limit]="pageSize"
+                  (page)="setPage($event)"
+                  (sort)="onSort($event)"
+                  [sortType]="'multi'"
                   [cssClasses]="{
                   sortAscending: 'icon-chevron-down',
                   sortDescending: 'icon-chevron-up',
@@ -50,26 +57,26 @@
                       </ng-template>
 
                   </ngx-datatable-column> 
-                  <ngx-datatable-column prop="ept.endpoint" name="Address" [sortable]="true" [flexGrow]="0.2">
+                  <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
                       <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                          <a (click)="goToDetailsPage(value)" >
-                            {{value.addr}}
+                          <a (click)="goToDetailsPage(row['ept.endpoint'])" >
+                            {{row['ept.endpoint']['addr']}}
                         </a>
                           <a data-balloon='Offsubnet endpoint' data-balloon-pos='right'>
-                          <span class="icon-warning" *ngIf="value.is_offsubnet" data-balloon="Offsubnet" data-balloon-pos="left"></span>
+                          <span class="icon-warning" *ngIf="row['ept.endpoint']['is_offsubnet']" data-balloon="Offsubnet" data-balloon-pos="left"></span>
                         </a>
                         <a data-balloon='Stale Endpoint' data-balloon-pos='right'>
-                          <span class="icon-time" *ngIf="value.is_stale"></span>
+                          <span class="icon-time" *ngIf="row['ept.endpoint']['is_stale']"></span>
                           </a>
                          <a data-balloon="Deleted endpoint" data-balloon-pos="right">
-                          <span class="icon-error" *ngIf="(value.events.length>0 && value.events[0].status === 'deleted') || value.first_learn.status === 'deleted'">
+                          <span class="icon-error" *ngIf="(row['ept.endpoint'].events.length>0 && row['ept.endpoint'].events[0].status === 'deleted') || row['ept.endpoint'].first_learn.status === 'deleted'">
                           </span>
                         </a>
                       </ng-template>
                   </ngx-datatable-column> 
-                  <ngx-datatable-column prop="ept.endpoint" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
+                  <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
                       <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                          {{value.events.length > 0 ? value.events[0].vnid_name : value.first_learn.vnid_name }}
+                          {{row['ept.endpoint'].events.length > 0 ? row['ept.endpoint'].events[0].vnid_name : row['ept.endpoint'].first_learn.vnid_name }}
                       </ng-template>
                   </ngx-datatable-column> 
                   </ngx-datatable>

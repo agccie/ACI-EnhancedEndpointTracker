@@ -1,0 +1,14 @@
+<div *ngFor="let inp of inputs" class="row" style="margin-top:1%;margin-bottom:1%">
+  <div class="col-md-4">
+      <div class="form-group label--inline">
+          <div class="form-group__text">
+              <input id="input-layout-inline" type="text" [(ngModel)]="prefs['fabric'][inp.model]" required>
+              <label class="col-4" for="input-layout-inline">{{inp.name}}</label>
+          </div>
+          
+      </div>
+  </div>
+  
+</div>
+
+

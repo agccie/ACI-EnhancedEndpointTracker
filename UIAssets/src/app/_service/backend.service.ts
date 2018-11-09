@@ -1,8 +1,10 @@
 import { Injectable } from '@angular/core';
-import {HttpClient} from '@angular/common/http' ;
+import {HttpClient,HttpParams} from '@angular/common/http' ;
 import {interval as observableInterval, Observable, of as observableOf, throwError} from 'rxjs';
 import {concat, delay, map, mergeMap, retryWhen, switchMap, take, filter} from 'rxjs/operators';
 import {environment} from '../../environments/environment' ;
+import { FabricSettings } from '../_model/fabric-settings';
+import {User,UserList} from '../_model/user' ;
 
 
 @Injectable({
@@ -32,10 +34,24 @@ export class BackendService {
       const filterString = 'and(eq("fabric","' + fabricName + '"),eq("type","' + addressType + '"),neq("events.0.status","deleted"))' ;
       return this.http.get(this.baseUrl + '/ept/endpoint?filter=' + filterString + '&count=1') ;
    }
-
-   getEndpoints() {
-     return this.http.get(this.baseUrl + '/ept/endpoint?page-size=25') ;
+   //May remove this and make the getFabricsOverview function as a single API call
+   getEndpoints(pageOffset,sorts) {
+     if(sorts.length===0) {
+     return this.http.get(this.baseUrl + '/ept/endpoint?sort=fabric&page-size=25&page=' + pageOffset) ;
+     }else{
+      const sortsStr = this.getSortsArrayAsString(sorts) ;
+       return this.http.get(this.baseUrl + '/ept/endpoint?sort='+sortsStr+'&page-size=25&page=' + pageOffset);
+     }
    }
+
+   getFabricsOverviewTabData(pageOffset,sorts,tab = 'endpoint') {
+    if(sorts.length===0) {
+    return this.http.get(this.baseUrl + '/ept/' + tab + '?sort=fabric&page-size=25&page=' + pageOffset) ;
+    }else{
+     const sortsStr = this.getSortsArrayAsString(sorts) ;
+      return this.http.get(this.baseUrl + '/ept/' + tab + '?sort='+sortsStr+'&page-size=25&page=' + pageOffset);
+    }
+  }
 
    getLatestEventsForFabrics() {
      return this.http.get(this.baseUrl + '/ept/history?page-size=25') ;
@@ -89,6 +105,102 @@ export class BackendService {
    logout() {
      return this.http.post(this.baseUrl + '/user/logout',{}) ;
    }
+
+   getAppVersion() {
+     return this.http.get(this.baseUrl + '/app-status/version') ;
+   }
+
+   getSortsArrayAsString(sorts) {
+    let sortsStr='' ;
+    for(let sort of sorts) {
+      sortsStr+=sort.prop + '|' + sort.dir + ',' ;
+    }
+    sortsStr = sortsStr.slice(0,sortsStr.length-1) ;
+    return sortsStr ;
+   }
+
+   startStopFabric(action,fabric,rsn) {
+     return this.http.post(this.baseUrl + '/uni/fb-' + fabric + '/' + action,{reason:rsn}) ;
+
+   }
+
+  verifyFabric(fabric) {
+    return this.http.get(this.baseUrl + '/uni/fb-'+fabric+'/verify') ;
+  }
+
+  deleteFabric(fabric) {
+    return this.http.delete(this.baseUrl + '/uni/fb-' + fabric) ;
+  }
+
+  updateFabric(fabric) {
+    return this.http.patch(this.baseUrl + '/uni/fb-' + fabric.fabric,fabric) ;
+  }
+
+  createFabric(fabric) {
+    return this.http.post(this.baseUrl + '/fabric' , fabric ) ;
+  }
+
+  getFabricSettings(fabric,settings) {
+    return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/settings-' + settings) ;
+  }
+
+  getAllFabricSettings() {
+    return this.http.get(this.baseUrl + '/ept/settings') ;
+  }
+
+  getFabric(fabric) {
+    return this.http.get(this.baseUrl + '/uni/fb-' + fabric) ;
+  }
+
+  updateFabricSettings(fabricSettings:FabricSettings) {
+    const fabric = fabricSettings.fabric ;
+    return this.http.patch(this.baseUrl +'/uni/fb-' + fabric+ '/settings-default',fabricSettings) ;
+  }
+
+  createUser(user: User): Observable<any> {
+    let toSave = new User(
+      user.username,
+      user.role,
+      user.password
+    );
+    delete toSave.last_login;
+    delete toSave.is_new;
+    delete toSave.password_confirm;
+    return this.http.post(this.baseUrl + '/user', toSave);
+  }
+
+  updateUser(user: User): Observable<any> {
+    let toSave = new User(
+      user.username,
+      user.role,
+      user.password
+    );
+    delete toSave.is_new;
+    delete toSave.password_confirm;
+    delete toSave.last_login;
+    if (toSave.password == '') {
+      delete toSave.password;
+    }
+    return this.http.patch(this.baseUrl + '/user/' + toSave.username, toSave);
+  }
+
+  deleteUser(user: User): Observable<any> {
+    return this.http.delete(this.baseUrl + '/user/' + user.username);
+  }
+
+  getUsers(): Observable<UserList> {
+    const options = {
+      params: new HttpParams().set('sort', 'username|asc')
+    };
+    return this.http.get<UserList>(this.baseUrl + '/user', options);
+  }
+
+  getUserDetails(username: string) {
+    const url = this.baseUrl + '/uni/username-' + username;
+    return this.http.get(url);
+  }
+
+
 
 
 

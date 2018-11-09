@@ -1,4 +1,4 @@
-<div class="content">
+<div class="content" id="loginBg">
     <div class="container absolute-center">
       <div class="row">
         <div class="col-md-4"></div>
@@ -13,11 +13,11 @@
             </div>
             <div class="row">&nbsp;</div>
             <div class="row">
-              <div class="col-md-2"></div>
-              <div class="col-md-8">
-                <h1>{{title}}</h1>
+              <div class="col-md-1"></div>
+              <div class="col-md-10">
+                <h2>{{title}}</h2>
               </div>
-              <div class="col-md-2"></div>
+              <div class="col-md-1"></div>
             </div>
             <div class="row">&nbsp;</div>
             <form #loginForm="ngForm" (ngSubmit)="onSubmit()">
@@ -51,7 +51,7 @@
             <div class="row">&nbsp;</div>
             <div class="row">
               <div class="col-md-2"></div>
-              <div class="col-md-8">Version <b>1.0</b></div>
+              <div class="col-md-8">Version <b>{{version}}</b></div>
               <div class="col-md-2"></div>
             </div>
           </div>
@@ -60,4 +60,22 @@
       </div>
     </div>
   </div>
+  <div class="modal-backdrop hide" [ngClass]="{'hide':showModal === false}" style="left:0"></div>
+    <div class="modal modal--small hide" [ngClass]="{'hide':showModal === false}" id="modal-small">
+        <div class="modal__dialog">
+            <div class="modal__content">
+                <a class="modal__close" (click)="showModal = false"><span class="icon-close"></span></a>
+                <div class="modal__header">
+                    
+                    <h1 class="modal__title"><span class="icon-error"></span> {{modalTitle}}</h1>
+                </div>
+                <div class="modal__body">
+                   <p class="subtitle">{{modalBody}}</p>
+                </div>
+                <div class="modal__footer">
+                    <button class="btn" (click)="showModal = false">Ok</button>
+                </div>
+            </div>
+        </div>
+    </div>
   

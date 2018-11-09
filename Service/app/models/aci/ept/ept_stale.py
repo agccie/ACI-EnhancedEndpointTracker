@@ -1,5 +1,6 @@
 from ...rest import Rest
 from ...rest import api_register
+from . common import get_vpc_domain_name
 from . ept_history import eptHistory
 import logging
 

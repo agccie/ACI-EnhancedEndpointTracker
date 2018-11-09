@@ -168,7 +168,8 @@ class Docs(Rest):
         "update": False,
         "delete": False,
         "routes": [
-            RouteInfo(path="/", methods=["GET"], function=get_swagger_documentation)
+            RouteInfo(path="/", methods=["GET"], function=get_swagger_documentation,
+                        authenticated=False)
         ],
     }
     

@@ -100,7 +100,7 @@ if __name__ == "__main__":
     if args.aio:
         fname = "allInOne.log"
     else:
-        fname="worker_%s" % args.worker_id
+        fname="worker_%s.log" % args.worker_id
     debug_modules = [
         "app.models.aci"
     ]

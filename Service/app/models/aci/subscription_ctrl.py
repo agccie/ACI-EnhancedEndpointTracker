@@ -214,7 +214,7 @@ class SubscriptionCtrl(object):
         # create session to fabric
         self.session = get_apic_session(self.fabric, subscription_enabled=True)
         if self.session is None:
-            logger.error("subscription failed to connect to fabric %s", self.fabric)
+            logger.error("subscription failed to connect to fabric")
             self.alive = False
             return
 

@@ -159,15 +159,17 @@ class eptSettings(Rest):
             stale analysis as a stale endpoint.
             """,
         },
-        # state settings
+        # internal state info
         "overlay_vnid": {
             "type": int,
             "write": False,
+            "read": False,
             "description": "dynamically discovered overlay vnid"
         },
         "vpc_pair_type": {
             "type": str,
             "write": False,
+            "read": False,
             "default": "explicit",
             "description": "fabricProtPol pairT attribute (consecutive|reciprocal|explicit)",
         },

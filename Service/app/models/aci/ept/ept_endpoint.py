@@ -1,11 +1,21 @@
 
 from ... rest import Rest
 from ... rest import api_register
+from ... rest import api_route
 from ... rest import api_callback
+from .. utils import clear_endpoint
 from . common import get_mac_value
+from . common import parse_vrf_name
 from . ept_history import eptHistory
+from . ept_move import eptMove
+from . ept_node import eptNode
+from . ept_offsubnet import eptOffSubnet
 from . ept_subnet import eptSubnet
+from . ept_stale import eptStale
+from flask import abort
+from flask import jsonify
 
+import threading
 import logging
 
 # module level logging
@@ -43,7 +53,7 @@ class eptEndpoint(Rest):
         "create": False,
         "read": True,
         "update": False,
-        "delete": False,
+        "delete": True,
         "db_index": ["addr", "vnid", "fabric"],
         "db_shard_enable": True,
         "db_shard_index": ["addr"],
@@ -120,6 +130,12 @@ class eptEndpoint(Rest):
             "description": "",
             "meta": local_event,
         },
+        "nodes": {
+            "reference": True,
+            "type": list,
+            "subtype": int,
+            "description": "list of node ids"
+        },
     }
 
     @classmethod
@@ -140,6 +156,73 @@ class eptEndpoint(Rest):
         else:
             (data["addr_byte"], _) = eptSubnet.get_prefix_array("ipv4",data["addr"])
         return data
+
+    @api_callback("after_delete")
+    def after_delete(cls, filters):
+        """ after delete ensure that eptHistory, eptMove, eptOffsubnet, and eptStale are deleted """
+        eptMove.delete(_filters=filters)
+        eptOffSubnet.delete(_filters=filters)
+        eptStale.delete(_filters=filters)
+        eptHistory.delete(_filters=filters)
+
+    @api_route(path="clear", methods=["POST"], swag_ret=["success", "error"])
+    def clear_endpoint(self, nodes=[]):
+        """ clear endpoint on one or more nodes """
+        if self.type == "mac":
+            addr_type = "mac"
+            vrf_name = ""
+        else:
+            addr_type = "ip"
+            # get the vrf name so consuming function does not need to perform this op multiple times
+            if len(self.events) > 0:
+                vrf_name = parse_vrf_name(self.events[0]["vnid_name"])
+                if vrf_name is None:
+                    abort(500, "failed to parse vrf name from vnid(%s) name %s" % (
+                        self.vnid, self.events[0]["vnid_name"]))
+            else:
+                logger.warn("no events for this endpoint, cannot determine vrf_name")
+                abort(400, "cannot execute clear for this endpoint as vrf name is unresolved")
+
+        # need to get pod for each node, ignore unknown nodes
+        error_rows = []
+        valid_nodes = []    # list of tuples (pod, node)
+        for n in nodes:
+            obj = eptNode.load(fabric=self.fabric, node=n)
+            if obj.exists():
+                valid_nodes.append((obj.pod_id, obj.node))
+            else:
+                logger.debug("invalid/unknown node:0x%04x for fabric %s", n, self.fabric)
+                error_rows.append("invalid/unknown node %s"  % n)
+        if len(valid_nodes) == 0:
+            error_rows.append("no valid nodes provided")
+            abort(400, ". ".join(error_rows))
+
+        # execute clear endpoint in parallel across each node
+        def per_node_clear_endpoint(switch):
+            switch["ret"] = clear_endpoint(self.fabric, switch["pod"], switch["node"], self.vnid, 
+                                self.addr, addr_type, vrf_name)
+            return
+
+        threads = []
+        process = {}
+        for (pod, node) in valid_nodes:
+            process[node] = {
+                "pod": pod,
+                "node": node,
+                "ret": None
+            }
+            t = threading.Thread(target=per_node_clear_endpoint, args=(process[node],))
+            t.start()
+            threads.append(t)
+        for t in threads: t.join()
+        for node in process:
+            if not process[node]["ret"]: 
+                error_rows.append("failed to clear endpoint on node %s" % node)
+        return jsonify({
+            "success": len(error_rows)==0, 
+            "error": ". ".join(error_rows)
+        })
+
 
 
 class eptEndpointEvent(object):

@@ -19,15 +19,15 @@ MO_BASE                             = "app.models.aci.mo"
 # minimum version of supported code (2.2.1n)
 MINIMUM_SUPPORTED_VERSION           = "2.2.1n"
 
-HELLO_INTERVAL                      = 1.0
-HELLO_TIMEOUT                       = 5.0
+HELLO_INTERVAL                      = 5.0
+HELLO_TIMEOUT                       = 60.0
 WATCH_INTERVAL                      = 1.0
 CACHE_STATS_INTERVAL                = 300.0
 SEQUENCE_TIMEOUT                    = 100.0
 MANAGER_CTRL_CHANNEL                = "mctrl"
 MANAGER_WORK_QUEUE                  = "mq"
 WORKER_CTRL_CHANNEL                 = "wctrl"
-WORKER_UPDATE_INTERVAL              = 1.0
+WORKER_UPDATE_INTERVAL              = 15.0
 
 # transitory timers:
 #   delete          amount of time between delete and create events to treat as a change/move
@@ -39,12 +39,14 @@ WORKER_UPDATE_INTERVAL              = 1.0
 # suppress timers
 #   watch_offsubnet amount of time to suppress new watch_offsubnet events for single node/ep
 #   watch_stale     amount of time to suppress new watch_stale events for single node/ep
+#   fabric_restart  amount of time to suppress new fabric monitor restart events
 TRANSITORY_DELETE                   = 2.0
 TRANSITORY_OFFSUBNET                = 10.0
 TRANSITORY_STALE                    = 30.0
 TRANSITORY_STALE_NO_LOCAL           = 300.0
 SUPPRESS_WATCH_OFFSUBNET            = 8.0
 SUPPRESS_WATCH_STALE                = 25.0
+SUPPRESS_FABRIC_RESTART             = 60.0
 
 
 ###############################################################################

@@ -314,8 +314,11 @@ class Session(Rest):
         # load user object for corresponding session id.  If session id is invalid, has expired,
         # or token is not present within the request and token_required enabled, then return None
         now = time.time()
-        s = Session.load(session=session_id)
-        if not s.exists(): return None
+        s = Session.find(session=session_id)
+        if len(s)== 0: 
+            return None
+        else:
+            s = s[0]
         if now > s.timeout:
             logger.debug("session %s timeout (%s > %s)", s.session, now, s.timeout)
             return None

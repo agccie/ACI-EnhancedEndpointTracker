@@ -216,7 +216,7 @@ class eptWorker(object):
     def send_hello(self):
         """ send hello/keepalives at regular interval, this also serves as registration """
         self.hello_msg.seq+= 1
-        logger.debug(self.hello_msg)
+        #logger.debug(self.hello_msg)
         self.redis.publish(WORKER_CTRL_CHANNEL, self.hello_msg.jsonify())
         self.increment_stats(WORKER_CTRL_CHANNEL, tx=True)
 

@@ -1,5 +1,6 @@
 from ...rest import Rest
 from ...rest import api_register
+from . common import get_vpc_domain_name
 from . ept_history import eptHistory
 import logging
 
@@ -25,6 +26,9 @@ class eptOffSubnet(Rest):
         "read": True,
         "update": False,
         "delete": False,
+        "db_index": ["addr", "vnid", "node", "fabric"],
+        "db_shard_enable": True,
+        "db_shard_index": ["addr"],
     }
 
     META = {

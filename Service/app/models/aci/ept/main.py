@@ -15,19 +15,31 @@ import sys
 # module level logging
 logger = logging.getLogger(__name__)
 
-
-
-def execute_all_in_one(worker_count):
+def execute_all_in_one(worker_count, unique_log=True, debug_modules=[]):
     # create three parallel process, 1 manager, n worker, and 1 watcher. If any fail restart all
-    # subprocesses. 
+    # subprocesses.  set unique_log to true create custom logfile for each subprocess, else default
+    # logging will be used
     
+    def wrapper(wid, role):
+        # wrapper to start a manager/worker sub process with separate logfile if enabled
+        if unique_log:
+            fname = "%s_%s.log" % (role, wid)
+            setup_logger(logger, fname=fname)
+            for l in debug_modules:
+                setup_logger(logging.getLogger(l), fname=fname, thread=True)
+        if role == "manager":
+            ept = eptManager(wid)
+        else:
+            ept = eptWorker(wid, role=role)
+        ept.run()
+
     def get_processes(worker_count):
         # get AIO processes to execute
         return {
-            "manager": Process(target=eptManager("m1").run),
-            "watcher": Process(target=eptWorker("w0", role="watcher").run),
+            "manager": Process(target=wrapper, args=("m1","manager",)),
+            "watcher": Process(target=wrapper, args=("w0", "watcher",)),
             "workers": [
-                Process(target=eptWorker("w%s"%(w+1), role="worker").run) \
+                Process(target=wrapper, args=("w%s"%(w+1), "worker",)) \
                 for w in xrange(0, worker_count)
             ]
         }
@@ -37,7 +49,7 @@ def execute_all_in_one(worker_count):
         processes["manager"].start()
         logger.info("started process 'manager' with pid: %s", processes["manager"].pid)
         processes["watcher"].start()
-        logger.info("started process 'watcher' with pid: %s", processes["manager"].pid)
+        logger.info("started process 'watcher' with pid: %s", processes["watcher"].pid)
         for i, p in enumerate(processes["workers"]): 
             p.start()
             logger.info("started 'worker(%s)' with pid: %s", i+1, p.pid)
@@ -100,7 +112,7 @@ if __name__ == "__main__":
     if args.aio:
         fname = "allInOne.log"
     else:
-        fname="worker_%s.log" % args.worker_id
+        fname="%s_%s.log" % (args.role, args.worker_id)
     debug_modules = [
         "app.models.aci"
     ]
@@ -109,7 +121,7 @@ if __name__ == "__main__":
         setup_logger(logging.getLogger(l), fname=fname, stdout=stdout, thread=True)
 
     if args.aio:
-        execute_all_in_one(args.worker_count)
+        execute_all_in_one(args.worker_count, unique_log=(not stdout), debug_modules=debug_modules)
     else:
         if args.worker_id is None:
             logger.error("worker_id is required")

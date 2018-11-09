@@ -20,6 +20,7 @@ from . ept_msg import WORK_TYPE
 from . ept_msg import eptEpmEventParser
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgWork
+from . ept_msg import eptMsgWorkRaw
 from . ept_msg import eptMsgWorkWatchNode
 from . ept_epg import eptEpg
 from . ept_history import eptHistory
@@ -304,14 +305,17 @@ class eptSubscriber(object):
         # try to kill local subscriptions first
         try:
             self.stopped = True
-            reason = "restarting: %s" % reason
-            data = {"fabric":self.fabric.fabric, "reason":reason}
-            msg = eptMsg(MSG_TYPE.FABRIC_RESTART,data=data)
-            with self.manager_ctrl_channel_lock:
-                self.redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
-        finally:
             self.slow_subscription.unsubscribe()
             self.epm_subscription.unsubscribe()
+        except Exception as e:
+            logger.debug("failed to quit subscription")
+            logger.error("Traceback:\n%s", traceback.format_exc())
+
+        reason = "restarting: %s" % reason
+        data = {"fabric":self.fabric.fabric, "reason":reason}
+        msg = eptMsg(MSG_TYPE.FABRIC_RESTART,data=data)
+        with self.manager_ctrl_channel_lock:
+            self.redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
 
     def soft_restart(self, ts=None, reason=""):
         """ soft restart sets initializing to True to block new updates along with restarting 
@@ -488,8 +492,13 @@ class eptSubscriber(object):
             return
         try:
             for (classname, attr) in self.parse_event(event):
-                msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
-                self.send_msg(msg)
+                #msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
+                # dn for each possible epm event:
+                #   .../db-ep/mac-00:AA:00:00:28:1A
+                #   .../db-ep/ip-[10.1.55.220]
+                #   rsmacEpToIpEpAtt-.../db-ep/ip-[10.1.1.74]]
+                addr = re.sub("[\[\]]","", attr["dn"].split("/")[-1])
+                self.send_msg(eptMsgWorkRaw(addr, "worker", {classname:attr}, WORK_TYPE.RAW))
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 
@@ -996,6 +1005,8 @@ class eptSubscriber(object):
         # we will start epn subscription AFTER get_class (which can take a long time) but before 
         # processing endpoints.  This minimizes amount of time we lose data without having to buffer
         # all events that are recieved during get requests.
+        if self.settings.queue_init_epm_events:
+            self.epm_subscription.pause()
         self.epm_subscription.subscribe(blocking=False)
 
         ts = time.time()

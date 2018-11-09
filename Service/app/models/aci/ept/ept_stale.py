@@ -34,6 +34,9 @@ class eptStale(Rest):
         "read": True,
         "update": False,
         "delete": False,
+        "db_index": ["addr", "vnid", "node", "fabric"],
+        "db_shard_enable": True,
+        "db_shard_index": ["addr"],
     }
 
     META = {
@@ -126,7 +129,7 @@ class eptStaleEvent(object):
 
     def notify_string(self):
         """ return string formatted for notify message """
-        return "[interface:%s, encap:%s, pctag:%s, epg:%s%s, remote:%s, expected:%s]" % (
+        return "[interface:%s, encap:%s, pctag:%s, epg:%s, remote:%s, expected:%s]" % (
             self.intf_name,
             self.encap,
             self.pctag,

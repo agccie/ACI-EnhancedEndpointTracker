@@ -93,5 +93,18 @@ RUN pip install --upgrade pip
 # pull backend source and install requirements
 COPY ./requirements.txt $BACKEND_DIR/
 RUN pip install -r $BACKEND_DIR/requirements.txt
+
+# node user for angular install
+RUN useradd node -m -s /bin/bash && \
+    chmod 775 /usr/bin && \
+    chown root:node /usr/bin
+
+# for angular build within containiner, install nodejs
+RUN if [ "$APP_MODE" = "0" ] ; then \
+        curl -sL https://deb.nodesource.com/setup_9.x | bash - ; \
+        apt-get install -y nodejs ; \
+        chown node:node /usr/lib/node_modules -R ; \
+    fi
+
 WORKDIR $BACKEND_DIR
 CMD $BACKEND_DIR/start.sh

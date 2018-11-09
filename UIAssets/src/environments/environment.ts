@@ -7,7 +7,7 @@ export const environment = {
   api_entry: '/api',
   production:false,
   aci_vendor:'Cisco',
-  aci_appId:'eptracker'
+  aci_appId:'EnhancedEndpointTracker'
 
 };
 

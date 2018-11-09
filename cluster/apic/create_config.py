@@ -76,6 +76,7 @@ class KronConfig(object):
         }
         shared_environment = {
             "HOSTED_PLATFORM": "APIC",
+            "WEB_HOST": self.service_name.format(self.https_name),
             "WEB_PORT": self.https_port,
             "REDIS_PORT": self.redis_port,
             "REDIS_HOST": self.service_name.format(self.redis_name),
@@ -86,17 +87,23 @@ class KronConfig(object):
             "MONGO_PORT": self.containers[0]["base_port"],
         }
         cfg_srvs = []
+        shard_rs = {}   # shard replica sets indexed by shard number
         for i, c in enumerate(self.containers):
             shared_environment["DB_PORT_%s" % c["name"]] = c["base_port"]
             cfg = "%s:%s" % (self.service_name.format("%s-cfg" % c["name"]), c["base_port"]+1)
             cfg_srvs.append(cfg)
             for s in xrange(0, self.shards):
-                shared_hostname = "%s:%s" % (
+                shard_hostname = "%s:%s" % (
                     self.service_name.format("%s-sh%s" % (c["name"], s)),
                     c["base_port"] + s + 2
                 )
-                shared_environment["DB_SHARD_%s_REPLICA_%s" % (s, i)] = shared_hostname
+                if s not in shard_rs: shard_rs[s] = []
+                shard_rs[s].append(shard_hostname)
         shared_environment["DB_CFG_SRV"] = "cfg/%s" % (",".join(cfg_srvs))
+        # add each shard replica set environment variable
+        for sh in sorted(shard_rs):
+            shared_environment["DB_RS_SHARD_%s" % sh] = "sh%s/%s" % (sh, ",".join(shard_rs[sh]))
+
 
         # ensure all environment variables are casted to strings
         for a in shared_environment:
@@ -147,10 +154,12 @@ class KronConfig(object):
         web_name = "%s_web" % self.short_name
         config["jobs"]["service-%s" % web_name] = get_generic_service(
             web_name, 
-            service_type="system",
+            #service_type="system",
             srv_args=["-r","web"], 
             ports={"apiserver-port": self.https_port},
-            services=[{"name":"apiserver-service", "port":"apiserver-port"}]
+            services=[{"name":"apiserver-service", "port":"apiserver-port"}],
+            memory="small",
+            cpu="small",
         )
         # add redis service, manager, and db1 all to the same taskgroup group service-primary to 
         # pin to same node
@@ -158,21 +167,42 @@ class KronConfig(object):
         redis_name = "%s_redis" % self.short_name
         config["jobs"]["service-primary"] = get_generic_service(
             redis_name, 
+            group=group,
             srv_args=["-r","redis"], 
             ports={"redis-port": self.redis_port},
             services=[{"name":self.redis_name, "port":"redis-port"}],
-            group=group
+            memory="small",
+            cpu="medium",
         )
         primary_containers = config["jobs"]["service-primary"]["groups"][group]["containers"]
         # add manager services (includes workers)
         mgr_name = "%s_mgr" % self.short_name
         primary_containers[mgr_name] = get_generic_service(
             mgr_name,
-            srv_args=["-r", "mgr"],
-            memory="large",
-            cpu="ludicrous",
+            srv_args=["-r", "mgr", "-i", "m1"],
+            memory="medium",
+            cpu="medium",
             container_only=True,
         )
+        # unique container for each worker (each small memory, medium cpu)
+        watch_name = "%s_watch" % self.short_name
+        primary_containers[watch_name] = get_generic_service(
+            watch_name,
+            srv_args=["-r", "watcher", "-i", "w0"],
+            memory="small",
+            cpu="medium",
+            container_only=True,
+        )
+        for w in xrange(0, self.workers):
+            worker_name = "%s_worker%s" % (self.short_name, w+1)
+            primary_containers[worker_name] = get_generic_service(
+                worker_name,
+                srv_args=["-r", "worker", "-i", "w%s" % (w+1)],
+                memory="small",
+                cpu="medium",
+                container_only=True,
+            )
+        
         # add each db container
         for r, c in enumerate(self.containers):
             srv_name = "%s_%s" % (self.short_name, c["name"])

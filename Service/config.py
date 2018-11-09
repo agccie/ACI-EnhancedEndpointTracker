@@ -128,3 +128,6 @@ REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 # email options
 EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "noreply@aci.app")
 
+# set to APIC in APP_MODE=1 and executing on app-infra supported apic (4.0+)
+HOSTED_PLATFORM = os.environ.get("HOSTED_PLATFORM","")
+

@@ -272,12 +272,8 @@ class eptSubscriber(object):
 
         # ensure that all subscriptions are active
         while True:
-            if not self.slow_subscription.is_alive():
-                logger.warn("slow subscription no longer alive for %s", self.fabric.fabric)
-                self.fabric.add_fabric_event("failed", "subscription no longer alive")
-                return
-            if not self.epm_subscription.is_alive():
-                logger.warn("epm subscription no longer alive for %s", self.fabric.fabric)
+            if not self.subscriber.is_alive():
+                logger.warn("subscription no longer alive for %s", self.fabric.fabric)
                 self.fabric.add_fabric_event("failed", "subscription no longer alive")
                 return
             time.sleep(self.subscription_check_interval)
@@ -289,8 +285,7 @@ class eptSubscriber(object):
         # try to kill local subscriptions first
         try:
             self.stopped = True
-            self.slow_subscription.unsubscribe()
-            self.epm_subscription.unsubscribe()
+            self.subscriber.unsubscribe()
         except Exception as e:
             logger.debug("failed to quit subscription")
             logger.error("Traceback:\n%s", traceback.format_exc())

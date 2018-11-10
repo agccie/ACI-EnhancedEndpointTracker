@@ -61,11 +61,6 @@ class eptSubscriber(object):
         self.manager_work_queue_lock = threading.Lock()
         self.subscription_check_interval = 5.0   # interval to check subscription health
 
-        # create subscription object for slow and fast subscriptions
-        # slow subscriptions are classes which we expect a low number of events
-        slow_interest = {}
-        epm_interest = {}
-
         # classes that have corresponding mo Rest object and handled by handle_std_mo_event
         mo_classes = [
             "fvAEPg",
@@ -95,7 +90,7 @@ class eptSubscriber(object):
 
         # static/special handlers for a subset of 'slow' subscriptions
         # note, slow subscriptions are handled via handle_std_mo_event and dependency_map
-        subscription_classes = [
+        self.subscription_classes = [
             "fabricProtPol",        # handle_fabric_prot_pol
             "fabricAutoGEp",        # handle_fabric_group_ep
             "fabricExplicitGEp",    # handle_fabric_group_ep
@@ -110,32 +105,22 @@ class eptSubscriber(object):
         }
 
         # epm subscriptions expect a high volume of events
-        epm_subscription_classes = [
+        self.epm_subscription_classes = [
             "epmMacEp",
             "epmIpEp",
             "epmRsMacEpToIpEpAtt",
         ]
 
-        for s in subscription_classes:
-            slow_interest[s] = {"handler": self.handle_event}
+        all_interests = {}
+        for s in self.subscription_classes:
+            all_interests[s] = {"handler": self.handle_event}
         for s in self.mo_classes:
-            slow_interest[s] = {"handler": self.handle_std_mo_event}
-        for s in epm_subscription_classes:
-            epm_interest[s] = {"handler": self.handle_epm_event}
-
-        self.slow_subscription = SubscriptionCtrl(
-            self.fabric, 
-            slow_interest, 
-            name="sub-slow",
+            all_interests[s] = {"handler": self.handle_std_mo_event}
+        # wait to add epm classes
+        self.subscriber = SubscriptionCtrl(
+            self.fabric,
+            all_interests,
             heartbeat=300,
-            inactive_interval=1
-        )
-        self.epm_subscription = SubscriptionCtrl(
-            self.fabric, 
-            epm_interest, 
-            name="sub-epm",
-            heartbeat=300,
-            inactive_interval=0.01
         )
 
     def run(self):
@@ -149,8 +134,7 @@ class eptSubscriber(object):
         except (Exception, SystemExit, KeyboardInterrupt) as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
         finally:
-            self.slow_subscription.unsubscribe()
-            self.epm_subscription.unsubscribe()
+            self.subscriber.unsubscribe()
 
     def _run(self):
         """ monitor fabric and enqueue work to workers """
@@ -222,8 +206,8 @@ class eptSubscriber(object):
        
         # setup slow subscriptions to catch events occurring during build 
         if self.settings.queue_init_events:
-            self.slow_subscription.pause()
-        self.slow_subscription.subscribe(blocking=False)
+            self.subscriber.pause(self.subscription_classes + self.mo_classes.keys())
+        self.subscriber.subscribe(blocking=False)
 
         # build mo db first as other objects rely on it
         self.fabric.add_fabric_event(init_str, "collecting base managed objects")
@@ -266,11 +250,10 @@ class eptSubscriber(object):
 
         # slow objects (including std mo objects) initialization completed
         self.initializing = False
-        self.slow_subscription.resume()    # safe to call even if never paused
+        # safe to call resume even if never paused
+        self.subscriber.resume(self.subscription_classes + self.mo_classes.keys())
 
-        # setup epm subscriptions to catch events occurring during epm build
-        # NOTE - epm_subscription.subscribe is triggered within build_endpoint_db function after
-        # initial query is completed
+        # build current epm state, start subscriptions for epm objects after query completes
         self.ept_epm_parser = eptEpmEventParser(self.fabric.fabric, self.settings.overlay_vnid)
 
         # build endpoint database
@@ -281,7 +264,8 @@ class eptSubscriber(object):
 
         # epm objects intialization completed
         self.epm_initializing = False
-        self.epm_subscription.resume()    # safe to call even if never paused
+        # safe to call resume even if never paused
+        self.subscriber.resume(self.epm_subscription_classes)
 
         # subscriber running
         self.fabric.add_fabric_event("running")
@@ -334,8 +318,13 @@ class eptSubscriber(object):
             return 
 
         init_str = "re-initializing"
+        # remove slow interests from subscriber
         self.initializing = True
-        self.slow_subscription.restart(blocking=False)
+        self.subscriber.remove_interest(self.subscription_classes + self.mo_classes.keys())
+        for c in self.subscription_classes:
+            self.subscriber.add_interest(c, self.handle_event, paused=True)
+        for c in self.mo_classes:
+            self.subscriber.add_interest(c, self.handle_std_mo_event, paused=True)
 
         # build node db and vpc db
         self.fabric.add_fabric_event("soft-reset", reason)
@@ -363,6 +352,7 @@ class eptSubscriber(object):
 
         self.fabric.add_fabric_event("running")
         self.initializing = False
+        self.subscriber.resume(self.subscription_classes + self.mo_classes.keys())
 
     def send_msg(self, msg):
         """ send one or more eptMsgWork objects to worker via manager work queue """
@@ -1002,12 +992,12 @@ class eptSubscriber(object):
         data = get_class(self.session, "epmDb", queryTarget="subtree",
                 targetSubtreeClass="epmMacEp,epmIpEp,epmRsMacEpToIpEpAtt")
 
-        # we will start epn subscription AFTER get_class (which can take a long time) but before 
+        # we will start epm subscription AFTER get_class (which can take a long time) but before 
         # processing endpoints.  This minimizes amount of time we lose data without having to buffer
         # all events that are recieved during get requests.
-        if self.settings.queue_init_epm_events:
-            self.epm_subscription.pause()
-        self.epm_subscription.subscribe(blocking=False)
+        paused = self.settings.queue_init_epm_events
+        for c in self.epm_subscription_classes:
+            self.subscriber.add_interest(c, self.handle_epm_event, paused=paused)
 
         ts = time.time()
         if data is None:

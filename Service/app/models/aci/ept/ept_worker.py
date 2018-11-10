@@ -1006,7 +1006,7 @@ class eptWorker(object):
                                 is_duplicate = False
                                 break
                         if is_duplicate and db_obj["node"] not in duplicate_nodes:
-                            logger.debug("stale event for 0x%04x is dup/suppres",db_obj["node"])
+                            logger.debug("stale event for 0x%04x is dup/suppress",db_obj["node"])
                             duplicate_nodes.append(db_obj["node"])
 
             # remove duplicate_nodes from stale_nodes list

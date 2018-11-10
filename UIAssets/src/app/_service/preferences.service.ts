@@ -1,4 +1,6 @@
 import { Injectable } from '@angular/core';
+import { FabricSettings } from '../_model/fabric-settings';
+import { Fabric } from '../_model/fabric';
 
 @Injectable({
   providedIn: 'root'
@@ -6,6 +8,13 @@ import { Injectable } from '@angular/core';
 export class PreferencesService {
   pageSize = 25 ;
   endpointDetailsObject:any ;
-  selectedEndpoint:any ;
-  constructor() { }
+  selectedEndpoint={} ;
+  cul=0 ;
+  fabricSettings:FabricSettings ;
+  fabric:Fabric ;
+
+  constructor() { 
+    this.fabricSettings = new FabricSettings() ;
+    this.fabric = new Fabric() ;
+  }
 }

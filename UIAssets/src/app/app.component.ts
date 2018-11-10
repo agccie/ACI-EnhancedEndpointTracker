@@ -1,6 +1,7 @@
 import { Component, ViewChild, OnInit } from '@angular/core';
 import { Router } from '../../node_modules/@angular/router';
 import { BackendService } from './_service/backend.service';
+import { PreferencesService } from './_service/preferences.service';
 
 @Component({
   selector: 'app-root',
@@ -10,16 +11,15 @@ import { BackendService } from './_service/backend.service';
 export class AppComponent implements OnInit {
   menu:any ;
   currentMenuItem = 0 ;
-  cul:string ;
+  cul:number ;
   ls:Storage ;
-  constructor(private router : Router, private bs:BackendService) {
+  constructor(private router : Router, private bs:BackendService, public prefs:PreferencesService ){
     this.menu = [{name:'Fabrics',icon:'icon-computer',active:true},{name:'Users',icon:'icon-user',active:false},{name:'Settings',icon:'icon-cog',active:false}] ;
-    this.cul = localStorage.getItem('cul') ;
-    this.ls = localStorage ;
+    this.cul = this.prefs.cul ;
   }
 
   ngOnInit() {
-    this.cul = localStorage.getItem('cul') ;
+    
   }
 
   onMenuItemSelect(index) {
@@ -33,11 +33,12 @@ export class AppComponent implements OnInit {
       (data)=>{
         console.log(data) ;
         localStorage.setItem('cul','0') ;
-        this.cul='0' ;
-        this.router.navigate(['login']) ;
+        this.prefs.cul=0 ;
+        this.router.navigate(['/']) ;
       },
     (error)=>{
-
+      this.prefs.cul=0 ;
+        this.router.navigate(['/']) ;
     }
     )
   }

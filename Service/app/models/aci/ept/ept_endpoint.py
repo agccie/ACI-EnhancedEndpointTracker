@@ -10,13 +10,16 @@ from . ept_history import eptHistory
 from . ept_move import eptMove
 from . ept_node import eptNode
 from . ept_offsubnet import eptOffSubnet
+from . ept_remediate import eptRemediate
 from . ept_subnet import eptSubnet
 from . ept_stale import eptStale
+from . ept_worker_fabric import eptWorkerFabric
 from flask import abort
 from flask import jsonify
 
-import threading
 import logging
+import threading
+import time
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -99,12 +102,19 @@ class eptEndpoint(Rest):
         "is_stale": {
             "type": bool,
             "default": False,
-            "description": """ True if the endpoint is currently stale in the fabric """,
+            "description": "endpoint is currently stale in the fabric",
         },
         "is_offsubnet": {
             "type": bool,
             "default": False,
-            "description": "True if the endpoint is currently learned offsubnet",
+            "description": "endpoint is currently learned offsubnet",
+        },
+        "is_rapid": {
+            "type": bool,
+            "default": False,
+            "description": """ endpoint is currently flagged as rapid due to high number of events
+            within short interval and new events will be ignored until 
+            """,
         },
         "first_learn": {
             "type": dict,
@@ -202,14 +212,37 @@ class eptEndpoint(Rest):
         def per_node_clear_endpoint(switch):
             switch["ret"] = clear_endpoint(self.fabric, switch["pod"], switch["node"], self.vnid, 
                                 self.addr, addr_type, vrf_name)
+            if switch["ret"]:
+                # add event to eptRemediate and send notification
+                switch["worker_fabric"].push_event(eptRemediate._classname, {
+                        "fabric": self.fabric,
+                        "vnid": self.vnid,
+                        "addr": self.addr,
+                        "type": self.type,
+                        "node": switch["node"],
+                    }, {
+                        "ts": time.time(),
+                        "reason": "api",
+                        "action": "clear"
+                    })
+                # send notification if enabled
+                subject = "api clear endpoint"
+                txt = "api clear endpoint [fabric: %s, %s, addr: %s]" % (
+                    self.fabric,
+                    self.events[0]["vnid_name"] if len(self.events)>0 else "vnid:%d" % self.vnid,
+                    self.addr
+                )
+                switch["worker_fabric"].send_notification("clear", subject, txt)
             return
 
+        worker_fabric = eptWorkerFabric(self.fabric)
         threads = []
         process = {}
         for (pod, node) in valid_nodes:
             process[node] = {
                 "pod": pod,
                 "node": node,
+                "worker_fabric": worker_fabric,
                 "ret": None
             }
             t = threading.Thread(target=per_node_clear_endpoint, args=(process[node],))
@@ -223,7 +256,6 @@ class eptEndpoint(Rest):
             "success": len(error_rows)==0, 
             "error": ". ".join(error_rows)
         })
-
 
 
 class eptEndpointEvent(object):

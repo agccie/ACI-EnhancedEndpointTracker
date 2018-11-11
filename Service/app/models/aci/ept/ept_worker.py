@@ -1,11 +1,7 @@
 
-from ... utils import get_app_config
 from ... utils import get_redis
 from ... utils import get_db
-from ... utils import pretty_print
-from .. utils import email
 from .. utils import execute_worker
-from .. utils import syslog
 from . common import CACHE_STATS_INTERVAL
 from . common import HELLO_INTERVAL
 from . common import MANAGER_WORK_QUEUE
@@ -17,14 +13,12 @@ from . common import SUPPRESS_WATCH_OFFSUBNET
 from . common import SUPPRESS_WATCH_STALE
 from . common import WATCH_INTERVAL
 from . common import WORKER_CTRL_CHANNEL
-from . common import push_event
 from . common import get_addr_type
 from . common import get_vpc_domain_id
 from . common import parse_vrf_name
 from . common import split_vpc_domain_id
 from . common import wait_for_db
 from . common import wait_for_redis
-from . ept_cache import eptCache
 from . ept_endpoint import eptEndpoint
 from . ept_endpoint import eptEndpointEvent
 from . ept_history import eptHistory
@@ -33,7 +27,6 @@ from . ept_move import eptMove
 from . ept_move import eptMoveEvent
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
-from . ept_msg import eptEpmEventParser
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgHello
 from . ept_msg import eptMsgWork
@@ -43,10 +36,11 @@ from . ept_msg import eptMsgWorkWatchOffSubnet
 from . ept_msg import eptMsgWorkWatchStale
 from . ept_offsubnet import eptOffSubnet
 from . ept_offsubnet import eptOffSubnetEvent
+from . ept_remediate import eptRemediate
 from . ept_queue_stats import eptQueueStats
-from . ept_settings import eptSettings
 from . ept_stale import eptStale
 from . ept_stale import eptStaleEvent
+from . ept_worker_fabric import eptWorkerFabric
 
 import copy
 import json
@@ -628,7 +622,8 @@ class eptWorker(object):
                     "vnid_name": last_event.vnid_name       # maintain vnid_name even on delete
                 })
                 logger.debug("adding delete event to endpoint table: %s", local_event)
-                self.fabrics[msg.fabric].push_event(eptEndpoint._classname,flt,local_event.to_dict())
+                self.fabrics[msg.fabric].push_event(eptEndpoint._classname,flt,local_event.to_dict(),
+                        per_node=False)
                 ret.local_events.insert(0, local_event)
                 ret.analyze_move = True
             else:
@@ -684,7 +679,8 @@ class eptWorker(object):
                     # push new event to eptEndpoint events  
                     else:
                         logger.debug("adding event to eptEndpoint: %s", local_event)
-                        self.fabrics[msg.fabric].push_event(eptEndpoint._classname, flt, db_event)
+                        self.fabrics[msg.fabric].push_event(eptEndpoint._classname, flt, db_event,
+                                per_node=False)
                         ret.local_events.insert(0, local_event)
                         ret.analyze_move = True
                 else:
@@ -1131,7 +1127,7 @@ class eptWorker(object):
             for (k, msg) in work: msgs.pop(k, None)
 
         if len(work) > 0:
-            clear_cmds = []      # list of clear commands to execute in parallel
+            clear_events = []   # list of clear tuples (cmd, key, reason, event)
             logger.debug("execute %s ready watch %s events", len(work), watch_type)
             for (key, msg) in work:
                 logger.debug("checking: %s", msg)
@@ -1205,13 +1201,31 @@ class eptWorker(object):
                             cmd+= "--addr_type mac"
                         else:
                             cmd+= "--addr_type ip --vrf_name \"%s\""%parse_vrf_name(event.vnid_name)
-                        clear_cmds.append(cmd) 
+                        clear_events.append((cmd,key,ept_db_attr,event)) 
             # perform clear action for all clear cmds
-            if len(clear_cmds) > 0:
-                logger.debug("executing %s clear endpoint commands", len(clear_cmds))
-                for cmd in clear_cmds:
-                    execute_worker(cmd)
+            if len(clear_events) > 0:
+                logger.debug("executing %s clear endpoint commands", len(clear_events))
+                ts = time.time()
+                for (cmd, key, ept_db_attr, event) in clear_events:
+                    if execute_worker(cmd):
+                        # add event to eptRemediate and send notification if enabled
+                        reason = "stale" if ept_db_attr == "is_stale" else "offsubnet"
+                        self.fabrics[key["fabric"]].push_event(eptRemediate._classname, key, {
+                            "ts": ts,
+                            "action": "clear",
+                            "reason": reason,
+                        })
+                        # send notification if enabled
+                        subject = "auto-clear %s endpoint" % reason
+                        txt = "auto-clear %s endpoint [fabric: %s, %s, addr: %s]" % (
+                            reason,
+                            key["fabric"],
+                            event.vnid_name if len(event.vnid_name)>0 else "vnid:%d" % key["vnid"],
+                            key["addr"],
+                        )
+                        self.fabrics[key["fabric"]].send_notification("clear", subject, txt)
 
+                        
 class eptWorkerUpdateLocalResult(object):
     """ return object for eptWorker.update_loal method """
     def __init__(self):
@@ -1220,70 +1234,4 @@ class eptWorkerUpdateLocalResult(object):
         self.is_offsubnet = False       # eptEndpoint object is currently offsubnet
         self.is_stale = False           # eptEndpoint object is currently stale
         self.exists = False             # eptEndpoint entry exists
-
-class eptWorkerFabric(object):
-    """ tracks cache and settings for each fabric actively being monitored """
-    def __init__(self, fabric):
-        self.fabric = fabric
-        self.settings = eptSettings.load(fabric=fabric, settings="default")
-        self.cache = eptCache(fabric)
-        self.db = get_db()
-        # epm parser used with eptWorker for creating pseudo eevents
-        self.ept_epm_parser = eptEpmEventParser(self.fabric, self.settings.overlay_vnid)
-        # one time calculation for email address and syslog server (which requires valid port)
-        self.email_address = self.settings.email_address
-        self.syslog_server = self.settings.syslog_server
-        self.syslog_port = self.settings.syslog_port
-        if len(self.email_address) == 0: 
-            self.email_address = None
-        if len(self.syslog_server) == 0:
-            self.syslog_server = None
-            self.syslog_port = None
-
-    def push_event(self, table, key, event):
-        # wrapper to push an event to eptHistory events list
-        if table == eptEndpoint._classname:
-            return push_event(self.db[table], key, event, 
-                    rotate=self.settings.max_endpoint_events)
-        else:
-            return push_event(self.db[table], key, event, 
-                    rotate=self.settings.max_per_node_endpoint_events)
-
-    def notification_enabled(self, notify_type):
-        # return dict with email address, syslog server, syslog port for notify type. If not enabled,
-        # then return None for each field.
-        ret = {"enabled": False, "email_address": None, "syslog_server": None, "syslog_port": None}
-        if notify_type == "move":
-            attr = ("notify_move_email", "notify_move_syslog")
-        elif notify_type == "stale":
-            attr = ("notify_stale_email", "notify_stale_syslog")
-        elif notify_type == "offsubnet":
-            attr = ("notify_offsubnet_email", "notify_offsubnet_syslog")
-        else:
-            logger.warn("invalid notification type '%s", notify_type)
-            return ret
-        if getattr(self.settings, attr[0]):
-            ret["enabled"] = True
-            ret["email_address"] = self.email_address
-        if getattr(self.settings, attr[1]):
-            ret["enabled"] = True
-            ret["syslog_server"] = self.syslog_server
-            ret["syslog_port"] = self.syslog_port
-        return ret
-
-    def send_notification(self, notify_type, subject, txt):
-        # send proper notifications for this fabric 
-        notify = self.notification_enabled(notify_type)
-        if notify["enabled"]:
-            if notify["email_address"] is not None:
-                email(
-                    msg=txt,
-                    subject=subject,
-                    sender = get_app_config().get("EMAIL_SENDER", None),
-                    receiver=notify["email_address"],
-                )
-            if notify["syslog_server"] is not None:
-                syslog(txt, server=notify["syslog_server"], server_port=notify["syslog_port"])
-        else:
-            logger.debug("skipping send notification as '%s' is not enabled", notify_type)
 

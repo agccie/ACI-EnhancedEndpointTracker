@@ -286,27 +286,22 @@ class eptWorker(object):
 
     def handle_endpoint_event(self, msg):
         """ handle EPM endpoint event """
+        logger.debug("%s %.3f: vrf:0x%x, bd:0x%x, pcTag:0x%x, ifId:%s, encap:%s, flags(%s):[%s]",
+                msg.status, msg.ts, msg.vrf, msg.bd, msg.pcTag, msg.ifId, msg.encap, len(msg.flags),
+                ",".join(msg.flags))
 
-        # update endpoint history table and determine based on event if analysis is required
-        analysis_required = self.update_endpoint_history(msg)
-
-        # we no longer care what the original msg event type. However, we need to maintain the 
-        # correct key (fabric, vnid, addr, node) and to ensure that addr is pointing to correct
-        # value for EPM_RS_IP_EVENTs. Also, we need to update type to 'ip'.
-        if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
-            msg.addr = msg.ip
-            msg.type = "ip"
         # use msg fields to get last event for endpoint across all nodes for analysis
+        is_rs_ip_event = (msg.wt == WORK_TYPE.EPM_RS_IP_EVENT)
         projection = {
             "node": 1,
             "watch_stale_ts":1,         # will embed value into events.0
             "watch_offsubnet_ts": 1,    # will embed value into events.0
-            "events": {"$slice": 4}     # offsubnet/stale dup check needs to see if obj was deleted
+            "events": {"$slice": 1}     # pull only events.0
         }
         flt = {
             "fabric": msg.fabric,
             "vnid": msg.vnid,
-            "addr": msg.addr,
+            "addr": msg.ip if is_rs_ip_event else msg.addr,
         }
         per_node_history_events = {}    # one entry per node, indexed by node-id
         for h in self.db[eptHistory._classname].find(flt, projection):
@@ -318,6 +313,17 @@ class eptWorker(object):
                 events[0].watch_stale_ts = h["watch_stale_ts"]
                 events[0].watch_offsubnet_ts = h["watch_offsubnet_ts"]
                 per_node_history_events[h["node"]] = events
+
+        # update endpoint history table and determine based on event if analysis is required
+        # if this is a new event, the event is inserted into per_node_history_events 
+        analysis_required = self.update_endpoint_history(msg, per_node_history_events)
+
+        # we no longer care what the original msg event type. However, we need to maintain the 
+        # correct key (fabric, vnid, addr, node) and to ensure that addr is pointing to correct
+        # value for EPM_RS_IP_EVENTs. Also, we need to update type to 'ip'.
+        if is_rs_ip_event:
+            msg.addr = msg.ip
+            msg.type = "ip"
 
         # update ept_endpoint with local event. Return last locals events for move analyze
         update_local_result = self.update_local(msg, per_node_history_events)
@@ -334,13 +340,11 @@ class eptWorker(object):
             if self.fabrics[msg.fabric].settings.analyze_stale:
                 self.analyze_stale(msg, per_node_history_events, update_local_result)
 
-    def update_endpoint_history(self, msg):
+    def update_endpoint_history(self, msg, per_node_history_events):
         """ push event into eptHistory table and determine if analysis is required """
         # already have basic info logged when event was received (fabric, wt, node, vnid, addr, ip)
         # let's add ts, status, flags, ifId, pctag, vrf, bd, encap for full picture
-        logger.debug("%s %.3f: vrf:0x%x, bd:0x%x, pcTag:0x%x, ifId:%s, encap:%s, flags(%s):[%s]",
-                msg.status, msg.ts, msg.vrf, msg.bd, msg.pcTag, msg.ifId, msg.encap, len(msg.flags),
-                ",".join(msg.flags))
+        logger.debug("update endpoint history")
 
         cache = self.fabrics[msg.fabric].cache
         is_local = "local" in msg.flags
@@ -403,15 +407,15 @@ class eptWorker(object):
         # eptHistoryEvent representing current received event
         event = eptHistoryEvent.from_msg(msg)
 
-        # get last event from eptHistory, use direct db access for projection and speed
-        projection = {"events": {"$slice": 1}}
+        # prepare filter for push_event
         flt = {
             "fabric": msg.fabric,
             "node": msg.node,
             "vnid": msg.vnid,
             "addr": msg.ip if is_rs_ip_event else msg.addr
         }
-        last_event = self.db[eptHistory._classname].find_one(flt, projection)
+        # get last event from eptHistory 
+        last_event = per_node_history_events.get(msg.node, None)
         if last_event is None:
             logger.debug("new endpoint on node %s", msg.node)
             if not is_created:
@@ -420,6 +424,7 @@ class eptWorker(object):
             # add new entry to db with most recent msg as the only event
             eptHistory(fabric=msg.fabric, node=msg.node, vnid=msg.vnid, addr=msg.addr, 
                     type=msg.type, count=1, events=[event.to_dict()]).save()
+            per_node_history_events[msg.node] = [event]
 
             # no analysis required for new event if:
             #   1) new event is epmRsMacEpToIpEpAtt (rewrite info without epmIpEp info)
@@ -433,9 +438,12 @@ class eptWorker(object):
             else:
                 logger.debug("new endpoint event on node %s requires analysis", msg.node)
                 return True
-
-        # eptHistoryEvent representing last event in db
-        last_event = eptHistoryEvent.from_dict(last_event["events"][0])
+        else:
+            # copy down watch_ts from last_event into current event.  This is not used for current
+            # function but used by suppression in later analysis
+            last_event = last_event[0]
+            event.watch_stale_ts = last_event.watch_stale_ts
+            event.watch_offsubnet_ts = last_event.watch_offsubnet_ts
 
         # a few more events that can be ignored
         if last_event.classname == event.classname:
@@ -470,6 +478,7 @@ class eptWorker(object):
                 logger.debug("rewrite info updated from [bd:%s,mac:%s] to [bd:%s,mac:%s]", 
                     last_event.rw_bd, last_event.rw_mac, event.rw_bd, event.rw_mac)
                 self.fabrics[msg.fabric].push_event(eptHistory._classname, flt, event.to_dict())
+                per_node_history_events[msg.node].insert(0, event)
                 if is_deleted:
                     logger.debug("no analysis required for delete to rewrite info")
                     return False
@@ -504,7 +513,7 @@ class eptWorker(object):
         elif is_deleted:
             # no comparision needed, rw info already merged, simply add the delete event
             # requirement to preserve vnid_name even on delete, therefore always merge w/ last_event
-            setattr(event, "vnid_name", getattr(last_event, "vnid_name"))
+            event.vnid_name = last_event.vnid_name
             update = True
         elif is_modified:
             # all attributes will always be present even if not in the original modified event
@@ -534,6 +543,7 @@ class eptWorker(object):
         # if update occurred, push event to db
         if update:
             self.fabrics[msg.fabric].push_event(eptHistory._classname, flt, event.to_dict())
+            per_node_history_events[msg.node].insert(0, event)
             # special case where update does not require analysis
             if is_ip_event and is_local and event.rw_bd == 0:
                 logger.debug("no analysis for update to local IP endpoint with no rewrite info")
@@ -789,12 +799,10 @@ class eptWorker(object):
             logger.debug("clearing eptEndpoint is_offsubnet flag")
             flt.pop("node",None)
             self.db[eptEndpoint._classname].update_one(flt, {"$set":{"is_offsubnet":False}})
-        # check current offsubnet events against existing eptOffSubnet entry. here if there is an
-        # existing eptOffSubnet event with same pctag and same remote entry AND there is no delete
-        # after the timestamp within the per_node_event_history, then also consider this a dup
-        projection = {"node":1, "watch_offsubnet_ts":1, "events": {"$slice":1}}
+
+        # suppress the event to watcher if within suppress interval
         if len(offsubnet_nodes)>0:
-            duplicate_nodes = []
+            suppress_nodes = []
             # need to suppress rapid events if recent watch job created
             # last watch ts is embedded in per_node_history_events
             for node in offsubnet_nodes:
@@ -803,29 +811,12 @@ class eptWorker(object):
                     if delta != 0 and delta < SUPPRESS_WATCH_OFFSUBNET:
                         logger.debug("suppress watch_offsubnet for node 0x%04x (delta %.03f<%.03f)", 
                                 node, delta, SUPPRESS_WATCH_OFFSUBNET)
-                        if node not in duplicate_nodes:
-                            duplicate_nodes.append(node)
+                        suppress_nodes.append(node)
 
-            for db_obj in self.db[eptOffSubnet._classname].find(flt, projection):
-                if db_obj["node"] in offsubnet_nodes and len(db_obj["events"])>0:
-                    new_event = offsubnet_nodes[db_obj["node"]]
-                    db_event = eptOffSubnetEvent.from_dict(db_obj["events"][0])
-                    if db_event.remote == new_event.remote and db_event.pctag == new_event.pctag:
-                        # check if this endpoint learn has been deleted and re-learned on node 
-                        # since last eptOffSubnet event.  If so, clear is_duplicate flag
-                        is_duplicate = True
-                        for h_event in per_node_history_events[db_obj["node"]]:
-                            if h_event.ts > db_event.ts and h_event.status == "deleted":
-                                is_duplicate = False
-                                break
-                        if is_duplicate and db_obj["node"] not in duplicate_nodes:
-                            logger.debug("offsubnet event for 0x%04x is dup/suppress",db_obj["node"])
-                            duplicate_nodes.append(db_obj["node"])
-
-            # remove duplicate_nodes from offsubnet_nodes list
-            for node in duplicate_nodes:
+            # remove suppress_nodes from offsubnet_nodes list
+            for node in suppress_nodes:
                 offsubnet_nodes.pop(node, None)
-            # create work for WATCH_OFFSUBNET for each non-duplicate offsubnet events and set 
+            # create work for WATCH_OFFSUBNET for each non-suppressed offsubnet events and set 
             # watch_offsubnet_ts for the node.  This is an extra db write but will suppress events
             # sent to watcher
             if len(offsubnet_nodes) > 0:
@@ -974,12 +965,9 @@ class eptWorker(object):
             flt.pop("node",None)
             self.db[eptEndpoint._classname].update_one(flt, {"$set":{"is_stale":False}})
 
-        # check current stale events against existing eptStale entry. here if there is an
-        # existing eptStale event with same remote and expected remote AND there is no delete
-        # after the timestamp within the per_node_event_history, then consider this a dup
-        projection = {"node":1, "events": {"$slice":1}}
+        # suppress the event to watcher if within suppress interval
         if len(stale_nodes)>0:
-            duplicate_nodes = []
+            suppress_nodes = []
 
             # need to suppress rapid events if recent watch job created
             # last watch ts is embedded in per_node_history_events
@@ -989,29 +977,12 @@ class eptWorker(object):
                     if delta != 0 and delta < SUPPRESS_WATCH_STALE:
                         logger.debug("suppress watch_stale for node 0x%04x (delta %.03f<%.03f)", 
                                 node, delta, SUPPRESS_WATCH_STALE)
-                        if node not in duplicate_nodes:
-                            duplicate_nodes.append(node)
+                        suppress_nodes.append(node)
 
-            for db_obj in self.db[eptStale._classname].find(flt, projection):
-                if db_obj["node"] in stale_nodes and len(db_obj["events"])>0:
-                    new_event = stale_nodes[db_obj["node"]]
-                    db_event = eptStaleEvent.from_dict(db_obj["events"][0])
-                    if db_event.remote == new_event.remote and \
-                        db_event.expected_remote == new_event.expected_remote:
-                        # check if this endpoint learn has been deleted and re-learned on node 
-                        # since last eptStale event.  If so, clear is_duplicate flag
-                        is_duplicate = True
-                        for h_event in per_node_history_events[db_obj["node"]]:
-                            if h_event.ts > db_event.ts and h_event.status == "deleted":
-                                is_duplicate = False
-                                break
-                        if is_duplicate and db_obj["node"] not in duplicate_nodes:
-                            logger.debug("stale event for 0x%04x is dup/suppress",db_obj["node"])
-                            duplicate_nodes.append(db_obj["node"])
-
-            # remove duplicate_nodes from stale_nodes list
-            for node in duplicate_nodes:
+            # remove suppress_nodes from offsubnet_nodes list
+            for node in suppress_nodes:
                 stale_nodes.pop(node, None)
+
             # create work for WATCH_STALE for each non-duplicate stale events and set
             # watch_stale_ts for the node.  This is an extra db write but will suppress events
             # sent to watcher
@@ -1091,7 +1062,7 @@ class eptWorker(object):
     def handle_watch_offsubnet(self, msg):
         """ recieves a eptMsgWorkWatchOffSubnet message and adds object to watch_offsubnet dict with 
             execute timestamp (xts) of current ts + TRANSITORY_OFFSUBNET timer. If object already
-            exists it is overwrittent with the new watch event.
+            exists it is overwritten with the new watch event.
         """
         key = "%s%s%s%s" % (msg.fabric, msg.addr, msg.vnid, msg.node)
         msg.xts = msg.ts + TRANSITORY_OFFSUBNET
@@ -1129,7 +1100,8 @@ class eptWorker(object):
         """ loop through all events in watch_type dict. for each event with xts ready check if 
             watch_type (is_offsubnet/is_stale) value within corresponding eptHistory object is set.
             If true, update eptEndpoint (is_offsubnet/is_stale) attribute and then perform 
-            configured notify and remediate actions.  Add object ept collection (no dup check here)
+            configured notify and remediate actions.  Add object ept collection with dup check, 
+            but perform remediation action unconditionally.
         """
         work = []               # tuple of (key, msg) of watch event that is ready
 
@@ -1170,33 +1142,57 @@ class eptWorker(object):
                     "node": msg.node,
                 }
                 projection = {
-                    ept_db_attr: 1
+                    ept_db_attr: 1,
+                    "events": {"$slice": 4},
                 }
                 h = self.db[eptHistory._classname].find_one(flt, projection)
                 if h is not None and h[ept_db_attr]: 
-                    logger.debug("%s is true, updating eptEndpoint and pushing event", ept_db_attr)
+                    logger.debug("%s is true, updating eptEndpoint", ept_db_attr)
                     # update eptEndpoint object 
                     flt2 = copy.copy(flt)
                     flt2.pop("node",None)
                     self.db[eptEndpoint._classname].update_one(flt2, {"$set":{ept_db_attr:True}})
-                    # push event to db. Here, the only non-key value not present is 'type' which we
-                    # will set as a key to allow proper upsert functionality if object does not 
-                    # exists (upsert = no extra read!)
+                    
+                    # for db push, the only non-key value not present is 'type' which we will set as
+                    # a key to allow proper upsert functionality if object does not exists (upsert)
                     key = copy.copy(flt)
                     key["type"] = msg.type
                     event = event_class.from_dict(msg.event)
-                    self.fabrics[msg.fabric].push_event(ept_db._classname, key, event.to_dict())
-                    # send notification if enabled
-                    subject = "%s event for %s" % (watch_type, msg.addr)
-                    txt = "%s event [fabric: %s, %s, addr: %s] %s" % (
-                        watch_type,
-                        msg.fabric,
-                        event.vnid_name if len(event.vnid_name)>0 else "vnid:%d" % msg.vnid,
-                        msg.addr,
-                        event.notify_string()
-                    )
-                    self.fabrics[msg.fabric].send_notification(watch_type, subject, txt)
-                    # add to clear list if remediation is enabled
+
+                    # dup check is two parts. dup flag is initialized to false and set to true if
+                    # last event is_duplicate of current event. dup flag can then be cleared if 
+                    # a delete has occurred in eptHistory since the last event_class event. either 
+                    # ways we need to do a read of event_class.  this is useful because watch events
+                    # that are still offsubnet/stale are less frequently than analyze_stale or 
+                    # anaylze_offsubnet events. The hope is reads in the watch reduce reads in the 
+                    # worker nodes
+                    is_duplicate = False
+                    db_obj = self.db[ept_db._classname].find_one(flt,{"events":{"$slice":1}})
+                    if db_obj is not None and "events" in db_obj and len(db_obj["events"])>0:
+                        db_event = event_class.from_dict(db_obj["events"][0])
+                        if event.is_duplicate(db_event):
+                            is_duplicate = True
+                            # check if there was a delete since db_event
+                            for h_event in h["events"]:
+                                if h_event["ts"] > db_event.ts and h_event["status"] == "deleted":
+                                    is_duplicate = False
+                                    break
+                    if is_duplicate:
+                        logger.debug("suppressing notification and db update for duplicate event")
+                    else:
+                        self.fabrics[msg.fabric].push_event(ept_db._classname, key, event.to_dict())
+                        # send notification if enabled
+                        subject = "%s event for %s" % (watch_type, msg.addr)
+                        txt = "%s event [fabric: %s, %s, addr: %s] %s" % (
+                            watch_type,
+                            msg.fabric,
+                            event.vnid_name if len(event.vnid_name)>0 else "vnid:%d" % msg.vnid,
+                            msg.addr,
+                            event.notify_string()
+                        )
+                        self.fabrics[msg.fabric].send_notification(watch_type, subject, txt)
+
+                    # even if duplicate, add to clear list if remediation is enabled
                     if getattr(self.fabrics[msg.fabric].settings, remediate_attr):
                         logger.debug("%s enabled, adding endpoint to clear list", remediate_attr)
                         cmd = "clear --fabric %s --pod %s --node %s --addr %s --vnid %s " % (

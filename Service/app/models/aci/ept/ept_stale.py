@@ -112,6 +112,12 @@ class eptStaleEvent(object):
                 self.remote, self.expected_remote
             )
 
+    def is_duplicate(self, event):
+        """ check if this stale event is logically the same as the provided eptStaleEvent object """
+        # only checking remote and expected remote for the endpoint.  We don't care about names,
+        # interfaces/tunnels, or pctags for dup stale suppression
+        return (self.remote == event.remote and self.expected_remote == event.expected_remote)
+
     def to_dict(self):
         """ convert object to dict for insertion into eptEndpoint events list """
         return {

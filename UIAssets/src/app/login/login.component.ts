@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { Router } from '../../../node_modules/@angular/router';
+import { Router } from '@angular/router';
 import { BackendService } from '../_service/backend.service';
 import { PreferencesService } from '../_service/preferences.service';
 import { AppComponent } from '../app.component';
@@ -17,6 +17,7 @@ export class LoginComponent implements OnInit {
   modalTitle='' ;
   modalBody='' ;
   version='Not Available' ;
+  loading=false;
   constructor(private router : Router,private bs : BackendService,private prefs:PreferencesService) {
     this.title = 'Endpoint Tracker'
     this.getAppVersion() ;

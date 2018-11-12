@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { CanActivate } from '../../../node_modules/@angular/router';
+import { CanActivate } from '@angular/router';
 import { PreferencesService } from './preferences.service';
 
 @Injectable({

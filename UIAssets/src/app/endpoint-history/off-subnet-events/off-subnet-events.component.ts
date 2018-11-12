@@ -11,6 +11,7 @@ export class OffSubnetEventsComponent implements OnInit {
   rows:any;
   nodes=[];
   endpoint:any ;
+  loading=false;
   constructor(private bs:BackendService, private prefs:PreferencesService) {
     this.rows=[] ;
     this.endpoint = this.prefs.selectedEndpoint

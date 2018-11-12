@@ -1,5 +1,5 @@
 import { Component, ViewChild, OnInit } from '@angular/core';
-import { Router } from '../../node_modules/@angular/router';
+import { Router } from '@angular/router';
 import { BackendService } from './_service/backend.service';
 import { PreferencesService } from './_service/preferences.service';
 

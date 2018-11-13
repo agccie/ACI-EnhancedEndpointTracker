@@ -290,14 +290,6 @@ class eptWorker(object):
         logger.debug(parsed_msg)
         self.handle_endpoint_event(parsed_msg)
 
-    def handle_raw_endpoint_event(self, msg):
-        """ receive eptMsgWorkRaw, parse the event, and then execute handle endpoint event """
-        classname = msg.data.keys()[0]
-        attr = msg.data[classname]
-        parsed_msg = self.fabrics[msg.fabric].ept_epm_parser.parse(classname, attr, attr["_ts"])
-        logger.debug(parsed_msg)
-        self.handle_endpoint_event(parsed_msg)
-
     def handle_endpoint_event(self, msg):
         """ handle EPM endpoint event """
         logger.debug("%s %.3f: vrf:0x%x, bd:0x%x, pcTag:0x%x, ifId:%s, encap:%s, flags(%s):[%s]",

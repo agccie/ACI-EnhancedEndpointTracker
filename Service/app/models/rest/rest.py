@@ -586,13 +586,17 @@ class Rest(object):
         return False
 
     @classmethod
-    def find(cls, _rsp_include="self", **kwargs):
+    def find(cls, _projection=None, rsp_include="self", **kwargs):
         """ return list of instantiated rest objects matching kwargs (object attributes). 
             value is found by performing read with provided attributes.  This is similar to load 
             (_bulk=True) with the exception that load uses only key attributes for read and all 
             non-key attributes are used to overwrite object values. I.e., load is a find + override
             for non-keys.
-            
+           
+            _projection is dict for mongo projection. Note, using projection with find creates an
+            inconsistency between the Rest object returned and the db object.  Be VERY CAREFUL when
+            using projection and Rest.save() operations.
+
             TODO (handle children on load)
             _rsp_include to [self, children, subtree] to build children objects
         """
@@ -604,7 +608,8 @@ class Rest(object):
                     read_filter[attr] = kwargs[attr]
             if "_id" in kwargs and cls._access["expose_id"]:
                 read_filter["_id"] = ObjectId(kwargs["_id"])
-            ret = cls.read(_disable_page=True, _read_all=True, _filters=read_filter)
+            ret = cls.read(_disable_page=True, _read_all=True, _projection=_projection, 
+                            _filters=read_filter)
             if "objects" in ret and isinstance(ret["objects"], list):
                 for o in ret["objects"]:
                     if cls._classname in o: 
@@ -1248,7 +1253,7 @@ class Rest(object):
         return ret_obj
 
     @classmethod
-    def read(cls, _params={}, _filters=None, _disable_page=False, **kwargs):
+    def read(cls, _params={}, _filters=None, _disable_page=False, _projection=None, **kwargs):
         """ read rest object, aborts on error.
         
             support basic sorting, paging, and filtering via URL _params
@@ -1285,6 +1290,10 @@ class Rest(object):
                 _write_all (ignored)
                 _read_all - return all attributes even those that have read=False in meta 
             
+            non-api calls can include _projection to enforce subset of data returned on read. The
+            _projection option overrides include params
+
+
             Return dict of with following attributes:
                 count:      total number of objects matching query
                 objects:    list of requested objects
@@ -1370,15 +1379,19 @@ class Rest(object):
                 cls.logger.debug(traceback.format_exc())
                 cls.logger.warn("%s before read callback failed: %s", classname, e)
 
-        # add support for projects 
-        projections = {}
-        for i in _params.get("include","").split(","):
-            if len(i)>0 and i not in projections: projections[i] = 1
-        if len(projections)==0: projections = None
-        elif cls._access["dn"] and "dn" not in cls._attributes:
-            # ensure all keys are set for 'dn' case when 'include' limits return results
-            # AND 'dn' is not already a user defined attribute for the object
-            for k in cls._keys: projections[k] = 1
+        # add support for projections
+        if _projection is not None:
+            projections = _projection
+        else:
+            # parse projections from params
+            projections = {}
+            for i in _params.get("include","").split(","):
+                if len(i)>0 and i not in projections: projections[i] = 1
+            if len(projections)==0: projections = None
+            elif cls._access["dn"] and "dn" not in cls._attributes:
+                # ensure all keys are set for 'dn' case when 'include' limits return results
+                # AND 'dn' is not already a user defined attribute for the object
+                for k in cls._keys: projections[k] = 1
 
         # acquire cursor 
         try:

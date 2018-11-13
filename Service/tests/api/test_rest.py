@@ -10,7 +10,7 @@ import pytest
 logger = logging.getLogger(__name__)
 
 rest_url = "/api/test/rest"
-rest_url_key = "/api/uni/key-{}" 
+rest_url_key = "/api/uni/test/key-{}" 
 rest_classname = "test.rest"
 good_request = 200
 bad_request = 400
@@ -21,6 +21,7 @@ not_found = 404
 @api_register(path="test/rest")
 class Rest_TestClass(Rest):
     META_ACCESS = {
+        "namespace": "test",
         "bulk_read": True,
         "bulk_update": True,
         "bulk_delete": True,
@@ -75,6 +76,7 @@ class Rest_TestClass(Rest):
 @api_register(path="test/secure")
 class Rest_Secure(Rest):
     META_ACCESS = {
+        "namespace": "secure",
         "bulk_read": True,
         "bulk_update": True,
         "bulk_delete": True,

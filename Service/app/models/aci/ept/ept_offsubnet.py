@@ -101,6 +101,12 @@ class eptOffSubnetEvent(object):
                 self.ts, self.pctag, self.intf_id, self.encap, self.rw_bd, self.rw_mac, self.remote
             )
 
+    def is_duplicate(self, event):
+        """ check if this offsubnet event is logically the same as the provided offsubnet object """
+        # only checking remote and pctag (which drives epg/bd/subnets), if the same then suppress
+        # the offsubnet event
+        return (self.remote == event.remote and self.pctag == event.pctag)
+
     def to_dict(self):
         """ convert object to dict for insertion into eptEndpoint events list """
         return {

@@ -231,6 +231,7 @@ class eptManager(object):
                 sub = eptSubscriber(f)
                 self.fabrics[fabric]["subscriber"] = sub
                 self.fabrics[fabric]["process"] = Process(target=sub.run)
+                self.fabrics[fabric]["process"].daemon = True
                 self.fabrics[fabric]["process"].start()
                 self.fabrics[fabric]["waiting_for_retry"] = False
                 f.restart_ts = time.time()

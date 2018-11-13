@@ -82,9 +82,9 @@ class eptHistory(Rest):
         "count": {
             "type": int,
             "description": """
-            total number of events that have occurred. Note, the events list is limited by 
-            the eptSettings max_endpoint_events threshold but this count will be the total count 
-            including the events that have wrapped.
+            total number of events that have occurred. Note, the events list is limited by the 
+            eptSettings max_per_node_endpoint_events threshold but this count will be the 
+            total count including the events that have wrapped.
             """,
         },
         "events": {

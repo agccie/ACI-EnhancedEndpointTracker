@@ -72,7 +72,7 @@ function exit_script(){
     log "exiting in $timeout seconds"
     sleep $timeout
     log "exit"
-    exit 1
+    #exit 1
 }
 
 # required dictories for logging and database datastore (all-in-one-mode)

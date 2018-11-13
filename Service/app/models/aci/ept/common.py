@@ -28,6 +28,7 @@ MANAGER_CTRL_CHANNEL                = "mctrl"
 MANAGER_WORK_QUEUE                  = "mq"
 WORKER_CTRL_CHANNEL                 = "wctrl"
 WORKER_UPDATE_INTERVAL              = 15.0
+RAPID_CALCULATE_INTERVAL            = 15.0
 
 # transitory timers:
 #   delete          amount of time between delete and create events to treat as a change/move
@@ -36,14 +37,17 @@ WORKER_UPDATE_INTERVAL              = 15.0
 #   stale_no_local  amount of time to wait for new events when an endpoint is declared as stale
 #                   and there is no local endpoint learned within the fabric (i.e., expected remote
 #                   node is 0)
+#   rapid           amount of time to wait for new events when an endpoint is delcared is_rapid
+#   
 # suppress timers
 #   watch_offsubnet amount of time to suppress new watch_offsubnet events for single node/ep
 #   watch_stale     amount of time to suppress new watch_stale events for single node/ep
 #   fabric_restart  amount of time to suppress new fabric monitor restart events
-TRANSITORY_DELETE                   = 2.0
+TRANSITORY_DELETE                   = 60.0
 TRANSITORY_OFFSUBNET                = 10.0
 TRANSITORY_STALE                    = 30.0
 TRANSITORY_STALE_NO_LOCAL           = 300.0
+TRANSITORY_RAPID                    = 35.0
 SUPPRESS_WATCH_OFFSUBNET            = 8.0
 SUPPRESS_WATCH_STALE                = 25.0
 SUPPRESS_FABRIC_RESTART             = 60.0

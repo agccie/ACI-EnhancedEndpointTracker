@@ -13,9 +13,8 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 # specific to this application
 from app.models.aci import utils as aci_utils
-from app.models.aci.tools.acitoolkit.acisession import Session
+from app.models.aci.session import Session
 from app.models.aci.fabric import Fabric
-
 
 import argparse
 import logging
@@ -120,10 +119,8 @@ def app_get_fabric_domain(hostname, apic_username, apic_cert):
         apic_username, hostname))
     try:
         session = Session(hostname, apic_username, appcenter_user=True, 
-                cert_name=apic_username, key=apic_cert,
-                subscription_enabled=False)
-        resp = session.login(timeout=60)
-        if resp is None or not resp.ok:
+                cert_name=apic_username, key=apic_cert)
+        if not session.login(timeout=60):
             logger.error("failed to login with cert credentials")
             return None
         js = aci_utils.get_class(session, "infraCont")

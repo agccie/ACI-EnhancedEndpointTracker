@@ -13,7 +13,6 @@ from . ept_offsubnet import eptOffSubnet
 from . ept_remediate import eptRemediate
 from . ept_subnet import eptSubnet
 from . ept_stale import eptStale
-from . ept_worker_fabric import eptWorkerFabric
 from flask import abort
 from flask import jsonify
 
@@ -116,6 +115,25 @@ class eptEndpoint(Rest):
             within short interval and new events will be ignored until 
             """,
         },
+        "is_rapid_ts": {
+            "type": float,
+            "description": "timestamp endpoint was flagged as rapid",
+        },
+        "rapid_lts": {
+            "type": float,
+            #"read": False,
+            "description": "timestamp when last rate calculation was performed",
+        },
+        "rapid_count": {
+            "type": int,
+            #"read": False,
+            "description": "per-node event count for rapid rate calculation",
+        },
+        "rapid_lcount": {
+            "type": int,
+            #"read": False,
+            "description": "per-node event count when last rapid rate calculation was performed",
+        },  
         "first_learn": {
             "type": dict,
             "description": """
@@ -140,6 +158,7 @@ class eptEndpoint(Rest):
             "description": "",
             "meta": local_event,
         },
+        # reference attributes
         "nodes": {
             "reference": True,
             "type": list,
@@ -179,6 +198,8 @@ class eptEndpoint(Rest):
     @api_route(path="clear", methods=["POST"], swag_ret=["success", "error"])
     def clear_endpoint(self, nodes=[]):
         """ clear endpoint on one or more nodes """
+        # on-demand import of eptWorkerFabric only at api call (prevents circular imports)
+        from . ept_worker_fabric import eptWorkerFabric
         if self.type == "mac":
             addr_type = "mac"
             vrf_name = ""

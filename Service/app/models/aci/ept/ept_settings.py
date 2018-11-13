@@ -130,6 +130,14 @@ class eptSettings(Rest):
             "default": True,
             "description": "enable rapid endpoint detection and holddown",
         },
+        "restore_rapid": {
+            "type": bool,
+            "default": True,
+            "description": """
+            when an endpoint is_rapid flag is cleared, perform api refresh to ensure db is fully 
+            synchronized with the endpoint state within the fabric
+            """,
+        },
         "max_per_node_endpoint_events":{
             "type": int,
             "description": """

@@ -198,7 +198,7 @@ class DependencyNode(object):
         #logger.debug("sync_ept_to_mo %s(%s) returning %s updates",mo._classname,mo.dn,len(updates))
         return updates
 
-    def sync_event(self, fabric, attr, session):
+    def sync_event(self, fabric, attr, session=None):
         """ receive subscription event and update mo and corresponding dependent ept objects
             return list of ept objects that were updated
             this requires 'dn', 'status', and '_ts' within provided attribute dict

@@ -105,9 +105,10 @@ class User(Rest):
         """ logout current user """
         session_id = g.user.session
         if session_id is not None:
-            s = Session.load(session=session_id)
-            if s.exists():
+            s = Session.find(session=session_id)
+            if len(s)>0:
                 #logger.debug("deleting session: %s", session_id)
+                s = s[0]
                 s.remove()
         logout_user()
         return User.api_ok()

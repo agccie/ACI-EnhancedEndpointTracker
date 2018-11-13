@@ -1,8 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { PreferencesService } from '../_service/preferences.service';
-import { IfStmt } from '../../../node_modules/@angular/compiler';
+import { IfStmt } from '@angular/compiler';
 import { BackendService } from '../_service/backend.service';
-import { ActivatedRoute } from '../../../node_modules/@angular/router';
+import { ActivatedRoute } from '@angular/router';
 
 @Component({
   selector: 'app-endpoint-history',

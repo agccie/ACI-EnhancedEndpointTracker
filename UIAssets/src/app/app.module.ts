@@ -27,7 +27,7 @@ import { SettingsComponent } from './settings/settings.component';
 import { NgSelectModule } from '@ng-select/ng-select';
 import {NgbModule} from '@ng-bootstrap/ng-bootstrap' ;
 import { BackendInterceptorService } from './_service/backend-interceptor.service';
-import { CookieService } from '../../node_modules/ngx-cookie-service';
+import { CookieService } from 'ngx-cookie-service';
 import {TypeaheadModule} from 'ngx-bootstrap';
 import { ConnectivityComponent } from './settings/connectivity/connectivity.component';
 import { NotificationComponent } from './settings/notification/notification.component';

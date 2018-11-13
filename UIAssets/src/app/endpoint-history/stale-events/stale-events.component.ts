@@ -11,6 +11,7 @@ export class StaleEventsComponent implements OnInit {
   rows:any;
   endpoint:any;
   nodes = [] ;
+  loading=false;
   constructor(private bs:BackendService,private prefs:PreferencesService) { 
     this.rows = [];
     this.endpoint = this.prefs.selectedEndpoint ;

@@ -10,6 +10,7 @@ import { PreferencesService } from '../../_service/preferences.service';
 export class MoveEventsComponent implements OnInit {
   rows:any ;
   endpoint:any;
+  loading=false;
   constructor(private bs:BackendService, private prefs:PreferencesService) {
     this.endpoint = this.prefs.selectedEndpoint ;
     this.getMoveEventsForEndpoint(this.endpoint.fabric,this.endpoint.vnid,this.endpoint.addr) ;

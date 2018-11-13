@@ -72,7 +72,6 @@ function exit_script(){
     log "exiting in $timeout seconds"
     sleep $timeout
     log "exit"
-    sleep infinity
     #exit 1
 }
 

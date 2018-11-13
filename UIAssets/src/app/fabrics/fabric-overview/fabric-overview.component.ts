@@ -1,6 +1,6 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { BackendService } from '../../_service/backend.service';
-import { Router } from '../../../../node_modules/@angular/router';
+import { Router } from '@angular/router';
 import { PreferencesService } from '../../_service/preferences.service';
 
 @Component({

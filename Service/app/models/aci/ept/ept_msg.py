@@ -200,7 +200,7 @@ class eptMsgWork(object):
         elif wt==WORK_TYPE.EPM_RS_IP_EVENT:     mod = eptMsgWorkEpmEvent
         elif wt == WORK_TYPE.RAW:               mod = eptMsgWorkRaw
         elif wt == WORK_TYPE.WATCH_MOVE:        mod = eptMsgWorkWatchMove
-        elif wt == WORK_TYPE.WATCH_OFFSUBNET:   mod = eptMsgWorkOffSubnet
+        elif wt == WORK_TYPE.WATCH_OFFSUBNET:   mod = eptMsgWorkWatchOffSubnet
         elif wt == WORK_TYPE.WATCH_STALE:       mod = eptMsgWorkWatchStale
         elif wt == WORK_TYPE.WATCH_RAPID:       mod = eptMsgWorkWatchRapid
         elif wt == WORK_TYPE.WATCH_NODE:        mod = eptMsgWorkWatchNode

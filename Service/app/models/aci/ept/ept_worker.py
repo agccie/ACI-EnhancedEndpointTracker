@@ -880,7 +880,6 @@ class eptWorker(object):
         else:
             logger.debug("move notification not enabled")
 
-
     def analyze_offsubnet(self, msg, per_node_history_events, update_local_result):
         """ analyze offsubnet
             perform offsubnet analysis across all nodes. Perform two eptHistory updates:
@@ -916,14 +915,16 @@ class eptWorker(object):
             "addr": msg.addr,
         }
         self.db[eptHistory._classname].update_many(flt, {"$set":{"is_offsubnet":False}})
-        for node in offsubnet_nodes:
-            logger.debug("setting is_offsubnet to True for node 0x%04x", node)
-            flt["node"] = node
-            self.db[eptHistory._classname].update_one(flt, {"$set":{"is_offsubnet":True}})
+        if len(offsubnet_nodes)>0:
+            nlist = []
+            for node in offsubnet_nodes:
+                logger.debug("setting is_offsubnet to True for node 0x%04x", node)
+                nlist.append({"node":node})
+            flt["$or"] = nlist
+            self.db[eptHistory._classname].update_many(flt, {"$set":{"is_offsubnet":True}})
         # clear eptEndpoint is_offsubnet flag if not currently offsubnet on any node
-        if update_local_result.is_offsubnet and len(offsubnet_nodes) == 0:
+        elif update_local_result.is_offsubnet:
             logger.debug("clearing eptEndpoint is_offsubnet flag")
-            flt.pop("node",None)
             self.db[eptEndpoint._classname].update_one(flt, {"$set":{"is_offsubnet":False}})
 
         # suppress the event to watcher if within suppress interval
@@ -1081,12 +1082,15 @@ class eptWorker(object):
             "addr": msg.addr,
         }
         self.db[eptHistory._classname].update_many(flt, {"$set":{"is_stale":False}})
-        for node in stale_nodes:
-            logger.debug("setting is_stale to True for node 0x%04x", node)
-            flt["node"] = node
-            self.db[eptHistory._classname].update_one(flt, {"$set":{"is_stale":True}})
+        if len(stale_nodes)>0:
+            nlist = []
+            for node in stale_nodes:
+                logger.debug("setting is_stale to True for node 0x%04x", node)
+                nlist.append({"node":node})
+            flt["$or"] = nlist
+            self.db[eptHistory._classname].update_many(flt, {"$set":{"is_stale":True}})
         # clear eptEndpoint is_stale flag if not currently stale on any node
-        if update_local_result.is_stale and len(stale_nodes) == 0:
+        elif update_local_result.is_stale:
             logger.debug("clearing eptEndpoint is_stale flag")
             flt.pop("node",None)
             self.db[eptEndpoint._classname].update_one(flt, {"$set":{"is_stale":False}})
@@ -1349,7 +1353,9 @@ class eptWorker(object):
                     "events": {"$slice": 4},
                 }
                 h = self.db[eptHistory._classname].find_one(flt, projection)
-                if h is not None and h[ept_db_attr]: 
+                if h is None or not h[ept_db_attr]:
+                    logger.debug("%s is false", ept_db_attr)
+                else:
                     logger.debug("%s is true, updating eptEndpoint", ept_db_attr)
                     # update eptEndpoint object 
                     flt2 = copy.copy(flt)

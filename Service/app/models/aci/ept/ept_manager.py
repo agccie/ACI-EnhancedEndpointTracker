@@ -281,10 +281,12 @@ class eptManager(object):
         # triggered by worker_tracker thread at WORKER_UDPATE_INTERVAL interval
         ts = time.time()
         remove_list = []
-        for f, fab in self.fabrics.items():
+        fabric_list = [(f, fab) for f, fab in self.fabrics.items()]
+        for f, fab in fabric_list:
             if fab["process"] is not None and not fab["process"].is_alive():
                 # validate auto_start is enabled on the no-longer running fabric
                 logger.warn("fabric %s no longer running", f)
+                self.stop_fabric(f, reason="subscriber no longer running")
                 db_fab = Fabric.load(fabric=f)
                 if db_fab.auto_start:
                     ts_delta = (ts - db_fab.restart_ts)

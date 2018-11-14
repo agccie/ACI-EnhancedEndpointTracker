@@ -352,7 +352,8 @@ class WorkerTracker(object):
                     self.manager.queue_stats[q] = eptQueueStats(proc=self.manager.worker_id,queue=q)
                     self.manager.queue_stats[q].init_queue()
             # wait until background thread picks up update and adds to available workers
-            logger.debug("new worker(%s) detected, waiting for activation period",hello.worker_id)
+            logger.debug("new worker(%s) detected, waiting for activation period (%s sec)",
+                    hello.worker_id, self.update_interval)
         else:
             self.known_workers[hello.worker_id].last_hello = time.time()
 

@@ -32,7 +32,7 @@ from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgHello
-from . ept_msg import eptMsgRefreshEpt
+from . ept_msg import eptMsgSubOp
 from . ept_msg import eptMsgWork
 from . ept_msg import eptMsgWorkEpmEvent
 from . ept_msg import eptMsgWorkWatchMove
@@ -130,6 +130,7 @@ class eptWorker(object):
                 WORK_TYPE.EPM_IP_EVENT: self.handle_endpoint_event,
                 WORK_TYPE.EPM_MAC_EVENT: self.handle_endpoint_event,
                 WORK_TYPE.EPM_RS_IP_EVENT: self.handle_endpoint_event,
+                WORK_TYPE.DELETE_EPT: self.handle_endpoint_delete,
             }
 
     def __repr__(self):
@@ -1287,7 +1288,7 @@ class eptWorker(object):
                         logger.debug("updating is_rapid to %r from current rate %.3f",is_rapid,rate)
                     if not is_rapid: 
                         logger.debug("is_rapid is False, requesting refresh")
-                        msg = eptMsgRefreshEpt(MSG_TYPE.REFRESH_EPT, data ={
+                        msg = eptMsgSubOp(MSG_TYPE.REFRESH_EPT, data ={
                             "fabric": msg.fabric,
                             "addr": msg.addr,
                             "vnid": msg.vnid,
@@ -1430,6 +1431,26 @@ class eptWorker(object):
                             key["addr"],
                         )
                         msg.wf.send_notification("clear", subject, txt)
+
+    def handle_endpoint_delete(self, msg):
+        """ handle endpoint delete requests.  This needs to flush the local cache and delete all
+            eptEndpoint object using rest object (which will trigger delete of all appropriate 
+            dependencies)
+            caches:
+                rapid_cache
+                
+        """
+        logger.debug("deleting %s [0x%06x %s]", msg.fabric, msg.vnid, msg.addr)
+        # remove from local caches
+        cache = msg.wf.cache
+        key = cache.get_key_str(addr=msg.addr, vnid=msg.vnid)
+        cache.rapid_cache.remove(key)
+        # delete from db
+        endpoint = eptEndpoint.load(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr)
+        if endpoint.exists():
+            endpoint.remove()
+        else:
+            logger.debug("endpoint not found in db, no delete occurring")
 
 class eptWorkerUpdateLocalResult(object):
     """ return object for eptWorker.update_loal method """

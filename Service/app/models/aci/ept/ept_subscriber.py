@@ -21,6 +21,7 @@ from . ept_msg import WORK_TYPE
 from . ept_msg import eptEpmEventParser
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgWork
+from . ept_msg import eptMsgWorkDeleteEpt
 from . ept_msg import eptMsgWorkRaw
 from . ept_msg import eptMsgWorkWatchNode
 from . ept_epg import eptEpg
@@ -163,11 +164,17 @@ class eptSubscriber(object):
 
     def handle_subscriber_ctrl(self, msg):
         """ handle subscriber control messages """
+        # all subscriber ctrl messages must have fabric present
+        if msg.fabric != self.fabric.fabric:
+            logger.debug("request not for this fabric")
+            return
         if msg.msg_type == MSG_TYPE.REFRESH_EPT:
-            if msg.fabric == self.fabric.fabric:
-                self.refresh_endpoint(msg.vnid, msg.addr, msg.type, msg.qnum)
-            else:
-                logger.debug("refresh request not for this fabric")
+            self.refresh_endpoint(msg.vnid, msg.addr, msg.type, msg.qnum)
+        elif msg.msg_type == MSG_TYPE.DELETE_EPT:
+            # enqueue work to available worker
+            self.send_msg(eptMsgWorkDeleteEpt(msg.addr, "worker", {"vnid":msg.vnid},
+                WORK_TYPE.DELETE_EPT, qnum=msg.qnum, fabric=self.fabric,
+            ))
         else:
             logger.debug("ignoring unexpected msg type: %s", msg.msg_type)
 
@@ -526,7 +533,7 @@ class eptSubscriber(object):
                 #   .../db-ep/mac-00:AA:00:00:28:1A
                 #   .../db-ep/ip-[10.1.55.220]
                 #   rsmacEpToIpEpAtt-.../db-ep/ip-[10.1.1.74]]
-                addr = re.sub("[\[\]]","", attr["dn"].split("/")[-1])
+                addr = re.sub("[\[\]]","", attr["dn"].split("-")[-1])
                 self.send_msg(eptMsgWorkRaw(addr,"worker",{classname:attr},WORK_TYPE.RAW,qnum=qnum))
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
@@ -1133,15 +1140,14 @@ class eptSubscriber(object):
                 if "attributes" in obj[classname]:
                     attr = obj[classname]["attributes"]
                     attr["_ts"] = ts
-                    _addr = re.sub("[\[\]]","", attr["dn"].split("/")[-1])
                     msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
                     if msg is not None:
                         if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
                             if msg.ip == addr and msg.vrf == vnid:
-                                work.append(eptMsgWorkRaw(_addr,"worker",{classname:attr},
+                                work.append(eptMsgWorkRaw(addr,"worker",{classname:attr},
                                                                     WORK_TYPE.RAW,qnum=qnum))
                         elif msg.addr == addr and msg.vnid == vnid:
-                            work.append(eptMsgWorkRaw(_addr,"worker",{classname:attr},
+                            work.append(eptMsgWorkRaw(addr,"worker",{classname:attr},
                                                                 WORK_TYPE.RAW,qnum=qnum))
                 else:
                     logger.debug("ignoring invalid epm object %s", obj)

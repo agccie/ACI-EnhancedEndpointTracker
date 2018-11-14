@@ -301,6 +301,7 @@ class eptCache(object):
 
 class rapidEndpointCachedObject(object):
     """ rapid statistics for eptEndpoint """
+    _classname = "rapid_endpoint_cache"
     def __init__(self, fabric, vnid, addr, addr_type):
         self.fabric = fabric
         self.addr = addr
@@ -394,7 +395,7 @@ class hitCache(object):
             self.tail.key if self.tail is not None else None,
         )]
         for n in self.get_node_list():
-            s.append("%s" % node)
+            s.append("%s" % n)
         return "|".join(s)
 
     def get_node_list(self):

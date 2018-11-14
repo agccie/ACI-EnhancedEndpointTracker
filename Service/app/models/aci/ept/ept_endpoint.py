@@ -11,10 +11,11 @@ from . common import parse_vrf_name
 from . common import SUBSCRIBER_CTRL_CHANNEL
 from . ept_history import eptHistory
 from . ept_move import eptMove
-from . ept_msg import eptMsgRefreshEpt
+from . ept_msg import eptMsgSubOp
 from . ept_msg import MSG_TYPE
 from . ept_node import eptNode
 from . ept_offsubnet import eptOffSubnet
+from . ept_rapid import eptRapid
 from . ept_remediate import eptRemediate
 from . ept_subnet import eptSubnet
 from . ept_stale import eptStale
@@ -62,7 +63,7 @@ class eptEndpoint(Rest):
         "create": False,
         "read": True,
         "update": False,
-        "delete": True,
+        "delete": False,                # custom delete function through workers
         "db_index": ["addr", "vnid", "fabric"],
         "db_shard_enable": True,
         "db_shard_index": ["addr"],
@@ -175,6 +176,38 @@ class eptEndpoint(Rest):
         },
     }
 
+    def subscriber_op(self, msg_type, qnum=1):
+        """ send msg to subscriber if running with provided msg_type, return jsonify object """
+        f = Fabric(fabric=self.fabric)
+        if f.get_fabric_status(api=False):
+            try:
+                redis = get_redis()
+                msg = eptMsgSubOp(msg_type, data ={
+                    "fabric": self.fabric,
+                    "addr": self.addr,
+                    "vnid": self.vnid,
+                    "type": self.type,
+                    "qnum": qnum,
+                })
+                redis.publish(SUBSCRIBER_CTRL_CHANNEL, msg.jsonify())
+                # no error sending message so assume success
+                return jsonify({"success":True})
+            except Exception as e:
+                logger.error("Traceback:\n%s", traceback.format_exc())
+                abort(500, "failed to send message to redis db")
+        else:
+            return abort(500, "fabric is not currently running")
+
+    @api_route(path="delete", methods=["DELETE"], swag_ret=["success"])
+    def delete_endpoint(self):
+        """ delete endpoint and all historical data from database """
+        return self.subscriber_op(MSG_TYPE.DELETE_EPT)
+
+    @api_route(path="refresh", methods=["POST"], swag_ret=["success"])
+    def refresh_endpoint(self):
+        """ force endpoint refresh by querying APIC epmDb to get current state of endpoint """
+        return self.subscriber_op(MSG_TYPE.REFRESH_EPT)
+
     @classmethod
     @api_callback("before_create")
     def before_create(cls, data):
@@ -195,37 +228,14 @@ class eptEndpoint(Rest):
         return data
 
     @api_callback("after_delete")
-    def after_delete(cls, api, filters):
+    def after_delete(cls, filters):
         """ after delete ensure that eptHistory, eptMove, eptOffsubnet, and eptStale are deleted """
-        if api:
-            eptMove.delete(_filters=filters)
-            eptOffSubnet.delete(_filters=filters)
-            eptStale.delete(_filters=filters)
-            eptHistory.delete(_filters=filters)
-
-    @api_route(path="refresh", methods=["POST"], swag_ret=["success", "error"])
-    def refresh_endpoint(self):
-        """ force endpoint refresh by querying APIC epmDb to get current state of endpoint """
-        # first ensure fabric is running, if not return an error
-        f = Fabric(fabric=self.fabric)
-        if f.get_fabric_status(api=False):
-            try:
-                redis = get_redis()
-                msg = eptMsgRefreshEpt(MSG_TYPE.REFRESH_EPT, data ={
-                    "fabric": self.fabric,
-                    "addr": self.addr,
-                    "vnid": self.vnid,
-                    "type": self.type,
-                    "qnum": 0,
-                })
-                redis.publish(SUBSCRIBER_CTRL_CHANNEL, msg.jsonify())
-                # no error sending message so assume success
-                return jsonify({"success":True, "error":""})
-            except Exception as e:
-                logger.error("Traceback:\n%s", traceback.format_exc())
-                abort(500, "failed to send message to redis db")
-        else:
-            return jsonify({"success":False, "error":"fabric is not currently running"})
+        eptMove.delete(_filters=filters)
+        eptOffSubnet.delete(_filters=filters)
+        eptStale.delete(_filters=filters)
+        eptHistory.delete(_filters=filters)
+        eptRapid.delete(_filters=filters)
+        eptRemediate.delete(_filters=filters)
 
     @api_route(path="clear", methods=["POST"], swag_ret=["success", "error"])
     def clear_endpoint(self, nodes=[]):

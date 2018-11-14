@@ -308,6 +308,7 @@ class Login(threading.Thread):
             time.sleep(self._login_timeout)
             refreshed = False
             try:
+                logger.debug("refreshing session token")
                 refreshed = self._session.refresh_login(timeout=30)
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
                 logger.warn('connection error or timeout on login refresh')

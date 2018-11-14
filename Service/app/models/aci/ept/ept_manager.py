@@ -75,6 +75,8 @@ class eptManager(object):
             for f, fab in self.fabrics.items():
                 if fab["process"] is not None:
                     terminate_process(fab["process"])
+            if self.db is not None:
+                self.db.client.close()
 
     def _run(self):
         """ start manager 

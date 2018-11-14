@@ -26,6 +26,7 @@ CACHE_STATS_INTERVAL                = 300.0
 SEQUENCE_TIMEOUT                    = 100.0
 MANAGER_CTRL_CHANNEL                = "mctrl"
 MANAGER_WORK_QUEUE                  = "mq"
+SUBSCRIBER_CTRL_CHANNEL             = "sctrl"
 WORKER_CTRL_CHANNEL                 = "wctrl"
 WORKER_UPDATE_INTERVAL              = 15.0
 RAPID_CALCULATE_INTERVAL            = 15.0
@@ -37,7 +38,11 @@ RAPID_CALCULATE_INTERVAL            = 15.0
 #   stale_no_local  amount of time to wait for new events when an endpoint is declared as stale
 #                   and there is no local endpoint learned within the fabric (i.e., expected remote
 #                   node is 0)
-#   rapid           amount of time to wait for new events when an endpoint is delcared is_rapid
+#   rapid           amount of time to wait for new events when an endpoint is is_rapid is cleared
+#                   note, watcher execute time is delayed for rapid_holdtime + transitory_rapid
+#                   timer to wait and see if endpoint is flagged as rapid a second time before 
+#                   restore_rapid action is applied.  This time should be greater than
+#                   RAPID_CALCULATE_INTERVAL
 #   
 # suppress timers
 #   watch_offsubnet amount of time to suppress new watch_offsubnet events for single node/ep

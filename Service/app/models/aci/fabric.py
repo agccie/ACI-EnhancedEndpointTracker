@@ -20,7 +20,6 @@ import json
 import logging
 import os
 import re
-import redis
 import requests
 import time
 import traceback
@@ -162,18 +161,21 @@ class Fabric(Rest):
         return filters
 
     @api_route(path="status", methods=["GET"], swag_ret=["status"], role=Role.USER)
-    def get_fabric_status(self):
+    def get_fabric_status(self, api=True):
         """ get current fabric status (running/stopped) """
         try:
-            status = "stopped"
+            is_running = False
             manager_status = AppStatus.check_manager_status()
             for fab in manager_status["fabrics"]:
                 if fab["fabric"] == self.fabric:
                     if fab["alive"]:
-                        status = "running"
+                        is_running = True
                     break
             # fabric not found within manager status implies it is not running
-            return jsonify({"status": status})
+            if api:
+                return jsonify({"status": "running" if is_running else "stopped"})
+            else:
+                return is_running
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
             abort(500, "failed to send message or invalid manager response") 

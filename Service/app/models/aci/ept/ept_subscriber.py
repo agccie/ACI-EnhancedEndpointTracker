@@ -14,6 +14,7 @@ from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_WORK_QUEUE
 from . common import MINIMUM_SUPPORTED_VERSION
 from . common import MO_BASE
+from . common import SUBSCRIBER_CTRL_CHANNEL
 from . common import get_vpc_domain_id
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
@@ -45,6 +46,10 @@ import traceback
 logger = logging.getLogger(__name__)
 
 class eptSubscriber(object):
+    """ builds initial fabric state and subscribes to events to ensure db is in sync with fabric.
+        epm events are sent to workers to analyze.
+        subscriber also listens 
+    """
     def __init__(self, fabric):
         # receive instance of Fabric rest object
         self.fabric = fabric
@@ -123,6 +128,9 @@ class eptSubscriber(object):
             heartbeat=300,
         )
 
+    def __repr__(self):
+        return "sub-%s" % self.fabric.fabric
+
     def run(self):
         """ wrapper around run to handle interrupts/errors """
         logger.info("starting eptSubscriber for fabric '%s'", self.fabric.fabric)
@@ -135,6 +143,33 @@ class eptSubscriber(object):
             logger.error("Traceback:\n%s", traceback.format_exc())
         finally:
             self.subscriber.unsubscribe()
+            if self.db is not None:
+                self.db.client.close()
+
+    def handle_channel_msg(self, msg):
+        """ handle msg received on subscribed channels """
+        try:
+            if msg["type"] == "message":
+                channel = msg["channel"]
+                msg = eptMsg.parse(msg["data"]) 
+                logger.debug("[%s] msg on q(%s): %s", self, channel, msg)
+                if channel == SUBSCRIBER_CTRL_CHANNEL:
+                    self.handle_subscriber_ctrl(msg)
+                else:
+                    logger.warn("[%s] unsupported channel: %s", self, channel)
+        except Exception as e:
+            logger.debug("[%s] failed to handle msg: %s", self, msg)
+            logger.error("Traceback:\n%s", traceback.format_exc())
+
+    def handle_subscriber_ctrl(self, msg):
+        """ handle subscriber control messages """
+        if msg.msg_type == MSG_TYPE.REFRESH_EPT:
+            if msg.fabric == self.fabric.fabric:
+                self.refresh_endpoint(msg.vnid, msg.addr, msg.type, msg.qnum)
+            else:
+                logger.debug("refresh request not for this fabric")
+        else:
+            logger.debug("ignoring unexpected msg type: %s", msg.msg_type)
 
     def _run(self):
         """ monitor fabric and enqueue work to workers """
@@ -269,6 +304,15 @@ class eptSubscriber(object):
 
         # subscriber running
         self.fabric.add_fabric_event("running")
+
+        # subscribe to subscriber events only after successfully started and initialized
+        channels = {
+            SUBSCRIBER_CTRL_CHANNEL: self.handle_channel_msg,
+        }
+        p = self.redis.pubsub(ignore_subscribe_messages=True)
+        p.subscribe(**channels)
+        self.subscribe_thread = p.run_in_thread(sleep_time=0.01, daemon=True)
+        logger.debug("[%s] listening for events on channels: %s", self, channels.keys())
 
         # ensure that all subscriptions are active
         while True:
@@ -461,7 +505,7 @@ class eptSubscriber(object):
         for u in updates:
             self.send_flush(u, u.name if hasattr(u, "name") else None)
 
-    def handle_epm_event(self, event):
+    def handle_epm_event(self, event, qnum=1):
         """ handle epm events received on epm_subscription
             this can also enqueue events into buffer until intialization has completed
         """
@@ -483,7 +527,7 @@ class eptSubscriber(object):
                 #   .../db-ep/ip-[10.1.55.220]
                 #   rsmacEpToIpEpAtt-.../db-ep/ip-[10.1.1.74]]
                 addr = re.sub("[\[\]]","", attr["dn"].split("/")[-1])
-                self.send_msg(eptMsgWorkRaw(addr, "worker", {classname:attr}, WORK_TYPE.RAW))
+                self.send_msg(eptMsgWorkRaw(addr,"worker",{classname:attr},WORK_TYPE.RAW,qnum=qnum))
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 
@@ -1058,4 +1102,51 @@ class eptSubscriber(object):
         logger.debug("build_endpoint_db query: %.3f, build: %.3f, send_msg: %.3f, total: %.3f", 
             ts-start_time, ts2-ts, ts3 - ts2, ts3 - start_time) 
         return True
+
+    def refresh_endpoint(self, vnid, addr, addr_type, qnum=1):
+        """ perform endpoint refresh. This triggers an API query for epmDb filtering on provided
+            addr and vnid. The results are fed through handle_epm_event which is enqueued onto 
+            a worker. API can set qnum=0 to get 'strict priority' for refresh on worker. This allows
+            user to get immediate refresh even if high number of events are queued.
+        """
+        logger.debug("refreshing [0x%06x %s]", vnid, addr)
+        if addr_type == "mac":
+            classname = "epmMacEp"
+            kwargs = {
+                "queryTargetFilter": "eq(epmMacEp.addr,\"%s\")" % addr  
+            }
+        else:
+            # need epmIpEp and epmRsMacEpToIpEpAtt objects for this addr
+            classname = "epmDb"
+            f="or(eq(epmIpEp.addr,\"%s\"),wcard(epmRsMacEpToIpEpAtt.dn,\"ip-\[%s\]\"))"%(addr,addr)
+            kwargs = {
+                "queryTarget": "subtree",
+                "targetSubtreeClass": "epmIpEp,epmRsMacEpToIpEpAtt",
+                "queryTargetFilter": f
+            }
+        work = []
+        objects = get_class(self.session, classname, **kwargs)
+        ts = time.time()
+        if objects is not None:
+            for obj in objects:
+                classname = obj.keys()[0]
+                if "attributes" in obj[classname]:
+                    attr = obj[classname]["attributes"]
+                    attr["_ts"] = ts
+                    _addr = re.sub("[\[\]]","", attr["dn"].split("/")[-1])
+                    msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
+                    if msg is not None:
+                        if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
+                            if msg.ip == addr and msg.vrf == vnid:
+                                work.append(eptMsgWorkRaw(_addr,"worker",{classname:attr},
+                                                                    WORK_TYPE.RAW,qnum=qnum))
+                        elif msg.addr == addr and msg.vnid == vnid:
+                            work.append(eptMsgWorkRaw(_addr,"worker",{classname:attr},
+                                                                WORK_TYPE.RAW,qnum=qnum))
+                else:
+                    logger.debug("ignoring invalid epm object %s", obj)
+        else:
+            logger.debug("failed to get epm objects")
+        logger.debug("sending %s work events from refresh", len(work))
+        self.send_msg(work)
 

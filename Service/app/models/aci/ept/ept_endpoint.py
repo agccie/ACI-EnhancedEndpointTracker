@@ -3,11 +3,16 @@ from ... rest import Rest
 from ... rest import api_register
 from ... rest import api_route
 from ... rest import api_callback
+from ... utils import get_redis
+from .. fabric import Fabric
 from .. utils import clear_endpoint
 from . common import get_mac_value
 from . common import parse_vrf_name
+from . common import SUBSCRIBER_CTRL_CHANNEL
 from . ept_history import eptHistory
 from . ept_move import eptMove
+from . ept_msg import eptMsgRefreshEpt
+from . ept_msg import MSG_TYPE
 from . ept_node import eptNode
 from . ept_offsubnet import eptOffSubnet
 from . ept_remediate import eptRemediate
@@ -18,7 +23,9 @@ from flask import jsonify
 
 import logging
 import threading
+import traceback
 import time
+import redis
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -121,19 +128,20 @@ class eptEndpoint(Rest):
         },
         "rapid_lts": {
             "type": float,
-            #"read": False,
             "description": "timestamp when last rate calculation was performed",
         },
         "rapid_count": {
             "type": int,
-            #"read": False,
-            "description": "per-node event count for rapid rate calculation",
+            "description": "epm event count for rapid rate calculation",
         },
         "rapid_lcount": {
             "type": int,
-            #"read": False,
-            "description": "per-node event count when last rapid rate calculation was performed",
+            "description": "epm event count when last rapid rate calculation was performed",
         },  
+        "rapid_icount": {
+            "type": int,
+            "description": "epm events ignored while endpoint was marked as rapid",
+        },
         "first_learn": {
             "type": dict,
             "description": """
@@ -194,6 +202,30 @@ class eptEndpoint(Rest):
             eptOffSubnet.delete(_filters=filters)
             eptStale.delete(_filters=filters)
             eptHistory.delete(_filters=filters)
+
+    @api_route(path="refresh", methods=["POST"], swag_ret=["success", "error"])
+    def refresh_endpoint(self):
+        """ force endpoint refresh by querying APIC epmDb to get current state of endpoint """
+        # first ensure fabric is running, if not return an error
+        f = Fabric(fabric=self.fabric)
+        if f.get_fabric_status(api=False):
+            try:
+                redis = get_redis()
+                msg = eptMsgRefreshEpt(MSG_TYPE.REFRESH_EPT, data ={
+                    "fabric": self.fabric,
+                    "addr": self.addr,
+                    "vnid": self.vnid,
+                    "type": self.type,
+                    "qnum": 0,
+                })
+                redis.publish(SUBSCRIBER_CTRL_CHANNEL, msg.jsonify())
+                # no error sending message so assume success
+                return jsonify({"success":True, "error":""})
+            except Exception as e:
+                logger.error("Traceback:\n%s", traceback.format_exc())
+                abort(500, "failed to send message to redis db")
+        else:
+            return jsonify({"success":False, "error":"fabric is not currently running"})
 
     @api_route(path="clear", methods=["POST"], swag_ret=["success", "error"])
     def clear_endpoint(self, nodes=[]):

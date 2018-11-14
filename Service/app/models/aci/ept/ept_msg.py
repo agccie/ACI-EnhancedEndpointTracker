@@ -22,6 +22,7 @@ class MSG_TYPE(Enum):
     FABRIC_RESTART      = "fabric_restart"  # request from API or subscriber to manager for restart
     FLUSH_FABRIC        = "flush_fabric"    # request from manager to workers to flush fabric from 
                                             # their local caches
+    REFRESH_EPT         = "refresh"         # refresh endpoint
 
 # static work types sent with MSG_TYPE.WORK
 @enum_unique
@@ -59,18 +60,48 @@ class eptMsg(object):
 
     @staticmethod
     def parse(data):
-        # parse data received on message queue and return corresponding EPMsg
+        # parse data received on message queue and return corresponding eptMsg
         # allow exception to raise on invalid data
         js = json.loads(data)
         if js["msg_type"] == MSG_TYPE.WORK.value:
             return eptMsgWork.from_msg_json(js)
         elif js["msg_type"] == MSG_TYPE.HELLO.value:
             return eptMsgHello.from_msg_json(js)
+        elif js["msg_type"] == MSG_TYPE.REFRESH_EPT.value:
+            return eptMsgRefreshEpt(js["msg_type"], js["data"], js["seq"])
         return eptMsg(
                     MSG_TYPE(js["msg_type"]), 
                     data=js.get("data", {}),
                     seq = js.get("seq", None)
                 )
+
+class eptMsgRefreshEpt(eptMsg):
+    def __init__(self, msg_type, data={}, seq=1):
+        # initialize as eptMsgWork with empty data set
+        super(eptMsgRefreshEpt, self).__init__(msg_type, data, seq)
+        self.msg_type = MSG_TYPE.REFRESH_EPT
+        self.fabric = data.get("fabric", "")
+        self.addr = data.get("addr", "")
+        self.vnid = int(data.get("vnid", 0))
+        self.type = data.get("type", "")
+        self.qnum = int(data.get("qnum", 1))
+
+    def jsonify(self):
+        """ jsonify for transport across messaging queue """
+        return json.dumps({
+            "msg_type": self.msg_type.value,
+            "seq": self.seq,
+            "data": {
+                "fabric": self.fabric,
+                "addr": self.addr,
+                "vnid": self.vnid,
+                "qnum": self.qnum,
+            },
+        })
+
+    def __repr__(self):
+        return "%s.0x%08x %s %s [0x%06x %s]" % (self.msg_type.value, self.seq, 
+                self.fabric, self.type, self.vnid, self.addr)
 
 class eptMsgHello(object):
     """ hello message sent from worker to manager """
@@ -260,6 +291,7 @@ class eptMsgWorkWatchRapid(eptMsgWork):
         self.vnid = int(data.get("vnid", 0))
         self.type = data.get("type", "")
         self.ts = float(data.get("ts", 0))
+        self.xts = float(data.get("xts", 0))        # watcher execute timestamp
         self.count = int(data.get("count", 0))
         self.rate = float(data.get("rate",0))
         self.vnid_name = data.get("vnid_name", "")

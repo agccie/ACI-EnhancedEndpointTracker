@@ -311,10 +311,12 @@ class rapidEndpointCachedObject(object):
         self.rapid_lts = 0.0
         self.rapid_count = 0
         self.rapid_lcount = 0
+        self.rapid_icount = 0
 
     def __repr__(self):
-        return "rapid:%r, rapid-ts:%.3f count:0x%06x, lcount:0x%06x, lts:%.3f" % (
-            self.is_rapid, self.is_rapid_ts, self.rapid_count, self.rapid_lcount, self.rapid_lts
+        return "rapid:%r, ts:%.3f, lts:%.3f [c:0x%08x, l:0x%08x, i:0x%08x]" % (
+            self.is_rapid, self.is_rapid_ts, self.rapid_lts,
+            self.rapid_count, self.rapid_lcount, self.rapid_icount
         )
 
     def save(self):
@@ -329,6 +331,7 @@ class rapidEndpointCachedObject(object):
             "rapid_lts": self.rapid_lts,
             "rapid_count": self.rapid_count,
             "rapid_lcount": self.rapid_lcount,
+            "rapid_icount": self.rapid_icount,
         }})
 
 class offsubnetCachedObject(object):

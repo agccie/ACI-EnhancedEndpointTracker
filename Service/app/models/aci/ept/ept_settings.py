@@ -130,7 +130,7 @@ class eptSettings(Rest):
             "default": True,
             "description": "enable rapid endpoint detection and holddown",
         },
-        "restore_rapid": {
+        "refresh_rapid": {
             "type": bool,
             "default": True,
             "description": """

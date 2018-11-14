@@ -169,10 +169,10 @@ def api_route(authenticated = True, keyed_url = False, methods = None, path = No
             else: start_index = 0
             route_info.args = [[i,_undefined()] for i in spec.args[start_index:] ]
             if spec.defaults is not None and len(spec.defaults)>0 and \
-                    len(spec.defaults)<=len(route_info.args):
-                    # walk backwords on spec.defaults to set corresponding args default
-                    for i,v in enumerate(reversed(spec.defaults)):
-                        route_info.args[-(i+1)][1] = v
+                len(spec.defaults)<=len(route_info.args):
+                # walk backwords on spec.defaults to set corresponding args default
+                for i,v in enumerate(reversed(spec.defaults)):
+                    route_info.args[-(i+1)][1] = v
 
             # set swag_args if not provided by the user
             if route_info.swag_args is None:
@@ -468,16 +468,16 @@ def register(api, uni=True):
             # build dynamic route function to handle rbac/role (and any new pre_check features)
             r.init_function(c)
             if not callable(r.function):
-                #c.logger.warn("%s skipping invalid route: %s, bad function",c._classname,r.function)
+                c.logger.warn("%s skipping invalid route: %s, bad function",c._classname,r.function)
                 continue
             if len(r.path) == 0:
-                #c.logger.warn("%s skipping invalid route: %s, bad path", c._classname, r.path)
+                c.logger.warn("%s skipping invalid route: %s, bad path", c._classname, r.path)
                 continue
             if r.keyed_url:
                 rpath = "%s/%s"%(key_path, re.sub("(^/+)|(/+$)","",r.path))
             else: 
                 rpath = "%s/%s"%(path, re.sub("(^/+)|(/+$)","",r.path))
-        
+            # fixup path
             rpath = re.sub("//","/", rpath)
             endpoint="%s_%s" % (c.__name__.lower(), r.function.__name__)
             

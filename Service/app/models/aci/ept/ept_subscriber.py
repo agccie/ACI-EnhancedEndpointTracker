@@ -183,12 +183,19 @@ class eptSubscriber(object):
 
         init_str = "initializing"
         # first step is to get a valid apic session, bail out if unable to connect
-        self.fabric.add_fabric_event(init_str, "connecting to apic")
         self.session = get_apic_session(self.fabric)
         if self.session is None:
             logger.warn("failed to connect to fabric: %s", self.fabric.fabric)
             self.fabric.add_fabric_event("failed", "failed to connect to apic")
             return
+        # get the apic id we connected to 
+        apic_info = get_attributes(self.session, "info")
+        connected_str = "connected to apic %s" % self.session.hostname
+        if apic_info is None or "id" not in apic_info:
+            logger.warn("unable to get topInfo for apic")
+        else:
+            connected_str = "connected to apic-%s, %s" % (apic_info["id"], self.session.hostname)
+        self.fabric.add_fabric_event(init_str, connected_str)
 
         # get controller version, highlight mismatch and verify minimum version
         apic_version = get_controller_version(self.session)
@@ -325,7 +332,6 @@ class eptSubscriber(object):
         while True:
             if not self.subscriber.is_alive():
                 logger.warn("subscription no longer alive for %s", self.fabric.fabric)
-                self.fabric.add_fabric_event("failed", "subscription no longer alive")
                 return
             time.sleep(self.subscription_check_interval)
 

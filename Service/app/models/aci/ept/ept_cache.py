@@ -314,7 +314,7 @@ class rapidEndpointCachedObject(object):
         self.rapid_icount = 0
 
     def __repr__(self):
-        return "rapid:%r, ts:%.3f, lts:%.3f [c:0x%08x, l:0x%08x, i:0x%08x]" % (
+        return "is_rapid:%r, ts:%.3f, lts:%.3f [c:0x%08x, l:0x%08x, i:0x%08x]" % (
             self.is_rapid, self.is_rapid_ts, self.rapid_lts,
             self.rapid_count, self.rapid_lcount, self.rapid_icount
         )

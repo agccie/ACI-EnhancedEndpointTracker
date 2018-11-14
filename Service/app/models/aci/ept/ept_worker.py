@@ -764,6 +764,7 @@ class eptWorker(object):
             return False
         # should never see counter wrap but just in case...
         if cached_rapid.rapid_count < 0: cached_rapid.rapid_count = 0
+        force = False
         ts_delta = msg.now - cached_rapid.rapid_lts
         if cached_rapid.is_rapid:
             # if currently rapid, then only check to see if rapid_holdtime has expired
@@ -771,8 +772,8 @@ class eptWorker(object):
                 logger.debug("clearing is_rapid flag (delta %.3f > %.3f)", ts_delta, 
                                 msg.wf.settings.rapid_holdtime)
                 cached_rapid.is_rapid = False
-                cached_rapid.rapid_lts = msg.now
-                cached_rapid.save() 
+                # force recalculate of is_rapid
+                force = True
             else:
                 # always increment ignored count if is_rapid is set
                 cached_rapid.rapid_icount+=1
@@ -780,8 +781,9 @@ class eptWorker(object):
                     # increment set to false if update_local already updated count, else if pulled
                     # from cache then need to manually increment
                     cached_rapid.rapid_count+=1
+                return True
 
-        elif ts_delta > RAPID_CALCULATE_INTERVAL:
+        if ts_delta > RAPID_CALCULATE_INTERVAL or force:
             # calculate new rate and determine if endpoint is_rapid
             # note that threshold is measured as events per minute
             rate = 60.0*(cached_rapid.rapid_count - cached_rapid.rapid_lcount)/ts_delta
@@ -815,7 +817,7 @@ class eptWorker(object):
                 logger.debug("sending rapid event to watcher")
                 self.send_msg(mmsg)
 
-            logger.debug("rapid rate: %.3f, rapid: %r", rate, cached_rapid.is_rapid)
+            logger.debug("rapid rate:%.3f, ts:%.3f, rapid:%r",rate,ts_delta,cached_rapid.is_rapid)
             cached_rapid.save() 
         return cached_rapid.is_rapid
 
@@ -1200,7 +1202,7 @@ class eptWorker(object):
         )
         msg.wf.send_notification("rapid", subject, txt)
         if msg.wf.settings.refresh_rapid:
-            key = "%s%s%s" % (msg.fabric, msg.addr, msg.vnid)
+            key = "%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr)
             msg.xts = msg.ts + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID
             with self.watch_rapid_lock:
                 self.watch_rapid[key] = msg
@@ -1211,7 +1213,7 @@ class eptWorker(object):
             execute timestamp (xts) of msg.ts + TRANSITORY_OFFSUBNET timer. If object already
             exists it is overwritten with the new watch event.
         """
-        key = "%s%s%s%s" % (msg.fabric, msg.addr, msg.vnid, msg.node)
+        key = "%s,%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr, msg.node)
         msg.xts = msg.ts + TRANSITORY_OFFSUBNET
         with self.watch_offsubnet_lock:
             self.watch_offsubnet[key] = msg
@@ -1222,7 +1224,7 @@ class eptWorker(object):
             timestamp (xts) of msg.ts + TRANSITORY_STALE or TRANSITORY_STALE_NO_LOCAL timer.
             If object already exists it is overwritten with the new watch event.
         """
-        key = "%s%s%s%s" % (msg.fabric, msg.addr, msg.vnid, msg.node)
+        key = "%s,%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr, msg.node)
         if msg.event["expected_remote"] == 0:
             msg.xts = msg.ts + TRANSITORY_STALE_NO_LOCAL
         else:
@@ -1330,6 +1332,11 @@ class eptWorker(object):
             logger.debug("execute %s ready watch %s events", len(work), watch_type)
             for (key, msg) in work:
                 logger.debug("checking: %s", msg)
+                # check if key is in watch_rapid, if so ignore this event
+                rapid_key = "%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr)
+                if rapid_key in self.watch_rapid:
+                    logger.debug("skipping execute event as endpoint is flagged as rapid")
+                    continue
                 flt = {
                     "fabric": msg.fabric,
                     "vnid": msg.vnid,

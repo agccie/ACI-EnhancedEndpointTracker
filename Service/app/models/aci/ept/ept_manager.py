@@ -466,10 +466,48 @@ class WorkerTracker(object):
                             self.redis.rpush(worker.queues[qnum], msg.jsonify())
                         self.manager.increment_stats(worker.queues[qnum], tx=True)
 
+    def flush_queue(self, fabric, q, lock=None):
+        """ flush messages for provided fabric and redis queue """
+        logger.debug("flushing %s from queue %s", fabric, q)
+        # pull off all messages on the queue in single operation
+        pl = self.redis.pipeline()
+        pl.lrange(q, 0, -1)
+        pl.delete(q)
+        ret = []
+        repush = []
+        removed_count = 0
+        if lock is not None:
+            with lock: ret = pl.execute()
+        else:
+            ret = pl.execute()
+        # inspect each message and if matching fabric discard, else push back onto queue
+        if len(ret) > 0 and type(ret[0]) is list:
+            logger.debug("inspecting %s msg from queue %s", len(ret[0]), q)
+            for data in ret[0]:
+                # need to reparse message and check fabric
+                msg = eptMsg.parse(data) 
+                if hasattr(msg, "fabric") and msg.fabric == fabric:
+                    removed_count+=1
+                else:
+                    repush.append(data)
+            logger.debug("removed %s and repushing %s to queue %s",removed_count,len(repush),q)
+            if len(repush) > 0:
+                if lock is not None:
+                    with lock: self.redis.rpush(q, *repush)
+                else:
+                    self.redis.rpush(q, *repush)
+                logger.debug("repush completed")
+
     def flush_fabric(self, fabric, qnum=-1, role=None):
         # walk through all active workers and remove any work objects from queue for this fabric
         # note, this is a costly operation if the queue is significantly backed up...
         logger.debug("flush fabric '%s'", fabric)
+
+        # flush work from this fabric for manager work queue if no specific role set
+        if role is None:
+            self.flush_queue(fabric, MANAGER_WORK_QUEUE)
+
+        # flush work from active workers
         for r in self.active_workers:
             if role is None or r == role:
                 for i, worker in enumerate(self.active_workers[r]):
@@ -477,32 +515,7 @@ class WorkerTracker(object):
                         logger.warn("unable to flush fabric for worker %s, qnum %s does not exist",
                                 worker.worker_id, qnum)
                     else:
-                        # pull off all messages on the queue in single operation
-                        pl = self.redis.pipeline()
-                        pl.lrange(worker.queues[qnum], 0, -1)
-                        pl.delete(worker.queues[qnum])
-                        ret = []
-                        repush = []
-                        removed_count = 0
-                        with worker.queue_locks[qnum]:
-                            ret = pl.execute()
-                        # inspect each message and if matching fabric discard, else push back onto
-                        # worker's queue
-                        if len(ret) > 0 and type(ret[0]) is list:
-                            logger.debug("inspecting %s msg from queue %s", len(ret[0]), 
-                                                                            worker.queues[qnum])
-                            for data in ret[0]:
-                                # need to reparse message and check fabric
-                                msg = eptMsg.parse(data) 
-                                if hasattr(msg, "fabric") and msg.fabric == fabric:
-                                    removed_count+=1
-                                else:
-                                    repush.append(data)
-                        logger.debug("queue %s, removed %s msg for fabric %s, repushing %s",
-                                        worker.queues[qnum], removed_count, fabric, len(repush))
-                        if len(repush) > 0:
-                            with worker.queue_locks[qnum]:
-                                self.redis.rpush(worker.queues[qnum], *repush)
+                        self.flush_queue(fabric, worker.queues[qnum], lock=worker.queue_locks[qnum])
 
     def get_worker_status(self):
         # return list of dict representation of TrackedWorker objects along with queue_len list 

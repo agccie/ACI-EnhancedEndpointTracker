@@ -49,9 +49,6 @@ export class MovesComponent implements OnInit {
 
   goToDetailsPage(value) {
     let address = value.addr ;
-    if( ( value.events.length > 0 && value.events[0].rw_bd > 0 && value.events[0].rw_mac.length > 0 ) ||  (value.first_learn.rw_bd > 0 && value.first_learn.rw_mac.length > 0)) {
-     address = value.events.length > 0 ?  value.events[0].rw_mac: value.first_learn.rw_mac ;
-    }
     this.prefs.endpointDetailsObject = value ;
     this.router.navigate(["/ephistory",value.fabric,value.vnid,address]) ;
 

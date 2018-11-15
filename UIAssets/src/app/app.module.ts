@@ -33,6 +33,8 @@ import { ConnectivityComponent } from './settings/connectivity/connectivity.comp
 import { NotificationComponent } from './settings/notification/notification.component';
 import { RemediationComponent } from './settings/remediation/remediation.component';
 import { AdvancedComponent } from './settings/advanced/advanced.component' ;
+import {HashLocationStrategy, LocationStrategy} from "@angular/common";
+import { LocalLearnsComponent } from './endpoint-history/local-learns/local-learns.component';
 
 
 
@@ -55,7 +57,8 @@ const appRoutes: Routes = [
     {path:'pernodehistory', component:PerNodeHistoryComponent},
     {path:'moveevents', component: MoveEventsComponent},
     {path:'offsubnetevents',component: OffSubnetEventsComponent},
-    {path:'staleevents',component:StaleEventsComponent}
+    {path:'staleevents',component:StaleEventsComponent},
+    {path:'locallearns',component:LocalLearnsComponent}
   ]},
   {path:'settings', component:SettingsComponent,canActivate:[AuthGuardService],
   children:[
@@ -96,7 +99,8 @@ children:[
     ConnectivityComponent,
     NotificationComponent,
     RemediationComponent,
-    AdvancedComponent
+    AdvancedComponent,
+    LocalLearnsComponent
     
   ],
   imports: [
@@ -113,7 +117,7 @@ children:[
     TypeaheadModule.forRoot(),
     ModalModule.forRoot()
   ],
-  providers: [BackendService,{ provide: HTTP_INTERCEPTORS, useClass: BackendInterceptorService, multi: true },CookieService ],
+  providers: [BackendService,{ provide: HTTP_INTERCEPTORS, useClass: BackendInterceptorService, multi: true },CookieService,{provide: LocationStrategy, useClass: HashLocationStrategy}, ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

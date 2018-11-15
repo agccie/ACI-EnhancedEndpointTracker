@@ -5,7 +5,7 @@
     <div class="col-md-6" >
         <div class="form-group label--inline" *ngIf="inp.type==='text' || inp.type==='number'">
             <div class="form-group__text">
-                <input id="input-layout-inline" [type]="inp.type" [(ngModel)]="prefs['fabricSettings'][inp.model]" required>
+                <input id="input-layout-inline" [type]="inp.type" [(ngModel)]="prefs['fabricSettings'][inp.model]" [min]='inp.min' [max]='inp.max' required>
                 <label class="col-5" for="input-layout-inline">{{inp.name}}</label>
             </div>
           </div>

@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { BackendService } from '../_service/backend.service';
 import { PreferencesService } from '../_service/preferences.service';
 import { AppComponent } from '../app.component';
+import { environment } from "../../environments/environment";
 
 @Component({
   selector: 'app-login',
@@ -18,13 +19,21 @@ export class LoginComponent implements OnInit {
   modalBody='' ;
   version='Not Available' ;
   loading=false;
+  ls:Storage ;
   constructor(private router : Router,private bs : BackendService,private prefs:PreferencesService) {
-    this.title = 'Endpoint Tracker'
+    this.title = 'Endpoint Tracker' ;
+    this.ls = localStorage ;
+    if(environment.app_mode) {
+      localStorage.setItem('cul','1') ;
+      this.router.navigate(['fabrics']) ;
+    }
+    localStorage.setItem('cul','0') ;
     this.getAppVersion() ;
    }
 
   ngOnInit() {
   }
+
   onSubmit() {
     this.bs.login(this.username,this.password).subscribe(
       (data)=>{
@@ -56,7 +65,7 @@ export class LoginComponent implements OnInit {
       (data)=>{
         console.log(data) ;
         localStorage.removeItem('cul') ;
-        this.prefs.cul = 1 ;
+        this.prefs.cul = 0 ;
         this.router.navigate(['/']) ;
       },
     (error)=>{

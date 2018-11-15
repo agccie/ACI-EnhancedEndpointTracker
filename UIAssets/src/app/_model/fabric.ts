@@ -1,4 +1,4 @@
-import { environment } from "../../environments/environment.app";
+import { environment } from "../../environments/environment";
 
 export class Fabric {
     apic_cert:string ;

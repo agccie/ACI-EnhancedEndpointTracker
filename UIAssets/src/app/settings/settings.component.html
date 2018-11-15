@@ -1,9 +1,9 @@
-<div class="content">
-        <div class="row">
-            <div class="col-md-3">
+<div class="content" style="height:100%">
+        <div class="row" style="height:100%">
+            <div class="col-md-3" style="height:100%">
               <div class="panel panel--bordered-bottom panel--bordered-right panel--loose half-padding-left">
                 <h4>Settings 
-                  <button class="btn btn--small btn--primary" [disabled]="!isSubmitDisabled()" (click)="onSubmit()">
+                  <button class="btn btn--small btn--primary" (click)="onSubmit()">
                     Submit
                   </button>
                   <button class="btn btn--small btn--negative" (click)='onClickOfDelete()'>
@@ -11,7 +11,7 @@
                   </button></h4>
                 
               </div>
-                <ul class="tabs tabs--vertical">
+                <ul class="tabs tabs--vertical" style="height:100%; background:white;">
                   <li *ngFor="let tab of tabs" routerLinkActive="active">
                     <a [routerLink]="tab.path">
                       {{tab.name}}
@@ -54,7 +54,7 @@
                          <p class="subtitle">{{modalBody}}</p>
                       </div>
                       <div class="modal__footer">
-                          <button class="btn" (click)='deleteSettings()'>Yes</button>
+                          <button class="btn" (click)='deleteFabric(fabric)'>Yes</button>
                           <button class="btn" (click)="showConfirmationModal = false">No</button>
                       </div>
                   </div>

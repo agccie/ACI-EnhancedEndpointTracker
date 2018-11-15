@@ -48,16 +48,7 @@ export class HistoryComponent implements OnInit {
   }
 
   goToDetailsPage(val) {
-    const value = val['ept.history'] ;
-    let address = value.addr ;
-    // In some instances javascript is unable to load value of rw_bd. Something related to lazy loading of objects.
-    const rw_bd = value.events[0].rw_bd ;
-    
-    if( value.events.length > 0 && rw_bd> 0 && value.events[0].rw_mac.length > 0 ) {
-     address =   value.events[0].rw_mac ;
-    }
-    this.prefs.endpointDetailsObject = value ;
-    this.router.navigate(["/ephistory",value.fabric,value.vnid,address]) ;
+    this.router.navigate(["/ephistory",val.fabric,val.vnid,val.addr]) ;
 
   }
 

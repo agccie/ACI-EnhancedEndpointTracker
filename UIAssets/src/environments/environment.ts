@@ -4,7 +4,7 @@
 
 export const environment = {
   app_mode: false,
-  api_entry: '/api',
+  api_entry: 'http://esc-aci-compute:9080/api',
   production:false,
   aci_vendor:'Cisco',
   aci_appId:'EnhancedEndpointTracker'

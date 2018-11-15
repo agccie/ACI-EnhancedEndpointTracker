@@ -14,14 +14,26 @@
             </div>
           </div>
       </div>
-      <div class="panel panel--raised">
+      <div class="row" *ngIf = "loading"  style="margin-top:10%">
+          <div class="col-md-12" >
+              <div class="subheader text-center">Loading</div>
+              <div class="loading-spinner flex-center" aria-label="Loading, please wait...">
+                  <div class="wrapper">
+                      <div class="wheel"></div>
+                  </div>
+              </div>
+          </div>
+      </div>
+      
+      <div *ngIf = "!loading">
+      <div class="panel panel--raised" >
           <div class="row">
               <div class="col-md-12" >
                   <blockquote class="blockquote" [ngClass]="{'blockquote--success': endpoint.type === 'ipv4', 'blockquote--info': endpoint.type==='ipv6','blockquote--warning':endpoint.type === 'mac' , 'blockquote--danger':endpoint.is_offsubnet || endpoint.is_stale}">
                     <div class="row">
                       <div class="col-md-12">
                         <h4>
-                            <span class="label label--raised" [ngClass]="{'label--success': endpoint.type === 'ipv4', 'label--info': endpoint.type==='ipv6','label--warning':endpoint.type === 'mac'}"> {{endpoint.type.toUpperCase() }}</span>
+                            <span class="label label--raised" [ngClass]="{'label--success': endpoint.type === 'ipv4', 'label--info': endpoint.type==='ipv6','label--warning':endpoint.type === 'mac'}"> {{ endpoint.type.toUpperCase() }}</span>
                             <span [ngClass]="{'text--success': endpoint.type === 'ipv4', 'text--info': endpoint.type==='ipv6','text--warning':endpoint.type === 'mac'}">{{endpoint.addr}}</span>
                         </h4>
                           
@@ -81,7 +93,7 @@
             </div>
           </div>
         </div>
-       
+       </div>
         
     <div class="modal-backdrop hide" [ngClass]="{'hide':showModal === false}" style="left:0"></div>
     <div class="modal modal--small hide" [ngClass]="{'hide':showModal === false}" id="modal-small">
@@ -101,6 +113,29 @@
                 <div class="modal__footer">
                     <button class="btn" (click)="deleteEndpoint()">Yes</button>
                     <button class="btn" (click)="showModal = false">No</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop hide" [ngClass]="{'hide':showSuccessModal === false}" style="left:0"></div>
+    <div class="modal modal--small hide" [ngClass]="{'hide':showSuccessModal === false}" id="modal-small">
+        <div class="modal__dialog">
+            <div class="modal__content">
+                <a class="modal__close" (click)="showSuccessModal = false"><span class="icon-close"></span></a>
+                <div class="modal__header">
+                    <div class="row">
+                      <div class="col-md-3"></div>
+                         <h1> 
+                          {{modalTitle}}</h1>
+                    </div>  
+                </div>
+                <div class="modal__body">
+                   <p class="subtitle">{{modalBody}}</p>
+                </div>
+                <div class="modal__footer">
+                    
+                    <button class="btn" (click)="showSuccessModal = false">Ok</button>
                 </div>
             </div>
         </div>

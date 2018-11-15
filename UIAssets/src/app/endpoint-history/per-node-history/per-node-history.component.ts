@@ -14,11 +14,29 @@ export class PerNodeHistoryComponent implements OnInit {
   loading=false;
   constructor(private bs:BackendService, private prefs:PreferencesService) { 
     this.endpoint = this.prefs.selectedEndpoint ;
-    this.rows = this.endpoint.events ;
+    this.rows = [];
+    if(this.endpoint.events.length === 0) {
+      this.getPerNodeHistory(this.endpoint.fabric,this.endpoint.first_learn.node,this.endpoint.vnid,this.endpoint.addr) ;
+    }else{
+      this.getPerNodeHistory(this.endpoint.fabric,this.endpoint.events[0].node,this.endpoint.vnid,this.endpoint.addr) ;
+    }
+    
   }
 
   ngOnInit() {
   }
+
+  getPerNodeHistory(fabric,node,vnid,address) {
+    this.bs.getPerNodeHistory(fabric,node,vnid,address).subscribe(
+      (data) => {
+        this.rows = data['objects'] ;
+      },
+      (error) => {
+        console.log(error) ;
+      }
+    )
+  }
+
 
   
 

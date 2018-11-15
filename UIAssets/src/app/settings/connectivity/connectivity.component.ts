@@ -10,12 +10,12 @@ export class ConnectivityComponent implements OnInit {
   inputs=[];
   constructor(public prefs:PreferencesService) { 
     this.inputs = [
-      {name:'Hostname', model:'apic_hostname'},
-      {name:'APIC Certificate',model:'apic_cert'},
-      {name:'Username', model:'apic_username'},
-      {name:'Password',model:'apic_password'},
-      {name:'SSH Username',model:'ssh_username'},
-      {name:'SSH Password', model:'ssh_password'}
+      {name:'Hostname', model:'apic_hostname',type:'text',hidden:''},
+      {name:'APIC Certificate',model:'apic_cert',type:'text',hidden:'app_mode'},
+      {name:'Username', model:'apic_username',type:'text',hidden:''},
+      {name:'Password',model:'apic_password',type:'password',hidden:''},
+      {name:'SSH Username',model:'ssh_username',type:'text',hidden:''},
+      {name:'SSH Password', model:'ssh_password',type:'password',hidden:''}
     ]
   }
 

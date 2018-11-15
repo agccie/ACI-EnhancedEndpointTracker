@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import {Observable,of} from 'rxjs' ;
 import {debounceTime, distinctUntilChanged, map, switchMap, mergeMap} from 'rxjs/operators';
 import { EventEmitter } from 'events';
+import { PreferencesService } from '../_service/preferences.service';
 
 
 @Component({
@@ -11,7 +12,7 @@ import { EventEmitter } from 'events';
   templateUrl: './fabrics.component.html',
   styleUrls: ['./fabrics.component.css']
 })
-export class FabricsComponent implements OnInit, OnDestroy{
+export class FabricsComponent {
 
   
   title = 'app';
@@ -33,7 +34,7 @@ export class FabricsComponent implements OnInit, OnDestroy{
   searchKey='' ;
   eventObservable:Observable<any> ;
 
-  constructor(public bs: BackendService, private router: Router){
+  constructor(public bs: BackendService, private router: Router, private prefs:PreferencesService){
     this.sorts = { name:"fabric", dir:'asc'} ;
     this.rows = [{fabric:'Fabric1' , status:'Stopped', ips:'2300', macs:'2000', 
                  events:[{time:new Date() , status:'Initializing', description:'Connecting to APIC'},{time:new Date(), status:'Restarting' , description:'User triggered restart'}]}]
@@ -50,6 +51,10 @@ export class FabricsComponent implements OnInit, OnDestroy{
     this.modalTitle='' ;
     this.searchKey='' ;
     this.events = ['event1'] ;
+    if(!this.prefs.checkedThreadStatus){
+      this.getAppStatus() ;
+      this.prefs.checkedThreadStatus = true ;
+    }
     this.eventObservable = Observable.create((observer: any) => {
       // Runs on every search
       observer.next(this.searchKey);
@@ -57,16 +62,7 @@ export class FabricsComponent implements OnInit, OnDestroy{
       .pipe(
         mergeMap((token: string) =>  this.bs.getSearchResults(token))
       );
-  }
-
-
-  ngOnInit() {
-    this.getAppStatus() ;
-    this.router.navigate(['fabric-overview'])
-  }
-
-  ngOnDestroy() {
-    localStorage.removeItem('cul') ;
+      this.router.navigate(['/fabrics','fabric-overview']) ;
   }
 
   getAppStatus() {
@@ -90,7 +86,6 @@ export class FabricsComponent implements OnInit, OnDestroy{
           this.modalTitle='Error';
           this.showModal = true ;
         }
-        this.router.navigate(['/fabrics','fabric-overview']) ;
       },
       (error)=>{
         this.modalTitle='Error';

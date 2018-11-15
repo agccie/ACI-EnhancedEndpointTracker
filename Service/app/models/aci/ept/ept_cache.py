@@ -1,5 +1,7 @@
 
+from ... utils import get_db
 from . common import get_ip_prefix
+from . ept_endpoint import eptEndpoint
 from . ept_epg import eptEpg
 from . ept_node import eptNode
 from . ept_pc import eptPc
@@ -9,6 +11,7 @@ from . ept_vnid import eptVnid
 from . ept_vpc import eptVpc
 
 import logging
+import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -32,6 +35,8 @@ class eptCache(object):
 
             get_subnets         return [eptSubnet] for provided bd
 
+            get_rapid_endpoint  return rapidEndpointCachedObject from cache or new object
+
             ip_is_offsubnet     return bool if ip is outside of subnets for bd corresponding to 
                                 vrf, pctag
 
@@ -41,20 +46,24 @@ class eptCache(object):
                                                   + ip ------> offsubnetCachedObject
     """
     MAX_CACHE_SIZE = 512
+    MAX_OFFSUBNET_CACHE_SIZE = 1024
+    MAX_ENDPOINT_CACHE_SIZE = 1024
     KEY_DELIM = "`"             # majority of keys are integers, this should be sufficient delimiter
     def __init__(self, fabric):
         self.fabric = fabric
         self.flush_requests = 0
-        self.max_cache_size = eptCache.MAX_CACHE_SIZE
         self.key_delim = eptCache.KEY_DELIM
-        self.tunnel_cache = hitCache(self.max_cache_size)       # eptTunnel(node, intf) = eptTunnel
-        self.node_cache = hitCache(self.max_cache_size)         # eptNode(node) = eptNode
-        self.vpc_cache = hitCache(self.max_cache_size)          # eptVpc(node,intf) = eptVpc
-        self.pc_cache = hitCache(self.max_cache_size)           # eptPc(node, intf) = eptPc
-        self.vnid_cache = hitCache(self.max_cache_size)         # eptVnid(vnid) = eptVnid
-        self.epg_cache = hitCache(self.max_cache_size)          # eptEpg(vrf,pctag) = eptEpg
-        self.subnet_cache = hitCache(self.max_cache_size)       # eptSubnet(bd) = list(eptSubnet)
-        self.offsubnet_cache = hitCache(self.max_cache_size)    # (vrf,pctag,ip) = offsubnetObj
+        self.tunnel_cache = hitCache(eptCache.MAX_CACHE_SIZE)   # eptTunnel(node, intf) = eptTunnel
+        self.node_cache = hitCache(eptCache.MAX_CACHE_SIZE)         # eptNode(node) = eptNode
+        self.vpc_cache = hitCache(eptCache.MAX_CACHE_SIZE)          # eptVpc(node,intf) = eptVpc
+        self.pc_cache = hitCache(eptCache.MAX_CACHE_SIZE)           # eptPc(node, intf) = eptPc
+        self.vnid_cache = hitCache(eptCache.MAX_CACHE_SIZE)         # eptVnid(vnid) = eptVnid
+        self.epg_cache = hitCache(eptCache.MAX_CACHE_SIZE)          # eptEpg(vrf,pctag) = eptEpg
+        self.subnet_cache = hitCache(eptCache.MAX_CACHE_SIZE)       # eptSubnet(bd) = list(eptSubnet)
+        # (vrf,pctag,ip) = eptOffSubnet
+        self.offsubnet_cache = hitCache(eptCache.MAX_OFFSUBNET_CACHE_SIZE) 
+        # (vnid,addr) = rapidEndpointCachedObject
+        self.rapid_cache = hitCache(eptCache.MAX_ENDPOINT_CACHE_SIZE, callback=self.evict_rapid) 
 
     def handle_flush(self, collection_name, name=None):
         """ flush one or more entries in collection name """
@@ -102,7 +111,8 @@ class eptCache(object):
         """ return std key string for consistency between any method calculating cache key string"""
         return self.key_delim.join(["%s" % keys[k] for k in sorted(keys)])
 
-    def generic_cache_lookup(self, cache, eptObject, find_one=True, db_lookup=True, **keys):
+    def generic_cache_lookup(self, cache, eptObject, find_one=True, db_lookup=True, projection=None,
+            **keys):
         """ check cache for object matching provided keys.  If not found then perform db lookup 
             against eptObject (Rest object).  If found, return db object else return None. Note that
             cached result may be None so returning None from cache also indicates object does not
@@ -114,6 +124,10 @@ class eptCache(object):
 
             db_lookup   (bool)  if not found in cache, perform db lookup and add result to cache. If
                                 disabled, then return None if not found in cache
+
+            projection  (dict)  if not None, projection sent to find request to limit object return
+                                attributes. Useful if only a subset of attributes are needed within
+                                cache
         """
         keystr = self.get_key_str(**keys)
         obj = cache.search(keystr)
@@ -123,7 +137,7 @@ class eptCache(object):
         if not db_lookup: 
             # if entry not in cache and db_lookup disabled, then return None 
             return None
-        obj = eptObject.find(fabric=self.fabric, **keys)
+        obj = eptObject.find(projection=projection, fabric=self.fabric, **keys)
         if len(obj) == 0:
             logger.debug("(cache) not found in db: %s %s", eptObject._classname, keys)
             # add None to cache for keys to prevent db lookup on next check
@@ -184,6 +198,25 @@ class eptCache(object):
         if return_object: return ret
         if ret is None: return ""
         return ret.name
+
+    def get_rapid_endpoint(self, vnid, addr, addr_type):
+        """ return rapidEndpointCachedObject from cache or new object """
+        ret = self.generic_cache_lookup(self.rapid_cache, rapidEndpointCachedObject, db_lookup=False,
+                                        vnid=vnid, addr=addr)
+        if ret is None:
+            # create a new rapidEndpointCachedObject and add to cache
+            ret = rapidEndpointCachedObject(self.fabric, vnid, addr, addr_type)
+            # add result to cache for next lookup
+            keystr = self.get_key_str(vnid=vnid, addr=addr)
+            self.rapid_cache.push(keystr, ret)
+        return ret
+
+    def evict_rapid(self, cached_rapid):
+        """ triggered when rapidEndpointCachedObject is evicted from cache
+            here we need to save result to eptEndpoint as this and recalculations are the only 
+            time when rapid counters are saved to db
+        """
+        cached_rapid.save()
 
     def get_subnets(self, bd):
         """ return list of subnet objects for provided bd.  Return an empty list of subnets not
@@ -256,7 +289,8 @@ class eptCache(object):
             "vpc_cache", 
             "epg_cache", 
             "subnet_cache", 
-            "offsubnet_cache"
+            "offsubnet_cache",
+            "rapid_cache",
         ]
         logger.debug("cache stats for fabric %s, flush_request: 0x%08x", self.fabric, 
                 self.flush_requests)
@@ -264,6 +298,38 @@ class eptCache(object):
             c = getattr(self, cache_name)
             logger.debug("[hit: 0x%08x, miss: 0x%08x, evict: 0x%08x, flush: 0x%08x] %s", 
                 c.hit_count, c.miss_count, c.evict_count, c.flush_count, cache_name)
+
+class rapidEndpointCachedObject(object):
+    """ rapid statistics for eptEndpoint """
+    def __init__(self, fabric, vnid, addr, addr_type):
+        self.fabric = fabric
+        self.addr = addr
+        self.vnid = vnid
+        self.type = addr_type
+        self.is_rapid = False
+        self.is_rapid_ts = 0.0
+        self.rapid_lts = 0.0
+        self.rapid_count = 0
+        self.rapid_lcount = 0
+
+    def __repr__(self):
+        return "rapid:%r, rapid-ts:%.3f count:0x%06x, lcount:0x%06x, lts:%.3f" % (
+            self.is_rapid, self.is_rapid_ts, self.rapid_count, self.rapid_lcount, self.rapid_lts
+        )
+
+    def save(self):
+        """ save rapid counters to eptEndpoint entry, this is update for subset of attributes """
+        get_db()[eptEndpoint._classname].update_one({
+            "fabric": self.fabric,
+            "addr": self.addr,
+            "vnid": self.vnid
+        }, {"$set":{
+            "is_rapid": self.is_rapid,
+            "is_rapid_ts": self.is_rapid_ts,
+            "rapid_lts": self.rapid_lts,
+            "rapid_count": self.rapid_count,
+            "rapid_lcount": self.rapid_lcount,
+        }})
 
 class offsubnetCachedObject(object):
     """ cache objects support a key and val where val can contain an optionally name used mainly for
@@ -297,8 +363,12 @@ class hitCache(object):
         
         Note, maintaining hash based key with linked list structure is much faster than previous
         O(n) lookup required to remove key from list.
+
+        provide a callback function that receives val of evicted object to get perform additional
+        logic on cache eviction (i.e., cache write back logic). callback must accept single argument
+        which is value of object evicted
     """
-    def __init__(self, max_size):
+    def __init__(self, max_size, callback=None):
         self.head = None
         self.tail = None
         self.max_size = max_size
@@ -309,6 +379,10 @@ class hitCache(object):
         self.miss_count = 0
         self.evict_count = 0
         self.flush_count = 0
+        if callback is not None and callable(callback):
+            self.evict_callback = callback
+        else:
+            self.evict_callback = None
 
     def __repr__(self):
         s = ["len:%s [head-key:%s, tail-key:%s], list: " % (
@@ -389,6 +463,12 @@ class hitCache(object):
             self.head = node
             if len(self.key_hash) > self.max_size:
                 self.evict_count+=1
+                if self.evict_callback is not None and self.tail is not None:
+                    try:
+                        self.evict_callback(self.tail.val)
+                    except Exception as e:
+                        logger.debug("Traceback:\n%s", traceback.format_exc())
+                        logger.warn("failed to execute cache evict callback: %s", e)
                 self._remove_node(self.tail)
 
     def remove(self, key, name=False, preserve_none=False):

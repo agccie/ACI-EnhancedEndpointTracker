@@ -99,14 +99,12 @@ def get(session, url, **kwargs):
     # walk through pages until return count is less than page_size 
     while 1:
         turl = "%s%spage-size=%s&page=%s" % (url, url_delim, page_size, page)
-        logger.debug("host:%s, timeout:%s, get:%s", session.ipaddr, 
-            timeout,turl)
+        logger.debug("host:%s, timeout:%s, get:%s", session.hostname, timeout, turl)
         tstart = time.time()
         try:
             resp = session.get(turl, timeout=timeout)
         except Exception as e:
-            logger.warn("exception occurred in get request: %s",
-                traceback.format_exc())
+            logger.warn("exception occurred in get request: %s", e)
             return None
         if resp is None or not resp.ok:
             logger.warn("failed to get data: %s", url)
@@ -209,7 +207,7 @@ def get_attributes(session=None, dn=None, attribute=None, data=None):
     if dn is not None and len(ret)==1: return ret[0]
     return ret
 
-def get_apic_session(fabric, subscription_enabled=False):
+def get_apic_session(fabric, resubscribe=False):
     """ get_apic_session 
         based on current aci.settings for provided fabric name, connect to
         apic and return valid session object. If fail to connect to apic 
@@ -218,10 +216,12 @@ def get_apic_session(fabric, subscription_enabled=False):
 
         fabric can be a Fabric object or string for fabric name
 
+        set resubscribe to true to auto restart subscriptions (disabled by default)
+
         Returns None on failure
     """
-    from .fabric import Fabric
-    from .tools.acitoolkit.acisession import Session
+    from . fabric import Fabric
+    from . session import Session
      
     if isinstance(fabric, Fabric): aci = fabric
     else: aci = Fabric.load(fabric=fabric)
@@ -258,14 +258,11 @@ def get_apic_session(fabric, subscription_enabled=False):
         logger.debug("creating session on %s@%s",aci.apic_username,h)
         if apic_cert_mode:
             session = Session(h, aci.apic_username, appcenter_user=True, 
-                cert_name=aci.apic_username, key=aci.apic_cert,
-                subscription_enabled=subscription_enabled)
+                cert_name=aci.apic_username, key=aci.apic_cert, resubscribe=resubscribe)
         else:
-            session = Session(h, aci.apic_username, aci.apic_password,
-                subscription_enabled=subscription_enabled)
+            session = Session(h, aci.apic_username, aci.apic_password, resubscribe=resubscribe)
         try:
-            resp = session.login(timeout=SESSION_LOGIN_TIMEOUT)
-            if resp is not None and resp.ok: 
+            if session.login(timeout=SESSION_LOGIN_TIMEOUT):
                 logger.debug("successfully connected on %s", h)
                 return session
             else:

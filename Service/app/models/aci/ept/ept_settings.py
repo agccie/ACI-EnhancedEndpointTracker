@@ -52,58 +52,91 @@ class eptSettings(Rest):
         },
         "notify_move_email":{
             "type": bool, 
-            "description": "send email notifications on endpoint move",
             "default": False,
+            "description": "send email notifications on endpoint move",
         },
         "notify_stale_email":{
             "type": bool,
-            "description": "send email notifications on stale endpoint detection",
             "default": False,
+            "description": "send email notifications on stale endpoint detection",
         },
         "notify_offsubnet_email":{
             "type": bool, 
-            "description": "send email notifications on off-subnet endpoint detection",
             "default": False,
+            "description": "send email notifications on off-subnet endpoint detection",
+        },
+        "notify_clear_email": {
+            "type": bool,
+            "default": False,
+            "description": "send email notification for clear endpoint events",
+        },
+        "notify_rapid_email": {
+            "type": bool,
+            "default": False,
+            "description": "send email notification for rapid endpoint events",
         },
         "notify_move_syslog": {
             "type": bool, 
-            "description": "send syslog notifications on endpoint move",
             "default": False,
+            "description": "send syslog notifications on endpoint move",
         },
         "notify_stale_syslog": {
             "type": bool, 
-            "description": "send syslog notifications on stale endpoint detection",
             "default": False,
+            "description": "send syslog notifications on stale endpoint detection",
         },
         "notify_offsubnet_syslog": {
             "type": bool, 
-            "description": "send syslog notifications on off-subnet endpoint detection",
             "default": False,
+            "description": "send syslog notifications on off-subnet endpoint detection",
+        },
+        "notify_clear_syslog": {
+            "type": bool,
+            "default": False,
+            "description": "send syslog notification for clear endpoint events",
+        },
+        "notify_rapid_syslog": {
+            "type": bool,
+            "default": False,
+            "description": "send syslog notification for rapid endpoint events",
         },
         "auto_clear_stale": {
             "type": bool,
-            "description": "auto-clear endpoints detected as stale on the affected node",
             "deafult": False,
+            "description": "auto-clear endpoints detected as stale on the affected node",
         },
         "auto_clear_offsubnet": {
             "type": bool,
-            "description": "auto-clear endpoints detected as off-subnet on the affected node",
             "default": False,
+            "description": "auto-clear endpoints detected as off-subnet on the affected node",
         },
         "analyze_move": {
             "type": bool,
-            "description": "perform move analysis on each endpoint event",
             "default": True,
+            "description": "perform move analysis on each endpoint event",
         },
         "analyze_stale": {
             "type": bool,
-            "description": "perform stale analysis on each endpoint event (ip endpoints only)",
             "default": True,
+            "description": "perform stale analysis on each endpoint event (ip endpoints only)",
         },
         "analyze_offsubnet": {
             "type": bool,
-            "description": "perform offsubnet analysis on each endpoint event (ip endpoints only)",
             "default": True,
+            "description": "perform offsubnet analysis on each endpoint event (ip endpoints only)",
+        },
+        "analyze_rapid": {
+            "type": bool,
+            "default": True,
+            "description": "enable rapid endpoint detection and holddown",
+        },
+        "restore_rapid": {
+            "type": bool,
+            "default": True,
+            "description": """
+            when an endpoint is_rapid flag is cleared, perform api refresh to ensure db is fully 
+            synchronized with the endpoint state within the fabric
+            """,
         },
         "max_per_node_endpoint_events":{
             "type": int,
@@ -158,6 +191,16 @@ class eptSettings(Rest):
             "description": """ treat local entries that do not match expected local entry during 
             stale analysis as a stale endpoint.
             """,
+        },
+        "rapid_threshold": {
+            "type": int,
+            "default": 1000,
+            "description": "number of events per minute before endpoint is marked as rapid",
+        },
+        "rapid_holdtime": {
+            "type": int,
+            "default": 600,
+            "description": "holdtime to ignore new events for endpoint marked as rapid",
         },
         # internal state info
         "overlay_vnid": {

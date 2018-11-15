@@ -31,6 +31,7 @@ class WORK_TYPE(Enum):
     WATCH_MOVE          = "watch_move"      # an endpoint move event requires watch or notify
     WATCH_STALE         = "watch_stale"     # a stale endpoint event requires watch or notify
     WATCH_OFFSUBNET     = "watch_offsubnet" # an offsubnet endpoint event requires watch or notify
+    WATCH_RAPID         = "watch_rapid"     # rapid endpoint event requiring notify
     FLUSH_CACHE         = "flush_cache"     # flush cache for specific collection and/or dn
     EPM_IP_EVENT        = "epm_ip "         # epmIpEp event
     EPM_MAC_EVENT       = "epm_mac"         # epmMacEp event
@@ -164,6 +165,9 @@ class eptMsgWork(object):
         elif wt == WORK_TYPE.WATCH_STALE:
             return eptMsgWorkWatchStale(js["addr"], js["role"], js["data"], wt,
                         qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+        elif wt == WORK_TYPE.WATCH_RAPID:
+            return eptMsgWorkWatchRapid(js["addr"], js["role"], js["data"], wt,
+                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
         elif wt == WORK_TYPE.WATCH_NODE:
             return eptMsgWorkWatchNode(js["addr"], js["role"], js["data"], wt,
                         qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
@@ -245,6 +249,45 @@ class eptMsgWorkWatchMove(eptMsgWork):
     def __repr__(self):
         return "%s.0x%08x %s %s [0x%06x, %s, %s]" % (self.msg_type.value, 
             self.seq, self.fabric, self.wt.value, self.vnid, self.type, self.addr)
+
+class eptMsgWorkWatchRapid(eptMsgWork):
+    """ fixed message type for WATCH_RAPID """
+    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+        # initialize as eptMsgWork with empty data set
+        super(eptMsgWorkWatchRapid, self).__init__(addr, "watcher", data, wt, 
+                qnum=qnum, seq=seq, fabric=fabric)
+        self.wt = WORK_TYPE.WATCH_RAPID
+        self.vnid = int(data.get("vnid", 0))
+        self.type = data.get("type", "")
+        self.ts = float(data.get("ts", 0))
+        self.count = int(data.get("count", 0))
+        self.rate = float(data.get("rate",0))
+        self.vnid_name = data.get("vnid_name", "")
+
+    def jsonify(self):
+        """ jsonify for transport across messaging queue """
+        return json.dumps({
+            "msg_type": self.msg_type.value,
+            "seq": self.seq,
+            "wt": self.wt.value,
+            "addr": self.addr,
+            "role": self.role,
+            "qnum": self.qnum,
+            "fabric": self.fabric,
+            "data": {
+                "vnid": self.vnid,
+                "type": self.type,
+                "ts": self.ts,
+                "count": self.count,
+                "rate": self.rate,
+                "vnid_name": self.vnid_name,
+            }
+        })
+        return ret
+
+    def __repr__(self):
+        return "%s.0x%08x %s %s [0x%06x, %s, %s, rate %.3f]" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.vnid, self.type, self.addr, self.rate)
 
 
 class eptMsgWorkWatchOffSubnet(eptMsgWork):

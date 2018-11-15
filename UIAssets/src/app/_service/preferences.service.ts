@@ -12,7 +12,7 @@ export class PreferencesService {
   cul=0 ;
   fabricSettings:FabricSettings ;
   fabric:Fabric ;
-
+  checkedThreadStatus = false ;
   constructor() { 
     this.fabricSettings = new FabricSettings() ;
     this.fabric = new Fabric() ;

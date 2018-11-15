@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { PreferencesService } from '../_service/preferences.service';
 import { IfStmt } from '@angular/compiler';
 import { BackendService } from '../_service/backend.service';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 @Component({
   selector: 'app-endpoint-history',
@@ -24,55 +24,70 @@ export class EndpointHistoryComponent implements OnInit {
   clearEndpointOptions:any ;
   clearNodes = [] ;
   showClearModal = false ;
+  showSuccessModal = false; 
+  loading = true ;
+  routeSubscription:any;
 
-  constructor(private prefs:PreferencesService, private bs : BackendService, private activatedRoute:ActivatedRoute) {
-    this.tabs = [
-      {name:' Local Learns',icon:'icon-clock',path:'pernodehistory'},
-      {name: 'Move Events', path:'moveevents', icon:'icon-panel-shift-right'},
-      {name:' Off-Subnet Events',path:'offsubnetevents', icon:'icon-jump-out'},
-      {name:' Stale Events',path:'staleevents',icon:'icon-warning'}
-    ] ;
-    this.endpoint = this.prefs.endpointDetailsObject ;
-    
-    if(this.endpoint === undefined || this.endpoint === null) {
-      this.fab = this.activatedRoute.snapshot.params.fabric;
-      this.vnid = this.activatedRoute.snapshot.params.vnid ;
-      this.address = this.activatedRoute.snapshot.params.address;
-      this.getSingleEndpoint(this.fab,this.vnid,this.address) ;
-    }else{
-      this.setupStatusAndInfoStrings() ;
-      this.prefs.selectedEndpoint = this.endpoint ;
-    }
-
+  constructor(private prefs:PreferencesService, private bs : BackendService, private activatedRoute:ActivatedRoute, private router:Router) {
     this.clearEndpointOptions = [
       {label:'Select all' , value:0},
       {label:'Offsubnet endpoints', value:1},
       {label:'Stale Endpoints',value:2}
     ]
+    this.tabs = [
+      {name:' Local Learns',icon:'icon-computer',path:'locallearns'},
+      {name:' Per Node History',icon:'icon-clock',path:'pernodehistory'},
+      {name: ' Move Events', path:'moveevents', icon:'icon-panel-shift-right'},
+      {name:'  Off-Subnet Events',path:'offsubnetevents', icon:'icon-jump-out'},
+      {name:' Stale Events',path:'staleevents',icon:'icon-warning'}
+    ] ;
     
   }
 
   ngOnInit() {
+    this.routeSubscription = this.activatedRoute.params.subscribe(
+      (params)=>{
+        this.address = params['address'] ;
+        this.fab = params['fabric'] ;
+        this.vnid = params['vnid'] ;
+        this.getSingleEndpoint(this.fab,this.vnid,this.address) ;
+      }
+    )
+  }
+
+  getEventProperties(property) {
+    if(this.endpoint.events.length > 0) {
+      return this.endpoint.events[0][property] ;
+    }else if(this.endpoint.hasOwnProperty('first_learn')) {
+      return this.endpoint.first_learn[property] ;
+    }else{
+      return '' ;
+    }
   }
 
   setupStatusAndInfoStrings() {
-    const status = this.endpoint.events.length > 0 ? this.endpoint.events[0].status : this.endpoint.first_learn.status ;
-    const node = this.endpoint.events.length > 0 ? this.endpoint.events[0].node : this.endpoint.first_learn.node ;
-    const intf = this.endpoint.events.length > 0 ? this.endpoint.events[0].intf_name : this.endpoint.first_learn.intf_name ;
-    const encap = this.endpoint.events.length > 0 ? this.endpoint.events[0].encap : this.endpoint.first_learn.encap ;
-    const epgname = this.endpoint.events.length > 0 ? this.endpoint.events[0].epg_name : this.endpoint.first_learn.epg_name ;
-    const vrfbd = this.endpoint.events.length > 0 ? this.endpoint.events[0].vnid_name : this.endpoint.first_learn.vnid_name ;
+    const status = this.getEventProperties('status') ;
+    const node = this.getEventProperties('node') ;
+    const intf = this.getEventProperties('intf_name') ;
+    const encap = this.getEventProperties('encap') ;
+    const epgname = this.getEventProperties('epg_name') ;
+    const vrfbd = this.getEventProperties('vnid_name') ;
     if(this.endpoint.is_offsubnet) {
       this.staleoffsubnetDetails += 'Currently offsubnet on node ' + node + '\n' ;
     }
     if(this.endpoint.is_stale) {
       this.staleoffsubnetDetails += 'Current stale on node ' + node  ;
+      //query ept.endpoint filter on vnid,fabric,address,is_stale or is_offsubnet for finding out is stale or is offsubnet currently
+      //for finding a list of stale offsubnet nodes query same on ept.hisotry
     }
 
     if(status  === 'deleted') {
       this.endpointStatus = 'Not currently present in the fabric' ;
     }else {
-      this.endpointStatus = 'Local on node ' + node + ', interface ' + intf 
+      this.endpointStatus = 'Local on node ' + node 
+      if(intf !==''){
+        this.endpointStatus += ', interface ' + intf ;
+      }
       if(encap !== '') {
         this.endpointStatus += ', encap ' + encap ;
       }
@@ -99,32 +114,62 @@ export class EndpointHistoryComponent implements OnInit {
 
   deleteEndpoint() {
     this.showModal = false ;
-    this.bs.deleteEndpoint(this.endpoint.addr).subscribe(
+    this.bs.deleteEndpoint(this.endpoint.fabric,this.endpoint.vnid,this.endpoint.addr).subscribe(
       (data) => {
-
+        
+        this.showModalOnScreen('success','Success','Endpoint deleted successfully!') ;
       },
-    (error) => {
+      (error) => {
 
-    }
+      }
     )
 
   }
 
+  showModalOnScreen(type,modalTitle,modalBody) {
+    if(type === 'clear') {
+
+    }else if(type==='success'){
+      this.showClearModal = false;
+      this.showModal = false ;
+      this.modalBody = modalBody ;
+      this.modalTitle = modalTitle ;
+      this.showSuccessModal = true ;
+    }
+    else{
+      this.showClearModal = false;
+      this.modalBody = modalBody ;
+      this.modalTitle = modalTitle ;
+      this.showModal = true ;
+   
+    }
+  }
+
+  hideModal() {
+    this.modalTitle='' ;
+    this.modalBody='';
+    this.showModal = false ;
+  }
+
   getSingleEndpoint(fabric,vnid,address) {
+    this.loading = true ;
     this.bs.getSingleEndpoint(fabric,vnid,address).subscribe(
       (data)=>{
         this.endpoint = data['objects'][0]['ept.endpoint'] ;
         this.prefs.selectedEndpoint = this.endpoint;
         this.setupStatusAndInfoStrings() ;
+        this.loading = false ;
+        this.router.navigate(['/ephistory',fabric,vnid,address,'locallearns'])
       },
       (error)=>{
         console.log(error) ;
+        this.loading = false ;
       }
     ) ;
   }
 
   refresh() {
-    this.getSingleEndpoint(this.endpoint.fabric , this.endpoint.vnid, this.endpoint.addr) ;
+    this.getSingleEndpoint(this.fab , this.vnid, this.address) ;
   }
 
   addNodes = (term) => {
@@ -171,7 +216,7 @@ export class EndpointHistoryComponent implements OnInit {
   }
 
   public clearEndpoints() {
-    
+    return this.endpoint.type.toUpperCase()  ;
   }
 
 

@@ -58,7 +58,7 @@
                         </ngx-datatable-column> 
                         <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
                             <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                    <a (click)="goToDetailsPage(row)" >
+                                    <a (click)="goToDetailsPage(row['ept.history'])" >
                                             {{row['ept.history']['addr']}}
                                         </a>
                             </ng-template>

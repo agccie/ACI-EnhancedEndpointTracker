@@ -43,6 +43,7 @@ export class FabricOverviewComponent implements OnInit {
         this.fabrics = data['objects'] ;
         let i=0 ;
         for(let fab of this.fabrics) {
+          this.getFabricStatus(fab.fabric.fabric,i) ;
           this.getActiveMacAndIps(fab.fabric.fabric,'mac',i) ;
           this.getActiveMacAndIps(fab.fabric.fabric,'ipv4',i) ;
           this.getActiveMacAndIps(fab.fabric.fabric,'ipv6',i) ;
@@ -93,15 +94,17 @@ export class FabricOverviewComponent implements OnInit {
 
   }
 
-  deleteFabric(fabric) {
-    this.bs.deleteFabric(fabric).subscribe(
+  
+
+  getFabricStatus(fabricName,index) {
+    
+    this.bs.getFabricStatus(fabricName).subscribe(
       (data)=>{
-        if(data['success'] === true) {
-          console.log('success') ;
-        }
+        this.fabrics[index].fabric['status'] = data['status'] ;
+        this.rows = this.fabrics ;
       },
       (error)=>{
-        console.log(error) ;
+
       }
     )
   }

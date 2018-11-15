@@ -14,8 +14,7 @@ export class BackendService {
   baseUrl:any;
   domain:any;
   constructor(private http: HttpClient) {
-    this.domain='http://esc-aci-compute:9080' ;
-    this.baseUrl = this.domain + environment.api_entry ;
+    this.baseUrl =  environment.api_entry ;
    }
 
    getAppStatus() {
@@ -94,8 +93,8 @@ export class BackendService {
      return this.http.get(this.baseUrl + '/ept/' + tab + '?filter=and(eq("fabric","' + fabric +'"),eq("vnid",' + vnid +'),eq("addr","' + address +'"))&include=node') ;
    }
 
-   deleteEndpoint(address) {
-     return new Observable<any>() ;
+   deleteEndpoint(fabric,vnid,address) {
+     return this.http.delete(this.baseUrl + '/uni/fb-' + fabric + '/endpoint/vnid-' +vnid+'/addr-' + address) ;
    }
 
    login(username,password) {
@@ -157,6 +156,10 @@ export class BackendService {
     return this.http.patch(this.baseUrl +'/uni/fb-' + fabric+ '/settings-default',fabricSettings) ;
   }
 
+  getFabricStatus(fabricName:String) {
+    return this.http.get(this.baseUrl + '/uni/fb-' + fabricName + '/status') ;
+  }
+
   createUser(user: User): Observable<any> {
     let toSave = new User(
       user.username,
@@ -198,6 +201,10 @@ export class BackendService {
   getUserDetails(username: string) {
     const url = this.baseUrl + '/uni/username-' + username;
     return this.http.get(url);
+  }
+
+  getPerNodeHistory(fabric,node,vnid,address) {
+    return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/history/node-' + node + '/vnid-' + vnid + '/addr-' + address) ;
   }
 
 

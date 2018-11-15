@@ -12,7 +12,7 @@ export class NotificationComponent implements OnInit {
     this.inputs = [
       {name:'Email Address',model:'email_address', type:'text'},
       {name:'Syslog Server',model:'syslog_server',type:'text'},
-      {name:'Syslog Port', model:'syslog_port',type:'number'},
+      {name:'Syslog Port', model:'syslog_port',type:'number',min:'0',max:'65536'},
       {name:'Notify moves by email', model:'notify_move_email',type:'boolean'},
       {name:'Log moves to syslog',model:'notify_move_syslog',type:'boolean'},
       {name:'Notify about offsubnet endpoints by email' , model:"notify_offsubnet_email",type:'boolean'},

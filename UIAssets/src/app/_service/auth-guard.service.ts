@@ -10,7 +10,7 @@ export class AuthGuardService implements CanActivate{
   constructor(public prefs:PreferencesService) { }
 
   canActivate():boolean {
-    if(this.prefs.cul === 1) {
+    if(localStorage.getItem('cul') === '1') {
       return true ;
     }else{
       return false ;

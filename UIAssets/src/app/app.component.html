@@ -1,4 +1,4 @@
-           <header class="header header--compressed" *ngIf="prefs.cul === 1">
+           <header class="header header--compressed" *ngIf="ls.getItem('cul') === '1'">
             <div class="header-bar container">
                 <a href="javascript:;" class="header-bar__logo">
                     <span class="icon-cisco"></span>
@@ -12,7 +12,7 @@
                     <a class="btn btn--small btn--icon" *ngFor="let item of menu; let i = index;" [routerLink]="item.name.toLowerCase()">
                         <span [attr.class]= item.icon ></span>
                     </a>
-                    <a class="btn btn--small btn--icon btn--negative" (click)="logout()">
+                    <a class="btn btn--small btn--icon btn--negative" *ngIf="!app_mode" (click)="logout()">
                         <span class="icon-power"></span>
                     </a>
                 </div>

@@ -3,11 +3,12 @@ from ... utils import get_db
 from ... utils import get_redis
 
 from .. utils import get_apic_session
+from .. utils import get_apic_session
 from .. utils import get_attributes
 from .. utils import get_class
 from .. utils import get_controller_version
 from .. utils import parse_apic_version
-from .. utils import pretty_print
+from .. utils import validate_session_role
 from .. subscription_ctrl import SubscriptionCtrl
 
 from . common import MANAGER_CTRL_CHANNEL
@@ -198,6 +199,14 @@ class eptSubscriber(object):
             logger.warn("failed to connect to fabric: %s", self.fabric.fabric)
             self.fabric.add_fabric_event("failed", "failed to connect to apic")
             return
+        # validate from session that domain 'all' is present and we are running with role 'admin'
+        (valid, err_msg) = validate_session_role(self.session)
+        if not valid:
+            self.fabric.auto_start = False
+            self.fabric.add_fabric_event("failed", err_msg)
+            self.session.close()
+            return
+
         # get the apic id we connected to 
         apic_info = get_attributes(self.session, "info")
         connected_str = "connected to apic %s" % self.session.hostname

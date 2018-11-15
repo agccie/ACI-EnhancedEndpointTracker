@@ -207,6 +207,19 @@ def get_attributes(session=None, dn=None, attribute=None, data=None):
     if dn is not None and len(ret)==1: return ret[0]
     return ret
 
+def validate_session_role(session):
+    """ verify apic session has appropriate roles/permissions for this app
+        return tuple (bool success, error string)
+    """
+    # validate from session that domain 'all' is present and we are running with role 'admin'
+    if "all" in session.domains and "admin" in session.domains["all"].read_roles:
+        logger.debug("validated security domain 'all' present with 'admin' read")
+        return (True, "")
+    else:
+        err_msg = "insufficent permissions, user '%s' " % session.uid
+        err_msg+= "missing required read role 'admin' for security domain 'all'"
+        return (False, err_msg)
+
 def get_apic_session(fabric, resubscribe=False):
     """ get_apic_session 
         based on current aci.settings for provided fabric name, connect to

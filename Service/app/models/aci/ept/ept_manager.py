@@ -298,7 +298,7 @@ class eptManager(object):
                 else: 
                     remove_list.append(f)
         # stop tracking fabrics in remove list
-        for f in remove_list: self.fabrics.pop(f)
+        for f in remove_list: self.fabrics.pop(f, None)
 
     def increment_stats(self, queue, tx=False, count=1):
         # update stats queue

@@ -247,9 +247,10 @@ class Fabric(Rest):
         session = aci_utils.get_apic_session(self)
         if session is None:
             return (False, "failed to connect or authenticate to APIC")
-
+        (valid, err_msg) = aci_utils.validate_session_role(session)
         # always close session before returning success
         session.close()
+        if not valid: return (False, err_msg)
         return (True, "")
 
     def verify_ssh_credentials(self):

@@ -34,6 +34,20 @@ logger = logging.getLogger(__name__)
 # disable urllib warnings
 urllib3.disable_warnings()
 
+class aaaUserDomain(object):
+    """ track read and write for aaaUserDomain info received at login """
+    def __init__(self, name, read_roles, write_roles):
+        self.name = name
+        self.read_roles = read_roles
+        self.write_roles = write_roles
+    
+    def __repr__(self):
+        return "%s, read:[%s], write:[%s]" % (
+                self.name,
+                ",".join(self.read_roles),
+                ",".join(self.write_roles)
+            )
+
 
 class Session(object):
     """ Session class responsible for all communication with the APIC """
@@ -77,6 +91,8 @@ class Session(object):
         self.appcenter_user = appcenter_user
         self.default_timeout = 120
         self.resubscribe = resubscribe
+        # indexed by aaaUserDomain name and contains all permission info discovered at login
+        self.domains = {}               
 
         if self.pwd is not None:
             self.cert_auth = False
@@ -166,6 +182,26 @@ class Session(object):
         timeout = ret_data['aaaLogin']['attributes']['refreshTimeoutSeconds']
         self.token = str(ret_data['aaaLogin']['attributes']['token'])
         self.login_thread._login_timeout = int(timeout) / 2
+        # set domains from aaaUserDomain info
+        self.domains = {}
+        if 'children' in ret_data['aaaLogin'] and len(ret_data['aaaLogin']['children'])>0:
+            for child in ret_data['aaaLogin']['children']:
+                classname = child.keys()[0]
+                if classname == 'aaaUserDomain':
+                    logger.debug('adding aaaUserDomain to session domains: %s', child)
+                    domain = child['aaaUserDomain']['attributes']
+                    name = domain['name']
+                    read_roles = []
+                    write_roles = []
+                    if 'rolesR' in domain:
+                        read_roles = domain['rolesR'].split(',')
+                    else:
+                        logger.debug('unable to determine read role for domain %s', name)
+                    if 'rolesW' in domain:
+                        write_roles = domain['rolesW'].split(',')
+                    else:
+                        logger.debug('unable to determine write role for domain %s', name)
+                    self.domains[name] = aaaUserDomain(name, read_roles, write_roles)
         return ret
 
     def push_to_apic(self, url, data={}, timeout=None, method="POST", retry=True):

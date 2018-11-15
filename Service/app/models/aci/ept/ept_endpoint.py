@@ -3,15 +3,12 @@ from ... rest import Rest
 from ... rest import api_register
 from ... rest import api_route
 from ... rest import api_callback
-from ... utils import get_redis
-from .. fabric import Fabric
 from .. utils import clear_endpoint
 from . common import get_mac_value
 from . common import parse_vrf_name
-from . common import SUBSCRIBER_CTRL_CHANNEL
+from . common import subscriber_op
 from . ept_history import eptHistory
 from . ept_move import eptMove
-from . ept_msg import eptMsgSubOp
 from . ept_msg import MSG_TYPE
 from . ept_node import eptNode
 from . ept_offsubnet import eptOffSubnet
@@ -24,9 +21,7 @@ from flask import jsonify
 
 import logging
 import threading
-import traceback
 import time
-import redis
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -176,37 +171,29 @@ class eptEndpoint(Rest):
         },
     }
 
-    def subscriber_op(self, msg_type, qnum=1):
-        """ send msg to subscriber if running with provided msg_type, return jsonify object """
-        f = Fabric(fabric=self.fabric)
-        if f.get_fabric_status(api=False):
-            try:
-                redis = get_redis()
-                msg = eptMsgSubOp(msg_type, data ={
-                    "fabric": self.fabric,
-                    "addr": self.addr,
-                    "vnid": self.vnid,
-                    "type": self.type,
-                    "qnum": qnum,
-                })
-                redis.publish(SUBSCRIBER_CTRL_CHANNEL, msg.jsonify())
-                # no error sending message so assume success
-                return jsonify({"success":True})
-            except Exception as e:
-                logger.error("Traceback:\n%s", traceback.format_exc())
-                abort(500, "failed to send message to redis db")
-        else:
-            return abort(500, "fabric is not currently running")
-
     @api_route(path="delete", methods=["DELETE"], swag_ret=["success"])
     def delete_endpoint(self):
         """ delete endpoint and all historical data from database """
-        return self.subscriber_op(MSG_TYPE.DELETE_EPT)
+        (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.DELETE_EPT, qnum=0, data={
+                "addr": self.addr,
+                "vnid": self.vnid,
+                "type": self.type,
+            })
+        if success:
+            return jsonify({"success": True})
+        abort(500, err_str)
 
     @api_route(path="refresh", methods=["POST"], swag_ret=["success"])
     def refresh_endpoint(self):
         """ force endpoint refresh by querying APIC epmDb to get current state of endpoint """
-        return self.subscriber_op(MSG_TYPE.REFRESH_EPT)
+        (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.REFRESH_EPT, qnum=0, data={
+                "addr": self.addr,
+                "vnid": self.vnid,
+                "type": self.type,
+            })
+        if success:
+            return jsonify({"success": True})
+        abort(500, err_str)
 
     @classmethod
     @api_callback("before_create")

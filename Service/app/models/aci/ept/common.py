@@ -4,6 +4,7 @@ common ept functions
 import logging
 import re
 import time
+import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -157,6 +158,33 @@ def parse_vrf_name(dn):
     else:
         logger.warn("failed to parse vrf name for dn: %s", dn)
         return None
+
+
+def subscriber_op(fabric, msg_type, data=None, qnum=1):
+    """ send msg to subscriber if running with provided msg_type, return jsonify object 
+        returns a tuple (success, error_string)
+    """
+    from ... utils import get_redis
+    from .. fabric import Fabric
+    from . ept_msg import eptMsgSubOp
+
+    if data is None: data = {}
+    if Fabric(fabric=fabric).get_fabric_status(api=False):
+        try:
+            # fabric and qnum are always in data, add if not present
+            data["fabric"] = fabric
+            data["qnum"] = qnum
+            r = get_redis()
+            msg = eptMsgSubOp(msg_type, data = data)
+            r.publish(SUBSCRIBER_CTRL_CHANNEL, msg.jsonify())
+            # no error sending message so assume success
+            return (True, "")
+        except Exception as e:
+            logger.error("Traceback:\n%s", traceback.format_exc())
+            return (False, "failed to publish message on redis channel")
+    else:
+        return (False, "Fabric '%s' is not running" % fabric)
+
 
 ###############################################################################
 #

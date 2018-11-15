@@ -45,7 +45,8 @@ class eptWorkerFabric(object):
 
     def notification_enabled(self, notify_type):
         # return dict with email address, syslog server, syslog port for notify type. If not enabled,
-        # then return None for each field.
+        # then return None for each field. Set notify_type to 'any_email' or 'any_syslog' to force
+        # test of a particular notification type
         ret = {"enabled": False, "email_address": None, "syslog_server": None, "syslog_port": None}
         if notify_type == "move":
             attr = ("notify_move_email", "notify_move_syslog")
@@ -57,6 +58,17 @@ class eptWorkerFabric(object):
             attr = ("notify_clear_email", "notify_clear_syslog")
         elif notify_type == "rapid": 
             attr = ("notify_rapid_email", "notify_rapid_syslog")
+        elif notify_type == "any_email":
+            # return all notification types enabled
+            ret["enabled"] = True
+            ret["email_address"] = self.email_address
+            return ret
+        elif notify_type == "any_syslog":
+            # return all notification types enabled
+            ret["enabled"] = True
+            ret["syslog_server"] = self.syslog_server
+            ret["syslog_port"] = self.syslog_port
+            return ret
         else:
             logger.warn("invalid notification type '%s", notify_type)
             return ret
@@ -70,14 +82,15 @@ class eptWorkerFabric(object):
         return ret
 
     def send_notification(self, notify_type, subject, txt):
-        # send proper notifications for this fabric 
+        # send proper notifications for this fabric.  set notify_type to none to skip enable check
+        # and force notification
         notify = self.notification_enabled(notify_type)
         if notify["enabled"]:
             if notify["email_address"] is not None:
                 email(
                     msg=txt,
                     subject=subject,
-                    sender = get_app_config().get("EMAIL_SENDER", None),
+                    sender=get_app_config().get("EMAIL_SENDER", None),
                     receiver=notify["email_address"],
                 )
             if notify["syslog_server"] is not None:

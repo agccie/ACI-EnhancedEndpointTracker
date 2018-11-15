@@ -26,6 +26,8 @@ class MSG_TYPE(Enum):
     DELETE_EPT          = "delete_ept"      # delete endpoint and all dependencies from db, also 
                                             # ensures worker cache for this endpoint are properly 
                                             # flushed.
+    TEST_EMAIL          = "test_email"      # send a test email
+    TEST_SYSLOG         = "test_syslog"     # send a test syslog
 
 # static work types sent with MSG_TYPE.WORK
 @enum_unique
@@ -42,6 +44,8 @@ class WORK_TYPE(Enum):
     EPM_RS_IP_EVENT     = "epmRsIp"         # epmRsMacEpToIpEpAtt event
     DELETE_EPT          = "delete_ept"      # work message to worker to delete endpoint from db and
                                             # flush info from cache
+    TEST_EMAIL          = "test_email"      # test email notification
+    TEST_SYSLOG         = "test_syslog"     # test syslog notification
 
 class eptMsg(object):
     """ generic ept job for messaging between workers 
@@ -76,6 +80,10 @@ class eptMsg(object):
             return eptMsgSubOp(MSG_TYPE.REFRESH_EPT, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.DELETE_EPT.value:
             return eptMsgSubOp(MSG_TYPE.DELETE_EPT, js["data"], js["seq"])
+        elif js["msg_type"] == MSG_TYPE.TEST_EMAIL.value:
+            return eptMsgSubOp(MSG_TYPE.TEST_EMAIL, js["data"], js["seq"])
+        elif js["msg_type"] == MSG_TYPE.TEST_SYSLOG.value:
+            return eptMsgSubOp(MSG_TYPE.TEST_SYSLOG, js["data"], js["seq"])
         return eptMsg(
                     MSG_TYPE(js["msg_type"]), 
                     data=js.get("data", {}),
@@ -86,6 +94,7 @@ class eptMsgSubOp(eptMsg):
     """ subscriber operation supporting following ops:
             - MSG_TYPE.REFRESH_EPT
             - MSG_TYPE.DELETE_EPT
+            - MSG_TYPE.TEST_EMAIL   (no ept required but fabric is required)
     """
     def __init__(self, msg_type, data={}, seq=1):
         super(eptMsgSubOp, self).__init__(msg_type, data, seq)
@@ -210,7 +219,6 @@ class eptMsgWork(object):
 class eptMsgWorkRaw(eptMsgWork):
     """ raw/unparsed epm event """
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
-        # initialize as eptMsgWork with empty data set
         super(eptMsgWorkRaw, self).__init__(addr, role, data, wt, qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.RAW
 

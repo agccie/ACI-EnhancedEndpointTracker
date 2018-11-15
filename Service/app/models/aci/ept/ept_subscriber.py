@@ -175,6 +175,16 @@ class eptSubscriber(object):
             self.send_msg(eptMsgWorkDeleteEpt(msg.addr, "worker", {"vnid":msg.vnid},
                 WORK_TYPE.DELETE_EPT, qnum=msg.qnum, fabric=self.fabric,
             ))
+        elif msg.msg_type == MSG_TYPE.TEST_EMAIL:
+            # enqueue notification test to watcher
+            self.send_msg(eptMsgWork(msg.addr, "watcher", {},
+                WORK_TYPE.TEST_EMAIL, qnum=msg.qnum, fabric=self.fabric,
+            ))
+        elif msg.msg_type == MSG_TYPE.TEST_SYSLOG:
+            # enqueue notification test to watcher
+            self.send_msg(eptMsgWork(msg.addr, "watcher", {},
+                WORK_TYPE.TEST_SYSLOG, qnum=msg.qnum, fabric=self.fabric,
+            ))
         else:
             logger.debug("ignoring unexpected msg type: %s", msg.msg_type)
 

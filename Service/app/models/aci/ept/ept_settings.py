@@ -1,8 +1,13 @@
 
-from ...rest import Rest
-from ...rest import api_register
-from ...rest import api_callback
+from ... rest import Rest
+from ... rest import api_register
+from ... rest import api_route
+from ... rest import api_callback
 from .. fabric import Fabric
+from . common import subscriber_op
+from . ept_msg import MSG_TYPE
+from flask import abort
+from flask import jsonify
 import logging
 
 # module level logging
@@ -41,6 +46,7 @@ class eptSettings(Rest):
         },
         "syslog_server":{
             "type":str,
+            "regex":"(^$|^[a-zA-Z0-9\-_\.\+]+$)",
             "description": "syslog IP or hostname for sending syslog based notifications",
         },
         "syslog_port":{
@@ -217,4 +223,26 @@ class eptSettings(Rest):
             "description": "fabricProtPol pairT attribute (consecutive|reciprocal|explicit)",
         },
     }
+
+    @api_route(path="test/email", methods=["POST"], swag_ret=["success"])
+    def test_email(self):
+        """ send a test email to ensure settings are valid and email notifications are successful
+        """
+        if len(self.email_address) == 0:
+            abort(400, "no email address configured")
+        (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.TEST_EMAIL, qnum=0)
+        if success:
+            return jsonify({"success": True})
+        abort(500, err_str)
+
+    @api_route(path="test/syslog", methods=["POST"], swag_ret=["success"])
+    def test_syslog(self):
+        """ send a test syslog to ensure settings are valid and syslog notifications are successful
+        """
+        if len(self.syslog_server) == 0:
+            abort(400, "no syslog server configured")
+        (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.TEST_SYSLOG, qnum=0)
+        if success:
+            return jsonify({"success": True})
+        abort(500, err_str)
 

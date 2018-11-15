@@ -122,6 +122,8 @@ class eptWorker(object):
                 WORK_TYPE.WATCH_OFFSUBNET: self.handle_watch_offsubnet,
                 WORK_TYPE.WATCH_STALE: self.handle_watch_stale,
                 WORK_TYPE.WATCH_RAPID: self.handle_watch_rapid,
+                WORK_TYPE.TEST_EMAIL: self.handle_test_email,
+                WORK_TYPE.TEST_SYSLOG: self.handle_test_syslog,
             }
         else:
             self.work_type_handlers = {
@@ -1444,7 +1446,6 @@ class eptWorker(object):
             dependencies)
             caches:
                 rapid_cache
-                
         """
         logger.debug("deleting %s [0x%06x %s]", msg.fabric, msg.vnid, msg.addr)
         # remove from local caches
@@ -1457,6 +1458,18 @@ class eptWorker(object):
             endpoint.remove()
         else:
             logger.debug("endpoint not found in db, no delete occurring")
+
+    def handle_test_email(self, msg):
+        """ receive eptMsgWork with WORK_TYPE.TEST_EMAIL and send a test email """
+        logger.debug("sending test email")
+        txt = "%s test email" % msg.fabric
+        msg.wf.send_notification("any_email", txt, txt)
+
+    def handle_test_syslog(self, msg):
+        """ receive eptMsgWork with WORK_TYPE.TEST_SYSLOG and send a test syslog """
+        logger.debug("sending test syslog")
+        txt = "%s test syslog" % msg.fabric
+        msg.wf.send_notification("any_syslog", txt, txt)
 
 class eptWorkerUpdateLocalResult(object):
     """ return object for eptWorker.update_loal method """

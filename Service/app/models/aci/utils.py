@@ -470,7 +470,8 @@ def terminate_process(p):
     if p.is_alive():
         logger.debug("sending SIGTERM to pid(%s)", p.pid)
         p.terminate()
-        time.sleep(0.01)
+        # give the process a few seconds to stop
+        time.sleep(2.0)
         if p.is_alive():
             try:
                 logger.debug("sending SIGKILL to pid(%s)",  p.pid)

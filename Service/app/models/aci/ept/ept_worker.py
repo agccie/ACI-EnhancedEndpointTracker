@@ -173,7 +173,6 @@ class eptWorker(object):
                 logger.debug("[%s] msg on q(%s): %s", self, q, msg)
 
                 if msg.msg_type == MSG_TYPE.WORK:
-                    setattr(msg, "now", time.time())
                     if msg.wt in self.work_type_handlers:
                         # set msg.wf to current fabric eptWorkerFabric object
                         self.set_msg_worker_fabric(msg)
@@ -290,6 +289,7 @@ class eptWorker(object):
         if msg.fabric not in self.fabrics:
             self.fabrics[msg.fabric] = eptWorkerFabric(msg.fabric)
         setattr(msg, "wf", self.fabrics[msg.fabric])
+        setattr(msg, "now", time.time())
 
     def handle_raw_endpoint_event(self, msg):
         """ receive eptMsgWorkRaw, parse the event, and then execute handle endpoint event """

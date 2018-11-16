@@ -536,18 +536,8 @@ def test_handle_endpoint_event_new_local_ipv4(app, func_prep):
     assert e.vnid == vrf_vnid
     assert e.type == "ipv4"
     assert not e.is_stale and not e.is_offsubnet  and not e.is_rapid
-    assert e.count == 1
-    assert len(e.events) == 1
-    e = eptEndpointEvent.from_dict(e.events[0])
-    assert e.status == "created"
-    assert e.pctag == epg1_pctag
-    assert e.encap == epg1_encap
-    assert e.intf_id == "vpc-384"       # vpc interface re-mapped
-    assert e.intf_name == "ag_vpc1"
-    assert e.rw_mac == ""
-    assert e.rw_bd == 0
-    assert e.vnid_name == vrf_name
-    assert e.epg_name == epg1_name
+    assert e.count == 0
+    assert len(e.events) == 0
 
 def test_handle_endpoint_event_new_local_ipv4_with_rewrite(app, func_prep):
     # create event for new ip followed by rewrite info and ensure entry is added correctly

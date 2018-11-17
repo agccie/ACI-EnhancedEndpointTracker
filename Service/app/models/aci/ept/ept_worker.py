@@ -455,7 +455,7 @@ class eptWorker(object):
         if last_event is None:
             logger.debug("new endpoint on node %s", msg.node)
             if not is_created:
-                logger.debug("ignorning deleted/modified event for non-existing entry")
+                logger.debug("ignorning deleted/modified event for non-existing eptHistory")
                 return False
             # add new entry to db with most recent msg as the only event
             if is_rs_ip_event:
@@ -662,6 +662,10 @@ class eptWorker(object):
             # be out of sync. This is common scenario for vip/cache/svi/loopback endpoints that may
             # never have rw info and thus never 'complete local'
             if endpoint is None:
+                # there is on exception, if endpoint is None and event is a delete, then ignore it
+                if msg.status == "deleted" or msg.status == "modified":
+                    logger.debug("ignorning deleted/modified event for non-existing eptEndpoint")
+                    return None
                 endpoint_type = get_addr_type(msg.addr, msg.type)
                 dummy_event = eptEndpointEvent.from_dict({"vnid_name":msg.vnid_name}).to_dict()
                 eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr,type=endpoint_type,

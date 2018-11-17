@@ -421,6 +421,9 @@ class eptWorker(object):
                 if is_local and tunnel.encap == "vxlan":
                     logger.debug("mapping ifId %s to vl-%s", msg.ifId, tunnel.dst)
                     msg.ifId = "vl-%s" % tunnel.dst
+                    # TODO - in the future we can look into mapping vl ip to hostname or perhaps 
+                    # tracking tunnel remote to physical interface based on mac entry for tunnel
+                    ifId_name = "vl-%s" % tunnel.dst
 
         # determine remote node for this event if it is a non-deleted XR event
         if not is_local and not is_rs_ip_event and not is_deleted:

@@ -15,10 +15,10 @@ simulated test topology
     +------------+          +------------+         +------------+         +------------+
      po1                     po7                     eth1/1                 eth1/1
      po2, vpc-384            po8, vpc-384             tun96 -> 10.0.0.96
-     po3, vpc-385            po9, vpc-385             (vxlan-avs)
+     po3, vpc-385            po9, vpc-385             (orphan VL)
                tun901    tun902          
                   10.0.0.90
-             (vxlan-avs behind vpc)
+             (VL behind vpc)
 
 port-channel names:
     po1 = ag_po1001
@@ -193,7 +193,7 @@ def create_test_environment():
         ).save()
     def create_tunnel(node,remote,src=None,dst=None,intf=None,encap="ivxlan",flags="physical"):
         # create tunnels to all other nodes except this one
-        assert eptTunnel.load(fabric=tfabric, status="up", encap="ivxlan", flags="physical", 
+        assert eptTunnel.load(fabric=tfabric, status="up", encap=encap, flags=flags, 
                 node=node,
                 src="10.0.0.%s" % node if src is None else src,
                 dst="10.0.0.%s" % remote if dst is None else dst,
@@ -1233,4 +1233,550 @@ def test_handle_endpoint_event_basic_ipv4_move_scenario_3(app, func_prep):
     dut.handle_endpoint_event(msg)
 
     validate_ip_state_2()
+
+
+def validate_mac_state_2():
+    # final state for following tests:
+    #   test_handle_endpoint_event_vpc_mac_move_scenario_1
+    #   test_handle_endpoint_event_vpc_mac_move_scenario_2
+
+    mac = "00:00:01:02:03:04"
+    h = eptHistory.find(fabric=tfabric, addr=mac, node=101)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert len(h.events) == 3
+    e = eptHistoryEvent.from_dict(h.events[0])
+    assert e.status == "created"
+    assert e.remote == 0
+    assert e.intf_id == "vpc-385"
+
+    h = eptHistory.find(fabric=tfabric, addr=mac, node=102)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert len(h.events) == 3
+    e = eptHistoryEvent.from_dict(h.events[0])
+    assert e.status == "created"
+    assert e.remote == 0
+    assert e.intf_id == "vpc-385"
+
+    endpoint = eptEndpoint.find(fabric=tfabric, addr=mac)
+    assert len(endpoint) == 1
+    e = endpoint[0]
+    logger.debug(pretty_print(e.to_json()))
+    assert e.count == 2
+    assert len(e.events) == 2
+    e0 = eptEndpointEvent.from_dict(e.events[0])
+    assert e0.node == vpc_node_id
+    assert e0.intf_id == "vpc-385"
+    e1 = eptEndpointEvent.from_dict(e.events[1])
+    assert e1.node == vpc_node_id
+    assert e1.intf_id == "vpc-384"
+
+    # ensure move event was created
+    move = eptMove.find(fabric=tfabric, addr=mac)
+    assert len(move) == 1
+    move = move[0]
+    logger.debug(pretty_print(move.to_json()))
+    assert move.count == 1
+    assert len(move.events) == 1
+    src = eptMoveEvent.from_dict(move.events[0]["src"])
+    dst = eptMoveEvent.from_dict(move.events[0]["dst"])
+    assert src.node == vpc_node_id
+    assert src.intf_id == "vpc-384"
+    assert src.intf_name == "ag_vpc1"
+    assert src.pctag == epg1_pctag
+    assert src.encap == epg1_encap
+    assert src.rw_mac == ""
+    assert src.rw_bd == 0
+    assert src.epg_name == epg1_name
+    assert src.vnid_name == bd1_name
+    assert dst.node == vpc_node_id
+    assert dst.intf_id == "vpc-385"
+    assert dst.intf_name == "ag_vpc2"
+    assert dst.pctag == epg1_pctag
+    assert dst.encap == epg1_encap
+    assert dst.rw_mac == ""
+    assert dst.rw_bd == 0
+    assert dst.epg_name == epg1_name
+    assert dst.vnid_name == bd1_name
+
+def test_handle_endpoint_event_vpc_mac_move_scenario_1(app, func_prep):
+    # trigger a move between two vpc interfaces, one triggered on node-101 and the other on node-102
+    # - create on node-101
+    # - create on node-102
+    # - delete on node-102
+    # - create on node-102 with new interface
+    # - delete on node-101
+    # - create on node-101 with new interface
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+
+    # vpc-384
+    msg = get_epm_event(101, mac, wt=WORK_TYPE.EPM_MAC_EVENT, epg=1, intf="po2", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, wt=WORK_TYPE.EPM_MAC_EVENT, epg=1, intf="po8", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # vpc-385
+    msg = get_epm_event(102, mac, wt=WORK_TYPE.EPM_MAC_EVENT, status="deleted", ts=2.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, wt=WORK_TYPE.EPM_MAC_EVENT, epg=1, intf="po9", ts=2.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, wt=WORK_TYPE.EPM_MAC_EVENT, status="deleted", ts=2.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, wt=WORK_TYPE.EPM_MAC_EVENT, epg=1, intf="po3", ts=2.3)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    validate_mac_state_2()
+
+def test_handle_endpoint_event_vpc_mac_move_scenario_2(app, func_prep):
+    # trigger a move between two vpc interfaces, one triggered on node-101 and the other on node-102
+    # - create on node-101
+    # - create on node-102
+    # - delete on node-102
+    # - delete on node-101
+    # - create on node-102 with new interface
+    # - create on node-101 with new interface
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+
+    # vpc-384
+    msg = get_epm_event(101, mac, wt=WORK_TYPE.EPM_MAC_EVENT, epg=1, intf="po2", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, wt=WORK_TYPE.EPM_MAC_EVENT, epg=1, intf="po8", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # vpc-385
+    msg = get_epm_event(102, mac, wt=WORK_TYPE.EPM_MAC_EVENT, status="deleted", ts=2.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, wt=WORK_TYPE.EPM_MAC_EVENT, status="deleted", ts=2.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, wt=WORK_TYPE.EPM_MAC_EVENT, epg=1, intf="po9", ts=2.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, wt=WORK_TYPE.EPM_MAC_EVENT, epg=1, intf="po3", ts=2.3)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    validate_mac_state_2()
+
+def validate_ip_state_3():
+    # final state for following tests:
+    #   test_handle_endpoint_event_vpc_ipv4_move_scenario_1
+    #   test_handle_endpoint_event_vpc_ipv4_move_scenario_2
+
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+    h = eptHistory.find(fabric=tfabric, addr=ip, node=101)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert len(h.events) == 6
+    e = eptHistoryEvent.from_dict(h.events[0])
+    assert e.status == "created"
+    assert e.remote == 0
+    assert e.pctag == epg2_pctag
+    assert e.rw_mac == mac
+    assert e.rw_bd == bd2_vnid
+    assert e.intf_id == "vpc-384"
+    assert e.epg_name == epg2_name
+    assert e.vnid_name == vrf_name
+
+    h = eptHistory.find(fabric=tfabric, addr=ip, node=102)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert len(h.events) == 6
+    e = eptHistoryEvent.from_dict(h.events[0])
+    assert e.status == "created"
+    assert e.remote == 0
+    assert e.pctag == epg2_pctag
+    assert e.rw_mac == mac
+    assert e.rw_bd == bd2_vnid
+    assert e.intf_id == "vpc-384"
+    assert e.epg_name == epg2_name
+    assert e.vnid_name == vrf_name
+
+    endpoint = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(endpoint) == 1
+    e = endpoint[0]
+    logger.debug(pretty_print(e.to_json()))
+    assert e.count == 2
+    assert len(e.events) == 2
+    e0 = eptEndpointEvent.from_dict(e.events[0])
+    assert e0.node == vpc_node_id
+    assert e0.intf_id == "vpc-384"
+    assert e0.intf_name == "ag_vpc1"
+    assert e0.encap == epg2_encap
+    assert e0.pctag == epg2_pctag 
+    e1 = eptEndpointEvent.from_dict(e.events[1])
+    assert e1.node == vpc_node_id
+    assert e1.intf_id == "vpc-384"
+    assert e1.intf_name == "ag_vpc1"
+    assert e1.encap == epg1_encap
+    assert e1.pctag == epg1_pctag 
+
+    # ensure move event was created
+    move = eptMove.find(fabric=tfabric, addr=ip)
+    assert len(move) == 1
+    move = move[0]
+    logger.debug(pretty_print(move.to_json()))
+    assert move.count == 1
+    assert len(move.events) == 1
+    src = eptMoveEvent.from_dict(move.events[0]["src"])
+    dst = eptMoveEvent.from_dict(move.events[0]["dst"])
+    assert src.node == vpc_node_id
+    assert src.intf_id == "vpc-384"
+    assert src.intf_name == "ag_vpc1"
+    assert src.pctag == epg1_pctag
+    assert src.encap == epg1_encap
+    assert src.rw_mac == mac
+    assert src.rw_bd == bd1_vnid
+    assert src.epg_name == epg1_name
+    assert src.vnid_name == vrf_name
+    assert dst.node == vpc_node_id
+    assert dst.intf_id == "vpc-384"
+    assert dst.intf_name == "ag_vpc1"
+    assert dst.pctag == epg2_pctag
+    assert dst.encap == epg2_encap
+    assert dst.rw_mac == mac
+    assert dst.rw_bd == bd2_vnid
+    assert dst.epg_name == epg2_name
+    assert dst.vnid_name == vrf_name
+
+
+def test_handle_endpoint_event_vpc_ipv4_move_scenario_1(app, func_prep):
+    # trigger an ipv4 move between two bds, same interface with various order of events
+    # - ip_event create on node-101
+    # - ip_rs_event create on node-101
+    # - ip_event create on node-102
+    # - ip_rs_event create on node-102
+    # - ip_rs_event delete on node-101
+    # - ip_event delete on node-101
+    # - ip_rs_event delete on node-102
+    # - ip_event delete on node-102
+    # - ip_rs_event create on node-101 
+    # - ip_event create on node-101 with new encap
+    # - ip_rs_event create on node-102
+    # - ip_event create on node-102 with new encap
+
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # vpc-384
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="po2", ts=1.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="po8", ts=1.3)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.4)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, status="deleted", ts=2.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, status="deleted", ts=2.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, status="deleted", ts=2.3)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, status="deleted", ts=2.4)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # create on new epg/bd
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=2, intf="po2", ts=3.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=2, ts=3.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=2, intf="po8", ts=3.3)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=2, ts=3.4)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    validate_ip_state_3()
+
+def test_handle_endpoint_event_vpc_ipv4_move_scenario_2(app, func_prep):
+    # trigger an ipv4 move between two bds, same interface with various order of events
+    # - ip_event create on node-101
+    # - ip_rs_event create on node-101
+    # - ip_event create on node-102
+    # - ip_rs_event create on node-102
+    #
+    # - ip_rs_event delete on node-101
+    # - ip_rs_event create on node-101 with new encap
+    # - ip_event delete on node-101
+    # - ip_event create on node-101 with new bd
+    #
+    # - ip_event delete on node-102
+    # - ip_event create on node-102 with new bd
+    # - ip_rs_event delete on node-102
+    # - ip_rs_event create on node-102 with new encap
+
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # vpc-384
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="po2", ts=1.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="po8", ts=1.3)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.4)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, status="deleted", ts=2.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=2, ts=2.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, status="deleted", ts=2.3)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=2, intf="po2", ts=2.4)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, status="deleted", ts=3.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=2, intf="po8", ts=3.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, status="deleted", ts=3.3)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=2, ts=3.4)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+def test_handle_endpoint_event_vl_vpc_tunnel_no_move(app, func_prep):
+    # trigger learn events from two different tunnels representing same VL device and ensure no
+    # move event is triggered
+
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # tunnel901/tunnel902 = 10.0.0.90 VL
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="tunnel901", 
+            flags=["local", "vpc-attached"],ts=1.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="tunnel902", 
+            flags=["local", "vpc-attached"],ts=1.3)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.4)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    h = eptHistory.find(fabric=tfabric, addr=ip, node=101)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert len(h.events) == 2
+    e = eptHistoryEvent.from_dict(h.events[0])
+    assert e.status == "created"
+    assert e.remote == 0
+    assert e.pctag == epg1_pctag
+    assert e.rw_mac == mac
+    assert e.rw_bd == bd1_vnid
+    assert e.intf_id == "vl-10.0.0.90"
+    assert e.intf_name == "vl-10.0.0.90"
+    assert e.epg_name == epg1_name
+    assert e.vnid_name == vrf_name
+
+    h = eptHistory.find(fabric=tfabric, addr=ip, node=102)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert len(h.events) == 2
+    e = eptHistoryEvent.from_dict(h.events[0])
+    assert e.status == "created"
+    assert e.remote == 0
+    assert e.pctag == epg1_pctag
+    assert e.rw_mac == mac
+    assert e.rw_bd == bd1_vnid
+    assert e.intf_id == "vl-10.0.0.90"
+    assert e.intf_name == "vl-10.0.0.90"
+    assert e.epg_name == epg1_name
+    assert e.vnid_name == vrf_name
+
+    endpoint = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(endpoint) == 1
+    e = endpoint[0]
+    logger.debug(pretty_print(e.to_json()))
+    assert e.count == 1
+    assert len(e.events) == 1
+    e0 = eptEndpointEvent.from_dict(e.events[0])
+    assert e0.node == vpc_node_id
+    assert e0.intf_id == "vl-10.0.0.90"
+    assert e0.intf_name == "vl-10.0.0.90"
+    assert e0.encap == epg1_encap
+    assert e0.pctag == epg1_pctag 
+    assert e0.rw_mac == mac
+    assert e0.rw_bd == bd1_vnid
+    assert e0.epg_name == epg1_name
+    assert e0.vnid_name == vrf_name
+
+def test_handle_endpoint_event_local_ipv4_is_offsubnet(app, func_prep):
+    # basic check to ensure is_offsubnet is set for local offsubnet address
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "20.1.1.101"           # subnet 20.1.1.101 belongs to bd2, not bd1
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, bd=1, intf="po2", ts=1.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, bd=1, ts=1.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    h = eptHistory.find(fabric=tfabric, addr=ip, node=101)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert h.is_offsubnet
+
+def test_handle_endpoint_event_xr_ipv4_is_offsubnet(app, func_prep):
+    # basic check to ensure is_offsubnet is set for xr offsubnet address
+    dut = get_worker()
+    ip = "20.1.1.101"           # subnet 20.1.1.101 belongs to bd2, not bd1
+    msg = get_epm_event(103, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, remote_node=101)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    h = eptHistory.find(fabric=tfabric, addr=ip, node=103)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert h.is_offsubnet
+
+def test_handle_endpoint_event_local_ipv6_is_offsubnet(app, func_prep):
+    # basic check to ensure is_offsubnet is set for local offsubnet address
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "2001:20:1:1::101"     # subnet 2001:20:1:1::/64 belongs to bd2, not bd1
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, bd=1, intf="po2", ts=1.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, bd=1, ts=1.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    h = eptHistory.find(fabric=tfabric, addr=ip, node=101)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert h.is_offsubnet
+
+def test_handle_endpoint_event_xr_ipv6_is_offsubnet(app, func_prep):
+    # basic check to ensure is_offsubnet is set for xr offsubnet address
+    dut = get_worker()
+    ip = "2001:20:1:1::101"     # subnet 2001:20:1:1::/64 belongs to bd2, not bd1
+    msg = get_epm_event(103, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, remote_node=101)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    h = eptHistory.find(fabric=tfabric, addr=ip, node=103)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert h.is_offsubnet
+
+def test_handle_endpoint_event_stale_scenario_1(app, func_prep):
+    # basic stale event:
+    # - ip_event create on node-103
+    # - ip_rs_event create on node-103
+    # - XR ip_event create on node-104
+    # ----> move to node-101
+    # - ip_event create on node-101
+    # - ip_rs_event create on node-101
+    # - ip_event delete on node-103
+    # - ip_rs_event delete on node-103
+    # - ip_event XR create on node-103 with bounce
+    # ----> simulate wait for bounce to expire
+    # - ip_event modify on node-103 remove bounce flag
+
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # initial state on node-103 and node-104
+    msg = get_epm_event(103, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(103, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(104, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=103, ts=1.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    # move to node-101, with bounce on node-103
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=2.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=2.1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(103, ip, wt=WORK_TYPE.EPM_IP_EVENT, status="deleted", ts=2.2)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(103, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, status="deleted", ts=2.3)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(103, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=101, ts=2.4, flags=["bounce"])
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # at this point, no device should have is_stale set
+    h = eptHistory.find(fabric=tfabric, addr=ip)
+    assert len(h)==3
+    for n in h:
+        assert not n.is_stale
+
+    # modify node-103, removing bounce flag
+    msg = get_epm_event(103, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=101, status="modified", 
+            ts=603, flags=["ip"])
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # ensure is_stale is set on node-104 only
+    h = eptHistory.find(fabric=tfabric, addr=ip, node=104)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    assert h.is_stale
 

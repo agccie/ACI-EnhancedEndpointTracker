@@ -866,7 +866,7 @@ class eptWorker(object):
         }
         db_move = self.db[eptMove._classname].find_one(flt, projection)
         if db_move is None:
-            logger.debug("new move detected (first)")
+            logger.debug("new move detected")
             endpoint_type = get_addr_type(msg.addr, msg.type)
             eptMove(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr, type=endpoint_type,
                     count=1, events=[move_event]).save()

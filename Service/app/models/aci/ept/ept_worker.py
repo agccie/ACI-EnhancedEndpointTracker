@@ -458,8 +458,15 @@ class eptWorker(object):
                 logger.debug("ignorning deleted/modified event for non-existing entry")
                 return False
             # add new entry to db with most recent msg as the only event
-            eptHistory(fabric=msg.fabric, node=msg.node, vnid=msg.vnid, addr=msg.addr, 
-                    type=msg.type, count=1, events=[event.to_dict()]).save()
+            if is_rs_ip_event:
+                # if this is new endpoint from rs_ip_event, ensure address is ip and rw info set
+                event.rw_mac = msg.addr
+                event.rw_bd = msg.bd
+                eptHistory(fabric=msg.fabric, node=msg.node, vnid=msg.vnid, addr=msg.ip, 
+                        type=msg.type, count=1, events=[event.to_dict()]).save()
+            else:
+                eptHistory(fabric=msg.fabric, node=msg.node, vnid=msg.vnid, addr=msg.addr, 
+                        type=msg.type, count=1, events=[event.to_dict()]).save()
             per_node_history_events[msg.node] = [event]
 
             # no analysis required for new event if:

@@ -1716,6 +1716,21 @@ def test_handle_endpoint_event_xr_ipv6_is_offsubnet(app, func_prep):
     logger.debug(pretty_print(h.to_json()))
     assert h.is_offsubnet
 
+def test_handle_endpoint_event_skip_offsubnet_check_for_static(app, func_prep):
+    # create an offsubnet endpoint for static vip and ensure check is skipped
+    dut = get_worker()
+    ip = "8.8.8.8"
+    msg = get_epm_event(103, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, remote_node=101, flags=["static"])
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    h = eptHistory.find(fabric=tfabric, addr=ip, node=103)
+    assert len(h)==1
+    h = h[0]
+    logger.debug(pretty_print(h.to_json()))
+    # technically offsubnet but vip flag in endpoint skips check
+    assert not h.is_offsubnet
+
 def test_handle_endpoint_event_stale_scenario_1(app, func_prep):
     # basic stale event:
     # - ip_event create on node-103

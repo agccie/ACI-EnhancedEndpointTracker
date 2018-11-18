@@ -919,6 +919,16 @@ class eptWorker(object):
             if len(per_node_history_events[node])>0:
                 event = per_node_history_events[node][0]
                 if event.pctag > 0 and event.status != "deleted":
+                    # skip offsubnet analysis based on endpoint flags
+                    if "loopback" in event.flags or \
+                        "vtep" in event.flags or \
+                        "svi" in event.flags or \
+                        "psvi" in event.flags or \
+                        "cached" in event.flags or \
+                        "static" in event.flags:
+                        logger.debug("skipping offsubnet analysis on node 0x%04x with flags: [%s]", 
+                                node, ",".join(event.flags))
+                        continue
                     #logger.debug("checking if [node:0x%04x 0x%06x, 0x%x, %s] is offsubnet", 
                     #    node, msg.vnid, event.pctag, msg.addr)
                     if msg.wf.cache.ip_is_offsubnet(msg.vnid,event.pctag,msg.addr):

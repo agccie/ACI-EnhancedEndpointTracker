@@ -250,7 +250,12 @@ class eptEndpoint(Rest):
         for n in nodes:
             obj = eptNode.load(fabric=self.fabric, node=n)
             if obj.exists():
-                valid_nodes.append((obj.pod_id, obj.node))
+                # ensure this node is a leaf before adding to valid nodes
+                if obj.role == "leaf":
+                    valid_nodes.append((obj.pod_id, obj.node))
+                else:
+                    logger.debug("invalid role %s for node %s", obj.role, n)
+                    error_rows.append("cannot clear endpoint on node %s, role %s" % (n,obj.role))
             else:
                 logger.debug("invalid/unknown node:0x%04x for fabric %s", n, self.fabric)
                 error_rows.append("invalid/unknown node %s"  % n)

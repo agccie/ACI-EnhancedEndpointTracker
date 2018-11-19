@@ -72,7 +72,8 @@ class eptCache(object):
         if collection_name == eptNode._classname:
             self.node_cache.flush()     # always full cache flush for node
         elif collection_name == eptTunnel._classname:
-            self.tunnel_cache.flush()   # always full cache flush for tunnel
+            if name is not None: self.tunnel_cache.remove(name, name=True)
+            else: self.tunnel_cache.flush()
         elif collection_name == eptVpc._classname:
             if name is not None: self.vpc_cache.remove(name, name=True)
             else: self.vpc_cache.flush()

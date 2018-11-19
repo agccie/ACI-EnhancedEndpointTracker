@@ -84,6 +84,7 @@ class eptSubscriber(object):
             "mgmtInB",
             "mgmtRsMgmtBD",
             "pcAggrIf",
+            "tunnelIf",
             "vnsEPpInfo",
             "vnsLIfCtx",
             "vnsRsLIfCtxToBD",
@@ -775,6 +776,7 @@ class eptSubscriber(object):
         """ initialize tunnel db. return bool success """
         logger.debug("initializing tunnel db")
         if not self.initialize_ept_collection(eptTunnel, "tunnelIf", attribute_map={
+                "name": "dn",
                 "node": "dn",
                 "intf": "id",
                 "dst": "dest",

@@ -6,6 +6,7 @@ from . mo_dependency import DependencyNode
 from . ept_epg import eptEpg
 from . ept_pc import eptPc
 from . ept_subnet import eptSubnet
+from . ept_tunnel import eptTunnel
 from . ept_vnid import eptVnid
 from . ept_vpc import eptVpc
 
@@ -33,6 +34,8 @@ n_fvIpAttr = DependencyNode("fvIpAttr")
 # pc/vpc objects
 n_vpcRsVpcConf = DependencyNode("vpcRsVpcConf")
 n_pcAggrIf = DependencyNode("pcAggrIf")
+# tunnel mappings
+n_tunnelIf = DependencyNode("tunnelIf")
 
 # build tree that this application cares about...
 n_fvCtx.add_child(n_l3extRsEctx, "dn", "tDn")
@@ -86,6 +89,7 @@ dependency_map = {
     "fvIpAttr": n_fvIpAttr,
     "vpcRsVpcConf": n_vpcRsVpcConf,
     "pcAggrIf": n_pcAggrIf,
+    "tunnelIf": n_tunnelIf,
 }
 
 # statically map IFC MOs to ept db objects eptVnid, eptEpg, eptSubnet
@@ -210,7 +214,29 @@ ept_map = {
             "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
         },
     },
+    # tunnel if mapping to eptTunnel
+    "tunnelIf": {
+        "db": eptTunnel,
+        "attributes": {
+            "name": "dn",
+            "node": "dn",
+            "intf": "id",
+            "dst": "dest",
+            "src": "src",
+            #"remote": "",  remote mapping via custom callback
+            "status": "operSt",
+            "encap": "tType",
+            "flags": "type",
+        },
+        "regex_map": {
+            "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
+            "src": "(?P<value>[0-9]+)(/[0-9]+)?",
+        },
+        "callback": eptTunnel.mo_sync
+    },
 }
+
+
 
 # add ept_map info to DependencyNode object
 for classname in ept_map:

@@ -51,6 +51,7 @@ def func_prep(request, app):
         eptSubnet.delete(_filters={})
         eptNode.delete(_filters={})
         eptVpc.delete(_filters={})
+        eptTunnel.delete(_filters={})
         
     request.addfinalizer(teardown)
     return
@@ -204,7 +205,7 @@ def test_get_tunnel_remote_lookup(app, func_prep):
     node = 101
     remote = 102
     keystr = cache.get_key_str(node=node, intf=intf)
-    assert eptTunnel.load(fabric=tfabric, node=node, intf=intf, remote=remote).save()
+    assert eptTunnel(fabric=tfabric, node=node, intf=intf, remote=remote).save()
     assert cache.get_tunnel_remote(node, intf) == remote
     assert isinstance(cache.tunnel_cache.search(keystr), eptTunnel)
     assert cache.get_tunnel_remote(node, "tunnel891") == 0

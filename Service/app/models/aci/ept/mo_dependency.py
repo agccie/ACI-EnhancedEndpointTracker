@@ -29,15 +29,18 @@ class DependencyNode(object):
         self.ept_attributes = {}
         self.ept_regex_map = {}
         self.ept_key = None
+        self.callback = None
 
     def __repr__(self):
         return "%s, parents[%s], children[%s]" % (
             self.classname, 
             ",".join([
-                "%s->%s.%s" % (c.local_attr, c.remote_node.classname, c.remote_attr) for c in self.parents
+                "%s->%s.%s" % (c.local_attr, c.remote_node.classname, c.remote_attr) \
+                        for c in self.parents
             ]),
             ",".join([
-                "%s->%s.%s" % (c.local_attr, c.remote_node.classname, c.remote_attr) for c in self.children
+                "%s->%s.%s" % (c.local_attr, c.remote_node.classname, c.remote_attr) \
+                        for c in self.children
             ]),
         )
 
@@ -45,7 +48,7 @@ class DependencyNode(object):
         self.children.append(DependencyConnector(child_node, local_attr, remote_attr))
         child_node.parents.append(DependencyConnector(self, remote_attr, local_attr))
 
-    def set_ept_map(self, db=None, key=None, attributes=None, regex_map=None):
+    def set_ept_map(self, db=None, key=None, attributes=None, regex_map=None, callback=None):
         """ set mapper for mo to ept objects.
                 db is ept object (instance of Rest class). 
 
@@ -61,6 +64,9 @@ class DependencyNode(object):
 
                 regex_map is dict mapping ept db attribute to regex used to extract value. It must
                     contain a named regex group 'value' which is used to extract the value.
+
+                callback is optional function triggered only on mo update and provides two args,
+                the mo object and ept object
         """
         if db is not None and attributes is not None:
             logger.debug("initializing ept db map: %s to %s", self.classname, db._classname)
@@ -76,6 +82,10 @@ class DependencyNode(object):
                 self.ept_key = key
             if self.ept_key not in self.ept_attributes:
                 self.ept_attributes[self.ept_key] = self.ept_key
+            if callback is not None:
+                if not callable(callback):
+                    raise Exception("callback not callable: %s, %s", callback, self)
+                self.callback = callback
         else:
             logger.error("received map request without db or attributes: %s, %s", db, attributes)
 
@@ -108,7 +118,7 @@ class DependencyNode(object):
                 else:
                     logger.debug("mo deleted and ept object does not exist, no update required")
             else:
-                # force updated to true of ept object does not exist
+                # force updated to true if ept object does not exist
                 if not ept.exists(): updated = True
                 try:
                     for a, mo_attr in self.ept_attributes.items():
@@ -176,6 +186,8 @@ class DependencyNode(object):
                 if updated: 
                     ept.save()
                     updates.append(ept)
+                    if self.callback is not None:
+                        self.callback(mo, ept)
 
         # add self to parents dict and then call each child mo to perform their sync
         if hasattr(mo, "children") and len(mo.children)>0:

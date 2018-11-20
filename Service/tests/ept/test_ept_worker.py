@@ -193,11 +193,14 @@ def create_test_environment():
         ).save()
     def create_tunnel(node,remote,src=None,dst=None,intf=None,encap="ivxlan",flags="physical"):
         # create tunnels to all other nodes except this one
-        assert eptTunnel.load(fabric=tfabric, status="up", encap=encap, flags=flags, 
+        # need to auto-calculate the dn name
+        intf = intf if intf is not None else "tunnel%s" % remote
+        dn = "topology/pod-1/node-%s/sys/tunnel-[%s]" % (node, intf)
+        assert eptTunnel.load(fabric=tfabric, name=dn, status="up", encap=encap, flags=flags, 
                 node=node,
                 src="10.0.0.%s" % node if src is None else src,
                 dst="10.0.0.%s" % remote if dst is None else dst,
-                intf=intf if intf is not None else "tunnel%s" % remote,
+                intf=intf,
                 remote=remote,
         ).save()
 

@@ -1,4 +1,14 @@
-<div class="row" style="margin-top:0.5%">
+<div class="row" *ngIf = "loading" style="margin-top:2.5%;height:150px;">
+    <div class="col-md-12" >
+        <div class="subheader text-center">Loading</div>
+        <div class="loading-spinner flex-center" aria-label="Loading, please wait...">
+            <div class="wrapper">
+                <div class="wheel"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row" style="margin-top:0.5%" *ngIf="!loading">
       <div class="col-md-12">
             <button class="btn btn--small btn--primary" (click)="showFabricModal = true">
                 <span>Add</span>
@@ -9,7 +19,7 @@
       </div>
 </div>
   
-  <div class="row">
+  <div class="row" *ngIf="!loading">
   <div class="col-md-12">
     <div >
         <ngx-datatable
@@ -83,13 +93,13 @@
         </ng-template>
       </ngx-datatable-column>
       <ngx-datatable-column prop="fabric.status" name="Fabric Status" [sortable]="true" [flexGrow]="0.2">
-          <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-              <span class="label label--raised" [ngClass]="{'label--success':row.fabric.status === 'running', 'label--dkgray': row.fabric.status === 'stopped'}">
+          <ng-template let-row="row" let-value="value" let-index="index" ngx-datatable-cell-template>
+              <span class="label label--raised" *ngIf="row.statLoad === false" [ngClass]="{'label--success':row.fabric.status === 'running', 'label--dkgray': row.fabric.status === 'stopped'}">
                   <span>
                       {{value!== '' && value !== undefined ? value : '-'}}
                   </span>
                 </span>
-                  <div class="loading-dots loading-dots--info" aria-label="Loading" style="text-align:left;" *ngIf="row['fabric']['loading'] === true">
+                  <div class="loading-dots loading-dots--info" aria-label="Loading" style="text-align:left;" *ngIf="row.statLoad === true">
                       <span></span>
                       <span></span>
                       <span></span>
@@ -99,17 +109,39 @@
         </ngx-datatable-column>
         <ngx-datatable-column prop="fabric.mac" name="Active MAC" [sortable]="true" [flexGrow]="0.2">
             <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                {{value!== '' && value !== undefined ? value : '-'}}
+              <span *ngIf="row.macLoad === false">
+                  {{value!== '' && value !== undefined ? value : '-'}}
+              </span>  
+                <div class="loading-dots loading-dots--info" aria-label="Loading" style="text-align:left;" *ngIf="row.macLoad === true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
             </ng-template>
         </ngx-datatable-column>
         <ngx-datatable-column prop="ipv4" name="Active IPv4" [sortable]="true" [flexGrow]="0.2">
             <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-              {{row.fabric.ipv4 !== '' ? row.fabric.ipv4 : '-'}}
+              <span *ngIf="row.ipv4Load === false">
+                  {{row.fabric.ipv4 !== '' ? row.fabric.ipv4 : '-'}}
+              </span>
+              
+              <div class="loading-dots loading-dots--info" aria-label="Loading" style="text-align:left;" *ngIf="row.ipv4Load === true">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+              </div>
             </ng-template>
           </ngx-datatable-column>
           <ngx-datatable-column prop="ipv6" name="Active IPv6" [sortable]="true" [flexGrow]="0.2">
               <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                  {{row.fabric.ipv6 !== '' ? row.fabric.ipv6 : '-'}}
+                  <span *ngIf="row.ipv6Load === false">
+                      {{row.fabric.ipv6 !== '' ? row.fabric.ipv6 : '-'}}
+                  </span>
+                  <div class="loading-dots loading-dots--info" aria-label="Loading" style="text-align:left;" *ngIf="row.ipv6Load === true">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                  </div>
               </ng-template>
             </ngx-datatable-column>
           <ngx-datatable-column name="Controls" [flexGrow]="0.2">

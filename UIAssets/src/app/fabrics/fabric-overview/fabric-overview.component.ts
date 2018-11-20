@@ -41,15 +41,20 @@ export class FabricOverviewComponent implements OnInit {
     this.bs.getFabrics().subscribe(
       (data)=>{
         this.fabrics = data['objects'] ;
+        this.rows = data['objects'] ;
         let i=0 ;
         for(let fab of this.fabrics) {
+          this.rows[i]['statLoad'] = true;
+          this.rows[i]['macLoad'] = true;
+          this.rows[i]['ipv4Load'] = true;
+          this.rows[i]['ipv6Load'] = true;
           this.getFabricStatus(fab.fabric.fabric,i) ;
           this.getActiveMacAndIps(fab.fabric.fabric,'mac',i) ;
           this.getActiveMacAndIps(fab.fabric.fabric,'ipv4',i) ;
           this.getActiveMacAndIps(fab.fabric.fabric,'ipv6',i) ;
           i = i+1 ;
         }
-        this.rows = data['objects'] ;
+        
         this.loading = false ;
       },
       (error)=> {
@@ -59,11 +64,13 @@ export class FabricOverviewComponent implements OnInit {
   }
 
   getActiveMacAndIps(fabricName, addressType, index) {
+    this.rows[index][addressType +'Load'] = true ;
     this.bs.getActiveMacAndIps(fabricName,addressType).subscribe(
       (data)=>{
         if(data.hasOwnProperty('count')) {
-        this.fabrics[index].fabric[addressType] = data['count'] ;
-        this.rows = this.fabrics ;
+        this.rows[index].fabric[addressType] = data['count'] ;
+        this.rows[index][addressType +'Load'] = false ;
+        
         }
       } ,
       (error)=>{
@@ -97,17 +104,18 @@ export class FabricOverviewComponent implements OnInit {
   
 
   getFabricStatus(fabricName,index) {
-    
+    this.rows[index]['statLoad'] = true ;
     this.bs.getFabricStatus(fabricName).subscribe(
       (data)=>{
-        this.fabrics[index].fabric['status'] = data['status'] ;
-        this.rows = this.fabrics ;
+        this.rows[index]['statLoad'] = false ;
+        this.rows[index].fabric['status'] = data['status'] ;
       },
       (error)=>{
 
       }
     )
   }
+
 
 
 

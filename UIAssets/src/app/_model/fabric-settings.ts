@@ -47,6 +47,5 @@ export class FabricSettings {
         this.stale_no_local = false;
         this.syslog_port = 0;
         this.syslog_server = '';
-
     }
 }

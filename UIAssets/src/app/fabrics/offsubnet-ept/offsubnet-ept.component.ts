@@ -14,7 +14,7 @@ export class OffsubnetEptComponent implements OnInit {
     pageSize: number;
     count = 0;
     pageNumber = 0;
-    sorts = [{prop: 'ts', dir: 'desc'}];
+    sorts = [{prop: 'events.0.ts', dir: 'desc'}];
     loading = true;
 
     constructor(private bs: BackendService, private prefs: PreferencesService, private router: Router) {
@@ -22,7 +22,7 @@ export class OffsubnetEptComponent implements OnInit {
     }
 
     ngOnInit() {
-        this.getOffsubnetPoints(0, [{prop: 'ts', dir: 'desc'}]);
+        this.getOffsubnetPoints(0, this.sorts);
     }
 
     getOffsubnetPoints(pageOffset = 0, sorts = []) {
@@ -47,10 +47,5 @@ export class OffsubnetEptComponent implements OnInit {
     onSort(event) {
         this.sorts = event.sorts;
         this.getOffsubnetPoints(this.pageNumber, event.sorts);
-    }
-
-    goToDetailsPage(value) {
-        this.prefs.endpointDetailsObject = value;
-        this.router.navigate(["/ephistory", value.fabric, value.vnid, value.addr]);
     }
 }

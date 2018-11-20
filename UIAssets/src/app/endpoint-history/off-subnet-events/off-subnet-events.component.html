@@ -8,6 +8,7 @@
         [limit]="10"
         [loadingIndicator]="loading"
         [rows]="rows"
+        [sorts]="sorts"
         [cssClasses]="{
             sortAscending: 'icon-chevron-down',
             sortDescending: 'icon-chevron-up',
@@ -34,42 +35,42 @@
     </ngx-datatable-column>
     <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '-'}}
+            {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '-'}}
+            {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '-'}}
+            {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="encap" name="Encap" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '-'}}
+            {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="pctag" name="PCTAG" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '-'}}
+            {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="flags" name="Flags" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '-'}}
+            {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '-'}}
+            {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="remote" name="Remote Node" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '-'}}
+            {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
 

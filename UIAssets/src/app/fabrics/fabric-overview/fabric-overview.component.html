@@ -69,7 +69,7 @@
                                     </ngx-datatable-column>
                                     <ngx-datatable-column prop="description" name="Description" [flexGrow]="0.2">
                                         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                            {{ value !== '' ? value : '-'}}
+                                            {{ value !== '' ? value : '&mdash;'}}
                                         </ng-template>
                                     </ngx-datatable-column>
                                 </ngx-datatable>
@@ -87,7 +87,7 @@
               <span class="label label--raised"
                     [ngClass]="{'label--success':row.fabric.status === 'running', 'label--dkgray': row.fabric.status === 'stopped'}">
                   <span>
-                       {{ row.fabric.status !== '' ? row.fabric.status : '-'}}
+                       {{ row.fabric.status !== '' ? row.fabric.status : '&mdash;'}}
                   </span>
                 </span>
                         <div class="loading-dots loading-dots--info" aria-label="Loading" style="text-align:left;"
@@ -100,17 +100,17 @@
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="mac" name="Active MAC" [sortable]="true" [flexGrow]="0.2">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row.fabric.mac !== '' ? row.fabric.mac : '-'}}
+                        {{ row.fabric.mac !== '' ? row.fabric.mac : '&mdash;'}}
                     </ng-template>
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="ipv4" name="Active IPv4" [sortable]="true" [flexGrow]="0.2">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row.fabric.ipv4 !== '' ? row.fabric.ipv4 : '-'}}
+                        {{ row.fabric.ipv4 !== '' ? row.fabric.ipv4 : '&mdash;'}}
                     </ng-template>
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="ipv6" name="Active IPv6" [sortable]="true" [flexGrow]="0.2">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row.fabric.ipv6 !== '' ? row.fabric.ipv6 : '-'}}
+                        {{ row.fabric.ipv6 !== '' ? row.fabric.ipv6 : '&mdash;'}}
                     </ng-template>
                 </ngx-datatable-column>
                 <ngx-datatable-column name="Controls" [flexGrow]="0.2">

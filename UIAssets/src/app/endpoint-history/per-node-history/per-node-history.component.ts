@@ -11,6 +11,7 @@ export class PerNodeHistoryComponent implements OnInit {
     rows: any;
     endpoint: any;
     loading = false;
+    sorts = [{prop: 'ts', dir: 'desc'}];
 
     constructor(private bs: BackendService, private prefs: PreferencesService) {
         this.endpoint = this.prefs.selectedEndpoint;
@@ -20,7 +21,6 @@ export class PerNodeHistoryComponent implements OnInit {
         } else {
             this.getPerNodeHistory(this.endpoint.fabric, this.endpoint.events[0].node, this.endpoint.vnid, this.endpoint.addr);
         }
-
     }
 
     ngOnInit() {
@@ -36,6 +36,4 @@ export class PerNodeHistoryComponent implements OnInit {
             }
         )
     }
-
-
 }

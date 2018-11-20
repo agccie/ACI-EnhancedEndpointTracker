@@ -14,7 +14,7 @@ export class MovesComponent implements OnInit {
     pageSize: number;
     count = 0;
     pageNumber = 0;
-    sorts = [{prop: 'ts', dir: 'desc'}];
+    sorts = [{prop: 'events.0.dst.ts', dir: 'desc'}];
     loading = true;
 
     constructor(private bs: BackendService, private prefs: PreferencesService, private router: Router) {
@@ -22,7 +22,7 @@ export class MovesComponent implements OnInit {
     }
 
     ngOnInit() {
-        this.getMovesForFabric(0, [{prop: 'ts', dir: 'desc'}]);
+        this.getMovesForFabric(0, this.sorts);
     }
 
     getMovesForFabric(pageOffset = 0, sorts = []) {
@@ -35,7 +35,8 @@ export class MovesComponent implements OnInit {
             },
             (error) => {
 
-            });
+            }
+        );
     }
 
     setPage(event) {

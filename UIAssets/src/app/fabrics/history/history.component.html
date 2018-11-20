@@ -23,7 +23,7 @@
                         pagerPrevious: 'icon-step-backward',
                         pagerNext: 'icon-step-forward'
                         }">
-            <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [flexGrow]="0.2">
+            <ngx-datatable-column prop="events.0.ts" name="Time" [sortable]="true" [flexGrow]="0.2">
                 <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                     {{ (row['ept.history'].events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
                 </ng-template>
@@ -59,7 +59,7 @@
             </ngx-datatable-column>
             <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
                 <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                    <a (click)="goToDetailsPage(row['ept.history'])">
+                    <a [routerLink]="['/ephistory', row['ept.history'].fabric, row['ept.history'].vnid, row['ept.history'].addr]">
                         {{ row['ept.history']['addr']}}
                     </a>
                 </ng-template>

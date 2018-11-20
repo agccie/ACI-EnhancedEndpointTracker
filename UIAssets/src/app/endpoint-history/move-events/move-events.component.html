@@ -8,6 +8,7 @@
         [limit]="10"
         [loadingIndicator]="loading"
         [rows]="rows"
+        [sorts]="sorts"
         [cssClasses]="{
             sortAscending: 'icon-chevron-down',
             sortDescending: 'icon-chevron-up',
@@ -17,9 +18,9 @@
             pagerNext: 'icon-step-forward'
           }"
 >
-    <ngx-datatable-column name="Timestamp" [sortable]="true" [flexGrow]='0.3'>
+    <ngx-datatable-column prop="ts" name="Timestamp" [sortable]="true" [flexGrow]='0.3'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-            {{ (row.dst.ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+            {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column name="Direction" [sortable]="true" [flexGrow]='0.3'>
@@ -45,50 +46,50 @@
     <ngx-datatable-column name="EPG" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>
-                {{ row.src.epg_name !== '' ? row.src.epg_name : '-'}}
+                {{ row.src.epg_name !== '' ? row.src.epg_name : '&mdash;'}}
             </div>
             <div>
-                {{ row.dst.epg_name !== '' ? row.dst.epg_name : '-'}}
+                {{ row.dst.epg_name !== '' ? row.dst.epg_name : '&mdash;'}}
             </div>
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column name="Interface" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>
-                {{ row.src.intf_name !== '' ? row.src.intf_name : '-'}}
+                {{ row.src.intf_name !== '' ? row.src.intf_name : '&mdash;'}}
             </div>
             <div>
-                {{ row.dst.intf_name !== '' ? row.dst.intf_name : '-'}}
+                {{ row.dst.intf_name !== '' ? row.dst.intf_name : '&mdash;'}}
             </div>
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column name="Encap" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>
-                {{ row.src.encap !== '' ? row.src.encap : '-'}}
+                {{ row.src.encap !== '' ? row.src.encap : '&mdash;'}}
             </div>
             <div>
-                {{ row.dst.encap !== '' ? row.dst.encap : '-'}}
+                {{ row.dst.encap !== '' ? row.dst.encap : '&mdash;'}}
             </div>
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column name="PCTAG" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>
-                {{ row.src.pctag !== '' ? row.src.pctag : '-'}}
+                {{ row.src.pctag !== '' ? row.src.pctag : '&mdash;'}}
             </div>
             <div>
-                {{ row.dst.pctag !== '' ? row.dst.pctag : '-'}}
+                {{ row.dst.pctag !== '' ? row.dst.pctag : '&mdash;'}}
             </div>
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.2'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>
-                {{ row.src.rw_mac !== '' ? row.src.rw_mac : '-'}}
+                {{ row.src.rw_mac !== '' ? row.src.rw_mac : '&mdash;'}}
             </div>
             <div>
-                {{ row.dst.rw_mac !== '' ? row.dst.rw_mac : '-'}}
+                {{ row.dst.rw_mac !== '' ? row.dst.rw_mac : '&mdash;'}}
             </div>
         </ng-template>
     </ngx-datatable-column>

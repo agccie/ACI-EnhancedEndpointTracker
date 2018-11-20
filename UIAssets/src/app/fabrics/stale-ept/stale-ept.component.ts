@@ -14,7 +14,7 @@ export class StaleEptComponent implements OnInit {
     count = 0;
     pageNumber = 0;
     loading = true;
-    sorts = [{prop: 'ts', dir: 'desc'}];
+    sorts = [{prop: 'events.0.ts', dir: 'desc'}];
 
     constructor(private bs: BackendService, private prefs: PreferencesService, private router: Router) {
         this.pageSize = this.prefs.pageSize;
@@ -48,11 +48,4 @@ export class StaleEptComponent implements OnInit {
         this.sorts = event.sorts;
         this.getStaleEndpoints(this.pageNumber, event.sorts);
     }
-
-    goToDetailsPage(value) {
-        this.prefs.endpointDetailsObject = value;
-        this.router.navigate(["/ephistory", value.fabric, value.vnid, value.addr]);
-
-    }
-
 }

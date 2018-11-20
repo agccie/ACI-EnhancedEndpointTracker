@@ -11,6 +11,7 @@ export class MoveEventsComponent implements OnInit {
     rows: any;
     endpoint: any;
     loading = false;
+    sorts = [{prop: 'ts', dir: 'desc'}];
 
     constructor(private bs: BackendService, private prefs: PreferencesService) {
         this.endpoint = this.prefs.selectedEndpoint;
@@ -24,12 +25,10 @@ export class MoveEventsComponent implements OnInit {
         this.bs.getMoveEventsForEndpoint(fabric, vnid, address).subscribe(
             (data) => {
                 this.rows = data['objects'][0]['ept.move']['events'];
-
             },
             (error) => {
                 this.rows = [];
             }
         )
     }
-
 }

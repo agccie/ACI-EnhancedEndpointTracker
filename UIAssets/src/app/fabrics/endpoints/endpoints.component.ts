@@ -75,7 +75,6 @@ export class EndpointsComponent implements OnInit {
         let address = value.addr;
         this.prefs.endpointDetailsObject = value;
         this.router.navigate(["/ephistory", value.fabric, value.vnid, address]);
-
     }
 
     setPage(event) {

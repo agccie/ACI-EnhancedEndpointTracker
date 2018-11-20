@@ -21,7 +21,7 @@
     </div>
     <div class="col-md-12">
         <ngx-datatable
-                [columnMode]="'flex'"
+                [columnMode]="'force'"
                 [headerHeight]="25"
                 [footerHeight]="50"
                 [rowHeight]="'auto'"
@@ -56,11 +56,10 @@
                             {{ row['ept.endpoint']['type'].toUpperCase() }}
                         </span>
                 </ng-template>
-
             </ngx-datatable-column>
             <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
                 <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                    <a (click)="goToDetailsPage(row['ept.endpoint'])">
+                    <a [routerLink]="['/ephistory', row['ept.endpoint']['fabric'], row['ept.endpoint']['vnid'], row['ept.endpoint']['addr']]">
                         {{ row['ept.endpoint']['addr']}}
                     </a>
                     <a data-balloon='Offsubnet endpoint' data-balloon-pos='right'>

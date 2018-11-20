@@ -12,6 +12,7 @@ export class StaleEventsComponent implements OnInit {
     endpoint: any;
     nodes = [];
     loading = false;
+    sorts = [{prop: 'ts', dir: 'desc'}];
 
     constructor(private bs: BackendService, private prefs: PreferencesService) {
         this.rows = [];
@@ -31,5 +32,4 @@ export class StaleEventsComponent implements OnInit {
             }
         );
     }
-
 }

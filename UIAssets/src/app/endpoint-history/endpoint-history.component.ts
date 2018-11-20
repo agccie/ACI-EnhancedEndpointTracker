@@ -40,7 +40,7 @@ export class EndpointHistoryComponent implements OnInit {
             {name: ' Local Learns', icon: 'icon-computer', path: 'locallearns'},
             {name: ' Per Node History', icon: 'icon-clock', path: 'pernodehistory'},
             {name: ' Move Events', path: 'moveevents', icon: 'icon-panel-shift-right'},
-            {name: '  Off-Subnet Events', path: 'offsubnetevents', icon: 'icon-jump-out'},
+            {name: ' Off-Subnet Events', path: 'offsubnetevents', icon: 'icon-jump-out'},
             {name: ' Stale Events', path: 'staleevents', icon: 'icon-warning'}
         ];
     }
@@ -73,19 +73,19 @@ export class EndpointHistoryComponent implements OnInit {
         const encap = this.getEventProperties('encap');
         const epgname = this.getEventProperties('epg_name');
         const vrfbd = this.getEventProperties('vnid_name');
+        this.staleoffsubnetDetails = '';
         if (this.endpoint.is_offsubnet) {
             this.staleoffsubnetDetails += 'Currently offsubnet on node ' + node + '\n';
         }
         if (this.endpoint.is_stale) {
-            this.staleoffsubnetDetails += 'Current stale on node ' + node;
+            this.staleoffsubnetDetails += 'Currently stale on node ' + node;
             //query ept.endpoint filter on vnid,fabric,address,is_stale or is_offsubnet for finding out is stale or is offsubnet currently
             //for finding a list of stale offsubnet nodes query same on ept.hisotry
         }
-
         if (status === 'deleted') {
             this.endpointStatus = 'Not currently present in the fabric';
         } else {
-            this.endpointStatus = 'Local on node ' + node
+            this.endpointStatus = 'Local on node ' + node;
             if (intf !== '') {
                 this.endpointStatus += ', interface ' + intf;
             }
@@ -97,7 +97,6 @@ export class EndpointHistoryComponent implements OnInit {
                 this.endpointStatus += ', epg ' + epgname
             }
         }
-
         this.fabricDetails = 'Fabric ' + this.endpoint.fabric;
         if (this.endpoint.type === 'ipv4' || this.endpoint.type === 'ipv6') {
             this.fabricDetails += ', VRF '
@@ -124,7 +123,6 @@ export class EndpointHistoryComponent implements OnInit {
 
             }
         )
-
     }
 
     showModalOnScreen(type, modalTitle, modalBody) {
@@ -142,7 +140,6 @@ export class EndpointHistoryComponent implements OnInit {
             this.modalBody = modalBody;
             this.modalTitle = modalTitle;
             this.showModal = true;
-
         }
     }
 
@@ -214,6 +211,4 @@ export class EndpointHistoryComponent implements OnInit {
     public clearEndpoints() {
         return this.endpoint.type.toUpperCase();
     }
-
-
 }

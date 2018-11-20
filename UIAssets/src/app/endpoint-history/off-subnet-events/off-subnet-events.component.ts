@@ -12,10 +12,11 @@ export class OffSubnetEventsComponent implements OnInit {
     nodes = [];
     endpoint: any;
     loading = false;
+    sorts = [{prop: 'ts', dir: 'desc'}];
 
     constructor(private bs: BackendService, private prefs: PreferencesService) {
         this.rows = [];
-        this.endpoint = this.prefs.selectedEndpoint
+        this.endpoint = this.prefs.selectedEndpoint;
         this.getNodesForOffsubnetEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr);
     }
 
@@ -28,12 +29,9 @@ export class OffSubnetEventsComponent implements OnInit {
                 for (let i of data['objects']) {
                     this.nodes.push(i['ept.offsubnet']['node']);
                 }
-                console.log(this.nodes);
             },
             (error) => {
-
             }
         )
     }
-
 }

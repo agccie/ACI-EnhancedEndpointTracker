@@ -13,7 +13,7 @@ export class HistoryComponent implements OnInit {
     pageSize: number;
     count = 100;
     pageNumber = 0;
-    sorts = [{prop: 'ts', dir: 'desc'}];
+    sorts = [{prop: 'events.0.ts', dir: 'desc'}];
     loading = true;
 
     constructor(private bs: BackendService, private prefs: PreferencesService, private router: Router) {
@@ -21,7 +21,7 @@ export class HistoryComponent implements OnInit {
     }
 
     ngOnInit() {
-        this.getLatestEventsForFabrics();
+        this.getLatestEventsForFabrics(0, this.sorts);
     }
 
     getLatestEventsForFabrics(pageOffset = 0, sorts = []) {
@@ -43,13 +43,8 @@ export class HistoryComponent implements OnInit {
     }
 
     onSort(event) {
-        console.log(event.sorts);
         this.sorts = event.sorts;
         this.getLatestEventsForFabrics(this.pageNumber, event.sorts);
-    }
-
-    goToDetailsPage(val) {
-        this.router.navigate(["/ephistory", val.fabric, val.vnid, val.addr]);
     }
 
 }

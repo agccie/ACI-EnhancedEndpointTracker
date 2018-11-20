@@ -5,12 +5,12 @@
         </a>
         <div class="header-bar__main">
             <div class="header-heading">
-                <h1 class="page-title">EPTracker</h1>
+                <h1 class="page-title">Endpoint Tracker</h1>
             </div>
         </div>
         <div class="header-toolbar">
             <a class="btn btn--small btn--icon" *ngFor="let item of menu; let i = index;"
-               [routerLink]="item.name.toLowerCase()">
+               [routerLink]="item.link">
                 <span [attr.class]=item.icon></span>
             </a>
             <a class="btn btn--small btn--icon btn--negative" *ngIf="!app_mode" (click)="logout()">
@@ -22,6 +22,3 @@
 <div class="content">
     <router-outlet></router-outlet>
 </div>
-     
-     
-  

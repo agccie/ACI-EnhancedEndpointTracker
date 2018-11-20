@@ -17,13 +17,11 @@ export class AppComponent implements OnInit {
     app_mode = environment.app_mode;
 
     constructor(private router: Router, private bs: BackendService, public prefs: PreferencesService) {
-        this.menu = [{
-            name: 'Fabrics', icon: 'icon-computer', active: true
-        }, {
-            name: 'Users', icon: 'icon-user', active: false
-        }, {
-            name: 'Settings', icon: 'icon-cog', active: false
-        }];
+        this.menu = [
+            {name: 'Fabrics', icon: 'icon-computer', active: true, link: 'fabrics/fabric-overview'},
+            {name: 'Users', icon: 'icon-user', active: false, link: 'users'},
+            {name: 'Settings', icon: 'icon-cog', active: false, link: 'settings'},
+        ];
         this.cul = this.prefs.cul;
     }
 

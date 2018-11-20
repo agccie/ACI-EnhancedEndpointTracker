@@ -1,24 +1,24 @@
 <div *ngFor="let inp of inputs" class="row" style="margin-top:1%;margin-bottom:1%">
-    <div class="col-md-6" >
+    <div class="col-md-6">
         <div class="form-group label--inline" *ngIf="inp.type==='text' || inp.type==='number'">
             <div class="form-group__text">
-                <input id="input-layout-inline" [type]="inp.type" [(ngModel)]="prefs['fabricSettings'][inp.model]" required>
-                <label class="col-5" for="input-layout-inline">{{inp.name}}</label>
+                <input id="input-layout-inline" [type]="inp.type" [(ngModel)]="prefs['fabricSettings'][inp.model]"
+                       required>
+                <label class="col-5" for="input-layout-inline">{{ inp.name }}</label>
             </div>
-          </div>
-          <div class="form-group half-margin-bottom label--inline" *ngIf="inp.type==='boolean'">
-              <div class="form-group__text select">
-                  <select id="input-type-select" [(ngModel)]="prefs['fabricSettings'][inp.model]">
-                      <option value="false">No</option>
-                      <option value="true">Yes</option>
-                  </select>
-                  <label class="col-5"for="input-type-select">{{inp.name}}</label>
-              </div>
-          </div>
-            
-            
-        
+        </div>
+        <div class="form-group half-margin-bottom label--inline" *ngIf="inp.type==='boolean'">
+            <div class="form-group__text select">
+                <select id="input-type-select" [(ngModel)]="prefs['fabricSettings'][inp.model]">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+                <label class="col-5" for="input-type-select">{{ inp.name }}</label>
+            </div>
+        </div>
+
+
     </div>
-    
-    
-    </div>
+
+
+</div>

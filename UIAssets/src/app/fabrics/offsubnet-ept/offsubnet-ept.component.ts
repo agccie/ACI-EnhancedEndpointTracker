@@ -1,58 +1,56 @@
-import { Component, OnInit } from '@angular/core';
-import { BackendService } from '../../_service/backend.service';
-import { PreferencesService } from '../../_service/preferences.service';
-import { Router } from '@angular/router';
+import {Component, OnInit} from '@angular/core';
+import {BackendService} from '../../_service/backend.service';
+import {PreferencesService} from '../../_service/preferences.service';
+import {Router} from '@angular/router';
 
 @Component({
-  selector: 'app-offsubnet-ept',
-  templateUrl: './offsubnet-ept.component.html',
-  styleUrls: ['./offsubnet-ept.component.css']
+    selector: 'app-offsubnet-ept',
+    templateUrl: './offsubnet-ept.component.html',
+    styleUrls: ['./offsubnet-ept.component.css']
 })
+
 export class OffsubnetEptComponent implements OnInit {
-  rows:any ;
-  pageSize:number ;
-  count = 0 ;
-  pageNumber=0; 
-  sorts = [] ;
-  loading = true ;
-  constructor(private bs : BackendService, private prefs:PreferencesService,private router:Router) { 
-    this.pageSize = this.prefs.pageSize ;
-  }
+    rows: any;
+    pageSize: number;
+    count = 0;
+    pageNumber = 0;
+    sorts = [{prop: 'ts', dir: 'desc'}];
+    loading = true;
 
-  ngOnInit() {
-    this.getOffsubnetPoints(0,[{prop:'ts',dir:'desc'}]) ;
-  }
+    constructor(private bs: BackendService, private prefs: PreferencesService, private router: Router) {
+        this.pageSize = this.prefs.pageSize;
+    }
 
-  getOffsubnetPoints(pageOffset=0,sorts=[]) {
-    this.loading = true ;
-    this.bs.getFabricsOverviewTabData(pageOffset,sorts,'offsubnet').subscribe(
-      (data)=>{
-        this.count = data['count'] ;
-        this.rows = data['objects'] ;
-        this.loading = false ;
-      },
-      (error)=>{
-        console.log(error) ;
-      }
-    )
-  }
+    ngOnInit() {
+        this.getOffsubnetPoints(0, [{prop: 'ts', dir: 'desc'}]);
+    }
 
-  setPage(event) {
-    this.pageNumber = event.offset ;
-    this.getOffsubnetPoints(event.offset,this.sorts) ;
-  }
+    getOffsubnetPoints(pageOffset = 0, sorts = []) {
+        this.loading = true;
+        this.bs.getFabricsOverviewTabData(pageOffset, sorts, 'offsubnet').subscribe(
+            (data) => {
+                this.count = data['count'];
+                this.rows = data['objects'];
+                this.loading = false;
+            },
+            (error) => {
+                console.log(error);
+            }
+        )
+    }
 
-  onSort(event) {
-    this.sorts = event.sorts ;
-   this.getOffsubnetPoints(this.pageNumber,event.sorts) ;
-  }
+    setPage(event) {
+        this.pageNumber = event.offset;
+        this.getOffsubnetPoints(event.offset, this.sorts);
+    }
 
-  goToDetailsPage(value) {
-    this.prefs.endpointDetailsObject = value ;
-    this.router.navigate(["/ephistory",value.fabric,value.vnid,value.address]) ;
+    onSort(event) {
+        this.sorts = event.sorts;
+        this.getOffsubnetPoints(this.pageNumber, event.sorts);
+    }
 
-  }
-
-  
-
+    goToDetailsPage(value) {
+        this.prefs.endpointDetailsObject = value;
+        this.router.navigate(["/ephistory", value.fabric, value.vnid, value.addr]);
+    }
 }

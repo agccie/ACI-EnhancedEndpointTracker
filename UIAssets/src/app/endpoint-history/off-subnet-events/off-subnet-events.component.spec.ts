@@ -1,25 +1,25 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import {async, ComponentFixture, TestBed} from '@angular/core/testing';
 
-import { OffSubnetEventsComponent } from './off-subnet-events.component';
+import {OffSubnetEventsComponent} from './off-subnet-events.component';
 
 describe('OffSubnetEventsComponent', () => {
-  let component: OffSubnetEventsComponent;
-  let fixture: ComponentFixture<OffSubnetEventsComponent>;
+    let component: OffSubnetEventsComponent;
+    let fixture: ComponentFixture<OffSubnetEventsComponent>;
 
-  beforeEach(async(() => {
-    TestBed.configureTestingModule({
-      declarations: [ OffSubnetEventsComponent ]
-    })
-    .compileComponents();
-  }));
+    beforeEach(async(() => {
+        TestBed.configureTestingModule({
+            declarations: [OffSubnetEventsComponent]
+        })
+            .compileComponents();
+    }));
 
-  beforeEach(() => {
-    fixture = TestBed.createComponent(OffSubnetEventsComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-  });
+    beforeEach(() => {
+        fixture = TestBed.createComponent(OffSubnetEventsComponent);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+    });
 
-  it('should create', () => {
-    expect(component).toBeTruthy();
-  });
+    it('should create', () => {
+        expect(component).toBeTruthy();
+    });
 });

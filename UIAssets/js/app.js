@@ -154,53 +154,7 @@ function fabric(fabric_name) {
     }
 }
 
-function view_dashboard_fabric_events(vm){
-    var self = vm;
-    self.table.server_paging(false)
-    var headers = [
-        {"title": "Time", "name":"ts", "sortable":false},
-        {"title": "Status", "name":"status", "sortable":false},
-        {"title": "Description", "name":"description", "sortable":false}
-    ]
-    headers.forEach(function(h){
-        self.table.headers.push(new gHeader(h))
-    })
 
-    // get fabric object for current view fabric from self.fabrics
-    var update_rows = function(){
-        var rows = []
-        if(self.current_fabric!=null){
-            self.current_fabric.events().forEach(function(elem){
-                rows.push(new gRow(elem))
-            })
-        }else{
-            self.table.no_data_message("fabric '"+self.current_fabric_name()+"' not found")
-        }
-        self.table.rows(rows)
-    }
-
-    self.view_dashboard_fabric_events_refresh = function(){
-        self.table.isLoading(true)
-        self.table.rows([])
-        self.refresh_fabrics(function(){
-            //perform a refresh of each fabric and add object to table
-            self.table.isLoading(false)
-            update_rows()
-        })
-    }
-    //update table refresh function
-    self.table.custom_refresh = self.view_dashboard_fabric_events_refresh
-    if(self.current_fabric == null || self.current_fabric.fabric()!=self.current_fabric_name()){
-        self.view_dashboard_fabric_events_refresh()
-    }else{
-        update_rows()
-    }
-}
-
-function callback(arg){
-    console.log("clicked!")
-    console.log(arg)
-}
 
 // receive instance of view modal and update table to fabric view
 function view_dashboard_fabric(vm){
@@ -209,11 +163,9 @@ function view_dashboard_fabric(vm){
     //build callbacks for each action
     var click_history = function(fab){
         if("fabric" in fab){
-            self.forward("/fb-"+fab.fabric()+"/history")
+            forward("/fb-"+fab.fabric()+"/history")
         }
     }
-
-    self.table.server_paging(false)
     var headers = [
         {"title":"Name", "name":"fabric", "sortable":false},
         {"title":"Status", "name": "status", "sortable":false},
@@ -250,6 +202,64 @@ function view_dashboard_fabric(vm){
     self.view_dashboard_fabric_refresh()
 }
 
+// view events for fabric
+function view_dashboard_fabric_events(vm){
+    var self = vm;
+    self.table.back_enabled(true)
+    var headers = [
+        {"title": "Time", "name":"ts", "sortable":false},
+        {"title": "Status", "name":"status", "sortable":false},
+        {"title": "Description", "name":"description", "sortable":false}
+    ]
+    headers.forEach(function(h){
+        self.table.headers.push(new gHeader(h))
+    })
+
+    // get fabric object for current view fabric from self.fabrics
+    var update_rows = function(){
+        var rows = []
+        if(self.current_fabric!=null){
+            self.current_fabric.events().forEach(function(elem){
+                rows.push(new gRow(elem))
+            })
+        }else{
+            self.table.no_data_message("fabric '"+self.current_fabric_name()+"' not found")
+        }
+        self.table.rows(rows)
+    }
+
+    self.view_dashboard_fabric_events_refresh = function(){
+        self.table.isLoading(true)
+        //perform refresh for single fabric
+        self.refresh_fabrics(function(){
+            self.table.isLoading(false)
+            update_rows()
+        }, fab=self.current_fabric_name())
+    }
+    //update table refresh function
+    self.table.custom_refresh = self.view_dashboard_fabric_events_refresh
+    if(self.current_fabric == null || self.current_fabric.fabric()!=self.current_fabric_name()){
+        self.view_dashboard_fabric_events_refresh()
+    }else{
+        update_rows()
+    }
+}
+
+// view events for fabric
+function view_dashboard_endpoints(vm){
+    var self = vm;
+    var headers = [
+        {"title": "Fabric", "name":"fabric"},
+        {"title": "Type", "name":"type"},
+        {"title": "Address", "name":"addr"},
+        {"title": "VRF/BD", "name":"vnid_name"},
+        {"title": "EPG", "name":"epg_name"}
+    ]
+    headers.forEach(function(h){
+        self.table.headers.push(new gHeader(h))
+    })
+}
+
 
 function common_viewModel() {
     var self = this; 
@@ -261,11 +271,11 @@ function common_viewModel() {
     self.current_fabric = null
 
     //refresh fabric state and trigger provided callback on once full refresh has completed
-    self.refresh_fabrics = function(success){
+    self.refresh_fabrics = function(success, fab){
         if(success===undefined){ success = function(){}}
+        if(fab===undefined){ fab = null}
         var inflight = 0
         var check_all_complete = function(){
-            //console.log("fab complete, decrease inflight: "+inflight)
             inflight--
             if(inflight==0){success()}
         }
@@ -278,12 +288,24 @@ function common_viewModel() {
                 if(self.current_fabric_name()==f.fabric()){
                     self.current_fabric = f
                 }
-                inflight++
-                f.refresh(check_all_complete)
-                
+                //support for refreshing a single fabric
+                //if single fab was provided for refresh, then only trigger refresh for that fabric
+                if(fab==null || f.fabric()==fab){
+                    inflight++
+                    f.refresh(check_all_complete)
+                }
             })
             self.fabrics(fabrics)
+            //possible that no fabrics where found or filtered fabric does not exists, in which 
+            //case we need to trigger success function as there are no inflight requests
+            if(inflight==0){success()}
         })
+    }
+
+    // set active class for active dashboard tab
+    self.dashboard_active_tab = function(tab){
+        if(self.view()==tab){ return "active" }
+        return ""
     }
 
     // view functions 
@@ -302,11 +324,47 @@ function common_viewModel() {
         self.current_fabric_name(args[0])
         view_dashboard_fabric_events(self)
     }
+    self.view_dashboard_endpoints = function(){
+        self.init()
+        self.view("dashboard_endpoints")
+        view_dashboard_endpoints(self)
+    }
+    self.view_dashboard_moves = function(){
+        self.init()
+        self.view("dashboard_moves")
+    }
+    self.view_dashboard_offsubnet = function(){
+        self.init()
+        self.view("dashboard_offsubnet")
+    }
+    self.view_dashboard_stale = function(){
+        self.init()
+        self.view("dashboard_stale")
+    }
+    self.view_dashboard_rapid = function(){
+        self.init()
+        self.view("dashboard_rapid")
+    }
+    self.view_dashboard_remediate = function(){
+        self.init()
+        self.view("dashboard_remediate")
+    }
+    self.view_dashboard_events = function(){
+        self.init()
+        self.view("dashboard_events")
+    }
 
     // simple same-page routing to support direct anchor links (very basic/static)
     // for now, just /case-# and /case-#/filename-#
     var routes = [
-        {"route": "/fb-([^ \?&]+)/history", "view": self.view_dashboard_fabric_events}
+        {"route": "/fb-([^ \?&]+)/history", "view": self.view_dashboard_fabric_events},
+        {"route": "/endpoints", "view": self.view_dashboard_endpoints},
+        {"route": "/moves", "view": self.view_dashboard_moves},
+        {"route": "/offsubnet", "view": self.view_dashboard_offsubnet},
+        {"route": "/stale", "view": self.view_dashboard_stale},
+        {"route": "/rapid", "view": self.view_dashboard_rapid},
+        {"route": "/remediate", "view": self.view_dashboard_remediate},
+        {"route": "/events", "view": self.view_dashboard_events},
     ]
     self.navigate = function(){
         for (var i in routes) {
@@ -322,15 +380,6 @@ function common_viewModel() {
             }
         }
         return self.view_dashboard_fabric();
-    }
-
-    // forward user to selected object hash
-    self.forward = function(route){
-        if(route == null){
-            window.top.location.hash = "/";
-        }else{
-            window.top.location.hash = route;
-        }
     }
 
     // searchbar handler (if present)
@@ -423,7 +472,7 @@ function common_viewModel() {
             if (!evt) { return; } 
             if (!evt.params || !evt.params.data){ return; }
             if("dn" in evt.params.data){
-                self.forward(evt.params.data.dn)
+                forward(evt.params.data.dn)
                 self.searchBar.val(null).trigger('change')
             }
         });

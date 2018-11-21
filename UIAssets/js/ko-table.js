@@ -79,10 +79,14 @@ function gTable() {
     self.isLoading = ko.observable(false)
     self.headers = ko.observableArray()
     self.rows = ko.observableArray()
-    self.server_paging = ko.observable(true)
     self.page = ko.observable(0)
     self.page_size = ko.observable(25)
+    self.page_window = ko.observable(5)
+    self.page_enabled = ko.observable(true)
+    self.result_count = ko.observable(null)
     self.refresh_enabled = ko.observable(true)
+    self.back_enabled = ko.observable(false)
+    self.back_location = ko.observable("")
     self.custom_refresh = null;
     self.display_no_data = ko.observable(true)
     self.no_data_message = ko.observable("No data to display")
@@ -94,9 +98,13 @@ function gTable() {
         self.isLoading(false)
         self.headers([])
         self.rows([])
-        self.server_paging(true)
+        self.page_enabled(true)
         self.page(0)
+        self.page_window(5)
+        self.result_count(null)     //set be refresh or assumed to be length of rows
         self.refresh_enabled(true)
+        self.back_enabled(false)
+        self.back_location("")
         self.custom_refresh = null
         self.display_no_data(true)
         self.no_data_message("No data to display")
@@ -104,18 +112,89 @@ function gTable() {
         self.url("")
     }
 
-    //get just results for current page, (client side paging only)
+    // implied client side paging if custom refresh is set
+    self._client_paging = ko.computed(function(){
+        return (self.custom_refresh==null)
+    })
+
+    // if back is enabled, redirect to back_location
+    self.go_back = function(){
+        forward(self.back_location())
+    }
+
+    //when client side paging is occurring, filter data rows to just those on the current page
+    //else return all rows 
     self.get_paged_rows = ko.computed(function(){
-        if(self.server_paging()){
+        if(self._client_paging()){
+            if(self.page()>=0 && self.page_size()>=0){
+                var start = (self.page())*self.page_size()
+                var end = (self.page()+1)*self.page_size()
+                return self.rows().slice(start, end)
+            }
+            return []
+        } else {
             return self.rows()
         }
-        if(self.page()>=0 && self.page_size()>=0){
-            var start = (self.page())*self.page_size()
-            var end = (self.page()+1)*self.page_size()
-            return self.rows().slice(start, end)
-        }
-        return []
     })
+
+    //get total number of results
+    self.get_total_count = ko.computed(function(){
+        if(self.result_count()==null){
+            return self.rows().length
+        }
+        return self.result_count()
+    })
+    //get total number of pages
+    self.get_total_pages = ko.computed(function(){
+        if(self.page_size()>0){
+            return Math.ceil(self.get_total_count()/self.page_size())
+        }
+        return 0
+    })
+    //for provided page, return highlight css if in view
+    self.get_page_css = function(p){
+        if(p-1==self.page()){ return "label--circle label--indigo"; }
+        return "label--circle"
+    }
+    //return a list of page numbers within sliding view window
+    self.get_in_view_pages = ko.computed(function(){
+        var ret = []
+        var b = Math.floor((self.page_window()-1)/2)
+        var c = self.page()+1
+        var max = self.get_total_pages()
+        var s = c-b
+        var e = c+b
+        if(s < 1 ){ e+= 1-s ; s =1 }
+        if(e > max ){ s-= (e-max) ; e = max}
+        if(s < 1 ) { s = 1 } 
+        //console.log("pages:"+max+", page:"+c+",start:"+s+",end:"+e)
+        for(var i=s; i<=e; i++){ret.push(i)}
+        return ret
+    })
+    // change page via start/last or specific page number
+    self.pager = function(op){
+        //op can be first, last, or an integer page number
+        var page=1
+        switch(op){
+            case "first":   page=1; 
+                            break;
+            case "last":    page=self.get_total_pages(); 
+                            break;
+            case "next":    page=self.page()+2; 
+                            break;
+            case "prev":    page=self.page()
+                            break;
+            default: page=parseInt(op)
+        }
+        if(isNaN(page)){ page = 1 }
+        if(page < 1){ page = 1 }
+        if(page > self.get_total_pages()) { page = self.get_total_pages() }
+        self.page(page-1)
+        if(!self._client_paging()){
+            console.log("guess i'm doing that refresh data thing...")
+            self.refresh_data()
+        }
+    }
 
     // when sortable header is clicked, update which column is sorted and refresh data
     self.toggle_sort = function(hdr){
@@ -148,7 +227,8 @@ function gTable() {
 
     // refresh data with sorting and paging
     self.refresh_data = function(){
-        if(self.custom_refresh!=null){
+        if(self._client_paging()){
+            self.rows([])
             return self.custom_refresh()
         }
         self.isLoading(true)
@@ -165,6 +245,5 @@ function gTable() {
             self.isLoading(false);
         })
     }
-
 }
 

@@ -161,6 +161,7 @@ function generic_ajax(url, method, data={},success=undefined,error=undefined){
     }
     if(error===undefined){
         error = function(json, status_code, status_text){
+            console.trace()
             console.log(json, status_text, status_code);
             if(json!==undefined && "error" in json){showAlertModal(json.error)}
             else{showAlertModal("An error occurred: ("+status_code+") "+status_text)}
@@ -349,5 +350,14 @@ function confirmedModal(){
 
 function escapeRegExp(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
+}
+
+//forward user to provided route hash
+function forward(route) {
+    if(route == null){
+        window.top.location.hash = "/";
+    }else{
+        window.top.location.hash = route;
+    }
 }
 

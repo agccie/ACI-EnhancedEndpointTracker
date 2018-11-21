@@ -72,7 +72,8 @@ class eptCache(object):
         if collection_name == eptNode._classname:
             self.node_cache.flush()     # always full cache flush for node
         elif collection_name == eptTunnel._classname:
-            self.tunnel_cache.flush()   # always full cache flush for tunnel
+            if name is not None: self.tunnel_cache.remove(name, name=True)
+            else: self.tunnel_cache.flush()
         elif collection_name == eptVpc._classname:
             if name is not None: self.vpc_cache.remove(name, name=True)
             else: self.vpc_cache.flush()
@@ -301,6 +302,7 @@ class eptCache(object):
 
 class rapidEndpointCachedObject(object):
     """ rapid statistics for eptEndpoint """
+    _classname = "rapid_endpoint_cache"
     def __init__(self, fabric, vnid, addr, addr_type):
         self.fabric = fabric
         self.addr = addr
@@ -311,10 +313,12 @@ class rapidEndpointCachedObject(object):
         self.rapid_lts = 0.0
         self.rapid_count = 0
         self.rapid_lcount = 0
+        self.rapid_icount = 0
 
     def __repr__(self):
-        return "rapid:%r, rapid-ts:%.3f count:0x%06x, lcount:0x%06x, lts:%.3f" % (
-            self.is_rapid, self.is_rapid_ts, self.rapid_count, self.rapid_lcount, self.rapid_lts
+        return "is_rapid:%r, ts:%.3f, lts:%.3f [c:0x%08x, l:0x%08x, i:0x%08x]" % (
+            self.is_rapid, self.is_rapid_ts, self.rapid_lts,
+            self.rapid_count, self.rapid_lcount, self.rapid_icount
         )
 
     def save(self):
@@ -329,6 +333,7 @@ class rapidEndpointCachedObject(object):
             "rapid_lts": self.rapid_lts,
             "rapid_count": self.rapid_count,
             "rapid_lcount": self.rapid_lcount,
+            "rapid_icount": self.rapid_icount,
         }})
 
 class offsubnetCachedObject(object):
@@ -391,7 +396,7 @@ class hitCache(object):
             self.tail.key if self.tail is not None else None,
         )]
         for n in self.get_node_list():
-            s.append("%s" % node)
+            s.append("%s" % n)
         return "|".join(s)
 
     def get_node_list(self):

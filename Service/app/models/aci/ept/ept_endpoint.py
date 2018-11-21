@@ -6,10 +6,13 @@ from ... rest import api_callback
 from .. utils import clear_endpoint
 from . common import get_mac_value
 from . common import parse_vrf_name
+from . common import subscriber_op
 from . ept_history import eptHistory
 from . ept_move import eptMove
+from . ept_msg import MSG_TYPE
 from . ept_node import eptNode
 from . ept_offsubnet import eptOffSubnet
+from . ept_rapid import eptRapid
 from . ept_remediate import eptRemediate
 from . ept_subnet import eptSubnet
 from . ept_stale import eptStale
@@ -55,7 +58,7 @@ class eptEndpoint(Rest):
         "create": False,
         "read": True,
         "update": False,
-        "delete": True,
+        "delete": False,                # custom delete function through workers
         "db_index": ["addr", "vnid", "fabric"],
         "db_shard_enable": True,
         "db_shard_index": ["addr"],
@@ -121,19 +124,20 @@ class eptEndpoint(Rest):
         },
         "rapid_lts": {
             "type": float,
-            #"read": False,
             "description": "timestamp when last rate calculation was performed",
         },
         "rapid_count": {
             "type": int,
-            #"read": False,
-            "description": "per-node event count for rapid rate calculation",
+            "description": "epm event count for rapid rate calculation",
         },
         "rapid_lcount": {
             "type": int,
-            #"read": False,
-            "description": "per-node event count when last rapid rate calculation was performed",
+            "description": "epm event count when last rapid rate calculation was performed",
         },  
+        "rapid_icount": {
+            "type": int,
+            "description": "epm events ignored while endpoint was marked as rapid",
+        },
         "first_learn": {
             "type": dict,
             "description": """
@@ -167,6 +171,30 @@ class eptEndpoint(Rest):
         },
     }
 
+    @api_route(path="delete", methods=["DELETE"], swag_ret=["success"])
+    def delete_endpoint(self):
+        """ delete endpoint and all historical data from database """
+        (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.DELETE_EPT, qnum=0, data={
+                "addr": self.addr,
+                "vnid": self.vnid,
+                "type": self.type,
+            })
+        if success:
+            return jsonify({"success": True})
+        abort(500, err_str)
+
+    @api_route(path="refresh", methods=["POST"], swag_ret=["success"])
+    def refresh_endpoint(self):
+        """ force endpoint refresh by querying APIC epmDb to get current state of endpoint """
+        (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.REFRESH_EPT, qnum=0, data={
+                "addr": self.addr,
+                "vnid": self.vnid,
+                "type": self.type,
+            })
+        if success:
+            return jsonify({"success": True})
+        abort(500, err_str)
+
     @classmethod
     @api_callback("before_create")
     def before_create(cls, data):
@@ -187,13 +215,14 @@ class eptEndpoint(Rest):
         return data
 
     @api_callback("after_delete")
-    def after_delete(cls, api, filters):
+    def after_delete(cls, filters):
         """ after delete ensure that eptHistory, eptMove, eptOffsubnet, and eptStale are deleted """
-        if api:
-            eptMove.delete(_filters=filters)
-            eptOffSubnet.delete(_filters=filters)
-            eptStale.delete(_filters=filters)
-            eptHistory.delete(_filters=filters)
+        eptMove.delete(_filters=filters)
+        eptOffSubnet.delete(_filters=filters)
+        eptStale.delete(_filters=filters)
+        eptHistory.delete(_filters=filters)
+        eptRapid.delete(_filters=filters)
+        eptRemediate.delete(_filters=filters)
 
     @api_route(path="clear", methods=["POST"], swag_ret=["success", "error"])
     def clear_endpoint(self, nodes=[]):
@@ -221,7 +250,12 @@ class eptEndpoint(Rest):
         for n in nodes:
             obj = eptNode.load(fabric=self.fabric, node=n)
             if obj.exists():
-                valid_nodes.append((obj.pod_id, obj.node))
+                # ensure this node is a leaf before adding to valid nodes
+                if obj.role == "leaf":
+                    valid_nodes.append((obj.pod_id, obj.node))
+                else:
+                    logger.debug("invalid role %s for node %s", obj.role, n)
+                    error_rows.append("cannot clear endpoint on node %s, role %s" % (n,obj.role))
             else:
                 logger.debug("invalid/unknown node:0x%04x for fabric %s", n, self.fabric)
                 error_rows.append("invalid/unknown node %s"  % n)

@@ -48,6 +48,7 @@ def create_app(config_filename="config.py"):
     from .models.aci.ept.ept_offsubnet import eptOffSubnet
     from .models.aci.ept.ept_pc import eptPc
     from .models.aci.ept.ept_queue_stats import eptQueueStats
+    from .models.aci.ept.ept_rapid import eptRapid
     from .models.aci.ept.ept_remediate import eptRemediate
     from .models.aci.ept.ept_settings import eptSettings
     from .models.aci.ept.ept_stale import eptStale
@@ -71,6 +72,7 @@ def create_app(config_filename="config.py"):
     from .models.aci.mo.mgmtInB import mgmtInB
     from .models.aci.mo.mgmtRsMgmtBD import mgmtRsMgmtBD
     from .models.aci.mo.pcAggrIf import pcAggrIf
+    from .models.aci.mo.tunnelIf import tunnelIf
     from .models.aci.mo.vnsEPpInfo import vnsEPpInfo
     from .models.aci.mo.vnsLIfCtx import vnsLIfCtx
     from .models.aci.mo.vnsRsEPpInfoToBD import vnsRsEPpInfoToBD

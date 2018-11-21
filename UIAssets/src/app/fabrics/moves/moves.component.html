@@ -1,22 +1,28 @@
+<div class="row" style="margin-top:0.5%">
+        <div class="col-md-12">
+            <button class="btn btn--small btn--success" (click)="getMovesForFabric(0, [{prop: 'ts', dir: 'desc'}])">
+                <span>Refresh</span>
+            </button>
+        </div>
+    </div>
 <div class="row">
     <div class="col-md-12">
         <ngx-datatable
-        [columnMode]="'flex'"
-                    [headerHeight]="25"
-                    [footerHeight]="50"
-                    [rowHeight]="'auto'"   
-                    [limit]="pageSize"
-                    [loadingIndicator]="loading"
-                    [rows]="rows"
-                    [externalPaging]="true"
-                        [externalSorting]="true"
-                        [count]="count"
-                        [offset]="pageNumber"
-                        [limit]="pageSize"
-                        (page)="setPage($event)"
-                        (sort)="onSort($event)"
-                        [sortType]="'multi'"
-                    [cssClasses]="{
+                [columnMode]="'flex'"
+                [headerHeight]="25"
+                [footerHeight]="50"
+                [rowHeight]="'auto'"
+                [limit]="pageSize"
+                [loadingIndicator]="loading"
+                [rows]="rows"
+                [externalPaging]="true"
+                [externalSorting]="true"
+                [count]="count"
+                [offset]="pageNumber"
+                (page)="setPage($event)"
+                (sort)="onSort($event)"
+                [sorts]="sorts"
+                [cssClasses]="{
                     sortAscending: 'icon-chevron-down',
                     sortDescending: 'icon-chevron-up',
                     pagerLeftArrow: 'icon-step-prev',
@@ -24,42 +30,43 @@
                     pagerPrevious: 'icon-step-backward',
                     pagerNext: 'icon-step-forward'
                     }">
-                    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [flexGrow]="0.2">
-                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                {{ (row['ept.move'].events[0].dst.ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
-                            </ng-template>
-                        </ngx-datatable-column> 
-                    <ngx-datatable-column prop="fabric" name="Fabric Name" [sortable]="true" [flexGrow]="0.2">
-                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                            {{row['ept.move'].fabric}}
-                        </ng-template>
-                    </ngx-datatable-column> 
-                    <ngx-datatable-column prop="count" name="Count" [sortable]="true" [flexGrow]="0.2">
-                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                            {{row['ept.move'].count}}
-                        </ng-template>
-                    </ngx-datatable-column> 
-                    <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.2" >
-                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                            <span class="label label--raised" [ngClass]="{'label--warning':row['ept.move']['type'] === 'mac', 'label--success':row['ept.move']['type']==='ipv4', 'label--info':row['ept.move']['type']==='ipv6'}">
-                                    {{row['ept.move'].type.toUpperCase()}}
-                            </span>
-                            
-                        </ng-template>
-                    </ngx-datatable-column> 
-                    <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
-                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                <a (click)="goToDetailsPage(row['ept.move'])" >
-                                        {{row['ept.move']['addr']}}
-                                    </a>
-                        </ng-template>
-                    </ngx-datatable-column> 
-                    <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
-                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                            {{row['ept.move'].events[0].dst.vnid_name}}
-                        </ng-template>
-                    </ngx-datatable-column> 
-                    </ngx-datatable>
+            <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [flexGrow]="0.2">
+                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                    {{ (row['ept.move'].events[0].dst.ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="fabric" name="Fabric Name" [sortable]="true" [flexGrow]="0.2">
+                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                    {{ row['ept.move'].fabric}}
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="count" name="Count" [sortable]="true" [flexGrow]="0.2">
+                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                    {{ row['ept.move'].count}}
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.2">
+                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                    <span class="label label--raised"
+                          [ngClass]="{'label--warning':row['ept.move']['type'] === 'mac', 'label--success':row['ept.move']['type']==='ipv4', 'label--info':row['ept.move']['type']==='ipv6'}"
+                    >
+                        {{ row['ept.move'].type.toUpperCase()}}
+                    </span>
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
+                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                    <a (click)="goToDetailsPage(row['ept.move'])">
+                        {{ row['ept.move']['addr']}}
+                    </a>
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
+                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                    {{ row['ept.move'].events[0].dst.vnid_name}}
+                </ng-template>
+            </ngx-datatable-column>
+        </ngx-datatable>
     </div>
-  </div>
+</div>
   

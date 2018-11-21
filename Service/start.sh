@@ -35,10 +35,11 @@ MONGO_MAX_WAIT_COUNT=50
 
 # required services to start
 ALL_SERVICES=(
-    "cron" 
     "apache2"
+    "cron" 
     "mongodb"
     "redis-server"
+    "exim4"
 )
 
 # log message to stdout and to logfile
@@ -579,6 +580,8 @@ function main(){
     elif [ "$role" == "watcher" ] ; then
         # run watcher script
         validate_identity
+        # watcher is responsible for notifications, if emails are enabled then exim4 needs to run
+        start_service "exim4"
         set_running
         cd $SCRIPT_DIR
         python -m app.models.aci.ept.main --role watcher --id $identity >> $LOG_FILE 2>> $LOG_FILE 

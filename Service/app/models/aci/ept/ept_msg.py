@@ -22,6 +22,12 @@ class MSG_TYPE(Enum):
     FABRIC_RESTART      = "fabric_restart"  # request from API or subscriber to manager for restart
     FLUSH_FABRIC        = "flush_fabric"    # request from manager to workers to flush fabric from 
                                             # their local caches
+    REFRESH_EPT         = "refresh_ept"     # refresh endpoint
+    DELETE_EPT          = "delete_ept"      # delete endpoint and all dependencies from db, also 
+                                            # ensures worker cache for this endpoint are properly 
+                                            # flushed.
+    TEST_EMAIL          = "test_email"      # send a test email
+    TEST_SYSLOG         = "test_syslog"     # send a test syslog
 
 # static work types sent with MSG_TYPE.WORK
 @enum_unique
@@ -36,6 +42,10 @@ class WORK_TYPE(Enum):
     EPM_IP_EVENT        = "epm_ip "         # epmIpEp event
     EPM_MAC_EVENT       = "epm_mac"         # epmMacEp event
     EPM_RS_IP_EVENT     = "epmRsIp"         # epmRsMacEpToIpEpAtt event
+    DELETE_EPT          = "delete_ept"      # work message to worker to delete endpoint from db and
+                                            # flush info from cache
+    TEST_EMAIL          = "test_email"      # test email notification
+    TEST_SYSLOG         = "test_syslog"     # test syslog notification
 
 class eptMsg(object):
     """ generic ept job for messaging between workers 
@@ -59,18 +69,59 @@ class eptMsg(object):
 
     @staticmethod
     def parse(data):
-        # parse data received on message queue and return corresponding EPMsg
+        # parse data received on message queue and return corresponding eptMsg
         # allow exception to raise on invalid data
         js = json.loads(data)
         if js["msg_type"] == MSG_TYPE.WORK.value:
             return eptMsgWork.from_msg_json(js)
         elif js["msg_type"] == MSG_TYPE.HELLO.value:
             return eptMsgHello.from_msg_json(js)
+        elif js["msg_type"] == MSG_TYPE.REFRESH_EPT.value:
+            return eptMsgSubOp(MSG_TYPE.REFRESH_EPT, js["data"], js["seq"])
+        elif js["msg_type"] == MSG_TYPE.DELETE_EPT.value:
+            return eptMsgSubOp(MSG_TYPE.DELETE_EPT, js["data"], js["seq"])
+        elif js["msg_type"] == MSG_TYPE.TEST_EMAIL.value:
+            return eptMsgSubOp(MSG_TYPE.TEST_EMAIL, js["data"], js["seq"])
+        elif js["msg_type"] == MSG_TYPE.TEST_SYSLOG.value:
+            return eptMsgSubOp(MSG_TYPE.TEST_SYSLOG, js["data"], js["seq"])
         return eptMsg(
                     MSG_TYPE(js["msg_type"]), 
                     data=js.get("data", {}),
                     seq = js.get("seq", None)
                 )
+
+class eptMsgSubOp(eptMsg):
+    """ subscriber operation supporting following ops:
+            - MSG_TYPE.REFRESH_EPT
+            - MSG_TYPE.DELETE_EPT
+            - MSG_TYPE.TEST_EMAIL   (no ept required but fabric is required)
+    """
+    def __init__(self, msg_type, data={}, seq=1):
+        super(eptMsgSubOp, self).__init__(msg_type, data, seq)
+        self.msg_type = msg_type
+        self.fabric = data.get("fabric", "")
+        self.addr = data.get("addr", "")
+        self.vnid = int(data.get("vnid", 0))
+        self.type = data.get("type", "")
+        self.qnum = int(data.get("qnum", 1))
+
+    def jsonify(self):
+        """ jsonify for transport across messaging queue """
+        return json.dumps({
+            "msg_type": self.msg_type.value,
+            "seq": self.seq,
+            "data": {
+                "fabric": self.fabric,
+                "vnid": self.vnid,
+                "addr": self.addr,
+                "type": self.type,
+                "qnum": self.qnum,
+            },
+        })
+
+    def __repr__(self):
+        return "%s.0x%08x %s %s [0x%06x %s]" % (self.msg_type.value, self.seq, 
+                self.fabric, self.type, self.vnid, self.addr)
 
 class eptMsgHello(object):
     """ hello message sent from worker to manager """
@@ -150,37 +201,55 @@ class eptMsgWork(object):
         # return eptMsgWork object from received msg js
         # check if this is eptMsgWorkEpmEvent and initialize accordingly
         wt = WORK_TYPE(js["wt"])
-        if wt==WORK_TYPE.EPM_IP_EVENT or wt==WORK_TYPE.EPM_MAC_EVENT or wt==WORK_TYPE.EPM_RS_IP_EVENT:
-            return eptMsgWorkEpmEvent(js["addr"], js["role"], js["data"], wt,
-                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
-        elif wt == WORK_TYPE.RAW:
-            return eptMsgWorkRaw(js["addr"], js["role"], js["data"], wt,
-                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
-        elif wt == WORK_TYPE.WATCH_MOVE:
-            return eptMsgWorkWatchMove(js["addr"], js["role"], js["data"], wt,
-                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
-        elif wt == WORK_TYPE.WATCH_OFFSUBNET:
-            return eptMsgWorkWatchOffSubnet(js["addr"], js["role"], js["data"], wt,
-                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
-        elif wt == WORK_TYPE.WATCH_STALE:
-            return eptMsgWorkWatchStale(js["addr"], js["role"], js["data"], wt,
-                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
-        elif wt == WORK_TYPE.WATCH_RAPID:
-            return eptMsgWorkWatchRapid(js["addr"], js["role"], js["data"], wt,
-                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
-        elif wt == WORK_TYPE.WATCH_NODE:
-            return eptMsgWorkWatchNode(js["addr"], js["role"], js["data"], wt,
-                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
-        else:
-            return eptMsgWork(js["addr"], js["role"], js["data"], wt,
-                        qnum = js["qnum"], seq = js["seq"], fabric= js["fabric"])
+        args = [js["addr"], js["role"], js["data"], wt ]
+        kwargs = {"qnum": js["qnum"], "seq": js["seq"], "fabric": js["fabric"]}
+        mod = eptMsgWork
+        if wt==WORK_TYPE.EPM_IP_EVENT:          mod = eptMsgWorkEpmEvent
+        elif wt==WORK_TYPE.EPM_MAC_EVENT:       mod = eptMsgWorkEpmEvent
+        elif wt==WORK_TYPE.EPM_RS_IP_EVENT:     mod = eptMsgWorkEpmEvent
+        elif wt == WORK_TYPE.RAW:               mod = eptMsgWorkRaw
+        elif wt == WORK_TYPE.WATCH_MOVE:        mod = eptMsgWorkWatchMove
+        elif wt == WORK_TYPE.WATCH_OFFSUBNET:   mod = eptMsgWorkWatchOffSubnet
+        elif wt == WORK_TYPE.WATCH_STALE:       mod = eptMsgWorkWatchStale
+        elif wt == WORK_TYPE.WATCH_RAPID:       mod = eptMsgWorkWatchRapid
+        elif wt == WORK_TYPE.WATCH_NODE:        mod = eptMsgWorkWatchNode
+        elif wt == WORK_TYPE.DELETE_EPT:        mod = eptMsgWorkDeleteEpt
+        return mod(*args, **kwargs)
 
 class eptMsgWorkRaw(eptMsgWork):
     """ raw/unparsed epm event """
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
-        # initialize as eptMsgWork with empty data set
         super(eptMsgWorkRaw, self).__init__(addr, role, data, wt, qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.RAW
+
+class eptMsgWorkDeleteEpt(eptMsgWork):
+    """ fixed message type for DELETE_EPT """
+    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+        # initialize as eptMsgWork with empty data set
+        super(eptMsgWorkDeleteEpt, self).__init__(addr, "worker", data, wt, 
+                                                    qnum=qnum, seq=seq, fabric=fabric)
+        self.wt = WORK_TYPE.DELETE_EPT
+        self.vnid = int(data.get("vnid",0))
+
+    def jsonify(self):
+        """ jsonify for transport across messaging queue """
+        return json.dumps({
+            "msg_type": self.msg_type.value,
+            "seq": self.seq,
+            "wt": self.wt.value,
+            "addr": self.addr,
+            "role": self.role,
+            "qnum": self.qnum,
+            "fabric": self.fabric,
+            "data": {
+                "vnid": self.vnid,
+            }
+        })
+        return ret
+
+    def __repr__(self):
+        return "%s.0x%08x %s %s [0x%06x, %s]" % (self.msg_type.value, self.seq, 
+                self.fabric, self.wt.value, self.vnid, self.addr) 
 
 class eptMsgWorkWatchNode(eptMsgWork):
     """ fixed message type for WATCH_NODE """
@@ -260,6 +329,7 @@ class eptMsgWorkWatchRapid(eptMsgWork):
         self.vnid = int(data.get("vnid", 0))
         self.type = data.get("type", "")
         self.ts = float(data.get("ts", 0))
+        self.xts = float(data.get("xts", 0))        # watcher execute timestamp
         self.count = int(data.get("count", 0))
         self.rate = float(data.get("rate",0))
         self.vnid_name = data.get("vnid_name", "")

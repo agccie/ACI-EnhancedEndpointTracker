@@ -1,122 +1,124 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
-import { BackendService } from '../../_service/backend.service';
-import { Router } from '@angular/router';
-import { PreferencesService } from '../../_service/preferences.service';
+import {Component, OnInit, ViewChild, TemplateRef, ElementRef} from '@angular/core';
+import {BackendService} from '../../_service/backend.service';
+import {Router} from '@angular/router';
+import {PreferencesService} from '../../_service/preferences.service';
+import {forkJoin} from "rxjs";
+import { BsModalRef,BsModalService } from '../../../../node_modules/ngx-bootstrap';
 
 @Component({
-  selector: 'app-fabric-overview',
-  templateUrl: './fabric-overview.component.html',
-  styleUrls: ['./fabric-overview.component.css']
+    selector: 'app-fabric-overview',
+    templateUrl: './fabric-overview.component.html',
+    styleUrls: ['./fabric-overview.component.css']
 })
-export class FabricOverviewComponent implements OnInit {
-  rows:any ;
-  sorts:any ;
-  showFabricModal:boolean ;
-  fabrics:any ;
-  fabricName:string;
-  pageSize:number ;
-  loading = true ;
-  @ViewChild('myTable') table : any ;
-  constructor(private bs : BackendService, private router : Router, private prefs:PreferencesService) { 
-    this.sorts = {prop:'fabric'}
-    this.rows = [] ;
-    this.showFabricModal = false ;
-    this.fabrics=[] ;
-    this.fabricName='' ;
-    this.pageSize = this.prefs.pageSize ;
-  }
 
-  ngOnInit() {
-    this.getFabrics() ;
-  }
+export class FabricOverviewComponent  {
+    rows: any;
+    sorts: any;
+    showFabricModal: boolean;
+    fabrics: any;
+    fabricName: string;
+    pageSize: number;
+    loading = true;
+    modalTitle='' ;
+    modalBody='';
+    modalIcon='' ;
+    @ViewChild('myTable') table: any;
+    modalRef:BsModalRef;
+    @ViewChild('startStopFabricMessage') msgModalRef: TemplateRef<any> ;
+    constructor(private bs: BackendService, private router: Router, private prefs: PreferencesService,private modalService: BsModalService) {
+        this.sorts = {prop: 'fabric'};
+        this.rows = [];
+        this.showFabricModal = false;
+        this.fabrics = [];
+        this.fabricName = '';
+        this.pageSize = this.prefs.pageSize;
+    }
 
-  toggleRow(row) {
-    console.log(row) ;
-    console.log(this.table) ;
-    this.table.rowDetail.toggleExpandRow(row) ;
-  }
+    ngOnInit() {
+        this.getFabrics();
+    }
 
-  getFabrics() {
-    this.loading = true ;
-    this.bs.getFabrics().subscribe(
-      (data)=>{
-        this.fabrics = data['objects'] ;
-        this.rows = data['objects'] ;
-        let i=0 ;
-        for(let fab of this.fabrics) {
-          this.rows[i]['statLoad'] = true;
-          this.rows[i]['macLoad'] = true;
-          this.rows[i]['ipv4Load'] = true;
-          this.rows[i]['ipv6Load'] = true;
-          this.getFabricStatus(fab.fabric.fabric,i) ;
-          this.getActiveMacAndIps(fab.fabric.fabric,'mac',i) ;
-          this.getActiveMacAndIps(fab.fabric.fabric,'ipv4',i) ;
-          this.getActiveMacAndIps(fab.fabric.fabric,'ipv6',i) ;
-          i = i+1 ;
+    toggleRow(row) {
+        this.table.rowDetail.toggleExpandRow(row);
+    }
+
+    getFabrics() {
+        const self = this;
+        this.loading = true;
+        this.bs.getFabrics().subscribe(
+            (data) => {
+                this.fabrics = data['objects'];
+                this.rows = data['objects'];
+                for (let object of data['objects']) {
+                    const fabric = object.fabric;
+                    const fabricName = fabric.fabric;
+                    const fabricStatusObservable = this.bs.getFabricStatus(fabricName);
+                    const macObservable = this.bs.getActiveMacAndIps(fabricName, 'mac');
+                    const ipv4Observable = this.bs.getActiveMacAndIps(fabricName, 'ipv4');
+                    const ipv6Observable = this.bs.getActiveMacAndIps(fabricName, 'ipv6');
+                    forkJoin([fabricStatusObservable, macObservable, ipv4Observable, ipv6Observable]).subscribe(results => {
+                        fabric['status'] = results[0]['status'];
+                        fabric['mac'] = results[1]['count'];
+                        fabric['ipv4'] = results[2]['count'];
+                        fabric['ipv6'] = results[3]['count'];
+                    });
+                }
+                this.loading = false;
+            },
+            (error) => {
+            }
+        )
+    }
+
+    onFabricNameSubmit(fabric) {
+        this.bs.createFabric(fabric).subscribe(
+            (data) => {
+                this.router.navigate(['/settings', this.fabricName]);
+            }
+        );
+    }
+
+    startStopFabric(action, fabricName) {
+        let msg = '' ;
+        if(action === 'start') {
+            msg = 'started' ;
+        }else{
+            msg='stopped' ;
         }
-        
-        this.loading = false ;
-      },
-      (error)=> {
+        this.bs.startStopFabric(action, fabricName, 'testing').subscribe(
+            (data) => {
+                if (data['success'] === true) {
+                    this.modalTitle = 'Success' ;
+                    this.modalBody = 'Fabric ' + fabricName + ' ' + msg + ' successfully' ;
+                    this.modalIcon = 'icon-check-square' ;
+                    this.openModal(this.msgModalRef) ;
+                    setTimeout(
+                        ()=>{
+                            this.getFabrics() ;
+                        },3000
+                    )
+                }
+            },
+            (error) => {
+                this.modalTitle = 'Error' ;
+                this.modalBody = 'Fabric ' + fabricName + ' could not be ' + msg ;
+                this.modalIcon = 'icon-error' ;
+                this.openModal(this.msgModalRef) ;
+            }
+        )
+    }
 
-      }
-    )
-  }
+    public openModal(template: TemplateRef<any>) {
+        this.modalRef = this.modalService.show(template, {
+            animated: true,
+            keyboard: true,
+            backdrop: true,
+            ignoreBackdropClick: false,
+            class: 'modal-sm',
+        });
+    }
 
-  getActiveMacAndIps(fabricName, addressType, index) {
-    this.rows[index][addressType +'Load'] = true ;
-    this.bs.getActiveMacAndIps(fabricName,addressType).subscribe(
-      (data)=>{
-        if(data.hasOwnProperty('count')) {
-        this.rows[index].fabric[addressType] = data['count'] ;
-        this.rows[index][addressType +'Load'] = false ;
-        
-        }
-      } ,
-      (error)=>{
-        console.log(error) ;
-      }
-    )
-  }
-
-  onFabricNameSubmit(fabric) {
-    this.bs.createFabric(fabric).subscribe(
-      (data)=>{
-        this.router.navigate(['/settings', this.fabricName]) ;
-      }) ;
-    
-  }
-
-  startStopFabric(action,fabricName) {
-    this.bs.startStopFabric(action,fabricName,'testing').subscribe(
-      (data)=>{
-        if(data['success'] === true) {
-          console.log('success') ;
-        }
-      },
-      (error) => {
-        console.log(error) ;
-      }
-    )
-
-  }
-
-  
-
-  getFabricStatus(fabricName,index) {
-    this.rows[index]['statLoad'] = true ;
-    this.bs.getFabricStatus(fabricName).subscribe(
-      (data)=>{
-        this.rows[index]['statLoad'] = false ;
-        this.rows[index].fabric['status'] = data['status'] ;
-      },
-      (error)=>{
-
-      }
-    )
-  }
-
-
-
-
+    public hideModal() {
+        this.modalRef.hide();
+    }
 }

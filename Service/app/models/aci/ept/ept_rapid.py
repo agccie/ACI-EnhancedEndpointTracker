@@ -7,7 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 @api_register(parent="fabric", path="ept/rapid")
-class eptOffSubnet(Rest):
+class eptRapid(Rest):
     """ rapid endpoint events within the fabric """
     logger = logger
 

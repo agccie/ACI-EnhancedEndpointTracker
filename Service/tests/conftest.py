@@ -21,6 +21,7 @@ os.environ["LOGIN_ENABLED"] = "0"
 os.environ["MONGO_HOST"] = "localhost"
 os.environ["MONGO_PORT"] = "27017"
 os.environ["MONGO_DBNAME"] = "testdb"
+os.environ["REDIS_DB"] = "14"
 
 tdir = "tests/testdata/"
 db_name = "testdb"
@@ -53,6 +54,7 @@ test_logging(logging.getLogger("tests"))
 
 from app.models.rest.db import db_setup
 from app.models.utils import get_db
+from app.models.utils import get_redis
 
 # instance relative config - config.py implies instance/config.py
 from tests.api.test_rest import Rest_TestClass
@@ -61,6 +63,10 @@ from tests.api.test_rest import Rest_TestClass
 db = get_db()
 try: db.collection_names()
 except Exception as e:  sys.exit("failed to connect to database")
+
+# flush redis db
+r = get_redis()
+r.flushall()
 
 @pytest.fixture(scope="session")
 def app(request):

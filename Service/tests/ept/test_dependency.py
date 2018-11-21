@@ -6,7 +6,9 @@ import time
 from app.models.aci.fabric import Fabric
 
 from app.models.aci.ept.ept_epg import eptEpg
+from app.models.aci.ept.ept_node import eptNode
 from app.models.aci.ept.ept_subnet import eptSubnet
+from app.models.aci.ept.ept_tunnel import eptTunnel
 from app.models.aci.ept.ept_vnid import eptVnid
 from app.models.aci.ept.mo_dependency_map import dependency_map as dmap
 
@@ -27,6 +29,7 @@ from app.models.aci.mo.fvSubnet import fvSubnet
 from app.models.aci.mo.fvIpAttr import fvIpAttr
 from app.models.aci.mo.vnsLIfCtx import vnsLIfCtx
 from app.models.aci.mo.vnsRsLIfCtxToBD import vnsRsLIfCtxToBD
+from app.models.aci.mo.tunnelIf import tunnelIf
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -61,6 +64,7 @@ def func_prep(request, app):
         eptEpg.delete(_filters={})
         eptVnid.delete(_filters={})
         eptSubnet.delete(_filters={})
+        eptTunnel.delete(_filters={})
         fvCtx.delete(_filters={})
         fvBD.delete(_filters={})
         fvSvcBD.delete(_filters={})
@@ -78,6 +82,7 @@ def func_prep(request, app):
         l3extRsEctx.delete(_filters={})
         fvSubnet.delete(_filters={})
         fvIpAttr.delete(_filters={})
+        tunnelIf.delete(_filters={})
         
     request.addfinalizer(teardown)
     return
@@ -469,5 +474,26 @@ def test_dependency_validate_l3ext_encap_vrf_is_mapped(app, func_prep):
     assert dut2.encap == ext_encap
     assert dut2.pctag == 0
     assert dut2.vnid == ext_vnid
-    
+   
+def test_dependency_tunnel_if_callback(app, func_prep):
+    # validate
 
+    # create a dummy node and ensure that tunnel event sync updates eptTunnel with correct remote
+    # node value
+    assert eptNode.load(fabric=tfabric,node=199,pod_id=1,role="leaf",addr="10.0.0.199").save()
+
+    dmap["tunnelIf"].sync_event(tfabric, get_create_event({
+        "dn": "topology/pod-1/node-101/sys/tunnel-[tunnel199]",
+        "id": "tunnel199",
+        "dest": "10.0.0.199/32",
+        "src": "10.0.0.101",
+        "operSt": "up",
+        "tType": "ivxlan",
+        "type": "physical",
+        "status": "created",
+    }))
+
+    tunnel = eptTunnel.find(fabric=tfabric, node=101, intf="tunnel199")
+    assert len(tunnel)==1
+    tunnel = tunnel[0]
+    assert tunnel.remote == 199

@@ -3,19 +3,6 @@
 var vendorDomain = "Cisco"
 var appId = "CSCvf18506"
 
-/* global/consistent colors for endpoint types */
-label_mac  = 'label label--warning-alt'
-label_ipv4 = 'label label--info'
-label_ipv6 = 'label label--indigo'
-function get_endpoint_type_label(type){
-    switch(type){
-        case "mac": return label_mac;
-        case "ipv4": return label_ipv4;
-        case "ipv6": return label_ipv6;
-    }
-    return label_ipv4
-}
-
 /**
 * listen for token objects from parent frame when running on apic
 * success and error functions can be provided for proper action to take
@@ -180,7 +167,7 @@ function generic_ajax(url, method, data={},success=undefined,error=undefined){
         }
     }
     //for testing, force url to test server
-    //url = "http://agossett-bld.insieme.local"+url
+    //url = "http://esc-aci-compute:9080"+url
     //appcenter_mode cookie set when app is loaded through app-start.html
     var app_set = Cookies.get("app_"+vendorDomain+"_"+appId+"_token")
     var headers = {}
@@ -360,4 +347,7 @@ function confirmedModal(){
     global_confirmed_function()
 }
 
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
+}
 

@@ -1,6 +1,28 @@
 
+/* global/consistent colors for endpoint types */
+label_mac  = 'label label--warning-alt'
+label_ipv4 = 'label label--info'
+label_ipv6 = 'label label--indigo'
+label_status_running = 'label label--success'
+label_status_stopped = 'label label--dkgray'
+function get_endpoint_type_label(type){
+    switch(type){
+        case "mac": return label_mac;
+        case "ipv4": return label_ipv4;
+        case "ipv6": return label_ipv6;
+    }
+    return label_ipv4
+}
+function get_status_label(st){
+    switch(st){
+        case 'running': return label_status_running
+        case 'stopped': return label_status_stopped
+    }
+    return label_status_stopped
+}
 
-function generalEvent(){
+
+function fabricEvent(){
     baseModelObject.call(this)
     var self = this
     self.timestamp = ko.observable(0)
@@ -9,30 +31,282 @@ function generalEvent(){
     self.ts = ko.computed(function(){
         return timestamp_to_string(self.timestamp())
     }) 
-    self.timeline_status = ko.computed(function(){
-        if(self.status()=="Starting"){ return "timeline--success";}
-        else if(self.status()=="Stopping"){ return "timeline--warning";}
-    })
 }
+
+function fabricSettings(){
+    baseModelObject.call(this)
+    var self = this
+    self.settings = ko.observable("default")
+    self.email_address = ko.observable("")
+    self.syslog_server = ko.observable("")
+    self.syslog_port = ko.observable(514)
+    self.notify_move_email = ko.observable(false)
+    self.notify_stale_email = ko.observable(false)
+    self.notify_offsubnet_email = ko.observable(false)
+    self.notify_clear_email = ko.observable(false)
+    self.notify_rapid_email = ko.observable(false)
+    self.notify_move_syslog = ko.observable(false)
+    self.notify_stale_syslog = ko.observable(false)
+    self.notify_offsubnet_syslog = ko.observable(false)
+    self.notify_clear_syslog = ko.observable(false)
+    self.notify_rapid_syslog = ko.observable(false)
+    self.auto_clear_stale = ko.observable(false)
+    self.auto_clear_offsubnet = ko.observable(false)
+    self.anaylze_move = ko.observable(true)
+    self.anaylze_offsubnet = ko.observable(true)
+    self.anaylze_stale = ko.observable(true)
+    self.anaylze_rapid = ko.observable(true)
+    self.refresh_rapid = ko.observable(true)
+    self.max_per_node_endpoint_events = ko.observable(64)
+    self.max_endpoint_events = ko.observable(64)
+    self.queue_init_events = ko.observable(true)
+    self.queue_init_epm_events = ko.observable(true)
+    self.stale_no_local = ko.observable(true)
+    self.stale_multiple_local = ko.observable(true)
+    self.rapid_threshold = ko.observable(1024)
+    self.rapid_holdtime = ko.observable(600)
+}
+
+function fabric(fabric_name) {
+    baseModelObject.call(this)
+    var self = this
+    self._subtypes = {"events": fabricEvent}
+    self.fabric = ko.observable(fabric_name)
+    self.settings = new fabricSettings()
+    self.apic_username = ko.observable("")
+    self.apic_password = ko.observable("")
+    self.apic_hostname = ko.observable("")
+    self.apic_cert = ko.observable("")
+    self.ssh_username = ko.observable("")
+    self.ssh_password = ko.observable("")
+    self.events = ko.observableArray([])
+    self.status = ko.observable("")
+    self.count_mac = ko.observable(".")
+    self.count_ipv4 = ko.observable(".")
+    self.count_ipv6 = ko.observable(".")
+    self.loading_fabric = ko.observable(false)
+    self.loading_settings = ko.observable(false)
+    self.loading_status = ko.observable(false)
+    self.loading_count_mac = ko.observable(false)
+    self.loading_count_ipv4 = ko.observable(false)
+    self.loading_count_ipv6 = ko.observable(false)
+
+    self.isLoading = ko.computed(function(){
+        return (self.loading_fabric() || self.loading_settings() || self.loading_status() || 
+                self.loading_count_mac() || self.loading_count_ipv4() || self.loading_count_ipv6())
+    })
+
+    // custom cell formatting per attribute
+    self.formatter = function(attr, text){
+        if(attr == "status"){
+            return '<span class="'+get_status_label(text)+'">'+text+'</span>'
+        } else if (attr == "fabric"){
+            return '<span class="text-bold">'+text+'</span>'
+        }
+        return text
+    }
+
+    // refresh full state for this fabric (fabric, settings, status, and counts)
+    self.refresh = function(success){
+        if(success===undefined){ success = function(){}}
+        self.loading_fabric(true)
+        self.loading_settings(true)
+        self.loading_status(true)
+        self.loading_count_mac(true)
+        self.loading_count_ipv4(true)
+        self.loading_count_ipv6(true)
+        var base = "/api/uni/fb-"+self.fabric()
+        var count_base = "/api/ept/endpoint?count=1&filter=and(eq(\"fabric\",\""+self.fabric()+"\"),"
+        json_get(base, function(data){
+            if(data.objects.length>0){
+                self.fromJS(data.objects[0].fabric)
+            }
+            self.loading_fabric(false)
+            if(!self.isLoading()){success()}
+        })
+        json_get(base+"/settings-default", function(data){
+            if(data.objects.length>0){
+                self.settings.fromJS(data.objects[0]["ept.settings"])
+            }
+            self.loading_settings(false)
+            if(!self.isLoading()){success()}
+        })
+        json_get(base+"/status", function(data){
+            self.status(data.status)
+            self.loading_status(false)
+            if(!self.isLoading()){success()}
+        })
+        json_get(count_base+"eq(\"type\",\"mac\"))", function(data){
+            self.count_mac(data.count)
+            self.loading_count_mac(false)
+            if(!self.isLoading()){success()}
+        })
+        json_get(count_base+"eq(\"type\",\"ipv4\"))", function(data){
+            self.count_ipv4(data.count)
+            self.loading_count_ipv4(false)
+            if(!self.isLoading()){success()}
+        })
+        json_get(count_base+"eq(\"type\",\"ipv6\"))", function(data){
+            self.count_ipv6(data.count)
+            self.loading_count_ipv6(false)
+            if(!self.isLoading()){success()}
+        })
+    }
+}
+
+function view_dashboard_fabric_events(vm){
+    var self = vm;
+    self.table.server_paging(false)
+    var headers = [
+        {"title": "Time", "name":"ts", "sortable":false},
+        {"title": "Status", "name":"status", "sortable":false},
+        {"title": "Description", "name":"description", "sortable":false}
+    ]
+    headers.forEach(function(h){
+        self.table.headers.push(new gHeader(h))
+    })
+
+    // get fabric object for current view fabric from self.fabrics
+    var update_rows = function(){
+        var rows = []
+        if(self.current_fabric!=null){
+            self.current_fabric.events().forEach(function(elem){
+                rows.push(new gRow(elem))
+            })
+        }else{
+            self.table.no_data_message("fabric '"+self.current_fabric_name()+"' not found")
+        }
+        self.table.rows(rows)
+    }
+
+    self.view_dashboard_fabric_events_refresh = function(){
+        self.table.isLoading(true)
+        self.table.rows([])
+        self.refresh_fabrics(function(){
+            //perform a refresh of each fabric and add object to table
+            self.table.isLoading(false)
+            update_rows()
+        })
+    }
+    //update table refresh function
+    self.table.custom_refresh = self.view_dashboard_fabric_events_refresh
+    if(self.current_fabric == null || self.current_fabric.fabric()!=self.current_fabric_name()){
+        self.view_dashboard_fabric_events_refresh()
+    }else{
+        update_rows()
+    }
+}
+
+function callback(arg){
+    console.log("clicked!")
+    console.log(arg)
+}
+
+// receive instance of view modal and update table to fabric view
+function view_dashboard_fabric(vm){
+    var self = vm;
+
+    //build callbacks for each action
+    var click_history = function(fab){
+        if("fabric" in fab){
+            self.forward("/fb-"+fab.fabric()+"/history")
+        }
+    }
+
+    self.table.server_paging(false)
+    var headers = [
+        {"title":"Name", "name":"fabric", "sortable":false},
+        {"title":"Status", "name": "status", "sortable":false},
+        {"title": "MACs", "name":"count_mac", "sortable":false},
+        {"title": "IPv4", "name":"count_ipv4", "sortable":false},
+        {"title": "IPv6", "name":"count_ipv6", "sortable":false},
+        {"title": "Control", "name":"control", "sortable":false, "control":[
+            new gCtrl({"tip":"Start", "status":"success", "icon":"icon-right-arrow-contained"}),
+            new gCtrl({"tip":"Stop", "status":"negative", "icon":"icon-stop"}),
+            new gCtrl({"tip":"Edit", "status":"gray-ghost", "icon":"icon-edit"}),
+            new gCtrl({"tip":"History", "status":"secondary", "icon":"icon-chevron-right",
+                        "click":click_history})
+        ]}
+    ]
+    headers.forEach(function(h){
+        self.table.headers.push(new gHeader(h))
+    })
+
+    //get all fabrics and perform a refresh on each
+    self.view_dashboard_fabric_refresh = function(){
+        self.table.isLoading(true)
+        self.refresh_fabrics(function(){
+            //perform a refresh of each fabric and add object to table
+            var rows = []
+            self.fabrics().forEach(function(elem){
+                rows.push(new gRow(elem))
+            })
+            self.table.rows(rows)
+            self.table.isLoading(false)
+        })
+    }
+    //update table refresh function
+    self.table.custom_refresh = self.view_dashboard_fabric_refresh
+    self.view_dashboard_fabric_refresh()
+}
+
 
 function common_viewModel() {
     var self = this; 
     self.isLoading = ko.observable(false)
-    self.welcomeLoading = ko.observable(false)
-    self.view = ko.observable("welcome")
+    self.view = ko.observable("index")
+    self.table = new gTable()
+    self.fabrics = ko.observableArray([])
+    self.current_fabric_name = ko.observable("")
+    self.current_fabric = null
+
+    //refresh fabric state and trigger provided callback on once full refresh has completed
+    self.refresh_fabrics = function(success){
+        if(success===undefined){ success = function(){}}
+        var inflight = 0
+        var check_all_complete = function(){
+            //console.log("fab complete, decrease inflight: "+inflight)
+            inflight--
+            if(inflight==0){success()}
+        }
+        json_get("/api/fabric?include=fabric&sort=fabric", function(data){
+            var fabrics = []
+            self.current_fabric = null
+            data.objects.forEach(function(elem){
+                var f = new fabric(elem.fabric.fabric)
+                fabrics.push(f)
+                if(self.current_fabric_name()==f.fabric()){
+                    self.current_fabric = f
+                }
+                inflight++
+                f.refresh(check_all_complete)
+                
+            })
+            self.fabrics(fabrics)
+        })
+    }
 
     // view functions 
     self.init = function(){
         self.isLoading(false);
+        self.table.init()
     }
-    self.view_index = function(){
+    self.view_dashboard_fabric = function(){
         self.init()
-        self.view("welcome")
+        self.view("dashboard_fabric")
+        view_dashboard_fabric(self)
+    }
+    self.view_dashboard_fabric_events = function(args){
+        self.init()
+        self.view("dashboard_fabric_events")
+        self.current_fabric_name(args[0])
+        view_dashboard_fabric_events(self)
     }
 
     // simple same-page routing to support direct anchor links (very basic/static)
     // for now, just /case-# and /case-#/filename-#
     var routes = [
+        {"route": "/fb-([^ \?&]+)/history", "view": self.view_dashboard_fabric_events}
     ]
     self.navigate = function(){
         for (var i in routes) {
@@ -47,7 +321,7 @@ function common_viewModel() {
                 }
             }
         }
-        return self.view_index();
+        return self.view_dashboard_fabric();
     }
 
     // forward user to selected object hash
@@ -68,7 +342,7 @@ function common_viewModel() {
         }
         self.searchBar = $("#searchBar").select2({
             allowClear: true,
-            placeholder: "Search MAC or IP address, 00:50:56:01:BB:12, 10.1.1.101, or 2001:A::65",
+            placeholder: "Search MAC or IP address, 00:50:56:01:BB:12, 10.1.1.101, or 2001:A:B:C:D:65",
             ajax: {
                 url: "http://esc-aci-compute:9080/api/ept/endpoint",
                 //url: "/api/decode",
@@ -76,7 +350,7 @@ function common_viewModel() {
                 delay: 250,
                 data: function (params) {
                     return {
-                        "filter": 'regex("addr","'+params.term.toUpperCase()+'")',
+                        "filter": 'regex("addr","'+escapeRegExp(params.term).toUpperCase()+'")',
                         "include": "fabric,addr,vnid,type,first_learn",
                         "page-size": "20",
                         "sort": "addr",
@@ -138,7 +412,7 @@ function common_viewModel() {
                     return html
                 }
                 else if("count" in data){
-                    return "Matched: "+data.count
+                    return 'Matched: <strong>'+data.count+'</strong>'
                 }
             },
             templateSelection: function(repo){ 
@@ -171,4 +445,7 @@ $().ready(function(){
 
     //trigger navigation on load
     self.navigate()
+
 })
+
+

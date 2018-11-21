@@ -9,6 +9,7 @@
         <meta name="MobileOptimized" content="320">
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
         <link type="text/css" rel="stylesheet" href="js/lib/select2/select2.min.css">
+        <link type="text/css" rel="stylesheet" href="js/lib/jsgrid-1.5.3/jsgrid-theme.css">
         <link type="text/css" rel="stylesheet" href="css/cui-1.3.3-official/css/cui-standard.min.css">
         <script type='text/javascript' src='js/lib/jquery-3.1.1.min.js'></script>
         <script type='text/javascript' src='js/lib/json2.js'></script>
@@ -16,7 +17,9 @@
         <script type='text/javascript' src='js/lib/knockout-3.4.2.js'></script>
         <script type='text/javascript' src='js/lib/moment.min.js'></script>
         <script type='text/javascript' src='js/lib/select2/select2.full.min.js'></script>
+        <script type='text/javascript' src='js/lib/jsgrid-1.5.3/jsgrid.js'></script>
         <script type='text/javascript' src='js/common.js'></script>
+        <script type='text/javascript' src='js/ko-table.js'></script>
         <script type='text/javascript' src='js/app.js'></script>
     </head>
     <body class="cui">
@@ -91,13 +94,9 @@
         </div>
     </div>
     
-    
 	<!-- page content container -->
     <div class="content-fluid">
-
-
-
-        <main style="display:none">
+        <main>
     		<!-- page header -->
     		<header class="header header--compressed">
     		    <div class="header-bar container">
@@ -122,31 +121,125 @@
                     </div>
     		    </div>
     		</header>
+			<!-- end header -->
 
-			<!-- end content content__alt -->
-            <div class="content content--alt">
+            <!-- page content -->
+            <div class="content content-fluid">
                 <div class="container">
                     <div class="section" data-bind="loadingWhen: isLoading">
                         <!-- search (shared by case and decode) -->
                         <div data-bind="">
-                            <div class="row text-large">
-                                <div class="col-md-1"></div>
-                                <div class="col-md-10">
+                            <div class="row text-small">
+                                <div class="col-md-12">
                                     <div class="form-group">
                                         <div class="form-group__text">
                                             <select  type="search" required id="searchBar"></select>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-1"></div>
                             </div>
                         </div>
                         <!-- search end -->
 
+                        <!-- dashbarod start -->
+                        <div class="content content--alt half-margin-top half-padding">
+                            <!-- dashboard tabs selection -->
+                            <div class="qtr-padding"> 
+                                <ul class="tabs">
+                                    <li class="tab active">
+                                        <a tabindex="0"><div class="tab__heading">Fabrics</div></a>
+                                    </li>
+                                    <li class="tab">
+                                        <a tabindex="0"><div class="tab__heading">Endpoints</div></a>
+                                    </li>
+                                    <li class="tab">
+                                        <a tabindex="0"><div class="tab__heading">Latest</div></a>
+                                    </li>
+                                    <li class="tab">
+                                        <a tabindex="0"><div class="tab__heading">Moves</div></a>
+                                    </li>
+                                    <li class="tab">
+                                        <a tabindex="0"><div class="tab__heading">OffSubnet</div></a>
+                                    </li>
+                                    <li class="tab">
+                                        <a tabindex="0"><div class="tab__heading">Stale</div></a>
+                                    </li>
+                                    <li class="tab">
+                                        <a tabindex="0"><div class="tab__heading">Rapid</div></a>
+                                    </li>
+                                    <li class="tab">
+                                        <a tabindex="0"><div class="tab__heading">Remediate</div></a>
+                                    </li>
+                                </ul>
+                            </div>
+                            <!-- dashboard tabs end -->
+
+
+                            <!-- dashboard content -->
+                            <div class="qtr-padding">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div data-bind="visible: table.refresh_enabled()" class="">
+                                            <button class="btn btn--small btn--icon" data-balloon="Refresh" data-balloon-pos="right">
+                                                <span data-bind="click: function(){table.refresh_data()}" class="icon-refresh"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 text-center">
+                                        <h4 data-bind="visible: table.title().length>0, text: table.title()"></h4>
+                                    </div>
+                                    <div class="col-md-3">
+                                    </div>
+                                </div>
+                                <div class="responsive-table" data-bind="loadingWhen: table.isLoading()">
+                                    <table class="table table--fixed table--wrap table--hover table--highlight">
+                                        <thead>
+                                            <tr data-bind="foreach: { data: table.headers, as: 'h' }">
+                                                <th data-bind="css: h.get_css(),
+                                                        style: {width: h.width()}, 
+                                                        click: function(){$root.table.toggle_sort(h)}
+                                                        ">
+                                                    <span data-bind="text: h.title()"></span>
+                                                    <span data-bind="css: h.get_sort_css()"></span>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody data-bind="foreach: { data: table.get_paged_rows, as: 'r' }">
+                                            <tr data-bind="foreach: { data: $root.table.headers, as: 'h' }">
+                                                <td>
+                                                    <span data-bind="html: r.get_attribute_html(h.name())"></span>
+                                                    <span data-bind="visible: h.control().length>0">
+                                                        <span data-bind="foreach: { data: h.control, as: 'c' }">
+                                                            <button class="btn btn--small btn--icon" 
+                                                                    data-bind="css: c.btn_status(),
+                                                                               attr: { 'data-balloon': c.balloon, 'data-balloon-pos': c.balloon_pos  } ">
+                                                                <span data-bind="css: c.icon, click: function(){c.click(r.data)}"></span>
+                                                            </button>
+                                                        </span>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <div data-bind="visible: table.rows().length==0 && table.display_no_data()">
+                                        <div class="alert base-margin-top">
+                                            <div class="alert__icon icon-info-outline"></div>
+                                            <div class="alert__message" data-bind="text: table.no_data_message">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                            <!-- dashboard content end -->
+
+                        </div>
+                        <!-- dashbarod end -->
+
                     </div>
                 </div>
             </div>
-            <!-- end content content__alt -->
+            <!-- end page content  -->
         </main>
     </div>
     <!-- end page content container -->

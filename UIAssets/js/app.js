@@ -1,7 +1,7 @@
 
 /* global/consistent colors for endpoint types */
 label_mac  = 'label label--warning-alt'
-label_ipv4 = 'label label--info'
+label_ipv4 = 'label label--vibblue'
 label_ipv6 = 'label label--indigo'
 label_status_running = 'label label--success'
 label_status_stopped = 'label label--dkgray'
@@ -28,9 +28,28 @@ function fabricEvent(){
     self.timestamp = ko.observable(0)
     self.status = ko.observable("")
     self.description = ko.observable("")
-    self.ts = ko.computed(function(){
+    self.ts_str = ko.computed(function(){
         return timestamp_to_string(self.timestamp())
     }) 
+
+    // custom cell formatting per attribute
+    self.formatter = function(attr, text){
+        if(attr == "status"){
+            var alabel = ""
+            switch(text){
+                case "running": alabel = "label--success" ; break;
+                case "starting":alabel = "label--info" ; break;
+                case "stopped": alabel = "label--dkgray" ; break;
+                case "failed":  alabel = "label--danger"; break;
+                default:        alabel = "label--default";
+            }
+            return '<span class="label '+alabel+'">'+text+'</span>'
+        } else if(attr == "description"){
+            if(text.length==0){ return "-" }
+            return text
+        }
+        return text
+    }
 }
 
 function fabricSettings(){
@@ -80,6 +99,7 @@ function fabric(fabric_name) {
     self.ssh_username = ko.observable("")
     self.ssh_password = ko.observable("")
     self.events = ko.observableArray([])
+    self.event_count = ko.observable(0)
     self.status = ko.observable("")
     self.count_mac = ko.observable(".")
     self.count_ipv4 = ko.observable(".")
@@ -154,6 +174,128 @@ function fabric(fabric_name) {
     }
 }
 
+// general event used by eptEndpoint, eptHistory, eptStale, etc...
+function generalEvent(){
+    baseModelObject.call(this)
+    var self = this
+    self.ts = ko.observable(0)
+    self.status = ko.observable("")
+    self.intf_id = ko.observable("")
+    self.intf_name = ko.observable("")
+    self.pctag = ko.observable(0)
+    self.encap = ko.observable("")
+    self.rw_mac = ko.observable("")
+    self.rw_bd = ko.observable(0)
+    self.epg_name = ko.observable("")
+    self.vnid_name = ko.observable("")
+    self.node = ko.observable(0)
+    self.remote = ko.observable(0)
+    self.classname = ko.observable("")
+    self.flags = ko.observableArray([])
+    self.ts_str = ko.computed(function(){
+        return timestamp_to_string(self.ts())
+    }) 
+}
+
+function moveEvent(){
+    baseModelObject.call(this)
+    var self = this
+    self._subtypes = {"src": generalEvent, "dst":generalEvent }
+    self.src = new generalEvent()
+    self.dst = new generalEvent()
+    self.ts_str = ko.computed(function(){
+        return self.dst.ts_str()
+    })
+}
+
+function eptEndpoint(){
+    baseModelObject.call(this)
+    var self = this
+    self._subtypes = {"events": generalEvent, "first_learn":generalEvent }
+    self.first_learn = new generalEvent()
+    self.fabric = ko.observable("")
+    self.vnid = ko.observable(0)
+    self.addr = ko.observable("")
+    self.type = ko.observable("")
+    self.is_stale = ko.observable(false)
+    self.is_offsubnet = ko.observable(false)
+    self.is_rapid = ko.observable(false)
+    self.is_rapid_ts = ko.observable(0)
+    self.events = ko.observableArray([])
+    self.count = ko.observable(0)
+
+    //set to events.0 or first_learn with preference over events.0
+    self.vnid_name = ko.computed(function(){
+        var name = ""
+        if(self.events().length>0 && self.events()[0].vnid_name().length>0){ 
+            name = self.events()[0].vnid_name(); 
+        }
+        else{ name = self.first_learn.vnid_name() }
+        if(name.length>0){ return name }
+        return "-"
+    })
+    self.epg_name = ko.computed(function(){
+        var name = ""
+        if(self.events().length>0 && self.events()[0].epg_name().length){ 
+            name = self.events()[0].epg_name(); 
+        }
+        else{ name = self.first_learn.epg_name() }
+        if(name.length>0){ return name }
+        return "-"
+    })
+    // custom cell formatting per attribute
+    self.formatter = function(attr, text){
+        if(attr == "type"){
+            type_label = get_endpoint_type_label(data.type)
+            return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
+        }
+        else if(attr == "addr"){
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            return '<a href="'+url+'">'+text+'</a>'
+        }
+        return text
+    }
+}
+
+function eptMove(){
+    baseModelObject.call(this)
+    var self = this
+    self._subtypes = {"events": moveEvent }
+    self.fabric = ko.observable("")
+    self.vnid = ko.observable(0)
+    self.addr = ko.observable("")
+    self.type = ko.observable("")
+    self.events = ko.observableArray([])
+    self.count = ko.observable(0)
+
+    //get ts_str from first event
+    self.ts_str = ko.computed(function(){
+        if(self.events().length>0){ return self.events()[0].dst.ts_str() }
+        return "-"
+    })
+    // get vnid_name from events.0
+    self.vnid_name = ko.computed(function(){
+        var name = ""
+        if(self.events().length>0 && self.events()[0].dst.vnid_name().length>0){ 
+            name = self.events()[0].dst.vnid_name(); 
+        }
+        if(name.length>0){ return name }
+        return "-"
+    })
+    // custom cell formatting per attribute
+    self.formatter = function(attr, text){
+        if(attr == "type"){
+            type_label = get_endpoint_type_label(data.type)
+            return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
+        }
+        else if(attr == "addr"){
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            return '<a href="'+url+'">'+text+'</a>'
+        }
+        return text
+    }
+}
+
 
 
 // receive instance of view modal and update table to fabric view
@@ -207,14 +349,13 @@ function view_dashboard_fabric_events(vm){
     var self = vm;
     self.table.back_enabled(true)
     var headers = [
-        {"title": "Time", "name":"ts", "sortable":false},
+        {"title": "Time", "name":"ts_str", "sortable":false},
         {"title": "Status", "name":"status", "sortable":false},
         {"title": "Description", "name":"description", "sortable":false}
     ]
     headers.forEach(function(h){
         self.table.headers.push(new gHeader(h))
     })
-
     // get fabric object for current view fabric from self.fabrics
     var update_rows = function(){
         var rows = []
@@ -225,7 +366,9 @@ function view_dashboard_fabric_events(vm){
         }else{
             self.table.no_data_message("fabric '"+self.current_fabric_name()+"' not found")
         }
+        self.table.title(self.current_fabric_name())
         self.table.rows(rows)
+        self.table.result_count_wrapped(self.current_fabric.event_count())
     }
 
     self.view_dashboard_fabric_events_refresh = function(){
@@ -245,19 +388,63 @@ function view_dashboard_fabric_events(vm){
     }
 }
 
-// view events for fabric
+// view eptEndpoint events
 function view_dashboard_endpoints(vm){
     var self = vm;
+    self.table.url("/api/ept/endpoint")
     var headers = [
-        {"title": "Fabric", "name":"fabric"},
-        {"title": "Type", "name":"type"},
+        {"title": "Fabric", "name":"fabric", "sortable": false},
+        {"title": "Type", "name":"type", "sortable": false},
         {"title": "Address", "name":"addr"},
-        {"title": "VRF/BD", "name":"vnid_name"},
-        {"title": "EPG", "name":"epg_name"}
+        {"title": "VRF/BD", "name":"vnid_name", "sortable": false}, //"sort_name":"first_learn.vnid_name"},
+        {"title": "EPG", "name":"epg_name", "sortable":false}
     ]
     headers.forEach(function(h){
         self.table.headers.push(new gHeader(h))
     })
+
+    self.table.refresh_handler = function(api_data){
+        var data=[]
+        api_data.objects.forEach(function(elem){
+            if("ept.endpoint" in elem){
+                var obj = new eptEndpoint()
+                obj.fromJS(elem["ept.endpoint"])
+                data.push(obj)
+            }
+        })
+        return data
+    }
+    self.table.refresh_data()
+}
+
+// view eptMove events
+function view_dashboard_moves(vm){
+    var self = vm;
+    self.table.url("/api/ept/move")
+    var headers = [
+        {"title": "Time", "name":"ts_str", "sortable":false},
+        {"title": "Fabric", "name":"fabric", "sortable": false},
+        {"title": "Count", "name":"count", "sorted":true},
+        {"title": "Type", "name":"type", "sortable": false},
+        {"title": "Address", "name":"addr"},
+        {"title": "VRF/BD", "name":"vnid_name", "sortable": false} //"sort_name":"first_learn.vnid_name"},
+    ]
+    headers.forEach(function(h){
+        self.table.headers.push(new gHeader(h))
+    })
+
+    self.table.refresh_handler = function(api_data){
+        var data=[]
+        api_data.objects.forEach(function(elem){
+            if("ept.move" in elem){
+                var obj = new eptMove()
+                obj.fromJS(elem["ept.move"])
+                data.push(obj)
+            }
+        })
+        return data
+    }
+    self.table.refresh_data()
 }
 
 
@@ -332,6 +519,7 @@ function common_viewModel() {
     self.view_dashboard_moves = function(){
         self.init()
         self.view("dashboard_moves")
+        view_dashboard_moves(self)
     }
     self.view_dashboard_offsubnet = function(){
         self.init()

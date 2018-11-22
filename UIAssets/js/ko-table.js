@@ -8,14 +8,19 @@ function gHeader(args) {
     var self = this;
     // make everything observable for simplicity
     self.name = ko.observable(("name" in args)? args.name : "" )
+    self.sort_name = ko.observable(("sort_name" in args)? args.sort_name : "")
     self.title = ko.observable(("title" in args)? args.title : self.name())
     self.sortable = ko.observable(("sortable" in args)? args.sortable : true)
     self.sorted = ko.observable(("sorted" in args)? args.sorted : false)
-    self.sort_direction = ko.observable("")
+    self.sort_direction = ko.observable(("sort_direction" in args)? args.sort_direction: "")
     self.width = ko.observable(("width" in args)? args.width:"")
     //list of gCtrl objects
     self.control = ko.observableArray(("control" in args)? args.control : [])
 
+    self.get_sort_name = ko.computed(function(){
+        if(self.sort_name().length>0){ return self.sort_name()}
+        return self.name()
+    })
     self.get_css = ko.computed(function(){
         if(self.sortable()){ return "sortable"}
         return ""
@@ -80,18 +85,23 @@ function gTable() {
     self.headers = ko.observableArray()
     self.rows = ko.observableArray()
     self.page = ko.observable(0)
-    self.page_size = ko.observable(25)
+    self.page_size = ko.observable(5)
     self.page_window = ko.observable(5)
     self.page_enabled = ko.observable(true)
     self.result_count = ko.observable(null)
+    self.result_count_wrapped = ko.observable(null)
     self.refresh_enabled = ko.observable(true)
     self.back_enabled = ko.observable(false)
     self.back_location = ko.observable("")
-    self.custom_refresh = null;
     self.display_no_data = ko.observable(true)
     self.no_data_message = ko.observable("No data to display")
     self.title = ko.observable("")
     self.url = ko.observable("")
+    self.url_params = ko.observableArray([])
+    // triggered when get or refresh occurs and should return list of objects (used to create gRows)
+    self.refresh_handler = null                 
+    // custom refresh which needs to pull the new data and manually set self.rows 
+    self.custom_refresh = null
 
     // re-init table to defaults
     self.init = function(){
@@ -101,27 +111,28 @@ function gTable() {
         self.page_enabled(true)
         self.page(0)
         self.page_window(5)
-        self.result_count(null)     //set be refresh or assumed to be length of rows
+        self.result_count(null)         //set be refresh or assumed to be length of rows
+        self.result_count_wrapped(null) //actual count before results are wrapped 
         self.refresh_enabled(true)
         self.back_enabled(false)
         self.back_location("")
-        self.custom_refresh = null
         self.display_no_data(true)
         self.no_data_message("No data to display")
         self.title("")
         self.url("")
+        self.url_params([])
+        self.custom_refresh = null
+        self.refresh_handler = null
     }
 
     // implied client side paging if custom refresh is set
-    self._client_paging = ko.computed(function(){
-        return (self.custom_refresh==null)
-    })
-
+    self._client_paging = function(){
+        return (typeof self.custom_refresh === "function")
+    }
     // if back is enabled, redirect to back_location
     self.go_back = function(){
         forward(self.back_location())
     }
-
     //when client side paging is occurring, filter data rows to just those on the current page
     //else return all rows 
     self.get_paged_rows = ko.computed(function(){
@@ -144,6 +155,11 @@ function gTable() {
         }
         return self.result_count()
     })
+    self.get_total_count_wrapped = ko.computed(function(){
+        if(self.result_count_wrapped()==null){ return 0 }
+        if(self.result_count_wrapped()<=self.get_total_count()){ return 0 }
+        return self.result_count_wrapped()
+    })
     //get total number of pages
     self.get_total_pages = ko.computed(function(){
         if(self.page_size()>0){
@@ -153,8 +169,8 @@ function gTable() {
     })
     //for provided page, return highlight css if in view
     self.get_page_css = function(p){
-        if(p-1==self.page()){ return "label--circle label--indigo"; }
-        return "label--circle"
+        if(p-1==self.page()){ return " label--indigo"; }
+        return ""
     }
     //return a list of page numbers within sliding view window
     self.get_in_view_pages = ko.computed(function(){
@@ -191,7 +207,6 @@ function gTable() {
         if(page > self.get_total_pages()) { page = self.get_total_pages() }
         self.page(page-1)
         if(!self._client_paging()){
-            console.log("guess i'm doing that refresh data thing...")
             self.refresh_data()
         }
     }
@@ -221,7 +236,6 @@ function gTable() {
             hdr.sort_direction("asc")
             hdr.sorted(true)
         }
-        //refresh data here...
         self.refresh_data()
     }
 
@@ -232,17 +246,34 @@ function gTable() {
             return self.custom_refresh()
         }
         self.isLoading(true)
+        self.rows([])
         var url = self.url()+"?page="+self.page()+"&page-size="+self.page_size()
         //find which column we are sorting on and sort direction
         for(var i=0; i<self.headers().length; i++){
             var h=self.headers()[i]
             if(h.sorted()){
-                url+= "&sort="+h.name()+"|"+(h.sort_direction()=="asc"?"asc":"desc")
+                url+= "&sort="+h.get_sort_name()+"|"+(h.sort_direction()=="asc"?"asc":"desc")
                 break
             }
         }
         json_get(url, function(data){
             self.isLoading(false);
+            self.result_count(("count" in data) ? data.count : null)
+            var rows = []
+            if(typeof self.refresh_handler === "function"){
+                var ret = self.refresh_handler(data)
+                if(Array.isArray(ret)){
+                    ret.forEach(function(elem){rows.push(new gRow(elem))})
+                }
+            } else if("objects" in data){
+                data.objects.forEach(function(elem){
+                    var keys = Object.keys(elem)
+                    if(keys.length>0){
+                        rows.push(new gRow(elem[keys[0]]))
+                    }
+                })
+            }
+            self.rows(rows)
         })
     }
 }

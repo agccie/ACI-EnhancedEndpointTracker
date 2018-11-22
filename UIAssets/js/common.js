@@ -150,6 +150,7 @@ function get_url_param(sParam){
 var tzoffset = -(new Date()).getTimezoneOffset()
 function timestamp_to_string(ts){
     //return moment(ts*1000).format('YYYY-MM-DD HH:mm:ss Z');
+    if(ts==0){return "-"}
     return moment(ts*1000).format('YYYY-MM-DDTHH:mm:ss');
 }
 

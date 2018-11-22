@@ -188,7 +188,7 @@
                                             </button>
                                         </span>
                                     </div>
-                                    <div class="col-md-6 text-center">
+                                    <div class="col-md-6 text-center half-margin-top">
                                         <h4 data-bind="visible: table.title().length>0, text: table.title()"></h4>
                                     </div>
                                     <div class="col-md-3">
@@ -234,6 +234,10 @@
                                         <div class="text-right base-margin">
                                                 <div class="pull-left qtr-margin">Total 
                                                     <span class="text-bold" data-bind="text: table.get_total_count()"></span>
+                                                    <span data-bind="visible: table.get_total_count_wrapped()>0">
+                                                        limited to 
+                                                        <span class="text-bold" data-bind="text: table.get_total_count_wrapped()"></span>
+                                                    </span>
                                                 </div>
                                             <div data-bind="visible: table.get_total_pages()>1">
                                                 <a data-bind="click: function(){table.pager('first')}">

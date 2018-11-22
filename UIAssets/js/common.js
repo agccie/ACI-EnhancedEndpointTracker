@@ -362,3 +362,26 @@ function forward(route) {
     }
 }
 
+/* global/consistent colors for endpoint types */
+label_mac  = 'label label--warning-alt'
+label_ipv4 = 'label label--vibblue'
+label_ipv6 = 'label label--indigo'
+label_status_running = 'label label--success'
+label_status_stopped = 'label label--dkgray'
+function get_endpoint_type_label(type){
+    switch(type){
+        case "mac": return label_mac;
+        case "ipv4": return label_ipv4;
+        case "ipv6": return label_ipv6;
+    }
+    return label_ipv4
+}
+function get_status_label(st){
+    switch(st){
+        case 'running': return label_status_running
+        case 'stopped': return label_status_stopped
+    }
+    return label_status_stopped
+}
+
+

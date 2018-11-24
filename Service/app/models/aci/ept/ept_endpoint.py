@@ -229,6 +229,12 @@ class eptEndpoint(Rest):
         """ clear endpoint on one or more nodes """
         # on-demand import of eptWorkerFabric only at api call (prevents circular imports)
         from . ept_worker_fabric import eptWorkerFabric
+        from .. fabric import Fabric
+        # validate credentials exists before any other validation
+        f = Fabric.load(fabric=self.fabric)
+        if len(f.ssh_password) == 0:
+            abort(400, "cannot clear endpoint, ssh credentials not configured.")
+        
         if self.type == "mac":
             addr_type = "mac"
             vrf_name = ""

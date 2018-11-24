@@ -298,6 +298,17 @@ function view_dashboard_remediate(vm){
     self.table.refresh_data()
 }
 
+//endpoint detail handler
+function view_endpoint_detail_handler(vm){
+    var self = vm;
+    self.refresh_endpoint(function(){
+        console.log(self.current_endpoint.toJS())
+    })
+
+}
+
+
+
 function common_viewModel() {
     var self = this; 
     self.isLoading = ko.observable(false)
@@ -307,8 +318,69 @@ function common_viewModel() {
     self.current_fabric_name = ko.observable("")
     self.current_fabric = null
     self.historical_tab = ko.observable(false)
+    self.view_dashboard = ko.observable(false)
+    self.view_endpoint = ko.observable(false)
+    self.endpoint_detail_fabric = ko.observable("")
+    self.endpoint_detail_vnid = ko.observable(0)
+    self.endpoint_detail_addr = ko.observable("")
+    self.current_endpoint_not_found = ko.observable(false)
+    self.current_endpoint = new eptEndpoint()
+    self.endpoint_isLoading = ko.observable(false)
 
-    //refresh fabric state and trigger provided callback on once full refresh has completed
+    //refresh single endpoint and trigger provided callback once refresh is complete
+    //endpoint is determined by endpoint_detail_fabric/vnid/addr - not this function will also set
+    //self.current_endpoint to eptEndpoint object with all appropriate data populated. If the 
+    //endpoint is not found (404 error), then set current_endpoint_not_found to true
+    self.refresh_endpoint = function(success){
+        if(success===undefined){ success = function(){}}
+        var url = "/api/uni/fb-"+self.endpoint_detail_fabric()+"/endpoint"
+        url+="/vnid-"+self.endpoint_detail_vnid()
+        url+="/addr-"+self.endpoint_detail_addr()
+        self.endpoint_isLoading(true)
+        json_get(url, function(data){
+            if(data.objects.length>0 && "ept.endpoint" in data.objects[0]){
+                self.current_endpoint_not_found(false)
+                self.current_endpoint.fromJS(data.objects[0]["ept.endpoint"])
+                //get list of is_stale and is_offsubnet nodes from history table
+                var url2="/api/ept/history?include=is_offsubnet,is_stale,node&filter=and("
+                url2+="eq(\"fabric\",\""+self.endpoint_detail_fabric()+"\"),"
+                url2+="eq(\"vnid\","+self.endpoint_detail_vnid()+"),"
+                url2+="eq(\"addr\",\""+self.endpoint_detail_addr()+"\"),"
+                url2+="or(eq(\"is_stale\",true),eq(\"is_offsubnet\",true)))"
+                json_get(url2, function(data){
+                    self.endpoint_isLoading(false)
+                    var stale_nodes = []
+                    var offsubnet_nodes = []
+                    data.objects.forEach(function(elem){
+                        h=elem["ept.history"]
+                        if(h.is_stale){stale_nodes.push(h.node)}
+                        if(h.is_offsubnet){offsubnet_nodes.push(h.node)}
+                    })
+                    stale_nodes.sort()
+                    offsubnet_nodes.sort()
+                    self.current_endpoint.stale_nodes(stale_nodes)
+                    self.current_endpoint.offsubnet_nodes(offsubnet_nodes)
+                    return success()
+                })
+            } else {
+                console.log("invalid response...")
+                self.endpoint_isLoading(false)
+                self.current_endpoint_not_found(true)
+            }
+        },
+        function(json, status_code, status_text){
+            self.endpoint_isLoading(false)
+            if(status_code==404){
+                console.log("not found")
+                self.current_endpoint_not_found(true)
+                return success()
+            }else{
+                generic_ajax_error(json, status_code, status_text)
+            }
+        })
+    }
+
+    //refresh fabric state and trigger provided callback once full refresh has completed
     self.refresh_fabrics = function(success, fab){
         if(success===undefined){ success = function(){}}
         if(fab===undefined){ fab = null}
@@ -349,63 +421,88 @@ function common_viewModel() {
     // view functions 
     self.init = function(){
         self.isLoading(false)
+        self.endpoint_isLoading(false)
+        self.view_dashboard(false)
+        self.view_endpoint(false)
         self.historical_tab(false)
+        self.endpoint_detail_fabric("")
+        self.endpoint_detail_vnid(0)
+        self.endpoint_detail_addr("")
+        self.current_endpoint_not_found(false)
         self.table.init()
     }
     self.view_dashboard_fabric = function(){
         self.init()
         self.view("dashboard_fabric")
+        self.view_dashboard(true)
         view_dashboard_fabric(self)
     }
     self.view_dashboard_fabric_events = function(args){
         self.init()
         self.view("dashboard_fabric_events")
+        self.view_dashboard(true)
         self.current_fabric_name(args[0])
         view_dashboard_fabric_events(self)
     }
     self.view_dashboard_endpoints = function(){
         self.init()
         self.view("dashboard_endpoints")
+        self.view_dashboard(true)
         view_dashboard_endpoints(self)
     }
     self.view_dashboard_moves = function(){
         self.init()
         self.view("dashboard_moves")
+        self.view_dashboard(true)
         view_dashboard_moves(self)
     }
     self.view_dashboard_offsubnet = function(){
         self.init()
         self.view("dashboard_offsubnet")
+        self.view_dashboard(true)
         self.historical_tab(true)
         view_dashboard_offsubnet(self)
     }
     self.view_dashboard_stale = function(){
         self.init()
         self.historical_tab(true)
+        self.view_dashboard(true)
         self.view("dashboard_stale")
         view_dashboard_stale(self)
     }
     self.view_dashboard_rapid = function(){
         self.init()
         self.historical_tab(true)
+        self.view_dashboard(true)
         self.view("dashboard_rapid")
         view_dashboard_rapid(self)
     }
     self.view_dashboard_remediate = function(){
         self.init()
+        self.view_dashboard(true)
         self.view("dashboard_remediate")
         view_dashboard_remediate(self)
     }
     self.view_dashboard_latest_events = function(){
         self.init()
+        self.view_dashboard(true)
         self.view("dashboard_latest_events")
         view_dashboard_latest_events(self)
+    }
+    self.view_endpoint_detail = function(args) {
+        self.init()
+        self.view_endpoint(true)
+        self.endpoint_detail_fabric(args[0])
+        self.endpoint_detail_vnid(args[1])
+        self.endpoint_detail_addr(args[2])
+        self.view("endpoint_detail")
+        view_endpoint_detail_handler(self)
     }
 
     // simple same-page routing to support direct anchor links (very basic/static)
     // for now, just /case-# and /case-#/filename-#
     var routes = [
-        {"route": "/fb-([^ \?&]+)/history", "view": self.view_dashboard_fabric_events},
+        {"route": "/fb-([^/]+)/history", "view": self.view_dashboard_fabric_events},
         {"route": "/endpoints", "view": self.view_dashboard_endpoints},
         {"route": "/moves", "view": self.view_dashboard_moves},
         {"route": "/offsubnet", "view": self.view_dashboard_offsubnet},
@@ -413,6 +510,7 @@ function common_viewModel() {
         {"route": "/rapid", "view": self.view_dashboard_rapid},
         {"route": "/remediate", "view": self.view_dashboard_remediate},
         {"route": "/events", "view": self.view_dashboard_latest_events},
+        {"route": "/fb-([^/]+)/vnid-([0-9]+)/addr-(.+)", "view": self.view_endpoint_detail}
     ]
     self.navigate = function(){
         for (var i in routes) {
@@ -441,8 +539,7 @@ function common_viewModel() {
             allowClear: true,
             placeholder: "Search MAC or IP address, 00:50:56:01:BB:12, 10.1.1.101, or 2001:A:B:C:D:65",
             ajax: {
-                url: "http://esc-aci-compute:9080/api/ept/endpoint",
-                //url: "/api/decode",
+                url: "/api/ept/endpoint",
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {

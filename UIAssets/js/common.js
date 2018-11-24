@@ -154,6 +154,13 @@ function timestamp_to_string(ts){
     return moment(ts*1000).format('YYYY-MM-DDTHH:mm:ss');
 }
 
+// generic ajax error handler
+function generic_ajax_error(json, status_code, status_text){
+    console.log(json, status_text, status_code);
+    if(json!==undefined && "error" in json){showAlertModal(json.error)}
+    else{showAlertModal("An error occurred: ("+status_code+") "+status_text)}
+}
+
 //common ajax methods with support for proxy if app-mode cookies are set
 function generic_ajax(url, method, data={},success=undefined,error=undefined){
     // default success/error functions if not provided
@@ -163,9 +170,7 @@ function generic_ajax(url, method, data={},success=undefined,error=undefined){
     if(error===undefined){
         error = function(json, status_code, status_text){
             console.trace()
-            console.log(json, status_text, status_code);
-            if(json!==undefined && "error" in json){showAlertModal(json.error)}
-            else{showAlertModal("An error occurred: ("+status_code+") "+status_text)}
+            generic_ajax_error(json, status_code, status_text)
         }
     }
     //for testing, force url to test server
@@ -362,7 +367,22 @@ function forward(route) {
     }
 }
 
+// convert vpc node to string pair
+function vpc_node_string(node){
+    node=parseInt(node)
+    if(!isNaN(node) && node>0xffff){
+        return "("+((node & 0xffff0000)>>16)+","+(node & 0xffff)+")"
+    }
+    return ""+node
+}
+
 /* global/consistent colors for endpoint types */
+text_mac  = 'text-warning'
+text_ipv4 = 'text-vibrant'
+text_ipv6 = 'text-indigo'
+blockquote_mac = 'blockquote--warning'
+blockquote_ipv4 = 'blockquote--blue'
+blockquote_ipv6 = 'blockquote--indigo'
 label_mac  = 'label label--warning-alt'
 label_ipv4 = 'label label--vibblue'
 label_ipv6 = 'label label--indigo'
@@ -371,6 +391,7 @@ label_status_stopped = 'label label--dkgray'
 label_status_created = 'label label--vibblue'
 label_status_modified = 'label label--dkgray'
 label_status_deleted = 'label label--danger'
+
 function get_endpoint_type_label(type){
     switch(type){
         case "mac": return label_mac;
@@ -378,6 +399,22 @@ function get_endpoint_type_label(type){
         case "ipv6": return label_ipv6;
     }
     return label_ipv4
+}
+function get_endpoint_type_blockquote(type){
+    switch(type){
+        case "mac": return blockquote_mac;
+        case "ipv4": return blockquote_ipv4;
+        case "ipv6": return blockquote_ipv6;
+    }
+    return blockquote_ipv4
+}
+function get_endpoint_type_text(type){
+    switch(type){
+        case "mac": return text_mac;
+        case "ipv4": return text_ipv4;
+        case "ipv6": return text_ipv6;
+    }
+    return text_ipv4
 }
 function get_status_label(st){
     switch(st){

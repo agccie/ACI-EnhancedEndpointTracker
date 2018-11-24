@@ -189,7 +189,24 @@ function eptEndpoint(){
     self.is_rapid_ts = ko.observable(0)
     self.events = ko.observableArray([])
     self.count = ko.observable(0)
-
+    // pulled from eptHistory, list of nodes currently offsubnet or stale
+    self.stale_nodes = ko.observableArray([])
+    self.offsubnet_nodes = ko.observableArray([])
+    //determine if endpoint is deleted from fabric
+    self.is_deleted = ko.computed(function(){
+        if(self.events().length>0 && self.events()[0].status()!="deleted"){
+            return false
+        }
+        return true
+    })
+    //rapid timestampe
+    self.is_rapid_ts_str = ko.computed(function(){
+        return timestamp_to_string(self.is_rapid_ts())
+    }) 
+    // various flags highlight a problem with this endpoint and needs to set danger css
+    self.is_danger = ko.computed(function(){
+        return (self.is_stale() || self.is_offsubnet() || self.is_rapid())
+    })
     //set to events.0 or first_learn with preference over events.0
     self.vnid_name = ko.computed(function(){
         var name = ""
@@ -220,6 +237,50 @@ function eptEndpoint(){
         }
         return text
     }
+    self.blockquote_css = ko.computed(function(){
+        if(self.is_danger()){return "blockquote--danger"}
+        return get_endpoint_type_blockquote(self.type())
+    })
+    self.type_css = ko.computed(function(){
+        if(self.is_danger()){ return "label label--danger"}
+        return get_endpoint_type_label(self.type())
+    })
+    self.addr_css = ko.computed(function(){
+        if(self.is_danger()){ return "text-danger"}
+        return get_endpoint_type_text(self.type())
+    })
+    self.vnid_identifier = ko.computed(function(){
+        if(self.vnid_name().length==0){ return "vnid" }
+        else if(self.type()=="mac"){ return "BD" }
+        return "VRF"
+    })
+    self.vnid_value = ko.computed(function(){
+        if(self.vnid_name().length>0){ return self.vnid_name() }
+        return self.vnid()
+    })
+    // local info
+    self.local_node = ko.computed(function(){
+        if(self.is_deleted()){ return "-" }
+        return vpc_node_string(self.events()[0].node())
+    })
+    self.local_interface = ko.computed(function(){
+        if(self.is_deleted()){ return "-" }
+        return self.events()[0].intf_name() 
+    })
+    self.local_encap = ko.computed(function(){
+        if(self.is_deleted()){ return "-" }
+        return self.events()[0].encap()
+    })
+    self.local_mac = ko.computed(function(){
+        if(self.is_deleted()){ return "-" }
+        return self.events()[0].rw_mac()
+    })
+    self.local_mac_href = ko.computed(function(){
+        if(self.is_deleted() || self.events()[0].rw_mac().length==0 || self.events()[0].rw_bd()==0){ 
+            return "#" 
+        }
+        return "#/fb-"+self.fabric()+"/vnid-"+self.events()[0].rw_bd()+"/addr-"+self.events()[0].rw_mac()
+    })
 }
 
 function moveEvent(){
@@ -405,6 +466,7 @@ function rapidEvent(){
     baseModelObject.call(this)
     var self = this
     self.ts = ko.observable(0)
+    self.vnid_name = ko.observable("")
     self.ts_str = ko.computed(function(){
         return timestamp_to_string(self.ts())
     }) 
@@ -429,7 +491,11 @@ function eptRapid(){
         if(self.events().length>0){ return self.events()[0].ts_str() }
         return "-"
     })
-
+    // get rate from events.0
+    self.rate = ko.computed(function(){
+        if(self.events().length>0){ return parseInt(self.events()[0].rate()) }
+        return "-"
+    })
     // get vnid_name from events.0
     self.vnid_name = ko.computed(function(){
         var name = ""

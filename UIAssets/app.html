@@ -31,11 +31,11 @@
         <div class="modal__dialog">
             <div class="modal__content">
                 <div class="modal__body">
-                    <div class="alert alert--warning">
-                        <div class="alert__icon icon-warning-outline"></div>
+                    <div class="alert alert--danger">
+                        <div class="alert__icon icon-danger-outline"></div>
                         <div class="alert__message text-left">
                             <div class="half-margin-top">
-                                <span class="text-large text-warning">Warning</span>
+                                <span class="text-large text-danger">Error</span>
                                 <p id="modal-alert-content"></p>
                             </div>
                             <div class="text-center base-margin-top">
@@ -108,7 +108,7 @@
     		            </div>
     		        </div>
                     <div>
-                        <a class="btn btn--small btn--icon" data-balloon="Dashboard" data-balloon-pos="left">
+                        <a href="#/" class="btn btn--small btn--icon" data-balloon="Dashboard" data-balloon-pos="left">
                             <span class="icon-computer"></span>
                         </a>
                         <a class="btn btn--small btn--icon" data-balloon="Accounts" data-balloon-pos="left">
@@ -140,10 +140,71 @@
                         </div>
                         <!-- search end -->
 
+                        <!-- per-endpoint detail pane -->
+                        <div data-bind="visible: view_endpoint, loadingWhen: endpoint_isLoading"
+                            class="content content--alt half-margin-top half-padding">
+                            <blockquote data-bind="css: current_endpoint.blockquote_css">
+                                <h3>
+                                    <span class="label--large" data-bind="css: current_endpoint.type_css, text:current_endpoint.type"></span>
+                                    <span data-bind="css: current_endpoint.addr_css, text:current_endpoint.addr"></span>
+                                </h3>
+                                <div class="qtr-margin-top" data-bind="visible: current_endpoint.is_offsubnet">
+                                    <span class="label label label--danger">OffSubnet</span>
+                                    Nodes:
+                                    <span data-bind="foreach: { data: current_endpoint.offsubnet_nodes(), as: 'n' }">
+                                        <span class="label label--dkgray" data-bind="text: n"></span>
+                                    </span>
+                                </div>
+                                <div class="qtr-margin-top" data-bind="visible: current_endpoint.is_stale">
+                                    <span class="label label label--danger">Stale</span>
+                                    Nodes:
+                                    <span data-bind="foreach: { data: current_endpoint.stale_nodes(), as: 'n' }">
+                                        <span class="label label--dkgray" data-bind="text: n"></span>
+                                    </span>
+                                </div>
+                                <div class="qtr-margin-top" data-bind="visible: current_endpoint.is_rapid">
+                                    <span class="label label label--danger">Rapid</span>
+                                    triggered at <span data-bind="text: current_endpoint.is_rapid_ts_str"></span>
+                                </div>
+                                <div class="qtr-margin">
+                                    Fabric <span class="text-bold" data-bind="text:current_endpoint.fabric"></span>
+                                    <span data-bind="text:current_endpoint.vnid_identifier"></span>
+                                    <span class="text-bold" data-bind="text:current_endpoint.vnid_value"></span>
+                                    EPG <span class="text-bold" data-bind="text:current_endpoint.epg_name"></span>
+                                </div>
+                                <div data-bind="visible: current_endpoint.is_deleted()">
+                                    <span class="label label--dkgray">Deleted</span>
+                                </div>
+                                <div data-bind="visible: !current_endpoint.is_deleted()">
+                                    Local on node <span class="text-bold" data-bind="text:current_endpoint.local_node"></span>
+                                    interface <span class="text-bold" data-bind="text: current_endpoint.local_interface"></span>
+                                    encap <span class="text-bold" data-bind="text: current_endpoint.local_encap"></span>
+                                    <span data-bind="visible: current_endpoint.local_mac().length>0">
+                                        mac 
+                                        <a data-bind="attr: { href: current_endpoint.local_mac_href }">
+                                            <span class="text-bold" data-bind="text: current_endpoint.local_mac"></span>
+                                        </a>
+                                    </span>
+                                </div>
+
+                            </blockquote>
+
+                        </div>
+                        <!-- end per-endpoint detail pane -->
+
                         <!-- dashboard start -->
                         <div class="content content--alt half-margin-top half-padding">
+
+                            <!-- per-endpoint tabs selection -->
+                            <div class="qtr-padding" data-bind="visible: view_endpoint"> 
+                                <ul class="tabs">
+                                </ul>
+                            </div>
+                            <!-- end per-endpoint tabs selection -->
+
+
                             <!-- dashboard tabs selection -->
-                            <div class="qtr-padding"> 
+                            <div class="qtr-padding" data-bind="visible: view_dashboard"> 
                                 <ul class="tabs">
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_fabric')+dashboard_active_tab('dashboard_fabric_events')">
                                         <a tabindex="0" href="#/"><div class="tab__heading">Fabrics</div></a>
@@ -164,7 +225,7 @@
                                         <a tabindex="0" href="#/rapid"><div class="tab__heading">Rapid</div></a>
                                     </li>
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_remediate')">
-                                        <a tabindex="0" href="#/remediate"><div class="tab__heading">Remediate</div></a>
+                                        <a tabindex="0" href="#/remediate"><div class="tab__heading">Cleared</div></a>
                                     </li>
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_latest_events')">
                                         <a tabindex="0" href="#/events"><div class="tab__heading">Latest Events</div></a>
@@ -173,8 +234,7 @@
                             </div>
                             <!-- dashboard tabs end -->
 
-
-                            <!-- dashboard content -->
+                            <!-- main table content -->
                             <div class="qtr-padding">
                                 <div class="row" data-bind="visible: historical_tab">
                                     <div class="col-md-12">
@@ -275,7 +335,7 @@
                                 </div>
 
                             </div>
-                            <!-- dashboard content end -->
+                            <!-- main table content end -->
 
                         </div>
                         <!-- dashbarod end -->

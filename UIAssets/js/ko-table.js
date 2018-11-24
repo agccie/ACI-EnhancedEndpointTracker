@@ -85,7 +85,7 @@ function gTable() {
     self.headers = ko.observableArray()
     self.rows = ko.observableArray()
     self.page = ko.observable(0)
-    self.page_size = ko.observable(5)
+    self.page_size = ko.observable(25)
     self.page_window = ko.observable(5)
     self.page_enabled = ko.observable(true)
     self.result_count = ko.observable(null)

@@ -166,8 +166,8 @@
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_remediate')">
                                         <a tabindex="0" href="#/remediate"><div class="tab__heading">Remediate</div></a>
                                     </li>
-                                    <li class="tab" data-bind="css: dashboard_active_tab('dashboard_events')">
-                                        <a tabindex="0" href="#/events"><div class="tab__heading">Events</div></a>
+                                    <li class="tab" data-bind="css: dashboard_active_tab('dashboard_latest_events')">
+                                        <a tabindex="0" href="#/events"><div class="tab__heading">Latest Events</div></a>
                                     </li>
                                 </ul>
                             </div>
@@ -176,6 +176,18 @@
 
                             <!-- dashboard content -->
                             <div class="qtr-padding">
+                                <div class="row" data-bind="visible: historical_tab">
+                                    <div class="col-md-12">
+                                        <div class="alert qtr-margin-top qtr-margin-bottom">
+                                            <div class="alert__icon icon-info-outline"></div>
+                                            <div class="alert__message" data-bind="">
+                                                These are historical records. Check the 
+                                                <span class="text-bold">Endpoints</span> tab to
+                                                validate the current status.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="row">
                                     <div class="col-md-3">
                                         <span data-bind="visible: table.back_enabled()">
@@ -226,12 +238,11 @@
                                         </tbody>
                                     </table>
                                     <div data-bind="visible: table.rows().length==0 && table.display_no_data()">
-                                        <div class="alert base-margin-top">
-                                            <div class="alert__icon icon-info-outline"></div>
-                                            <div class="alert__message" data-bind="text: table.no_data_message"></div>
+                                        <div class="base-margin-top">
+                                            <span data-bind="text: table.no_data_message"></span>
                                         </div>
                                     </div>
-                                    <div data-bind="visible: table.page_enabled()">
+                                    <div data-bind="visible: table.page_enabled() && table.get_total_count()>0">
                                         <div class="text-right base-margin">
                                                 <div class="pull-left qtr-margin">Total 
                                                     <span class="text-bold" data-bind="text: table.get_total_count()"></span>

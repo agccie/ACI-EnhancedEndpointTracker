@@ -113,7 +113,7 @@ function fabric(fabric_name) {
         self.loading_count_ipv4(true)
         self.loading_count_ipv6(true)
         var base = "/api/uni/fb-"+self.fabric()
-        var count_base = "/api/ept/endpoint?count=1&filter=and(eq(\"fabric\",\""+self.fabric()+"\"),"
+        var count_base = "/api/ept/endpoint?count=1&filter=and(eq(\"fabric\",\""+self.fabric()+"\"),neq(\"events.0.status\",\"deleted\"),"
         json_get(base, function(data){
             if(data.objects.length>0){
                 self.fromJS(data.objects[0].fabric)
@@ -212,7 +212,6 @@ function eptEndpoint(){
     // custom cell formatting per attribute
     self.formatter = function(attr, text){
         if(attr == "type"){
-            type_label = get_endpoint_type_label(data.type)
             return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
         }
         else if(attr == "addr"){
@@ -262,7 +261,6 @@ function eptMove(){
     // custom cell formatting per attribute
     self.formatter = function(attr, text){
         if(attr == "type"){
-            type_label = get_endpoint_type_label(data.type)
             return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
         }
         else if(attr == "addr"){
@@ -303,7 +301,6 @@ function eptOffsubnet(){
     // custom cell formatting per attribute
     self.formatter = function(attr, text){
         if(attr == "type"){
-            type_label = get_endpoint_type_label(data.type)
             return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
         }
         else if(attr == "addr"){
@@ -313,4 +310,204 @@ function eptOffsubnet(){
         return text
     }
 }
+
+function eptStale(){
+    baseModelObject.call(this)
+    var self = this
+    self._subtypes = {"events": generalEvent }
+    self.fabric = ko.observable("")
+    self.vnid = ko.observable(0)
+    self.addr = ko.observable("")
+    self.type = ko.observable("")
+    self.node = ko.observable(0)
+    self.events = ko.observableArray([])
+    self.count = ko.observable(0)
+
+    //get ts_str from first event
+    self.ts_str = ko.computed(function(){
+        if(self.events().length>0){ return self.events()[0].ts_str() }
+        return "-"
+    })
+
+    // get vnid_name from events.0
+    self.vnid_name = ko.computed(function(){
+        var name = ""
+        if(self.events().length>0 && self.events()[0].vnid_name().length>0){ 
+            name = self.events()[0].vnid_name(); 
+        }
+        if(name.length>0){ return name }
+        return "-"
+    })
+    // custom cell formatting per attribute
+    self.formatter = function(attr, text){
+        if(attr == "type"){
+            return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
+        }
+        else if(attr == "addr"){
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            return '<a href="'+url+'">'+text+'</a>'
+        }
+        return text
+    }
+}
+
+function eptHistory(){
+    baseModelObject.call(this)
+    var self = this
+    self._subtypes = {"events": generalEvent }
+    self.fabric = ko.observable("")
+    self.vnid = ko.observable(0)
+    self.addr = ko.observable("")
+    self.type = ko.observable("")
+    self.node = ko.observable(0)
+    self.is_stale = ko.observable(false)
+    self.is_offsubnet = ko.observable(false)
+    self.events = ko.observableArray([])
+    self.count = ko.observable(0)
+
+    //get ts_str from first event
+    self.ts_str = ko.computed(function(){
+        if(self.events().length>0){ return self.events()[0].ts_str() }
+        return "-"
+    })
+    self.status_str = ko.computed(function(){
+        if(self.events().length>0){ return self.events()[0].status() }
+        return "-"
+    })
+
+    // get vnid_name from events.0
+    self.vnid_name = ko.computed(function(){
+        var name = ""
+        if(self.events().length>0 && self.events()[0].vnid_name().length>0){ 
+            name = self.events()[0].vnid_name(); 
+        }
+        if(name.length>0){ return name }
+        return "-"
+    })
+    // custom cell formatting per attribute
+    self.formatter = function(attr, text){
+        if(attr == "type"){
+            return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
+        }
+        else if(attr == "addr"){
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            return '<a href="'+url+'">'+text+'</a>'
+        }
+        else if(attr == "status_str"){
+            return '<span class="'+get_status_label(text)+'">'+text+'</span>'
+        }
+        return text
+    }
+}
+
+// general event used by eptRapid
+function rapidEvent(){
+    baseModelObject.call(this)
+    var self = this
+    self.ts = ko.observable(0)
+    self.ts_str = ko.computed(function(){
+        return timestamp_to_string(self.ts())
+    }) 
+    self.rate = ko.observable(0)    
+    // endpoint count when rapid was triggered
+    self.count = ko.observable(0)   
+}
+
+function eptRapid(){
+    baseModelObject.call(this)
+    var self = this
+    self._subtypes = {"events": rapidEvent }
+    self.fabric = ko.observable("")
+    self.vnid = ko.observable(0)
+    self.addr = ko.observable("")
+    self.type = ko.observable("")
+    self.events = ko.observableArray([])
+    self.count = ko.observable(0)
+
+    //get ts_str from first event
+    self.ts_str = ko.computed(function(){
+        if(self.events().length>0){ return self.events()[0].ts_str() }
+        return "-"
+    })
+
+    // get vnid_name from events.0
+    self.vnid_name = ko.computed(function(){
+        var name = ""
+        if(self.events().length>0 && self.events()[0].vnid_name().length>0){ 
+            name = self.events()[0].vnid_name(); 
+        }
+        if(name.length>0){ return name }
+        return "-"
+    })
+    // custom cell formatting per attribute
+    self.formatter = function(attr, text){
+        if(attr == "type"){
+            return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
+        }
+        else if(attr == "addr"){
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            return '<a href="'+url+'">'+text+'</a>'
+        }
+        return text
+    }
+}
+
+// general event used by eptEndpoint, eptHistory, eptStale, etc...
+function remediateEvent(){
+    baseModelObject.call(this)
+    var self = this
+    self.ts = ko.observable(0)
+    self.ts_str = ko.computed(function(){
+        return timestamp_to_string(self.ts())
+    }) 
+    self.action = ko.observable("")
+    self.reason = ko.observable("")
+}
+
+function eptRemediate(){
+    baseModelObject.call(this)
+    var self = this
+    self._subtypes = {"events": remediateEvent }
+    self.fabric = ko.observable("")
+    self.vnid = ko.observable(0)
+    self.addr = ko.observable("")
+    self.type = ko.observable("")
+    self.node = ko.observable(0)
+    self.events = ko.observableArray([])
+    self.count = ko.observable(0)
+
+    //get ts_str from first event
+    self.ts_str = ko.computed(function(){
+        if(self.events().length>0){ return self.events()[0].ts_str() }
+        return "-"
+    })
+
+    // get action/reason from events.0
+    self.action = ko.computed(function(){
+        if(self.events().length>0 && self.events()[0].action().length>0){ 
+                return self.events()[0].action()
+        }
+        return "-"
+    })
+    // get action/reason from events.0
+    self.reason = ko.computed(function(){
+        if(self.events().length>0 && self.events()[0].reason().length>0){ 
+                return self.events()[0].reason()
+        }
+        return "-"
+    })
+
+    // custom cell formatting per attribute
+    self.formatter = function(attr, text){
+        if(attr == "type"){
+            return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
+        }
+        else if(attr == "addr"){
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            return '<a href="'+url+'">'+text+'</a>'
+        }
+        return text
+    }
+}
+
 

@@ -368,6 +368,9 @@ label_ipv4 = 'label label--vibblue'
 label_ipv6 = 'label label--indigo'
 label_status_running = 'label label--success'
 label_status_stopped = 'label label--dkgray'
+label_status_created = 'label label--vibblue'
+label_status_modified = 'label label--dkgray'
+label_status_deleted = 'label label--danger'
 function get_endpoint_type_label(type){
     switch(type){
         case "mac": return label_mac;
@@ -380,6 +383,9 @@ function get_status_label(st){
     switch(st){
         case 'running': return label_status_running
         case 'stopped': return label_status_stopped
+        case 'created': return label_status_created
+        case 'deleted': return label_status_deleted
+        case 'modified': return label_status_modified
     }
     return label_status_stopped
 }

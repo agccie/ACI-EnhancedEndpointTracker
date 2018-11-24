@@ -94,11 +94,11 @@ function view_dashboard_endpoints(vm){
     var self = vm;
     self.table.url("/api/ept/endpoint")
     var headers = [
-        {"title": "Fabric", "name":"fabric", "sortable": false},
-        {"title": "Type", "name":"type", "sortable": false},
-        {"title": "Address", "name":"addr"},
-        {"title": "VRF/BD", "name":"vnid_name", "sortable": false}, 
-        {"title": "EPG", "name":"epg_name", "sortable":false}
+        {"title": "Fabric", "name":"fabric"},
+        {"title": "Type", "name":"type"},
+        {"title": "Address", "name":"addr", "sorted":true, "sort_direction":"asc"},
+        {"title": "VRF/BD", "name":"vnid_name" , "sort_name":"first_learn.vnid_name"}, 
+        {"title": "EPG", "name":"epg_name", "sort_name":"events.0.epg_name"}
     ]
     headers.forEach(function(h){
         self.table.headers.push(new gHeader(h))
@@ -123,12 +123,12 @@ function view_dashboard_moves(vm){
     var self = vm;
     self.table.url("/api/ept/move")
     var headers = [
-        {"title": "Time", "name":"ts_str", "sortable":false},
-        {"title": "Fabric", "name":"fabric", "sortable": false},
+        {"title": "Time", "name":"ts_str", "sort_name":"events.0.dst.ts"},
+        {"title": "Fabric", "name":"fabric"},
         {"title": "Count", "name":"count", "sorted":true},
-        {"title": "Type", "name":"type", "sortable": false},
+        {"title": "Type", "name":"type"},
         {"title": "Address", "name":"addr"},
-        {"title": "VRF/BD", "name":"vnid_name", "sortable": false} 
+        {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.0.dst.vnid_name"} 
     ]
     headers.forEach(function(h){
         self.table.headers.push(new gHeader(h))
@@ -153,12 +153,12 @@ function view_dashboard_offsubnet(vm){
     var self = vm;
     self.table.url("/api/ept/offsubnet")
     var headers = [
-        {"title": "Time", "name":"ts_str", "sorted":true},
-        {"title": "Fabric", "name":"fabric", "sortable": false},
-        {"title": "Node", "name":"node", "sortable": true},
-        {"title": "Type", "name":"type", "sortable": false},
+        {"title": "Time", "name":"ts_str", "sort_name":"events.0.ts", "sorted":true},
+        {"title": "Fabric", "name":"fabric"},
+        {"title": "Node", "name":"node"},
+        {"title": "Type", "name":"type"},
         {"title": "Address", "name":"addr"},
-        {"title": "VRF/BD", "name":"vnid_name", "sortable": false} 
+        {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.0.vnid_name"} 
     ]
     headers.forEach(function(h){
         self.table.headers.push(new gHeader(h))
@@ -178,6 +178,125 @@ function view_dashboard_offsubnet(vm){
     self.table.refresh_data()
 }
 
+// view eptStale events
+function view_dashboard_stale(vm){
+    var self = vm;
+    self.table.url("/api/ept/stale")
+    var headers = [
+        {"title": "Time", "name":"ts_str", "sort_name":"events.0.ts", "sorted":true},
+        {"title": "Fabric", "name":"fabric"},
+        {"title": "Node", "name":"node"},
+        {"title": "Type", "name":"type"},
+        {"title": "Address", "name":"addr"},
+        {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.0.vnid_name"} 
+    ]
+    headers.forEach(function(h){
+        self.table.headers.push(new gHeader(h))
+    })
+
+    self.table.refresh_handler = function(api_data){
+        var data=[]
+        api_data.objects.forEach(function(elem){
+            if("ept.stale" in elem){
+                var obj = new eptStale()
+                obj.fromJS(elem["ept.stale"])
+                data.push(obj)
+            }
+        })
+        return data
+    }
+    self.table.refresh_data()
+}
+
+// view latest events
+function view_dashboard_latest_events(vm){
+    var self = vm;
+    self.table.url("/api/ept/history")
+    var headers = [
+        {"title": "Time", "name":"ts_str", "sort_name":"events.0.ts", "sorted":true},
+        {"title": "Fabric", "name":"fabric"},
+        {"title": "Node", "name":"node"},
+        {"title": "Status", "name":"status_str", "sort_name":"events.0.status"},
+        {"title": "Address", "name":"addr"},
+        {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.0.vnid_name"} 
+    ]
+    headers.forEach(function(h){
+        self.table.headers.push(new gHeader(h))
+    })
+
+    self.table.refresh_handler = function(api_data){
+        var data=[]
+        api_data.objects.forEach(function(elem){
+            if("ept.history" in elem){
+                var obj = new eptHistory()
+                obj.fromJS(elem["ept.history"])
+                data.push(obj)
+            }
+        })
+        return data
+    }
+    self.table.refresh_data()
+}
+
+// view eptRapid events
+function view_dashboard_rapid(vm){
+    var self = vm;
+    self.table.url("/api/ept/rapid")
+    var headers = [
+        {"title": "Time", "name":"ts_str", "sort_name":"events.ts", "sorted":true},
+        {"title": "Fabric", "name":"fabric"},
+        {"title": "Event Rate (per minute)", "name":"rate", "sort_name":"events.rate"},
+        {"title": "Type", "name":"type"},
+        {"title": "Address", "name":"addr"},
+        {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.vnid_name"} 
+    ]
+    headers.forEach(function(h){
+        self.table.headers.push(new gHeader(h))
+    })
+
+    self.table.refresh_handler = function(api_data){
+        var data=[]
+        api_data.objects.forEach(function(elem){
+            if("ept.rapid" in elem){
+                var obj = new eptRapid()
+                obj.fromJS(elem["ept.rapid"])
+                data.push(obj)
+            }
+        })
+        return data
+    }
+    self.table.refresh_data()
+}
+
+// view eptRemediate events
+function view_dashboard_remediate(vm){
+    var self = vm;
+    self.table.url("/api/ept/remediate")
+    var headers = [
+        {"title": "Time", "name":"ts_str", "sort_name":"events.ts", "sorted":true},
+        {"title": "Fabric", "name":"fabric"},
+        {"title": "Node", "name":"node"},
+        {"title": "Address", "name":"addr"},
+        {"title": "Action", "name":"action", "sortable":false},
+        {"title": "Reason", "name":"reason", "sortable":false},
+    ]
+    headers.forEach(function(h){
+        self.table.headers.push(new gHeader(h))
+    })
+
+    self.table.refresh_handler = function(api_data){
+        var data=[]
+        api_data.objects.forEach(function(elem){
+            if("ept.remediate" in elem){
+                var obj = new eptRemediate()
+                obj.fromJS(elem["ept.remediate"])
+                data.push(obj)
+            }
+        })
+        return data
+    }
+    self.table.refresh_data()
+}
 
 function common_viewModel() {
     var self = this; 
@@ -187,6 +306,7 @@ function common_viewModel() {
     self.fabrics = ko.observableArray([])
     self.current_fabric_name = ko.observable("")
     self.current_fabric = null
+    self.historical_tab = ko.observable(false)
 
     //refresh fabric state and trigger provided callback on once full refresh has completed
     self.refresh_fabrics = function(success, fab){
@@ -228,7 +348,8 @@ function common_viewModel() {
 
     // view functions 
     self.init = function(){
-        self.isLoading(false);
+        self.isLoading(false)
+        self.historical_tab(false)
         self.table.init()
     }
     self.view_dashboard_fabric = function(){
@@ -255,23 +376,30 @@ function common_viewModel() {
     self.view_dashboard_offsubnet = function(){
         self.init()
         self.view("dashboard_offsubnet")
+        self.historical_tab(true)
         view_dashboard_offsubnet(self)
     }
     self.view_dashboard_stale = function(){
         self.init()
+        self.historical_tab(true)
         self.view("dashboard_stale")
+        view_dashboard_stale(self)
     }
     self.view_dashboard_rapid = function(){
         self.init()
+        self.historical_tab(true)
         self.view("dashboard_rapid")
+        view_dashboard_rapid(self)
     }
     self.view_dashboard_remediate = function(){
         self.init()
         self.view("dashboard_remediate")
+        view_dashboard_remediate(self)
     }
-    self.view_dashboard_events = function(){
+    self.view_dashboard_latest_events = function(){
         self.init()
-        self.view("dashboard_events")
+        self.view("dashboard_latest_events")
+        view_dashboard_latest_events(self)
     }
 
     // simple same-page routing to support direct anchor links (very basic/static)
@@ -284,7 +412,7 @@ function common_viewModel() {
         {"route": "/stale", "view": self.view_dashboard_stale},
         {"route": "/rapid", "view": self.view_dashboard_rapid},
         {"route": "/remediate", "view": self.view_dashboard_remediate},
-        {"route": "/events", "view": self.view_dashboard_events},
+        {"route": "/events", "view": self.view_dashboard_latest_events},
     ]
     self.navigate = function(){
         for (var i in routes) {

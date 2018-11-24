@@ -874,9 +874,7 @@ class Rest(object):
                 abort(500, "database error, sort operation exceeded memory limit")
             else:
                 abort(500, "database error on read")
-        except Exception as e:
-            cls.logger.debug("api read error: %s", e)
-        abort(500, "read error occurred")
+        # allow other exceptions to be raised (like 404/403/etc...
 
     @classmethod
     def api_update(cls, **kwargs):

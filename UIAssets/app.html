@@ -26,7 +26,7 @@
     <!-- single modal backdrop required -->
     <div class="modal-backdrop hide"></div>
 
-    <!-- common alert modal -->
+    <!-- common alert/error modal -->
     <div class="modal modal-alert modal--small hide">
         <div class="modal__dialog">
             <div class="modal__content">
@@ -143,7 +143,11 @@
                         <!-- per-endpoint detail pane -->
                         <div data-bind="visible: view_endpoint, loadingWhen: endpoint_isLoading"
                             class="content content--alt half-margin-top half-padding">
-                            <blockquote data-bind="css: current_endpoint.blockquote_css">
+                            <blockquote data-bind="visible: current_endpoint_not_found()">
+                                    <h3> No data for <span data-bind="text:endpoint_detail_addr"></span>
+                                </h3>
+                            </blockquote>
+                            <blockquote data-bind="visible: !current_endpoint_not_found(), css: current_endpoint.blockquote_css">
                                 <h3>
                                     <span class="label--large" data-bind="css: current_endpoint.type_css, text:current_endpoint.type"></span>
                                     <span data-bind="css: current_endpoint.addr_css, text:current_endpoint.addr"></span>
@@ -173,7 +177,7 @@
                                     EPG <span class="text-bold" data-bind="text:current_endpoint.epg_name"></span>
                                 </div>
                                 <div data-bind="visible: current_endpoint.is_deleted()">
-                                    <span class="label label--dkgray">Deleted</span>
+                                    <span class="label label--dkgray">Not local on any node</span>
                                 </div>
                                 <div data-bind="visible: !current_endpoint.is_deleted()">
                                     Local on node <span class="text-bold" data-bind="text:current_endpoint.local_node"></span>
@@ -186,9 +190,32 @@
                                         </a>
                                     </span>
                                 </div>
-
+                                <!-- endpoint control -->
+                                <div class="half-margin-top">
+                                    <button class="btn btn--small btn--secondary" data-bind="
+                                            enable: admin_role,
+                                            click: function(){endpoint_force_refresh()}
+                                            ">
+                                        <span class="icon icon-refresh"></span>
+                                        Force refresh
+                                    </button>
+                                    <button class="btn btn--small btn--gray-ghost" data-bind="
+                                            enable: admin_role,
+                                            click: function(){endpoint_force_delete()}
+                                            ">
+                                        <span class="icon icon-trash"></span>
+                                        Delete events
+                                    </button>
+                                    <button class="btn btn--small btn--negative" data-bind="
+                                            enable: admin_role,
+                                            click: function(){endpoint_force_clear()}
+                                            ">
+                                        <span class="icon icon-exclamation-triangle"></span>
+                                        Clear endpoint
+                                    </button>
+                                </div>
+                                <!-- end endpoint control -->
                             </blockquote>
-
                         </div>
                         <!-- end per-endpoint detail pane -->
 
@@ -288,7 +315,11 @@
                                                         <span data-bind="foreach: { data: h.control, as: 'c' }">
                                                             <button class="btn btn--small btn--icon" 
                                                                     data-bind="css: c.btn_status(),
-                                                                               attr: { 'data-balloon': c.balloon, 'data-balloon-pos': c.balloon_pos  } ">
+                                                                               attr: { 
+                                                                                'data-balloon': c.balloon, 
+                                                                                'data-balloon-pos': c.balloon_pos,
+                                                                                'disabled': c.disabled
+                                                                               } ">
                                                                 <span data-bind="css: c.icon, click: function(){c.click(r.data)}"></span>
                                                             </button>
                                                         </span>

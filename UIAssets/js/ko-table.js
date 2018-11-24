@@ -40,6 +40,7 @@ function gHeader(args) {
 function gCtrl(args){
     var self = this
     self.click = ("click" in args)? args.click : function(data){}
+    self.disabled = ko.observable(("disabled" in args)? args.disabled : false )
     self.icon = ko.observable(("icon" in args)? args.icon : "icon-check")
     self.icon_status = ko.observable(("status" in args)? args.status : "")
     self.balloon = ko.observable(("tip" in args)? args.tip : "click")

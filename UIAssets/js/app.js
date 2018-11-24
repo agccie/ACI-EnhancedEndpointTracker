@@ -9,6 +9,29 @@ function view_dashboard_fabric(vm){
             forward("/fb-"+fab.fabric()+"/history")
         }
     }
+    // start fabric monitor
+    var start_fabric = function(fab){
+        if("fabric" in fab){
+            var url="/api/uni/fb-"+fab.fabric()+"/start"
+            self.table.isLoading(true)
+            json_post(url, {}, function(data){
+                self.table.isLoading(false)
+                self.refresh_fabrics(undefined, fab.fabric())
+            })
+        }
+    }
+    // stop fabric monitor
+    var stop_fabric = function(fab){
+        if("fabric" in fab){
+            var url="/api/uni/fb-"+fab.fabric()+"/stop"
+            self.table.isLoading(true)
+            json_post(url, {}, function(data){
+                self.table.isLoading(false)
+                self.refresh_fabrics(undefined, fab.fabric())
+            })
+        }
+    }
+
     var headers = [
         {"title":"Name", "name":"fabric", "sortable":false},
         {"title":"Status", "name": "status", "sortable":false},
@@ -16,11 +39,20 @@ function view_dashboard_fabric(vm){
         {"title": "IPv4", "name":"count_ipv4", "sortable":false},
         {"title": "IPv6", "name":"count_ipv6", "sortable":false},
         {"title": "Control", "name":"control", "sortable":false, "control":[
-            new gCtrl({"tip":"Start", "status":"success", "icon":"icon-right-arrow-contained"}),
-            new gCtrl({"tip":"Stop", "status":"negative", "icon":"icon-stop"}),
-            new gCtrl({"tip":"Edit", "status":"gray-ghost", "icon":"icon-edit"}),
+            new gCtrl({"tip":"Start", "status":"success", "icon":"icon-right-arrow-contained",
+                        "disabled":!self.admin_role(),
+                        "click": start_fabric
+                    }),
+            new gCtrl({"tip":"Stop", "status":"negative", "icon":"icon-stop",
+                        "disabled":!self.admin_role(),
+                        "click": stop_fabric
+                    }),
+            new gCtrl({"tip":"Edit", "status":"gray-ghost", "icon":"icon-edit",
+                        "disabled":!self.admin_role()
+                    }),
             new gCtrl({"tip":"History", "status":"secondary", "icon":"icon-chevron-right",
-                        "click":click_history})
+                        "click":click_history
+                    })
         ]}
     ]
     headers.forEach(function(h){
@@ -302,9 +334,8 @@ function view_dashboard_remediate(vm){
 function view_endpoint_detail_handler(vm){
     var self = vm;
     self.refresh_endpoint(function(){
-        console.log(self.current_endpoint.toJS())
+        //console.log(self.current_endpoint.toJS())
     })
-
 }
 
 
@@ -314,6 +345,7 @@ function common_viewModel() {
     self.isLoading = ko.observable(false)
     self.view = ko.observable("index")
     self.table = new gTable()
+    self.admin_role = ko.observable(true)       // user is admin in standalone role
     self.fabrics = ko.observableArray([])
     self.current_fabric_name = ko.observable("")
     self.current_fabric = null
@@ -327,15 +359,62 @@ function common_viewModel() {
     self.current_endpoint = new eptEndpoint()
     self.endpoint_isLoading = ko.observable(false)
 
+    //refresh fabric state and trigger provided callback once full refresh has completed
+    self.refresh_fabrics = function(success, fab){
+        if(success===undefined){ success = function(){}}
+        if(fab===undefined){ fab = null}
+        var inflight = 0
+        var check_all_complete = function(){
+            inflight--
+            if(inflight==0){success()}
+        }
+        json_get("/api/fabric?include=fabric&sort=fabric", function(data){
+            var fabrics = []
+            self.current_fabric = null
+            data.objects.forEach(function(elem){
+                var f = new fabric(elem.fabric.fabric)
+                fabrics.push(f)
+                if(self.current_fabric_name()==f.fabric()){
+                    self.current_fabric = f
+                }
+                //support for refreshing a single fabric
+                //if single fab was provided for refresh, then only trigger refresh for that fabric
+                if(fab==null || f.fabric()==fab){
+                    inflight++
+                    f.refresh(check_all_complete)
+                }
+            })
+            self.fabrics(fabrics)
+            //possible that no fabrics where found or filtered fabric does not exists, in which 
+            //case we need to trigger success function as there are no inflight requests
+            if(inflight==0){success()}
+        })
+    }
+
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    // endpoint functions
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    // commonly used api
+    self.get_endpoint_api = function(){
+        var url = "/api/uni/fb-"+self.endpoint_detail_fabric()+"/endpoint"
+        url+="/vnid-"+self.endpoint_detail_vnid()
+        url+="/addr-"+self.endpoint_detail_addr()
+        return url
+    }
+
     //refresh single endpoint and trigger provided callback once refresh is complete
     //endpoint is determined by endpoint_detail_fabric/vnid/addr - not this function will also set
     //self.current_endpoint to eptEndpoint object with all appropriate data populated. If the 
     //endpoint is not found (404 error), then set current_endpoint_not_found to true
     self.refresh_endpoint = function(success){
         if(success===undefined){ success = function(){}}
-        var url = "/api/uni/fb-"+self.endpoint_detail_fabric()+"/endpoint"
-        url+="/vnid-"+self.endpoint_detail_vnid()
-        url+="/addr-"+self.endpoint_detail_addr()
+        var url = self.get_endpoint_api()
         self.endpoint_isLoading(true)
         json_get(url, function(data){
             if(data.objects.length>0 && "ept.endpoint" in data.objects[0]){
@@ -371,7 +450,6 @@ function common_viewModel() {
         function(json, status_code, status_text){
             self.endpoint_isLoading(false)
             if(status_code==404){
-                console.log("not found")
                 self.current_endpoint_not_found(true)
                 return success()
             }else{
@@ -380,37 +458,47 @@ function common_viewModel() {
         })
     }
 
-    //refresh fabric state and trigger provided callback once full refresh has completed
-    self.refresh_fabrics = function(success, fab){
-        if(success===undefined){ success = function(){}}
-        if(fab===undefined){ fab = null}
-        var inflight = 0
-        var check_all_complete = function(){
-            inflight--
-            if(inflight==0){success()}
-        }
-        json_get("/api/fabric?include=fabric&sort=fabric", function(data){
-            var fabrics = []
-            self.current_fabric = null
-            data.objects.forEach(function(elem){
-                var f = new fabric(elem.fabric.fabric)
-                fabrics.push(f)
-                if(self.current_fabric_name()==f.fabric()){
-                    self.current_fabric = f
-                }
-                //support for refreshing a single fabric
-                //if single fab was provided for refresh, then only trigger refresh for that fabric
-                if(fab==null || f.fabric()==fab){
-                    inflight++
-                    f.refresh(check_all_complete)
-                }
+    //endpoint user buttons
+    self.endpoint_force_refresh = function(){
+        var msg = '<h3>Wait</h3><div>Are you sure you want to force a <b>refresh</b> of '+
+            '<span class="text-bold">'+self.current_endpoint.addr()+'</span>. This operation will '+
+            'query the APIC for the most recent state of the endpoint and then update the local ' +
+            'database. It may take a few moments for the updates to be seen.'
+        confirmModal(msg, true, function(){
+            var url = self.get_endpoint_api()+"/refresh"
+            self.endpoint_isLoading(true)
+            json_post(url, {}, function(data){
+                self.endpoint_isLoading(false)
+                self.refresh_endpoint()
             })
-            self.fabrics(fabrics)
-            //possible that no fabrics where found or filtered fabric does not exists, in which 
-            //case we need to trigger success function as there are no inflight requests
-            if(inflight==0){success()}
         })
     }
+    // delete endpoint request
+    self.endpoint_force_delete = function(){
+        var msg = '<h3>Wait</h3><div>Are you sure you want to <b>delete</b> all information for '+
+            '<span class="text-bold">'+self.current_endpoint.addr()+'</span> '+
+            'from the local database?<br>Note, this will not affect endpoint state within the fabric'
+        confirmModal(msg, true, function(){
+            var url = self.get_endpoint_api()+"/delete"
+            self.endpoint_isLoading(true)
+            json_delete(url, {}, function(data){
+                self.endpoint_isLoading(false)
+                self.refresh_endpoint()
+            })
+        })
+    }
+    self.endpoint_force_clear = function(){
+        showInfoModal("TODO clear endpoint")
+    }
+
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Routing/Views
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
 
     // set active class for active dashboard tab
     self.dashboard_active_tab = function(tab){
@@ -527,6 +615,16 @@ function common_viewModel() {
         }
         return self.view_dashboard_fabric();
     }
+
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Search bar
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
 
     // searchbar handler (if present)
     self.searchBar = null;

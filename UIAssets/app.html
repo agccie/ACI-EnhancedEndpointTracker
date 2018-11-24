@@ -108,13 +108,13 @@
     		            </div>
     		        </div>
                     <div>
-                        <a href="#/" class="btn btn--small btn--icon" data-balloon="Dashboard" data-balloon-pos="left">
+                        <a href="#/" class="btn btn--small btn--icon" data-balloon="Dashboard" data-balloon-pos="down">
                             <span class="icon-computer"></span>
                         </a>
-                        <a class="btn btn--small btn--icon" data-balloon="Accounts" data-balloon-pos="left">
+                        <a class="btn btn--small btn--icon" data-balloon="Accounts" data-balloon-pos="down">
                             <span class="icon-user"></span>
                         </a>
-                        <a class="btn btn--small btn--icon" data-balloon="Help" data-balloon-pos="left">
+                        <a class="btn btn--small btn--icon" data-balloon="Help" data-balloon-pos="down">
                             <span class="icon-help"></span>
                         </a>
                     </div>
@@ -224,7 +224,55 @@
 
                             <!-- per-endpoint tabs selection -->
                             <div class="qtr-padding" data-bind="visible: view_endpoint"> 
-                                <ul class="tabs">
+                                <ul class="tabs tabs--bordered">
+                                    <li class="tab" data-bind="css: endpoint_detail_active_tab('history')">
+                                        <a tabindex="0" data-bind="attr:{ href:endpoint_detail_tab_link()+'/history' }">
+                                            <div class="tab__heading">
+                                                <span class="icon-clock"></span>
+                                                History
+                                            </div>
+                                        </a>
+                                    </li>
+                                    <li class="tab" data-bind="css: endpoint_detail_active_tab('moves')">
+                                        <a tabindex="0" data-bind="attr:{ href:endpoint_detail_tab_link()+'/moves' }">
+                                            <div class="tab__heading">
+                                                <span class="icon-panel-shift-right"></span>
+                                                Moves
+                                            </div>
+                                        </a>
+                                    </li>
+                                    <li class="tab" data-bind="css: endpoint_detail_active_tab('offsubnet')">
+                                        <a tabindex="0" data-bind="attr:{ href:endpoint_detail_tab_link()+'/offsubnet' }">
+                                            <div class="tab__heading">
+                                                <span class="icon-jump-out"></span>
+                                                OffSubnet
+                                            </div>
+                                        </a>
+                                    </li>
+                                    <li class="tab" data-bind="css: endpoint_detail_active_tab('stale')">
+                                        <a tabindex="0" data-bind="attr:{ href:endpoint_detail_tab_link()+'/stale' }">
+                                            <div class="tab__heading">
+                                                <span class="icon-warning-outline"></span>
+                                                Stale
+                                            </div>
+                                        </a>
+                                    </li>
+                                    <li class="tab" data-bind="css: endpoint_detail_active_tab('rapid')">
+                                        <a tabindex="0" data-bind="attr:{ href:endpoint_detail_tab_link()+'/rapid' }">
+                                            <div class="tab__heading">
+                                                <span class="icon-too-fast"></span>
+                                                Rapid
+                                            </div>
+                                        </a>
+                                    </li>
+                                    <li class="tab" data-bind="css: endpoint_detail_active_tab('remediate')">
+                                        <a tabindex="0" data-bind="attr:{ href:endpoint_detail_tab_link()+'/remediate' }">
+                                            <div class="tab__heading">
+                                                <span class="icon-delete"></span>
+                                                Cleared
+                                            </div>
+                                        </a>
+                                    </li>
                                 </ul>
                             </div>
                             <!-- end per-endpoint tabs selection -->
@@ -232,30 +280,62 @@
 
                             <!-- dashboard tabs selection -->
                             <div class="qtr-padding" data-bind="visible: view_dashboard"> 
-                                <ul class="tabs">
+                                <ul class="tabs tabs--bordered">
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_fabric')+dashboard_active_tab('dashboard_fabric_events')">
-                                        <a tabindex="0" href="#/"><div class="tab__heading">Fabrics</div></a>
+                                        <a tabindex="0" href="#/">
+                                            <div class="tab__heading">
+                                                <span class="icon-computer"></span> Fabric
+                                            </div>
+                                        </a>
                                     </li>
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_endpoints')">
-                                        <a tabindex="0" href="#/endpoints"><div class="tab__heading">Endpoints</div></a>
+                                        <a tabindex="0" href="#/endpoints">
+                                            <div class="tab__heading">
+                                                <span class="icon-virtual-machine"></span> Endpoints
+                                            </div>
+                                        </a>
                                     </li>
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_moves')">
-                                        <a tabindex="0" href="#/moves"><div class="tab__heading">Moves</div></a>
+                                        <a tabindex="0" href="#/moves">
+                                            <div class="tab__heading">
+                                                <span class="icon-panel-shift-right"></span> Moves
+                                            </div>
+                                        </a>
                                     </li>
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_offsubnet')">
-                                        <a tabindex="0" href="#/offsubnet"><div class="tab__heading">OffSubnet</div></a>
+                                        <a tabindex="0" href="#/offsubnet">
+                                            <div class="tab__heading">
+                                                <span class="icon-jump-out"></span> OffSubnet
+                                            </div>
+                                        </a>
                                     </li>
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_stale')">
-                                        <a tabindex="0" href="#/stale"><div class="tab__heading">Stale</div></a>
+                                        <a tabindex="0" href="#/stale">
+                                            <div class="tab__heading">
+                                                <span class="icon-warning-outline"></span> Stale
+                                            </div>
+                                        </a>
                                     </li>
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_rapid')">
-                                        <a tabindex="0" href="#/rapid"><div class="tab__heading">Rapid</div></a>
+                                        <a tabindex="0" href="#/rapid">
+                                            <div class="tab__heading">
+                                                <span class="icon-too-fast"></span> Rapid
+                                            </div>
+                                        </a>
                                     </li>
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_remediate')">
-                                        <a tabindex="0" href="#/remediate"><div class="tab__heading">Cleared</div></a>
+                                        <a tabindex="0" href="#/remediate">
+                                            <div class="tab__heading">
+                                                <span class="icon-delete"></span> Cleared
+                                            </div>
+                                        </a>
                                     </li>
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_latest_events')">
-                                        <a tabindex="0" href="#/events"><div class="tab__heading">Latest Events</div></a>
+                                        <a tabindex="0" href="#/events">
+                                            <div class="tab__heading">
+                                                <span class="icon-analysis"></span> Latest Events
+                                            </div>
+                                        </a>
                                     </li>
                                 </ul>
                             </div>
@@ -276,7 +356,7 @@
                                     </div>
                                 </div>
                                 <div class="row">
-                                    <div class="col-md-3">
+                                    <div class="col-md-5">
                                         <span data-bind="visible: table.back_enabled()">
                                             <button class="btn btn--small btn--icon" data-balloon="Back" data-balloon-pos="up">
                                                 <span data-bind="click: function(){table.go_back()}" class="icon-back"></span>
@@ -288,10 +368,21 @@
                                             </button>
                                         </span>
                                     </div>
-                                    <div class="col-md-6 text-center half-margin-top">
-                                        <h4 data-bind="visible: table.title().length>0, text: table.title()"></h4>
+                                    <div class="col-md-2">
+                                        <div class="half-margin-top" data-bind="visible: table.title().length>0">
+                                            <h4 data-bind="text: table.title()"></h4>
+                                        </div>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-5">
+                                        <div data-bind="foreach: { data: table.toggles, as: 'toggle' }">
+                                            <div class="qtr-margin form-group form-group--inline">
+                                                <label class="switch">
+                                                    <input type="checkbox" data-bind="checked: toggle.checked">
+                                                    <span class="switch__input"></span>
+                                                    <span class="switch__label" data-bind="text: toggle.label"></span>
+                                                </label>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="responsive-table" data-bind="loadingWhen: table.isLoading()">

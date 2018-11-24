@@ -37,9 +37,11 @@ function gHeader(args) {
     })
 }
 
+// generic table control
 function gCtrl(args){
     var self = this
     self.click = ("click" in args)? args.click : function(data){}
+    self.type = ko.observable(("type" in args)? args.type : "button")
     self.disabled = ko.observable(("disabled" in args)? args.disabled : false )
     self.icon = ko.observable(("icon" in args)? args.icon : "icon-check")
     self.icon_status = ko.observable(("status" in args)? args.status : "")
@@ -80,6 +82,17 @@ function gRow(data){
     }
 }
 
+//toggle options that can be applied for table filtering. Callback is triggered when
+function gToggle(args){
+    var self=this;
+    self.label = ko.observable(("label" in args)? args.label : "label")
+    self.checked = ko.observable(("checked" in args)? args.checked : false)
+    self.callback = ("callback" in args)? args.callback : function(){}
+    self.updated = ko.computed(function(){
+        self.callback(self.label(), self.checked())
+    })
+}
+
 function gTable() {
     var self = this;
     self.isLoading = ko.observable(false)
@@ -96,6 +109,7 @@ function gTable() {
     self.back_location = ko.observable("")
     self.display_no_data = ko.observable(true)
     self.no_data_message = ko.observable("No data to display")
+    self.toggles = ko.observableArray([])
     self.title = ko.observable("")
     self.url = ko.observable("")
     self.url_params = ko.observableArray([])
@@ -119,6 +133,7 @@ function gTable() {
         self.back_location("")
         self.display_no_data(true)
         self.no_data_message("No data to display")
+        self.toggles([])
         self.title("")
         self.url("")
         self.url_params([])
@@ -256,6 +271,9 @@ function gTable() {
                 url+= "&sort="+h.get_sort_name()+"|"+(h.sort_direction()=="asc"?"asc":"desc")
                 break
             }
+        }
+        if(self.url_params().length>0){
+            url+= "&"+self.url_params().join("&")
         }
         json_get(url, function(data){
             self.isLoading(false);

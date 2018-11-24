@@ -238,15 +238,15 @@ function eptEndpoint(){
         return text
     }
     self.blockquote_css = ko.computed(function(){
-        if(self.is_danger()){return "blockquote--danger"}
+        //if(self.is_danger()){return "blockquote--danger"}
         return get_endpoint_type_blockquote(self.type())
     })
     self.type_css = ko.computed(function(){
-        if(self.is_danger()){ return "label label--danger"}
+        //if(self.is_danger()){ return "label label--danger"}
         return get_endpoint_type_label(self.type())
     })
     self.addr_css = ko.computed(function(){
-        if(self.is_danger()){ return "text-danger"}
+        //if(self.is_danger()){ return "text-danger"}
         return get_endpoint_type_text(self.type())
     })
     self.vnid_identifier = ko.computed(function(){

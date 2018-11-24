@@ -47,7 +47,7 @@ function view_dashboard_fabric(vm){
                         "disabled":!self.admin_role(),
                         "click": stop_fabric
                     }),
-            new gCtrl({"tip":"Edit", "status":"gray-ghost", "icon":"icon-edit",
+            new gCtrl({"tip":"Edit", "status":"gray-ghost", "icon":"icon-tools",
                         "disabled":!self.admin_role()
                     }),
             new gCtrl({"tip":"History", "status":"secondary", "icon":"icon-chevron-right",
@@ -134,6 +134,59 @@ function view_dashboard_endpoints(vm){
     ]
     headers.forEach(function(h){
         self.table.headers.push(new gHeader(h))
+    })
+    self.dashboard_endpoint_active_toggles = ko.observableArray([])
+    //set url filters based on active_toggles
+    self.dashboard_endpoint_set_filters = function(){
+        if(self.dashboard_endpoint_active_toggles().length==0){
+            self.table.url_params([])
+        } else if(self.dashboard_endpoint_active_toggles().length==1){
+            self.table.url_params(["filter="+self.dashboard_endpoint_active_toggles()[0]])
+        } else{
+            self.table.url_params(["filter=and("+self.dashboard_endpoint_active_toggles().join(",")+")"])
+        }
+    }
+
+    var handle_toggles = function(label, checked){
+        var flt = ""
+        if(label == "Active"){ flt = "neq(\"events.0.status\",\"deleted\")" }
+        else if(label == "OffSubnet"){ flt = "eq(\"is_offsubnet\",true)" }
+        else if(label == "Stale"){ flt = "eq(\"is_stale\",true)" }
+        else if(label == "Rapid"){ flt = "eq(\"is_rapid\",true)" }
+        else{
+            console.log("ignoring unexpected label: "+label)
+            return
+        }
+        // if checked, then update has only occurred if flt not current in active_toggles
+        if(self.dashboard_endpoint_active_toggles().includes(flt)){
+            if(!checked){
+                //already present but no longer checked, need to remove from filter and refresh
+                var new_toggles = []
+                self.dashboard_endpoint_active_toggles().forEach(function(elem){
+                    if(elem!=flt){ new_toggles.push(elem) }
+                })
+                self.dashboard_endpoint_active_toggles(new_toggles)
+                self.dashboard_endpoint_set_filters()
+                self.table.refresh_data()
+            }
+        } else {
+            if(checked){
+                //new toggle to add to active toggle list
+                self.dashboard_endpoint_active_toggles.push(flt)
+                self.dashboard_endpoint_set_filters()
+                self.table.refresh_data()
+            }
+        }
+
+    }
+    var toggles = [
+        {"label": "Active", "callback": handle_toggles},
+        {"label": "OffSubnet", "callback": handle_toggles},
+        {"label": "Stale", "callback": handle_toggles},
+        {"label": "Rapid", "callback": handle_toggles }
+    ]
+    toggles.forEach(function(t){
+        self.table.toggles.push(new gToggle(t))
     })
 
     self.table.refresh_handler = function(api_data){
@@ -333,9 +386,39 @@ function view_dashboard_remediate(vm){
 //endpoint detail handler
 function view_endpoint_detail_handler(vm){
     var self = vm;
-    self.refresh_endpoint(function(){
-        //console.log(self.current_endpoint.toJS())
-    })
+
+    self.view_endpoint_set_headers = function(){
+        //different view based selected endpoint_detail_tab which is set by view
+        var headers = []
+        if(self.endpoint_detail_tab()=="history"){
+            headers = [ 
+                {"title": "Time", "name":"ts_str"},
+                {"title": "Status", "name":"status"},
+                {"title": "Local Node", "name":"node_str"},
+                {"title": "Interface", "name":"intf_name"},
+                {"title": "EPG", "name":"epg_name"}
+            ]
+            if(self.current_endpoint.type()!="mac"){
+                headers.splice(4, 0, {"title":"Mac", "name":"rw_mac"})
+            }
+        }
+        self.table.headers([])
+        headers.forEach(function(h){
+            self.table.headers.push(new gHeader(h))
+        })
+    }
+
+    self.view_endpoint_detail_refresh = function(){
+        self.refresh_endpoint(function(){
+            //different view based selected endpoint_detail_tab which is set by view
+            //console.log(self.current_endpoint.toJS())
+            self.view_endpoint_set_headers()
+        })
+    
+    }
+
+    self.table.custom_refresh = self.view_endpoint_detail_refresh
+    self.view_endpoint_detail_refresh()
 }
 
 
@@ -355,6 +438,7 @@ function common_viewModel() {
     self.endpoint_detail_fabric = ko.observable("")
     self.endpoint_detail_vnid = ko.observable(0)
     self.endpoint_detail_addr = ko.observable("")
+    self.endpoint_detail_tab = ko.observable("")
     self.current_endpoint_not_found = ko.observable(false)
     self.current_endpoint = new eptEndpoint()
     self.endpoint_isLoading = ko.observable(false)
@@ -505,6 +589,18 @@ function common_viewModel() {
         if(self.view()==tab){ return "active" }
         return ""
     }
+    // set active class for active endpoint_detail tab
+    self.endpoint_detail_active_tab = function(tab){
+        if(self.endpoint_detail_tab()==tab){ return "active" }
+        return ""
+    }
+    // endpoint detail tab link is computed based on currently viewed endpoint
+    self.endpoint_detail_tab_link = ko.computed(function(){
+        var url = "#/fb-"+self.endpoint_detail_fabric()
+        url+="/vnid-"+self.endpoint_detail_vnid()
+        url+="/addr-"+self.endpoint_detail_addr()
+        return url
+    })
 
     // view functions 
     self.init = function(){
@@ -516,6 +612,7 @@ function common_viewModel() {
         self.endpoint_detail_fabric("")
         self.endpoint_detail_vnid(0)
         self.endpoint_detail_addr("")
+        self.endpoint_detail_tab("")
         self.current_endpoint_not_found(false)
         self.table.init()
     }
@@ -583,6 +680,18 @@ function common_viewModel() {
         self.endpoint_detail_fabric(args[0])
         self.endpoint_detail_vnid(args[1])
         self.endpoint_detail_addr(args[2])
+        var tab="history"
+        if(args.length>3){
+            switch(args[3]){
+                case "history": tab="history"; break;
+                case "moves": tab="moves"; break
+                case "offsubnet": tab="offsubnet"; break;
+                case "stale": tab="stale"; break;
+                case "rapid": tab="rapid"; break;
+                case "remediate": tab="remediate"; break
+            }
+        }
+        self.endpoint_detail_tab(tab)
         self.view("endpoint_detail")
         view_endpoint_detail_handler(self)
     }
@@ -598,7 +707,8 @@ function common_viewModel() {
         {"route": "/rapid", "view": self.view_dashboard_rapid},
         {"route": "/remediate", "view": self.view_dashboard_remediate},
         {"route": "/events", "view": self.view_dashboard_latest_events},
-        {"route": "/fb-([^/]+)/vnid-([0-9]+)/addr-(.+)", "view": self.view_endpoint_detail}
+        {"route": "/fb-([^/]+)/vnid-([0-9]+)/addr-([^/]+)", "view": self.view_endpoint_detail},
+        {"route": "/fb-([^/]+)/vnid-([0-9]+)/addr-([^/]+)/([a-z]+)", "view": self.view_endpoint_detail}
     ]
     self.navigate = function(){
         for (var i in routes) {

@@ -1,54 +1,55 @@
 /* You can add global styles to this file, and also import other style files */
-@import '../src/cui/css/cui-standard.min.css' ;
+@import '../src/cui/css/cui-standard.min.css';
+@import '~@swimlane/ngx-datatable/release/index.css';
+@import '~@swimlane/ngx-datatable/release/themes/material.css';
+@import '~@swimlane/ngx-datatable/release/assets/icons.css';
 
 .datatable-body-row {
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
     padding: 5px 10px;
     vertical-align: middle;
     border-left: 4px solid transparent;
-  }
-  
-  .datatable-row-odd {
+}
+
+.datatable-row-odd {
     background: #f2f2f2;
-  }
-  
-  .datatable-header-cell-label {
+}
+
+.datatable-header-cell-label {
     font-weight: bold;
-  }
-  
-  .datatable-header-cell-label {
+}
+
+.datatable-header-cell-label {
     font-weight: bold;
-  }
-  
-  .datatable-body-row:hover {
+}
+
+.datatable-body-row:hover {
     border-left: 4px solid #049fd9;
     background-color: rgba(0, 0, 0, 0.10);
-  }
-  
-  .datatable-body-cell {
+}
+
+.datatable-body-cell {
     display: table-cell;
     vertical-align: middle;
-  }
-  
-  .datatable-body-cell-label {
+}
+
+.datatable-body-cell-label {
     overflow: hidden;
-    white-space: nowrap;
     text-overflow: ellipsis;
     width: 100%;
-  }
-  
-  .datatable-footer .datatable-pager ul li {
+}
+
+.datatable-footer .datatable-pager ul li {
     margin: 10px 0;
-  }
-  
-  .datatable-footer .datatable-pager ul li:not(.disabled).active a,
-  .datatable-footer .datatable-pager ul li:not(.disabled):hover a {
+}
+
+.datatable-footer .datatable-pager ul li:not(.disabled).active a,
+.datatable-footer .datatable-pager ul li:not(.disabled):hover a {
     background-color: #64bbe3;
-  }
-  
-  .datatable-footer .datatable-pager a {
+}
+
+.datatable-footer .datatable-pager a {
     height: 22px;
     min-width: 24px;
     line-height: 22px;
@@ -57,21 +58,48 @@
     margin: 0 3px;
     text-align: center;
     text-decoration: none;
-  }
-  
-  .modal-lg {
+}
+
+.datatable-body .progress-linear .container {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    height: 5px;
+    -webkit-transform: translate(0, 0) scale(1, 1);
+    transform: translate(0, 0) scale(1, 1);
+    background-color: #64bbe3;
+}
+
+.datatable-body .progress-linear .container .bar {
+    transition: all .2s linear;
+    -webkit-animation: query 0.8s infinite cubic-bezier(0.39, 0.575, 0.565, 1);
+    animation: query 0.8s infinite cubic-bezier(0.39, 0.575, 0.565, 1);
+    transition: -webkit-transform .2s linear;
+    transition: transform .2s linear;
+    transition: transform .2s linear, -webkit-transform .2s linear;
+    background-color: #005073;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    height: 5px;
+}
+
+.modal-lg {
     max-width: 90% !important;
-  }
-  
-  ins {
+}
+
+ins {
     background: #bbffbb;
-  }
-  
-  del {
+}
+
+del {
     background: #ffbbbb;
-  }
-  
-  .background-blue {
+}
+
+.background-blue {
     background: rgba(100, 187, 227, 1);
     background: -moz-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
     background: -webkit-gradient(radial, center center, 0px, center center, 100%, color-stop(0%, rgba(100, 187, 227, 1)), color-stop(100%, rgba(0, 81, 115, 1)));
@@ -80,27 +108,27 @@
     background: -ms-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
     background: radial-gradient(ellipse at center, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
     filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#64bbe3', endColorstr='#005173', GradientType=1);
-  }
-  
-  .pointer {
+}
+
+.pointer {
     cursor: pointer;
-  }
-  
-  .loading {
+}
+
+.loading {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-  }
-  
-  .accordionPanel {
-    background-color:#005073 ;
-    padding: 5px ;
-    }
+}
 
-    .content {
-      height:100%;
-      background-color:white;
-    }
+.accordionPanel {
+    background-color: #005073;
+    padding: 5px;
+}
+
+.content {
+    height: 100%;
+    background-color: white;
+}
 
     

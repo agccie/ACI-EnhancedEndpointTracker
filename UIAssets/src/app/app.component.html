@@ -1,4 +1,4 @@
-<header class="header header--compressed" *ngIf="ls.getItem('cul') === '1'">
+<header class="header header--compressed" *ngIf="ls.getItem('isLoggedIn') === 'true'">
     <div class="header-bar container">
         <a class="header-bar__logo">
             <span class="icon-cisco"></span>
@@ -9,16 +9,52 @@
             </div>
         </div>
         <div class="header-toolbar">
-            <a class="btn btn--small btn--icon" *ngFor="let item of menu; let i = index;"
-               [routerLink]="item.link">
-                <span [attr.class]=item.icon></span>
+            <a class="btn btn--small btn--icon" title="Welcome" [routerLink]="['/']">
+            <span data-balloon="Welcome" data-balloon-pos="left">
+              <span class="icon-home"></span>
+            </span>
             </a>
-            <a class="btn btn--small btn--icon btn--negative" *ngIf="!app_mode" (click)="logout()">
-                <span class="icon-power"></span>
+            <a class="btn btn--small btn--icon" title="Users" [routerLink]="['/users']">
+            <span data-balloon="Users" data-balloon-pos="left">
+              <span class="icon-user"></span>
+            </span>
+            </a>
+            <a class="btn btn--small btn--icon" title="About" (click)='openModal(abouttemplate)'>
+            <span data-balloon="About" data-balloon-pos="left">
+              <span class="icon-info"></span>
+            </span>
+            </a>
+            <a *ngIf="!app_mode" class="btn btn--small btn--icon" title="Logout" (click)="logout()">
+              <span data-balloon="Logout" data-balloon-pos="left">
+                <span class="icon-sign-out"></span>
+              </span>
             </a>
         </div>
     </div>
 </header>
 <div class="content">
-    <router-outlet></router-outlet>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                &nbsp;
+            </div>
+        </div>
+        <div *ngIf="konami">
+            <h4>
+                <button class="btn btn--icon btn--primary" (click)='noKonami()'>
+                    <span class="icon-back"></span>
+                </button>
+                Credits
+            </h4>
+        </div>
+        <div *ngIf="!konami">
+            <router-outlet>
+            </router-outlet>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                &nbsp;
+            </div>
+        </div>
+    </div>
 </div>

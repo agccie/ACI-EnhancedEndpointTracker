@@ -5,6 +5,8 @@ import {map} from 'rxjs/operators';
 import {environment} from '../../environments/environment';
 import {FabricSettings} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
+import {Fabric, FabricList} from "../_model/fabric";
+import {EndpointList} from "../_model/endpoint";
 
 
 @Injectable({
@@ -27,77 +29,60 @@ export class BackendService {
         return this.http.get(this.baseUrl + '/app-status/manager', {withCredentials: true});
     }
 
-    getFabrics() {
-        return this.http.get(this.baseUrl + '/fabric');
+    getFabrics(sorts = []): Observable<FabricList> {
+        if (sorts.length == 0) {
+            return this.http.get<FabricList>(this.baseUrl + '/fabric');
+        } else {
+            const sortsStr = this.getSortsArrayAsString(sorts);
+            return this.http.get<FabricList>(this.baseUrl + '/fabric?sort=' + sortsStr);
+        }
     }
 
-    getActiveMacAndIps(fabricName, addressType) {
-        const filterString = 'and(eq("fabric","' + fabricName + '"),eq("type","' + addressType + '"),neq("events.0.status","deleted"))';
+    getActiveMacAndIps(fabric: Fabric, addressType) {
+        const filterString = 'and(eq("fabric","' + fabric.fabric + '"),eq("type","' + addressType + '"),neq("events.0.status","deleted"))';
         return this.http.get(this.baseUrl + '/ept/endpoint?filter=' + filterString + '&count=1');
     }
 
-    //May remove this and make the getFabricsOverview function as a single API call
-    getEndpoints(pageOffset, sorts) {
+    getFabricsOverviewTabData(fabricName, pageOffset, sorts, tab = 'endpoint'): Observable<EndpointList> {
         if (sorts.length === 0) {
-            return this.http.get(this.baseUrl + '/ept/endpoint?sort=fabric&page-size=25&page=' + pageOffset);
+            return this.http.get<EndpointList>(this.baseUrl + '/ept/' + tab + '?filter=eq("fabric","' + fabricName + '")&sort=fabric&page-size=25&page=' + pageOffset);
         } else {
             const sortsStr = this.getSortsArrayAsString(sorts);
-            return this.http.get(this.baseUrl + '/ept/endpoint?sort=' + sortsStr + '&page-size=25&page=' + pageOffset);
+            return this.http.get<EndpointList>(this.baseUrl + '/ept/' + tab + '?filter=eq("fabric","' + fabricName + '")&sort=' + sortsStr + '&page-size=25&page=' + pageOffset);
         }
     }
 
-    getFabricsOverviewTabData(pageOffset, sorts, tab = 'endpoint') {
+    getEndpoints(fabricName, pageOffset, sorts): Observable<EndpointList> {
         if (sorts.length === 0) {
-            return this.http.get(this.baseUrl + '/ept/' + tab + '?sort=fabric&page-size=25&page=' + pageOffset);
+            return this.http.get<EndpointList>(this.baseUrl + '/ept/endpoint?filter=eq("fabric","' + fabricName + '")&sort=fabric&page-size=25&page=' + pageOffset);
         } else {
             const sortsStr = this.getSortsArrayAsString(sorts);
-            return this.http.get(this.baseUrl + '/ept/' + tab + '?sort=' + sortsStr + '&page-size=25&page=' + pageOffset);
+            return this.http.get<EndpointList>(this.baseUrl + '/ept/endpoint?filter=eq("fabric","' + fabricName + '")&sort=' + sortsStr + '&page-size=25&page=' + pageOffset);
         }
     }
 
-    getLatestEventsForFabrics() {
-        return this.http.get(this.baseUrl + '/ept/history?page-size=25');
+    getFilteredEndpoints(fabricName, offsubnetFilter, staleFilter): Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + '/ept/endpoint?filter=and(eq("fabric","' + fabricName + '"),eq("is_offsubnet",' + offsubnetFilter + '),eq("is_stale",' + staleFilter + '))&page-size=25');
     }
 
-    getMovesForFabrics() {
-        return this.http.get(this.baseUrl + '/ept/move?page-size=25');
+    getEndpoint(fabricName, vnid, address): Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address);
     }
 
-    getOffsubnetPointsForFabrics() {
-        return this.http.get(this.baseUrl + '/ept/offsubnet');
+    getMoveEventsForEndpoint(fabricName: string, vnid, address) {
+        return this.http.get(this.baseUrl + '/uni/fb-' + fabricName + '/move/vnid-' + vnid + '/addr-' + address);
     }
 
-    getFilteredEndpoints(offsubnetFilter, staleFilter) {
-        return this.http.get(this.baseUrl + '/ept/endpoint?filter=and(eq("is_offsubnet",' + offsubnetFilter + '),eq("is_stale",' + staleFilter + '))&page-size=25');
+    getNodesForOffsubnetEndpoints(fabricName: string, vnid, address, tab): Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + '/ept/' + tab + '?filter=and(eq("fabric","' + fabricName + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))&include=node');
     }
 
-    getStalePointsForFabrics() {
-        return this.http.get(this.baseUrl + '/ept/stale');
+    getEndpointHistoryPerNode(fabricName: string, node, vnid, address): Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + '/uni/fb-' + fabricName + '/history/node-' + node + '/vnid-' + vnid + '/addr-' + address);
     }
 
-    getSearchResults(address) {
-        return this.http.get(this.baseUrl + '/ept/endpoint?filter=regex("addr","' + address + '")&page-size=15').pipe(
-            map((res: Response) => {
-                    return res['objects'];
-                }
-            ));
-
-    }
-
-    getSingleEndpoint(fabric, vnid, address) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/endpoint/vnid-' + vnid + '/addr-' + address);
-    }
-
-    getMoveEventsForEndpoint(fabric, vnid, address) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/move/vnid-' + vnid + '/addr-' + address);
-    }
-
-    getNodesForOffsubnetEndpoints(fabric, vnid, address, tab) {
-        return this.http.get(this.baseUrl + '/ept/' + tab + '?filter=and(eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))&include=node');
-    }
-
-    deleteEndpoint(fabric, vnid, address) {
-        return this.http.delete(this.baseUrl + '/uni/fb-' + fabric + '/endpoint/vnid-' + vnid + '/addr-' + address);
+    deleteEndpoint(fabric: Fabric, vnid, address) {
+        return this.http.delete(this.baseUrl + '/uni/fb-' + fabric.fabric + '/endpoint/vnid-' + vnid + '/addr-' + address);
     }
 
     login(username, password) {
@@ -109,6 +94,14 @@ export class BackendService {
 
     logout() {
         return this.http.post(this.baseUrl + '/user/logout', {});
+    }
+
+    getSearchResults(address) {
+        return this.http.get(this.baseUrl + '/ept/endpoint?filter=regex("addr","' + address + '")&page-size=15').pipe(
+            map((res: Response) => {
+                return res['objects'];
+            })
+        );
     }
 
     getAppVersion() {
@@ -124,37 +117,50 @@ export class BackendService {
         return sortsStr;
     }
 
-    startStopFabric(action, fabric, rsn) {
-        return this.http.post(this.baseUrl + '/uni/fb-' + fabric + '/' + action, {reason: rsn});
-
+    startFabric(fabric: Fabric, reason = '') {
+        return this.http.post(this.baseUrl + '/uni/fb-' + fabric.fabric + '/start', {reason: reason});
     }
 
-    verifyFabric(fabric) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/verify');
+    stopFabric(fabric: Fabric, reason = '') {
+        return this.http.post(this.baseUrl + '/uni/fb-' + fabric.fabric + '/stop', {reason: reason});
     }
 
-    deleteFabric(fabric) {
-        return this.http.delete(this.baseUrl + '/uni/fb-' + fabric);
+    verifyFabric(fabric: Fabric) {
+        return this.http.get(this.baseUrl + '/uni/fb-' + fabric.fabric + '/verify');
     }
 
-    updateFabric(fabric) {
+    deleteFabric(fabric: Fabric) {
+        return this.http.delete(this.baseUrl + '/uni/fb-' + fabric.fabric);
+    }
+
+    updateFabric(fabric: Fabric) {
         return this.http.patch(this.baseUrl + '/uni/fb-' + fabric.fabric, fabric);
     }
 
-    createFabric(fabric) {
-        return this.http.post(this.baseUrl + '/fabric', fabric);
+    createFabric(fabric: Fabric) {
+        let toSave = new Fabric(
+            fabric.fabric,
+            fabric.apic_hostname,
+            fabric.apic_username,
+            fabric.apic_password,
+            fabric.apic_cert,
+            fabric.ssh_username,
+            fabric.ssh_password,
+            fabric.max_events,
+        );
+        delete toSave.status;
+        delete toSave.mac;
+        delete toSave.ipv4;
+        delete toSave.ipv6;
+        return this.http.post(this.baseUrl + '/fabric', toSave);
     }
 
-    getFabricSettings(fabric, settings) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/settings-' + settings);
+    getFabricSettings(fabricName: string, settings) {
+        return this.http.get(this.baseUrl + '/uni/fb-' + fabricName + '/settings-' + settings);
     }
 
-    getAllFabricSettings() {
-        return this.http.get(this.baseUrl + '/ept/settings');
-    }
-
-    getFabric(fabric) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabric);
+    getFabricByName(fabricName: string): Observable<FabricList> {
+        return this.http.get<FabricList>(this.baseUrl + '/uni/fb-' + fabricName);
     }
 
     updateFabricSettings(fabricSettings: FabricSettings) {
@@ -162,8 +168,8 @@ export class BackendService {
         return this.http.patch(this.baseUrl + '/uni/fb-' + fabric + '/settings-default', fabricSettings);
     }
 
-    getFabricStatus(fabricName: string) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabricName + '/status');
+    getFabricStatus(fabric: Fabric) {
+        return this.http.get(this.baseUrl + '/uni/fb-' + fabric.fabric + '/status');
     }
 
     createUser(user: User): Observable<any> {
@@ -207,10 +213,6 @@ export class BackendService {
     getUserDetails(username: string) {
         const url = this.baseUrl + '/uni/username-' + username;
         return this.http.get(url);
-    }
-
-    getPerNodeHistory(fabric, node, vnid, address) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/history/node-' + node + '/vnid-' + vnid + '/addr-' + address);
     }
 
 }

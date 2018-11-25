@@ -1,0 +1,24 @@
+<h3>Remediation</h3><br>
+<div class="row" *ngFor="let inp of inputs">
+    <div class="col-md-12">
+        <div class="form-group label--inline" *ngIf="inp.type==='text' || inp.type==='number'">
+            <div class="form-group__text">
+                <input id="input-layout-inline" [type]="inp.type" [(ngModel)]="prefs['fabricSettings'][inp.model]"
+                       [min]='inp.min' [max]='inp.max' required>
+                <label class="col-3" for="input-layout-inline">{{ inp.name }}</label>
+            </div>
+        </div>
+        <div class="form-group half-margin-bottom label--inline" *ngIf="inp.type==='boolean'">
+            <div class="form-group__text select">
+                <select id="input-type-select" [(ngModel)]="prefs['fabricSettings'][inp.model]">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+                <label class="col-3" for="input-type-select">{{ inp.name }}</label>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-12" *ngIf="!inp.hidden">
+        &nbsp;
+    </div>
+</div>

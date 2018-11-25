@@ -1,0 +1,14 @@
+<h3>Connectivity</h3><br>
+<div class="row" *ngFor="let inp of inputs; let i = index ;">
+    <div class="col-md-12" *ngIf="!inp.hidden">
+        <div class="form-group label--inline">
+            <div class="form-group__text">
+                <input [id]=" i" [type]="inp.type" [(ngModel)]="prefs['fabric'][inp.model]" required>
+                <label class="col-3" [for]="i">{{ inp.name }}</label>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-12" *ngIf="!inp.hidden">
+        &nbsp;
+    </div>
+</div>

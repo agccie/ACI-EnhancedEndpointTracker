@@ -7,10 +7,9 @@ import {Fabric} from '../_model/fabric';
 })
 
 export class PreferencesService {
-    pageSize = 25;
+    pageSize = 10;
     endpointDetailsObject: any;
     selectedEndpoint = {};
-    cul = 0;
     fabricSettings: FabricSettings;
     fabric: Fabric;
     checkedThreadStatus = false;

@@ -1,0 +1,82 @@
+<ngx-datatable
+        #myTable
+        class="fullscreen"
+        [columnMode]="'flex'"
+        [headerHeight]="25"
+        [footerHeight]="50"
+        [rowHeight]="'auto'"
+        [limit]="pageSize"
+        [loadingIndicator]="loading"
+        [rows]="rows"
+        [sorts]="sorts"
+        [cssClasses]="{
+            sortAscending: 'icon-chevron-down',
+            sortDescending: 'icon-chevron-up',
+            pagerLeftArrow: 'icon-step-prev',
+            pagerRightArrow: 'icon-step-next',
+            pagerPrevious: 'icon-step-backward',
+            pagerNext: 'icon-step-forward'
+          }"
+>
+    <ngx-datatable-column prop="ts" name="Timestamp" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="status" name="Status" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value }}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value }}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="encap" name="Encap" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="pctag" name="PCTAG" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="flags" name="Flags" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="remote" name="Remote Node" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="expected_remote" name="Remote Node" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+
+</ngx-datatable>

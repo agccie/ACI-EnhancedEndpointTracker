@@ -1,3 +1,17 @@
+export class FabricSettingsObject {
+    fabricsettings: FabricSettings;
+}
+
+export class FabricSettingsList {
+    count: number;
+    objects: FabricSettingsObject[];
+
+    public constructor() {
+        this.count = 0;
+        this.objects = [];
+    }
+}
+
 export class FabricSettings {
     analyze_move: boolean;
     analyze_offsubnet: boolean;

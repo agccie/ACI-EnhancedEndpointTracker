@@ -1,0 +1,86 @@
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel panel--raised">
+            <h4>Current Endpoints
+                <button class="btn btn--icon btn--small btn--primary" (click)='getEndpoints()'>
+                    <span class="icon-refresh"></span>
+                </button>
+            </h4>
+            <br>
+            <div class="form-group form-group--inline">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="osFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Offsubnet Endpoints</span>
+                </label>
+            </div>
+            <div class="form-group form-group--inline">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="stFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Stale Endpoints</span>
+                </label>
+            </div>
+            <ngx-datatable
+                    [columnMode]="'flex'"
+                    [headerHeight]="25"
+                    [footerHeight]="50"
+                    [rowHeight]="'auto'"
+                    [loadingIndicator]="loading"
+                    [rows]="rows"
+                    [rowClass]="getRowClass"
+                    [externalPaging]="true"
+                    [externalSorting]="true"
+                    [count]="count"
+                    [offset]="pageNumber"
+                    [limit]="pageSize"
+                    (page)="setPage($event)"
+                    (sort)="onSort($event)"
+                    [cssClasses]="{
+                  sortAscending: 'icon-chevron-down',
+                  sortDescending: 'icon-chevron-up',
+                  pagerLeftArrow: 'icon-step-prev',
+                  pagerRightArrow: 'icon-step-next',
+                  pagerPrevious: 'icon-step-backward',
+                  pagerNext: 'icon-step-forward'
+                  }">
+                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.1">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                          <span class="label label--raised"
+                                [ngClass]="{
+                                    'label--warning':row.type === 'mac',
+                                    'label--success':row.type==='ipv4',
+                                    'label--info':row.type==='ipv6'
+                                }">
+                            {{ value.toUpperCase() }}
+                        </span>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <a [routerLink]="['../history', row.vnid, row.addr]">
+                            {{ value }}
+                        </a>
+                        &nbsp;
+                        <span data-balloon='Offsubnet endpoint' data-balloon-pos='right'
+                              *ngIf="row.is_offsubnet">
+                        <span class="icon-small icon-warning"></span>
+                    </span>
+                        <span data-balloon='Stale Endpoint' data-balloon-pos='right'
+                              *ngIf="row.is_stale"><span class="icon-small icon-time"></span>
+                    </span>
+                        <span data-balloon='Deleted endpoint' data-balloon-pos='right'
+                              *ngIf="(row.events.length>0 && row.events[0].status === 'deleted') || row.first_learn.status === 'deleted'">
+                        <span class="icon-small icon-error"></span>
+                    </span>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.7">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row.events.length > 0 ? row.events[0].vnid_name : row.first_learn.vnid_name }}
+                    </ng-template>
+                </ngx-datatable-column>
+            </ngx-datatable>
+        </div>
+    </div>
+</div>

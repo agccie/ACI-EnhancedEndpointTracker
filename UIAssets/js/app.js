@@ -127,7 +127,7 @@ function view_dashboard_endpoints(vm){
     self.table.url("/api/ept/endpoint")
     var headers = [
         {"title": "Fabric", "name":"fabric"},
-        {"title": "Type", "name":"type"},
+        {"title": "State", "name":"state", "sortable": false},
         {"title": "Address", "name":"addr", "sorted":true, "sort_direction":"asc"},
         {"title": "VRF/BD", "name":"vnid_name" , "sort_name":"first_learn.vnid_name"}, 
         {"title": "EPG", "name":"epg_name", "sort_name":"events.0.epg_name"}
@@ -146,7 +146,6 @@ function view_dashboard_endpoints(vm){
             self.table.url_params(["filter=and("+self.dashboard_endpoint_active_toggles().join(",")+")"])
         }
     }
-
     var handle_toggles = function(label, checked){
         var flt = ""
         if(label == "Active"){ flt = "neq(\"events.0.status\",\"deleted\")" }
@@ -177,7 +176,6 @@ function view_dashboard_endpoints(vm){
                 self.table.refresh_data()
             }
         }
-
     }
     var toggles = [
         {"label": "Active", "callback": handle_toggles},
@@ -188,7 +186,6 @@ function view_dashboard_endpoints(vm){
     toggles.forEach(function(t){
         self.table.toggles.push(new gToggle(t))
     })
-
     self.table.refresh_handler = function(api_data){
         var data=[]
         api_data.objects.forEach(function(elem){
@@ -218,7 +215,6 @@ function view_dashboard_moves(vm){
     headers.forEach(function(h){
         self.table.headers.push(new gHeader(h))
     })
-
     self.table.refresh_handler = function(api_data){
         var data=[]
         api_data.objects.forEach(function(elem){

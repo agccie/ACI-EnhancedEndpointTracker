@@ -235,6 +235,25 @@ function eptEndpoint(){
             var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
             return '<a href="'+url+'">'+text+'</a>'
         }
+        else if(attr == "state"){
+            // need to have labels for active/deleted/offsubnet/stale/rapid
+            var state=""
+            if(self.is_deleted()){
+                state+='<span class="'+get_status_label("deleted")+'">deleted</span>'
+            } else {
+                state+='<span class="'+get_status_label("created")+'">active</span>'
+            }
+            if(self.is_offsubnet()){
+                state+='<span class="label label--danger">offsubnet</span>'
+            }
+            if(self.is_stale()){
+                state+='<span class="label label--danger">stale</span>'
+            }
+            if(self.is_rapid()){
+                state+='<span class="label label--danger">rapid</span>'
+            }
+            return state
+        }
         return text
     }
     self.blockquote_css = ko.computed(function(){

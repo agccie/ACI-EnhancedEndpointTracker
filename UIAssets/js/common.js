@@ -389,8 +389,8 @@ label_ipv6 = 'label label--indigo'
 label_status_running = 'label label--success'
 label_status_stopped = 'label label--dkgray'
 label_status_created = 'label label--vibblue'
-label_status_modified = 'label label--dkgray'
-label_status_deleted = 'label label--danger'
+label_status_modified = 'label label--default'
+label_status_deleted = 'label label--dkgray'
 
 function get_endpoint_type_label(type){
     switch(type){

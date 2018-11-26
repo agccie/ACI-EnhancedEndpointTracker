@@ -2,6 +2,8 @@
 // receive instance of view modal and update table to fabric view
 function view_dashboard_fabric(vm){
     var self = vm;
+    self.view("dashboard_fabric")
+    self.view_dashboard(true)
     //build callbacks for each action
     var click_history = function(fab){
         if("fabric" in fab){
@@ -30,6 +32,12 @@ function view_dashboard_fabric(vm){
             })
         }
     }
+    // forward to edit fabric settings
+    var edit_fabric = function(fab){
+        if("fabric" in fab){
+            forward("/fb-"+fab.fabric()+"/settings")
+        }
+    }
     var headers = [
         {"title":"Name", "name":"fabric", "sorted":true, "sort_direction":"asc"},
         {"title":"Status", "name": "status"},
@@ -46,7 +54,8 @@ function view_dashboard_fabric(vm){
                         "click": stop_fabric
                     }),
             new gCtrl({"tip":"Edit", "status":"gray-ghost", "icon":"icon-tools",
-                        "disabled":!self.admin_role()
+                        "disabled":!self.admin_role(),
+                        "click": edit_fabric
                     }),
             new gCtrl({"tip":"History", "status":"secondary", "icon":"icon-chevron-right",
                         "click":click_history
@@ -76,8 +85,11 @@ function view_dashboard_fabric(vm){
 }
 
 // view events for fabric
-function view_dashboard_fabric_events(vm){
+function view_dashboard_fabric_events(vm, args){
     var self = vm;
+    self.view("dashboard_fabric_events")
+    self.view_dashboard(true)
+    self.current_fabric_name(args[0])
     self.table.back_enabled(true)
     var headers = [
         {"title": "Time", "name":"ts_str", "sorted":true, "sort_direction":"desc"},
@@ -90,7 +102,7 @@ function view_dashboard_fabric_events(vm){
     // get fabric object for current view fabric from self.fabrics
     var update_rows = function(){
         var rows = []
-        if(self.current_fabric!=null){
+        if(!self.current_fabric_not_found()){
             self.current_fabric.events().forEach(function(elem){
                 rows.push(new gRow(elem))
             })
@@ -113,16 +125,47 @@ function view_dashboard_fabric_events(vm){
     }
     //update table refresh function
     self.table.custom_refresh = self.view_dashboard_fabric_events_refresh
-    if(self.current_fabric == null || self.current_fabric.fabric()!=self.current_fabric_name()){
+    if(self.current_fabric.fabric()!=self.current_fabric_name()){
         self.view_dashboard_fabric_events_refresh()
     }else{
         update_rows()
     }
 }
 
+// view edit options for fabric
+function view_dashboard_fabric_settings(vm, args){
+    var self = vm;
+    self.view("dashboard_fabric_settings")
+    self.current_fabric_name(args[0])
+    self.view_edit_fabric(true)
+    self.table.display_no_data(false)
+    self.table.refresh_enabled(false)
+
+    var tab = "connectivity"
+    if(args.length>1){
+        switch(args[1]){
+            case "connectivity": tab="connectivity"; break;
+            case "notifications": tab="notifications"; break;
+            case "remediate": tab="remediate"; break;
+            case "advanced": tab="advanced"; break;
+        }
+    }
+    self.edit_fabric_tab(tab)
+    if(self.current_fabric_name()!=self.current_fabric.fabric()){
+        self.fabric_isLoading(true)
+        self.refresh_fabrics(function(){
+                self.fabric_isLoading(false)
+            }, 
+            self.current_fabric_name()
+        )
+    }
+}
+
 // view eptEndpoint events
 function view_dashboard_endpoints(vm){
     var self = vm;
+    self.view("dashboard_endpoints")
+    self.view_dashboard(true)
     self.table.url("/api/ept/endpoint")
     var headers = [
         {"title": "Fabric", "name":"fabric"},
@@ -202,6 +245,8 @@ function view_dashboard_endpoints(vm){
 // view eptMove events
 function view_dashboard_moves(vm){
     var self = vm;
+    self.view("dashboard_moves")
+    self.view_dashboard(true)
     self.table.url("/api/ept/move")
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.0.dst.ts"},
@@ -231,6 +276,9 @@ function view_dashboard_moves(vm){
 // view eptOffsubnet events
 function view_dashboard_offsubnet(vm){
     var self = vm;
+    self.view("dashboard_offsubnet")
+    self.view_dashboard(true)
+    self.historical_tab(true)
     self.table.url("/api/ept/offsubnet")
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.0.ts", "sorted":true},
@@ -261,6 +309,9 @@ function view_dashboard_offsubnet(vm){
 // view eptStale events
 function view_dashboard_stale(vm){
     var self = vm;
+    self.historical_tab(true)
+    self.view_dashboard(true)
+    self.view("dashboard_stale")
     self.table.url("/api/ept/stale")
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.0.ts", "sorted":true},
@@ -291,6 +342,8 @@ function view_dashboard_stale(vm){
 // view latest events
 function view_dashboard_latest_events(vm){
     var self = vm;
+    self.view_dashboard(true)
+    self.view("dashboard_latest_events")
     self.table.url("/api/ept/history")
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.0.ts", "sorted":true},
@@ -321,13 +374,16 @@ function view_dashboard_latest_events(vm){
 // view eptRapid events
 function view_dashboard_rapid(vm){
     var self = vm;
+    self.historical_tab(true)
+    self.view_dashboard(true)
+    self.view("dashboard_rapid")
     self.table.url("/api/ept/rapid")
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.ts", "sorted":true},
         {"title": "Fabric", "name":"fabric"},
-        {"title": "Event Rate (per minute)", "name":"rate", "sort_name":"events.rate"},
-        {"title": "Type", "name":"type"},
         {"title": "Address", "name":"addr"},
+        {"title": "Count", "name":"count_str", "sort_name":"events.count"},
+        {"title": "Event Rate (per minute)", "name":"rate", "sort_name":"events.rate"},
         {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.vnid_name"} 
     ]
     headers.forEach(function(h){
@@ -351,6 +407,8 @@ function view_dashboard_rapid(vm){
 // view eptRemediate events
 function view_dashboard_remediate(vm){
     var self = vm;
+    self.view_dashboard(true)
+    self.view("dashboard_remediate")
     self.table.url("/api/ept/remediate")
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.ts", "sorted":true},
@@ -379,8 +437,27 @@ function view_dashboard_remediate(vm){
 }
 
 //endpoint detail handler
-function view_endpoint_detail_handler(vm){
+function view_endpoint_detail(vm, args){
     var self = vm;
+    self.view("endpoint_detail")
+    self.view_endpoint(true)
+    self.endpoint_detail_fabric(args[0])
+    self.endpoint_detail_vnid(args[1])
+    self.endpoint_detail_addr(args[2])
+    var tab="history"
+    if(args.length>3){
+        switch(args[3]){
+            case "detailed": tab="detailed"; break;
+            case "history": tab="history"; break;
+            case "moves": tab="moves"; break
+            case "offsubnet": tab="offsubnet"; break;
+            case "stale": tab="stale"; break;
+            case "rapid": tab="rapid"; break;
+            case "remediate": tab="remediate"; break
+        }
+    }
+    self.endpoint_detail_tab(tab)
+
     var endpoint_detail_url = ""
     var event_type = generalEvent
 
@@ -537,20 +614,24 @@ function view_endpoint_detail_handler(vm){
     self.view_endpoint_detail_refresh()
 }
 
-
-
 function common_viewModel() {
     var self = this; 
     self.isLoading = ko.observable(false)
     self.view = ko.observable("index")
     self.table = new gTable()
-    self.admin_role = ko.observable(true)       // user is admin in standalone role
+    self.app_mode = ko.observable(executing_in_app_mode())
+    //self.app_mode(true)
+    self.admin_role = ko.observable(true)       
     self.fabrics = ko.observableArray([])
     self.current_fabric_name = ko.observable("")
-    self.current_fabric = null
+    self.current_fabric = new fabric()
+    self.current_fabric_not_found = ko.observable(false)
     self.historical_tab = ko.observable(false)
     self.view_dashboard = ko.observable(false)
     self.view_endpoint = ko.observable(false)
+    self.view_edit_fabric = ko.observable(false)
+    self.edit_fabric_tab = ko.observable("")
+    self.fabric_isLoading = ko.observable(false)
     self.endpoint_detail_fabric = ko.observable("")
     self.endpoint_detail_vnid = ko.observable(0)
     self.endpoint_detail_addr = ko.observable("")
@@ -559,29 +640,59 @@ function common_viewModel() {
     self.current_endpoint = new eptEndpoint()
     self.endpoint_isLoading = ko.observable(false)
 
+    // view functions 
+    self.init = function(){
+        self.isLoading(false)
+        self.endpoint_isLoading(false)
+        self.view_dashboard(false)
+        self.view_endpoint(false)
+        self.view_edit_fabric(false)
+        self.edit_fabric_tab("")
+        self.fabric_isLoading(false)
+        self.current_fabric_not_found(false)
+        self.historical_tab(false)
+        self.endpoint_detail_fabric("")
+        self.endpoint_detail_vnid(0)
+        self.endpoint_detail_addr("")
+        self.endpoint_detail_tab("")
+        self.current_endpoint_not_found(false)
+        self.table.init()
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    // fabric functions
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
     //refresh fabric state and trigger provided callback once full refresh has completed
     self.refresh_fabrics = function(success, fab){
         if(success===undefined){ success = function(){}}
         if(fab===undefined){ fab = null}
         var inflight = 0
-        var check_all_complete = function(){
+        var check_all_complete = function(refreshed_fabric){
             inflight--
-            if(inflight==0){success()}
+            if(inflight==0){
+                if(self.current_fabric_name()==refreshed_fabric.fabric()){
+                    self.current_fabric.fromJS(refreshed_fabric.toJS())
+                }
+                success()
+            }
         }
         json_get("/api/fabric?include=fabric&sort=fabric", function(data){
             var fabrics = []
-            self.current_fabric = null
+            if(fab!=null){ self.current_fabric_not_found(true) }
             data.objects.forEach(function(elem){
                 var f = new fabric(elem.fabric.fabric)
                 fabrics.push(f)
-                if(self.current_fabric_name()==f.fabric()){
-                    self.current_fabric = f
-                }
                 //support for refreshing a single fabric
                 //if single fab was provided for refresh, then only trigger refresh for that fabric
                 if(fab==null || f.fabric()==fab){
                     inflight++
                     f.refresh(check_all_complete)
+                    self.current_fabric_not_found(false)
                 }
             })
             self.fabrics(fabrics)
@@ -590,6 +701,101 @@ function common_viewModel() {
             if(inflight==0){success()}
         })
     }
+
+    //delete the currently viewed fabric
+    self.delete_fabric = function(){
+        var msg = '<h3>Wait</h3><div>Are you sure you want to delete ' +
+        '<span class="text-bold">'+self.current_fabric.fabric()+'</span>. '+
+        'This operation will delete all endpoint history for the corresponding fabric. ' +
+        'This action cannot be undone.';
+        confirmModal(msg, true, function(){
+            var url="/api/uni/fb-"+self.current_fabric.fabric()
+            self.fabric_isLoading(true)
+            json_delete(url, {}, function(){
+                self.fabric_isLoading(false)
+                forward("#/")
+            })
+        })
+    }
+
+    //save current fabric settings
+    self.save_fabric = function(){
+        var f = self.current_fabric
+        var js = {
+            "apic_cert": f.apic_cert(),
+            "apic_hostname": f.apic_hostname(),
+            "apic_username": f.apic_username(),
+            "ssh_username": f.ssh_username(),
+            "max_events": f.max_events()
+        }
+        if(f.apic_password().length>0){ js["apic_password"] = f.apic_password() }
+        if(f.ssh_password().length>0){ js["ssh_password"] = f.ssh_password() }
+        // get settings values, all settings can be applied at once
+        var settings_js = self.current_fabric.settings.toJS()
+        var url="/api/uni/fb-"+self.current_fabric.fabric()
+        self.fabric_isLoading(true)
+        json_patch(url, js, function(){
+            var url2 = "/api/uni/fb-"+self.current_fabric.fabric()+"/settings-default"
+            json_patch(url2, settings_js, function(data){
+                //re-check credentials on success and then
+                //if they are good prompt user to restart the fabric, else alert user of failure
+                var url = "/api/uni/fb-"+self.current_fabric.fabric()+"/verify"
+                json_post(url, {}, function(data){
+                    self.fabric_isLoading(false)
+                    if(data.success){
+                        if(self.current_fabric.status()=="running"){
+                            var msg = '<div>' +
+                                  'Changes successfully saved. You must restart the fabric ' +
+                                  'monitor for your changes to take effect.<br><br> ' +
+                                  'Restart monitor for <span class="text-bold">'+self.current_fabric.fabric()+'</span> now?' +
+                                  '</div>'
+                            confirmModal(msg, true, function(){
+                                self.fabric_isLoading(true)
+                                var url3="/api/uni/fb-"+self.current_fabric.fabric()+"/stop"
+                                json_post(url3, {}, function(data){
+                                    var url4="/api/uni/fb-"+self.current_fabric.fabric()+"/start"
+                                    json_post(url4, {}, function(data){
+                                        self.fabric_isLoading(false)
+                                        self.refresh_fabrics(undefined, self.current_fabric.fabric())
+                                    })
+                                })
+                            })
+                        }
+                    }else{
+                        var apic_success = (data.apic_error.length==0)
+                        var ssh_success = (data.ssh_error.length==0)
+                        var msg = '<h3>Credential verification failed</h3>';
+                        if(apic_success){
+                            msg+= '<div>'+
+                                    '<span class="label label--success">success</span> ' +
+                                    '<span class="text-bold">APIC Credentials</span> '
+                                 '</div>'
+                        } else {
+                            msg+= '<div>'+
+                                    '<span class="label label--warning-alt">failed</span> ' +
+                                    '<span class="text-bold">APIC Credentials</span> '+
+                                  '</div><div>' + data.apic_error + 
+                                 '</div>'
+                        }
+                        if(ssh_success){
+                            msg+= '<div>'+
+                                    '<span class="label label--success">success</span> ' +
+                                    '<span class="text-bold">SSH Credentials</span> '
+                                 '</div>'
+                        } else {
+                            msg+= '<div>'+
+                                    '<span class="label label--warning-alt">failed</span> ' +
+                                    '<span class="text-bold">SSH Credentials</span> '+
+                                  '</div><div>' + data.ssh_error + 
+                                 '</div>'
+                        }
+                        showInfoModal(msg, true)
+                    }
+                })
+            })
+        })
+    }
+
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -704,6 +910,13 @@ function common_viewModel() {
         if(self.view()==tab){ return "active" }
         return ""
     }
+    self.edit_fabric_active_tab = function(tab){
+        if(self.edit_fabric_tab()==tab){ return "active" }
+        return ""
+    }
+    self.edit_fabric_tab_link = ko.computed(function(){
+        return "#/fb-"+self.current_fabric_name()+"/settings"
+    })
     // set active class for active endpoint_detail tab
     self.endpoint_detail_active_tab = function(tab){
         if(self.endpoint_detail_tab()==tab){ return "active" }
@@ -717,129 +930,37 @@ function common_viewModel() {
         return url
     })
 
-    // view functions 
-    self.init = function(){
-        self.isLoading(false)
-        self.endpoint_isLoading(false)
-        self.view_dashboard(false)
-        self.view_endpoint(false)
-        self.historical_tab(false)
-        self.endpoint_detail_fabric("")
-        self.endpoint_detail_vnid(0)
-        self.endpoint_detail_addr("")
-        self.endpoint_detail_tab("")
-        self.current_endpoint_not_found(false)
-        self.table.init()
-    }
-    self.view_dashboard_fabric = function(){
-        self.init()
-        self.view("dashboard_fabric")
-        self.view_dashboard(true)
-        view_dashboard_fabric(self)
-    }
-    self.view_dashboard_fabric_events = function(args){
-        self.init()
-        self.view("dashboard_fabric_events")
-        self.view_dashboard(true)
-        self.current_fabric_name(args[0])
-        view_dashboard_fabric_events(self)
-    }
-    self.view_dashboard_endpoints = function(){
-        self.init()
-        self.view("dashboard_endpoints")
-        self.view_dashboard(true)
-        view_dashboard_endpoints(self)
-    }
-    self.view_dashboard_moves = function(){
-        self.init()
-        self.view("dashboard_moves")
-        self.view_dashboard(true)
-        view_dashboard_moves(self)
-    }
-    self.view_dashboard_offsubnet = function(){
-        self.init()
-        self.view("dashboard_offsubnet")
-        self.view_dashboard(true)
-        self.historical_tab(true)
-        view_dashboard_offsubnet(self)
-    }
-    self.view_dashboard_stale = function(){
-        self.init()
-        self.historical_tab(true)
-        self.view_dashboard(true)
-        self.view("dashboard_stale")
-        view_dashboard_stale(self)
-    }
-    self.view_dashboard_rapid = function(){
-        self.init()
-        self.historical_tab(true)
-        self.view_dashboard(true)
-        self.view("dashboard_rapid")
-        view_dashboard_rapid(self)
-    }
-    self.view_dashboard_remediate = function(){
-        self.init()
-        self.view_dashboard(true)
-        self.view("dashboard_remediate")
-        view_dashboard_remediate(self)
-    }
-    self.view_dashboard_latest_events = function(){
-        self.init()
-        self.view_dashboard(true)
-        self.view("dashboard_latest_events")
-        view_dashboard_latest_events(self)
-    }
-    self.view_endpoint_detail = function(args) {
-        self.init()
-        self.view_endpoint(true)
-        self.endpoint_detail_fabric(args[0])
-        self.endpoint_detail_vnid(args[1])
-        self.endpoint_detail_addr(args[2])
-        var tab="history"
-        if(args.length>3){
-            switch(args[3]){
-                case "detailed": tab="detailed"; break;
-                case "history": tab="history"; break;
-                case "moves": tab="moves"; break
-                case "offsubnet": tab="offsubnet"; break;
-                case "stale": tab="stale"; break;
-                case "rapid": tab="rapid"; break;
-                case "remediate": tab="remediate"; break
-            }
-        }
-        self.endpoint_detail_tab(tab)
-        self.view("endpoint_detail")
-        view_endpoint_detail_handler(self)
-    }
-
     // simple same-page routing to support direct anchor links (very basic/static)
     // for now, just /case-# and /case-#/filename-#
     var routes = [
-        {"route": "/fb-([^/]+)/history", "view": self.view_dashboard_fabric_events},
-        {"route": "/endpoints", "view": self.view_dashboard_endpoints},
-        {"route": "/moves", "view": self.view_dashboard_moves},
-        {"route": "/offsubnet", "view": self.view_dashboard_offsubnet},
-        {"route": "/stale", "view": self.view_dashboard_stale},
-        {"route": "/rapid", "view": self.view_dashboard_rapid},
-        {"route": "/remediate", "view": self.view_dashboard_remediate},
-        {"route": "/events", "view": self.view_dashboard_latest_events},
-        {"route": "/fb-([^/]+)/vnid-([0-9]+)/addr-([^/]+)", "view": self.view_endpoint_detail},
-        {"route": "/fb-([^/]+)/vnid-([0-9]+)/addr-([^/]+)/([a-z]+)", "view": self.view_endpoint_detail}
+        {"route": "/fb-([^/]+)/history", "view": view_dashboard_fabric_events},
+        {"route": "/fb-([^/]+)/settings", "view": view_dashboard_fabric_settings},
+        {"route": "/fb-([^/]+)/settings/([a-z]+)", "view": view_dashboard_fabric_settings},
+        {"route": "/endpoints", "view": view_dashboard_endpoints},
+        {"route": "/moves", "view": view_dashboard_moves},
+        {"route": "/offsubnet", "view": view_dashboard_offsubnet},
+        {"route": "/stale", "view": view_dashboard_stale},
+        {"route": "/rapid", "view": view_dashboard_rapid},
+        {"route": "/remediate", "view": view_dashboard_remediate},
+        {"route": "/events", "view": view_dashboard_latest_events},
+        {"route": "/fb-([^/]+)/vnid-([0-9]+)/addr-([^/]+)", "view": view_endpoint_detail},
+        {"route": "/fb-([^/]+)/vnid-([0-9]+)/addr-([^/]+)/([a-z]+)", "view": view_endpoint_detail}
     ]
     self.navigate = function(){
+        self.init()
         for (var i in routes) {
             var r = routes[i]
             var regex = new RegExp("^#"+r["route"]+"$")
             var match = regex.exec(window.top.location.hash)
             if (match != null){
                 if(match.length>1){
-                    return r["view"](match.slice(1, match.length));
+                    return r["view"](self, match.slice(1, match.length));
                 }else{
-                    return r["view"]();
+                    return r["view"](self);
                 }
             }
         }
-        return self.view_dashboard_fabric();
+        return view_dashboard_fabric(self);
     }
 
 

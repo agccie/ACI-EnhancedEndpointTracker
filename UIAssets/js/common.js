@@ -151,7 +151,7 @@ var tzoffset = -(new Date()).getTimezoneOffset()
 function timestamp_to_string(ts){
     //return moment(ts*1000).format('YYYY-MM-DD HH:mm:ss Z');
     if(ts==0){return "-"}
-    return moment(ts*1000).format('YYYY-MM-DDTHH:mm:ss');
+    return moment(ts*1000).format('YYYY-MM-DD HH:mm:ss');
 }
 
 // generic ajax error handler
@@ -160,6 +160,12 @@ function generic_ajax_error(json, status_code, status_text){
     console.log(json, status_text, status_code);
     if(json!==undefined && "error" in json){showAlertModal(json.error)}
     else{showAlertModal("An error occurred: ("+status_code+") "+status_text)}
+}
+
+// determine if currently running in app mode based on presence of app-start cookie
+function executing_in_app_mode(){
+    var app_set = Cookies.get("app_"+vendorDomain+"_"+appId+"_token")
+    return (app_set!==undefined)
 }
 
 //common ajax methods with support for proxy if app-mode cookies are set
@@ -174,11 +180,8 @@ function generic_ajax(url, method, data={},success=undefined,error=undefined){
         }
     }
     //for testing, force url to test server
-    //url = "http://esc-aci-compute:9080"+url
-    //appcenter_mode cookie set when app is loaded through app-start.html
-    var app_set = Cookies.get("app_"+vendorDomain+"_"+appId+"_token")
     var headers = {}
-    if(app_set!==undefined){
+    if(executing_in_app_mode()){
         data = {
             "url": url,
             "method": method,
@@ -274,7 +277,11 @@ function baseModelObject(){
         if(self._jsonify.length>0){
             var jsonify = self._jsonify
         }else{  
-            for(var key in self){jsonify.push(key);}
+            for(var key in self){
+                if(!ko.isComputed(self[key])){
+                    jsonify.push(key);
+                }
+            }
         }
         var obj = {}
         for(var i in jsonify){

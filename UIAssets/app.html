@@ -368,14 +368,14 @@
                                         <span data-bind="visible: table.back_enabled()">
                                             <button class="btn btn--small btn--icon" 
                                                     data-bind="click: function(){table.go_back()}"
-                                                    data-balloon="Back" data-balloon-pos="up">
+                                                    data-balloon="Back" data-balloon-pos="down">
                                                 <span  class="icon-back"></span>
                                             </button>
                                         </span>
                                         <span data-bind="visible: table.refresh_enabled()">
                                             <button class="btn btn--small btn--icon" 
                                                     data-bind="click: function(){table.refresh_data()}" 
-                                                    data-balloon="Refresh" data-balloon-pos="up">
+                                                    data-balloon="Refresh" data-balloon-pos="down">
                                                 <span class="icon-refresh"></span>
                                             </button>
                                         </span>
@@ -471,6 +471,468 @@
 
                             </div>
                             <!-- main table content end -->
+
+                            <!-- fabric settings -->
+                            <div class="qtr-padding" data-bind="visible: view_edit_fabric, loadingWhen: fabric_isLoading"> 
+                                <div data-bind="visible: current_fabric_not_found()">
+                                    <div class="text-center base-margin">
+                                        <h1 data-bind="text: current_fabric_name"></h1>
+                                        <h2 class="subheading">fabric not found or insufficient privileges to view settings</h2>
+                                    </div>
+                                </div>
+                                <div class="row" data-bind="visible: !current_fabric_not_found()">
+                                    <div class="col-md-2">
+                                        <button class="btn btn--small btn--icon" data-balloon="Back" data-balloon-pos="down"
+                                            data-bind="click: function(){forward('#/')}">
+                                            <span class="icon-back"></span>
+                                        </button>
+                                        <button class="btn btn--small btn--icon btn--primary" data-balloon="Save" data-balloon-pos="down"
+                                            data-bind="click: function(){save_fabric()}">
+                                            <span class="icon-save"></span>
+                                        </button>
+                                        <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete" data-balloon-pos="down"
+                                            data-bind="click: function(){delete_fabric()}">
+                                            <span class="icon-trash"></span>
+                                        </button>
+                                    </div>
+                                    <div class="col-md-10">
+                                        <h3 data-bind="text: current_fabric_name"></h3>
+                                    </div>
+                                </div>
+                                <div class="row half-margin-top" data-bind="visible: !current_fabric_not_found()">
+                                    <div class="col-md-2">
+                                        <ul class="tabs tabs--vertical">
+                                            <li class="tab" data-bind="css: edit_fabric_active_tab('connectivity')">
+                                                <a tabindex="0" data-bind="attr:{ href:edit_fabric_tab_link()+'/connectivity' }">
+                                                    <div class="tab__heading">Connectivity</div>
+                                                </a>
+                                            </li>
+                                            <li class="tab" data-bind="css: edit_fabric_active_tab('notifications')">
+                                                <a tabindex="0" data-bind="attr:{ href:edit_fabric_tab_link()+'/notifications' }">
+                                                    <div class="tab__heading">Notifications</div>
+                                                </a>
+                                            </li>
+                                            <li class="tab" data-bind="css: edit_fabric_active_tab('remediate')">
+                                                <a tabindex="0" data-bind="attr:{ href:edit_fabric_tab_link()+'/remediate' }">
+                                                    <div class="tab__heading">Remediate</div>
+                                                </a>
+                                            </li>
+                                            <li class="tab" data-bind="css: edit_fabric_active_tab('advanced')">
+                                                <a tabindex="0" data-bind="attr:{ href:edit_fabric_tab_link()+'/advanced' }">
+                                                    <div class="tab__heading">Advanced</div>
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-10">
+                                        <div class="tab-content">
+                                            <!-- connectivity settings -->
+                                            <div class="tab-pane" data-bind="css: edit_fabric_active_tab('connectivity')">
+                                                <div class="row half-margin-bottom">
+                                                    <div class="col-md-6">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="text" data-bind="value:current_fabric.apic_hostname, attr:{ disabled: app_mode()}" />
+                                                                <label>Hostname</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row half-margin-bottom" data-bind="visible: app_mode()">
+                                                    <div class="col-md-6">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="text" disabled data-bind="value:current_fabric.apic_cert" />
+                                                                <label>Certificate File</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row half-margin-bottom">
+                                                    <div class="col-md-6">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="text" data-bind="value:current_fabric.apic_username, attr:{ disabled: app_mode() }" />
+                                                                <label>APIC Username</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row half-margin-bottom" data-bind="visible: !app_mode()">
+                                                    <div class="col-md-6">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="password" data-bind="value:current_fabric.apic_password" />
+                                                                <label>APIC Password</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row half-margin-bottom">
+                                                    <div class="col-md-6">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="text" data-bind="value:current_fabric.ssh_username" />
+                                                                <label>SSH Username</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row half-margin-bottom">
+                                                    <div class="col-md-6">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="password" data-bind="value:current_fabric.ssh_password" />
+                                                                <label>SSH Password</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- end connectivity settings -->
+
+                                            <!-- notification settings -->
+                                            <div class="tab-pane" data-bind="css: edit_fabric_active_tab('notifications')">
+                                                <div class="row half-margin-bottom">
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="text" data-bind="value:current_fabric.settings.syslog_server" />
+                                                                <label>Syslog Server</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="number" data-bind="value:current_fabric.settings.syslog_port" />
+                                                                <label>Syslog Port</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row half-margin-bottom">
+                                                    <div class="col-md-6">
+                                                        <div class="form-group input--icon">
+                                                            <div class="form-group__text">
+                                                                <input type="text" data-bind="value:current_fabric.settings.email_address" />
+                                                                <label>Email Address</label>
+                                                                <button type="button" class="link">
+                                                                    <span class="icon-email"></span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row half-margin-bottom base-margin-top">
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.notify_move_syslog"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Move Syslog</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.notify_offsubnet_syslog"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">OffSubnet Syslog</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.notify_stale_syslog"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Stale Syslog</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.notify_rapid_syslog"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Rapid Syslog</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.notify_clear_syslog"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Remediate Syslog</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row half-margin-bottom base-margin-top">
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.notify_move_email"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Move Email</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.notify_offsubnet_email"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">OffSubnet Email</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.notify_stale_email"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Stale Email</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.notify_rapid_email"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Rapid Email</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.notify_clear_email"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Remediate Email</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- end notification settings -->
+
+                                            <!-- remediate settings -->
+                                            <div class="tab-pane" data-bind="css: edit_fabric_active_tab('remediate')">
+                                                <div class="row half-margin-bottom">
+                                                    <div class="form-group">
+                                                        <label class="switch">
+                                                            <input type="checkbox" data-bind="checked: current_fabric.settings.auto_clear_offsubnet"/>
+                                                            <span class="switch__input"></span>
+                                                            <span class="switch__label">Auto Clear OffSubnet Endpoints</span>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <div class="row half-margin-bottom">
+                                                    <div class="form-group">
+                                                        <label class="switch">
+                                                            <input type="checkbox" data-bind="checked: current_fabric.settings.auto_clear_stale"/>
+                                                            <span class="switch__input"></span>
+                                                            <span class="switch__label">Auto Clear Stale Endpoints</span>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- end remediate settings -->
+
+                                            <!-- advanced settings -->
+                                            <div class="tab-pane" data-bind="css: edit_fabric_active_tab('advanced')">
+                                                <div class="row half-margin-bottom">
+                                                    <blockquote class="">
+                                                    Each analysis feature can be enabled/disabled as needed. Disabling analysis for uninteresting events can
+                                                    improve worker efficiency. By default, analysis is enabled for all events. 
+                                                    See the online documentation for more information about each feature.
+                                                    </blockquote>
+                                                </div>
+                                                <div class="row base-margin-bottom">
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.analyze_move"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Analyze Move</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.analyze_offsubnet"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Analyze OffSubnet</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.analyze_stale"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Analyze Stale</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.analyze_rapid"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Analyze Rapid</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row base-margin-bottom">
+                                                    <blockquote class="">
+                                                    Fabric monitor events (i.e., starting and stopping the monitor) are wrapped at a configurable count.
+                                                    Endpoint events are also wrapped within the database. Some events, such as local endpoint history and
+                                                    endpoint moves, are wrapped per endpoint. Other events, such as offsubnet and stale events, are
+                                                    wrapped per node and per endpoint. 
+                                                    </blockquote>
+                                                </div>
+                                                <div class="row base-margin-bottom">
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="number" data-bind="value:current_fabric.max_events" />
+                                                                <label>Max Fabric Monitor Events</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="number" data-bind="value:current_fabric.settings.max_endpoint_events" />
+                                                                <label>Max Endpoint Events</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="number" data-bind="value:current_fabric.settings.max_per_node_endpoint_events" />
+                                                                <label>Max Per-Node Endpoint Events</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row base-margin-bottom">
+                                                    <blockquote class="">
+                                                    It is helpful be notified when an endpoint creating a high number of events. This often indicates 
+                                                    that the endpoint is unstable.
+                                                    When a endpoint is flagged as rapid, analysis is temporarily disabled for that
+                                                    endpoint and notifications are sent.
+                                                    Endpoints events are counted across all nodes and a rate of events per minute is calculated at 
+                                                    regular intervals. When the configured threshold of events per minute is exceeded, then endpoint
+                                                    is flagged as rapid and analysis is disabled for the holdtime.  Additionally, if refresh is 
+                                                    enabled, an API refresh request is sent to determine the current state of the endpoint after it
+                                                    is no longer marked as rapid.
+                                                    </blockquote>
+                                                </div>
+                                                <div class="row base-margin-bottom">
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.refresh_rapid"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Rapid Refresh</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row base-margin-bottom">
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="number" data-bind="value:current_fabric.settings.rapid_threshold" />
+                                                                <label>Rapid Event Threshold</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <div class="form-group__text">
+                                                                <input type="number" data-bind="value:current_fabric.settings.rapid_holdtime" />
+                                                                <label>Rapid Holdtime (seconds)</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row base-margin-bottom">
+                                                    <blockquote class="">
+                                                    When stale analysis is enabled, there are a few events that user may not wish to be treated as a stale
+                                                    event. A stale endpoint is generally a remote learn (XR) pointing to a leaf where the endpoint is 
+                                                    no longer local. If the endpoint is no longer local in the fabric and the XR entry still exists on 
+                                                    a node in the fabric, then the 'stale-no-local' logic is applied. If the endpoint is local on 
+                                                    multiple nodes at the same time, then the last local node is assumed to be the correct entry and
+                                                    the 'stale-multiple-local' logic is applied.  Note, this logic does not apply to vpc-attached endpoints
+                                                    which are expected to be learned on both nodes within the vpc.
+                                                    </blockquote>
+                                                </div>
+                                                <div class="row base-margin-bottom">
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.stale_no_local"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Stale-no-local</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.stale_multiple_local"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Stale-multiple-local</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row base-margin-bottom">
+                                                    <blockquote class="">
+                                                    subscriptions are enabled for several MOs during the initial db build. If events are received on the subscription 
+                                                    before initialization has completed these events can be queued and serviced after initialization. The number of 
+                                                    events queued is dependent on the rate of events and the build time. It may be desirable to ignore the events during 
+                                                    initialization, in which case queue events should be disabled.
+                                                    </blockquote>
+                                                </div>
+                                                <div class="row base-margin-bottom">
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.queue_init_events"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Queue initial events</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="form-group">
+                                                            <label class="switch">
+                                                                <input type="checkbox" data-bind="checked: current_fabric.settings.queue_init_epm_events"/>
+                                                                <span class="switch__input"></span>
+                                                                <span class="switch__label">Queue initial endpoint events</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- end advanced settings -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- end fabric settings -->
 
                         </div>
                         <!-- dashbarod end -->

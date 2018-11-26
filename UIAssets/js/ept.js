@@ -48,10 +48,10 @@ function fabricSettings(){
     self.notify_rapid_syslog = ko.observable(false)
     self.auto_clear_stale = ko.observable(false)
     self.auto_clear_offsubnet = ko.observable(false)
-    self.anaylze_move = ko.observable(true)
-    self.anaylze_offsubnet = ko.observable(true)
-    self.anaylze_stale = ko.observable(true)
-    self.anaylze_rapid = ko.observable(true)
+    self.analyze_move = ko.observable(true)
+    self.analyze_offsubnet = ko.observable(true)
+    self.analyze_stale = ko.observable(true)
+    self.analyze_rapid = ko.observable(true)
     self.refresh_rapid = ko.observable(true)
     self.max_per_node_endpoint_events = ko.observable(64)
     self.max_endpoint_events = ko.observable(64)
@@ -75,6 +75,7 @@ function fabric(fabric_name) {
     self.apic_cert = ko.observable("")
     self.ssh_username = ko.observable("")
     self.ssh_password = ko.observable("")
+    self.max_events = ko.observable(0)
     self.events = ko.observableArray([])
     self.event_count = ko.observable(0)
     self.status = ko.observable("")
@@ -119,34 +120,34 @@ function fabric(fabric_name) {
                 self.fromJS(data.objects[0].fabric)
             }
             self.loading_fabric(false)
-            if(!self.isLoading()){success()}
+            if(!self.isLoading()){success(self)}
         })
         json_get(base+"/settings-default", function(data){
             if(data.objects.length>0){
                 self.settings.fromJS(data.objects[0]["ept.settings"])
             }
             self.loading_settings(false)
-            if(!self.isLoading()){success()}
+            if(!self.isLoading()){success(self)}
         })
         json_get(base+"/status", function(data){
             self.status(data.status)
             self.loading_status(false)
-            if(!self.isLoading()){success()}
+            if(!self.isLoading()){success(self)}
         })
         json_get(count_base+"eq(\"type\",\"mac\"))", function(data){
             self.count_mac(data.count)
             self.loading_count_mac(false)
-            if(!self.isLoading()){success()}
+            if(!self.isLoading()){success(self)}
         })
         json_get(count_base+"eq(\"type\",\"ipv4\"))", function(data){
             self.count_ipv4(data.count)
             self.loading_count_ipv4(false)
-            if(!self.isLoading()){success()}
+            if(!self.isLoading()){success(self)}
         })
         json_get(count_base+"eq(\"type\",\"ipv6\"))", function(data){
             self.count_ipv6(data.count)
             self.loading_count_ipv6(false)
-            if(!self.isLoading()){success()}
+            if(!self.isLoading()){success(self)}
         })
     }
 }
@@ -597,7 +598,6 @@ function eptRapid(){
     self.addr = ko.observable("")
     self.type = ko.observable("")
     self.events = ko.observableArray([])
-    self.count = ko.observable(0)
 
     //get ts_str from first event
     self.ts_str = ko.computed(function(){
@@ -609,6 +609,12 @@ function eptRapid(){
         if(self.events().length>0){ return parseInt(self.events()[0].rate()) }
         return "-"
     })
+    // get count from events.0
+    self.count_str = ko.computed(function(){
+        if(self.events().length>0){ return parseInt(self.events()[0].count()) }
+        return "-"
+    })
+
     // get vnid_name from events.0
     self.vnid_name = ko.computed(function(){
         var name = ""

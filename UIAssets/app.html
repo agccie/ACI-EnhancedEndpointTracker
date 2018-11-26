@@ -233,6 +233,14 @@
                                             </div>
                                         </a>
                                     </li>
+                                    <li class="tab" data-bind="css: endpoint_detail_active_tab('detailed')">
+                                        <a tabindex="0" data-bind="attr:{ href:endpoint_detail_tab_link()+'/detailed' }">
+                                            <div class="tab__heading">
+                                                <span class="icon-search"></span>
+                                                Detailed
+                                            </div>
+                                        </a>
+                                    </li>
                                     <li class="tab" data-bind="css: endpoint_detail_active_tab('moves')">
                                         <a tabindex="0" data-bind="attr:{ href:endpoint_detail_tab_link()+'/moves' }">
                                             <div class="tab__heading">
@@ -374,7 +382,7 @@
                                         </div>
                                     </div>
                                     <div class="col-md-5">
-                                        <div data-bind="foreach: { data: table.toggles, as: 'toggle' }">
+                                        <div class="text-right" data-bind="foreach: { data: table.toggles, as: 'toggle' }">
                                             <div class="qtr-margin form-group form-group--inline">
                                                 <label class="switch">
                                                     <input type="checkbox" data-bind="checked: toggle.checked">

@@ -173,7 +173,7 @@ function gTable() {
     })
     self.get_total_count_wrapped = ko.computed(function(){
         if(self.result_count_wrapped()==null){ return 0 }
-        if(self.result_count_wrapped()<=self.get_total_count()){ return 0 }
+        if(self.result_count_wrapped()>=self.get_total_count()){ return 0 }
         return self.result_count_wrapped()
     })
     //get total number of pages

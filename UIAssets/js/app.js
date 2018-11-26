@@ -382,11 +382,45 @@ function view_dashboard_remediate(vm){
 //endpoint detail handler
 function view_endpoint_detail_handler(vm){
     var self = vm;
+    var endpoint_detail_url = ""
+    var event_type = generalEvent
 
-    self.view_endpoint_set_headers = function(){
+    var get_endpoint_detail_url = function(classname){
+        //unique url for endpoint and moves, other are all filters
+        if(classname == "endpoint" || classname == "move"){
+            var url = "/api/uni/fb-"+self.endpoint_detail_fabric()+"/"+classname
+            url+= "/vnid-"+self.endpoint_detail_vnid()+"/addr-"+self.endpoint_detail_addr()
+            return url
+        }
+        var url = "/api/ept/"+classname+"?filter=and("
+        url+= "eq(\"fabric\",\""+self.endpoint_detail_fabric()+"\"),"
+        url+= "eq(\"vnid\","+self.endpoint_detail_vnid()+"),"
+        url+= "eq(\"addr\",\""+self.endpoint_detail_addr()+"\"))"
+        return url
+    }
+    self.view_endpoint_set_dependencies = function(){
         //different view based selected endpoint_detail_tab which is set by view
         var headers = []
-        if(self.endpoint_detail_tab()=="history"){
+        var toggles = []
+        event_type = generalEvent
+        if(self.endpoint_detail_tab()=="detailed"){
+            endpoint_detail_url = get_endpoint_detail_url("history")
+            headers = [ 
+                {"title": "Time", "name":"ts_str"},
+                {"title": "Node", "name":"node_str"},
+                {"title": "Status", "name":"status"},
+                {"title": "Interface", "name":"intf_name"},
+                {"title": "Encap", "name":"encap_str"},
+                {"title": "Flags", "name":"flags_str"},
+                {"title": "pcTag", "name":"pctag_str"},
+                {"title": "Remote", "name":"remote_str"},
+                {"title": "EPG", "name":"epg_name"}
+            ]
+            if(self.current_endpoint.type()!="mac"){
+                headers.splice(headers.length-1, 0, {"title":"Mac", "name":"mac_str"})
+            }
+        } else if(self.endpoint_detail_tab() == "history") {
+            endpoint_detail_url = get_endpoint_detail_url("endpoint")
             headers = [ 
                 {"title": "Time", "name":"ts_str"},
                 {"title": "Status", "name":"status"},
@@ -395,24 +429,109 @@ function view_endpoint_detail_handler(vm){
                 {"title": "EPG", "name":"epg_name"}
             ]
             if(self.current_endpoint.type()!="mac"){
-                headers.splice(4, 0, {"title":"Mac", "name":"rw_mac"})
+                headers.splice(headers.length-1, 0, {"title":"Mac", "name":"mac_str"})
             }
+        } else if(self.endpoint_detail_tab() == "moves") {
+            event_type = moveEvent
+            endpoint_detail_url = get_endpoint_detail_url("move")
+            headers = [ 
+                {"title": "Time", "name":"ts_move_str"},
+                {"title": "Direction", "name":"direction"},
+                {"title": "Local Node", "name":"node_str"},
+                {"title": "Interface", "name":"intf_name"},
+                {"title": "Encap", "name":"encap"},
+                {"title": "EPG", "name":"epg_name"}
+            ]
+            if(self.current_endpoint.type()!="mac"){
+                headers.splice(headers.length-1, 0, {"title":"Mac", "name":"mac_str"})
+            }
+        } else if(self.endpoint_detail_tab() == "offsubnet") {
+            endpoint_detail_url = get_endpoint_detail_url("offsubnet")
+            headers = [ 
+                {"title": "Time", "name":"ts_str"},
+                {"title": "Node", "name":"node_str"},
+                {"title": "Interface", "name":"intf_name"},
+                {"title": "Encap", "name":"encap_str"},
+                {"title": "Remote", "name":"remote_str"},
+                {"title": "EPG", "name":"epg_name"}
+            ]
+        } else if(self.endpoint_detail_tab() == "stale") {
+            endpoint_detail_url = get_endpoint_detail_url("stale")
+            headers = [ 
+                {"title": "Time", "name":"ts_str"},
+                {"title": "Node", "name":"node_str"},
+                {"title": "Interface", "name":"intf_name"},
+                {"title": "Encap", "name":"encap_str"},
+                {"title": "Remote", "name":"remote_str"},
+                {"title": "Expected-Remote", "name":"expected_remote_str"},
+                {"title": "EPG", "name":"epg_name"}
+            ]
+        } else if(self.endpoint_detail_tab() == "rapid") {
+            endpoint_detail_url = get_endpoint_detail_url("rapid")
+            event_type = rapidEvent
+            headers = [ 
+                {"title": "Time", "name":"ts_str"},
+                {"title": "Event Count", "name":"count"},
+                {"title": "Event Rate", "name":"rate_str"}
+            ]
+        } else if(self.endpoint_detail_tab() == "remediate") {
+            endpoint_detail_url = get_endpoint_detail_url("remediate")
+            event_type = remediateEvent
+            headers = [ 
+                {"title": "Time", "name":"ts_str"},
+                {"title": "Node", "name":"node"},
+                {"title": "Action", "name":"action_str"},
+                {"title": "Reason", "name":"reason_str"}
+            ]
+        } else {
+            endpoint_detail_url = ""
         }
         self.table.headers([])
-        headers.forEach(function(h){
-            self.table.headers.push(new gHeader(h))
-        })
+        headers.forEach(function(h){self.table.headers.push(new gHeader(h))})
+        self.table.toggles([])
+        toggles.forEach(function(t){self.table.toggles.push(new gToggle(t))})
     }
 
     self.view_endpoint_detail_refresh = function(){
         self.refresh_endpoint(function(){
             //different view based selected endpoint_detail_tab which is set by view
-            //console.log(self.current_endpoint.toJS())
-            self.view_endpoint_set_headers()
+            self.view_endpoint_set_dependencies()
+            self.table.rows([])
+            if(endpoint_detail_url.length>0){
+                self.table.isLoading(true)
+                json_get(endpoint_detail_url, function(data){
+                    self.table.isLoading(false)
+                    var result_count = 0
+                    var result_count_wrapped = 0
+                    var rows = []
+                    var event_count = 0
+                    data.objects.forEach(function(elem){
+                        var classname = Object.keys(elem)[0]
+                        var node = null
+                        if("node" in elem[classname]){ node = elem[classname].node }
+                        if("events" in elem[classname]){
+                            elem[classname].events.forEach(function(e){
+                                var general_event = new event_type()
+                                general_event.fromJS(e)
+                                general_event.fabric(elem[classname].fabric)
+                                if(node!=null){ general_event.node(node) }
+                                rows.push(new gRow(general_event))
+                                event_count++
+                            })
+                        }
+                        if(event_count>0 && "count" in elem[classname]){
+                            result_count_wrapped+=event_count
+                            result_count+=elem[classname].count
+                        }
+                    })
+                    self.table.result_count(result_count)
+                    self.table.result_count_wrapped(result_count_wrapped)
+                    self.table.rows(rows)
+                })
+            }
         })
     
     }
-
     self.table.custom_refresh = self.view_endpoint_detail_refresh
     self.view_endpoint_detail_refresh()
 }
@@ -470,7 +589,6 @@ function common_viewModel() {
             if(inflight==0){success()}
         })
     }
-
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -679,6 +797,7 @@ function common_viewModel() {
         var tab="history"
         if(args.length>3){
             switch(args[3]){
+                case "detailed": tab="detailed"; break;
                 case "history": tab="history"; break;
                 case "moves": tab="moves"; break
                 case "offsubnet": tab="offsubnet"; break;

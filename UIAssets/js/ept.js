@@ -155,6 +155,7 @@ function fabric(fabric_name) {
 function generalEvent(){
     baseModelObject.call(this)
     var self = this
+    self.fabric = ko.observable("")     // embedded from parent classname for endpoint detail
     self.ts = ko.observable(0)
     self.status = ko.observable("")
     self.intf_id = ko.observable("")
@@ -167,11 +168,55 @@ function generalEvent(){
     self.vnid_name = ko.observable("")
     self.node = ko.observable(0)
     self.remote = ko.observable(0)
+    self.expected_remote = ko.observable(0)
     self.classname = ko.observable("")
     self.flags = ko.observableArray([])
     self.ts_str = ko.computed(function(){
         return timestamp_to_string(self.ts())
     }) 
+    self.node_str = ko.computed(function(){
+        if(self.node()==0){ return "-" }
+        return vpc_node_string(self.node())
+    })
+    self.remote_str = ko.computed(function(){
+        if(self.remote()==0){ return "-" }
+        return vpc_node_string(self.remote())
+    })
+    self.expected_remote_str = ko.computed(function(){
+        if(self.expected_remote()==0){ return "-" }
+        return vpc_node_string(self.expected_remote())
+    })
+    self.pctag_str = ko.computed(function(){
+        if(self.pctag()==0){ return "-" }
+        return self.pctag()
+    })
+    self.flags_str = ko.computed(function(){
+        if(self.flags().length==0){ return "-" }
+        return self.flags().join(",")
+    })
+    self.mac_str = ko.computed(function(){
+        if(self.rw_mac().length==0){ return "-" }
+        return self.rw_mac()
+    })
+    self.encap_str = ko.computed(function(){
+        if(self.encap().length==0){ return "-" }
+        return self.encap()
+    })
+    self.is_deleted = ko.computed(function(){
+        return self.status()=="deleted"
+    })
+    // custom cell formatting per attribute
+    self.formatter = function(attr, text){
+        if(attr == "status"){
+            return '<span class="'+get_status_label(text)+'">'+text+'</span>'
+        } else if (attr == "mac_str") {
+            if(self.rw_mac().length>0 && self.rw_bd()>0){
+                var url = '#/fb-'+self.fabric()+'/vnid-'+self.rw_bd()+'/addr-'+self.rw_mac()
+                return '<a href="'+url+'">'+text+'</a>'
+            }
+        }
+        return text
+    }
 }
 
 function eptEndpoint(){
@@ -302,15 +347,56 @@ function eptEndpoint(){
     })
 }
 
+//return html for src/dst cell within move table
+function moveWrapper(src, dst){
+    if(src.length==0){ src = "&nbsp"; }
+    if(dst.length==0){ dst = "&nbsp"; }
+    return "<div>"+dst+"</div><div>"+src+"</div>"
+}
+
 function moveEvent(){
     baseModelObject.call(this)
     var self = this
     self._subtypes = {"src": generalEvent, "dst":generalEvent }
     self.src = new generalEvent()
     self.dst = new generalEvent()
+    self.fabric = ko.observable("")     // embedded from parent classname for endpoint detail
+    self.direction = moveWrapper("src","dst")
     self.ts_str = ko.computed(function(){
         return self.dst.ts_str()
     })
+    self.ts_move_str = ko.computed(function(){
+        return moveWrapper("",self.ts_str())
+    })
+    self.node_str = ko.computed(function(){
+        return moveWrapper(vpc_node_string(self.src.node()), vpc_node_string(self.dst.node())) 
+    })
+    self.intf_name = ko.computed(function(){
+        return moveWrapper(self.src.intf_name(), self.dst.intf_name())
+    })
+    self.encap = ko.computed(function(){
+        return moveWrapper(self.src.encap(), self.dst.encap())
+    })
+    self.epg_name = ko.computed(function(){
+        return moveWrapper(self.src.epg_name(), self.dst.epg_name())
+    })
+    self.mac_str = ko.computed(function(){
+        return moveWrapper(self.src.rw_mac(), self.dst.rw_mac())
+    })
+    // custom cell formatting per attribute
+    self.formatter = function(attr, text){
+        if (attr == "mac_str") {
+            if(self.src.rw_mac().length>0 && self.src.rw_bd()>0){
+                var url1 = '#/fb-'+self.fabric()+'/vnid-'+self.src.rw_bd()+'/addr-'+self.src.rw_mac()
+                var url2 = '#/fb-'+self.fabric()+'/vnid-'+self.dst.rw_bd()+'/addr-'+self.dst.rw_mac()
+                return moveWrapper(
+                    '<a href="'+url1+'">'+self.src.rw_mac()+'</a>',
+                    '<a href="'+url2+'">'+self.dst.rw_mac()+'</a>'
+                )
+            }
+        }
+        return text
+    }
 }
 
 function eptMove(){
@@ -344,7 +430,7 @@ function eptMove(){
             return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
         }
         else if(attr == "addr"){
-            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()+'/moves';
             return '<a href="'+url+'">'+text+'</a>'
         }
         return text
@@ -384,7 +470,7 @@ function eptOffsubnet(){
             return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
         }
         else if(attr == "addr"){
-            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()+'/offsubnet';
             return '<a href="'+url+'">'+text+'</a>'
         }
         return text
@@ -424,7 +510,7 @@ function eptStale(){
             return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
         }
         else if(attr == "addr"){
-            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()+'/stale';
             return '<a href="'+url+'">'+text+'</a>'
         }
         return text
@@ -486,12 +572,16 @@ function rapidEvent(){
     var self = this
     self.ts = ko.observable(0)
     self.vnid_name = ko.observable("")
+    self.fabric = ko.observable("")     // embedded from parent classname for endpoint detail
     self.ts_str = ko.computed(function(){
         return timestamp_to_string(self.ts())
     }) 
+    // endpoint count/rate when rapid was triggered
     self.rate = ko.observable(0)    
-    // endpoint count when rapid was triggered
     self.count = ko.observable(0)   
+    self.rate_str = ko.computed(function(){
+        return parseInt(self.rate())
+    })
 }
 
 function eptRapid(){
@@ -530,7 +620,7 @@ function eptRapid(){
             return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
         }
         else if(attr == "addr"){
-            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()+'/rapid'
             return '<a href="'+url+'">'+text+'</a>'
         }
         return text
@@ -541,12 +631,23 @@ function eptRapid(){
 function remediateEvent(){
     baseModelObject.call(this)
     var self = this
+    self.fabric = ko.observable("")
     self.ts = ko.observable(0)
     self.ts_str = ko.computed(function(){
         return timestamp_to_string(self.ts())
     }) 
     self.action = ko.observable("")
     self.reason = ko.observable("")
+    self.action_str = ko.computed(function(){
+        if(self.action().length==0){ return "-" }
+        return self.action()
+    })
+    self.reason_str = ko.computed(function(){
+        if(self.reason().length==0){ return "-" }
+        return self.reason()
+    })
+    //used to copy value from eptRemediate into event for table view
+    self.node = ko.observable("")
 }
 
 function eptRemediate(){
@@ -588,7 +689,7 @@ function eptRemediate(){
             return '<span class="'+get_endpoint_type_label(text)+'">'+text+'</span>'
         }
         else if(attr == "addr"){
-            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()
+            var url = '#/fb-'+self.fabric()+'/vnid-'+self.vnid()+'/addr-'+self.addr()+'/remediate';
             return '<a href="'+url+'">'+text+'</a>'
         }
         return text

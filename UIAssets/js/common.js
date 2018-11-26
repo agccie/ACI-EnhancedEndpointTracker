@@ -156,7 +156,7 @@ function timestamp_to_string(ts){
 
 // generic ajax error handler
 function generic_ajax_error(json, status_code, status_text){
-    console.trace()
+    //console.trace()
     console.log(json, status_text, status_code);
     if(json!==undefined && "error" in json){showAlertModal(json.error)}
     else{showAlertModal("An error occurred: ("+status_code+") "+status_text)}

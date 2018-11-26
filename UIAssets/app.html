@@ -92,6 +92,29 @@
             </div>
         </div>
     </div>
+
+    <!-- new fabric modal -->
+    <div class="modal modal-form modal--large hide">
+        <div class="modal__dialog">
+            <div class="modal__content">
+                <a class="modal__close" onclick="hideModal()"><span class="icon-close"></span></a>
+                <div class="modal__body">
+                    <h5>
+                        <div class="form-group ">
+                            <div class="form-group__text">
+                                <input type="text" data-bind="value: new_fabric_name" />
+                                <label>Fabric Name</label>
+                            </div>
+                        </div>
+                    </h5>
+                </div>
+                <div class="modal__footer" data-bind="loadingWhen: fabric_isLoading">
+                    <button class="btn btn btn--gray-ghost" onclick="hideModal()">Close</button>
+                    <button class="btn btn--primary" data-bind="click: create_fabric">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
     
 	<!-- page content container -->
     <div class="content-fluid">
@@ -377,6 +400,19 @@
                                                     data-bind="click: function(){table.refresh_data()}" 
                                                     data-balloon="Refresh" data-balloon-pos="down">
                                                 <span class="icon-refresh"></span>
+                                            </button>
+                                        </span>
+                                        <span data-bind="foreach: { data: table.buttons, as: 'c' }">
+                                            <button class="btn btn--small btn--icon" 
+                                                data-bind="click: function(){c.click()},
+                                                            css: c.btn_status(),
+                                                            visible: c.visible(),
+                                                            attr: { 
+                                                                'data-balloon': c.balloon, 
+                                                                'data-balloon-pos': c.balloon_pos,
+                                                                'disabled': c.disabled
+                                                            } ">
+                                                <span data-bind="css: c.icon"></span>
                                             </button>
                                         </span>
                                     </div>

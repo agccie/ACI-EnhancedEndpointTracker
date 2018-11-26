@@ -42,6 +42,7 @@ function gCtrl(args){
     var self = this
     self.click = ("click" in args)? args.click : function(data){}
     self.type = ko.observable(("type" in args)? args.type : "button")
+    self.visible = ko.observable(("visible" in args)? args.visible : true)
     self.disabled = ko.observable(("disabled" in args)? args.disabled : false )
     self.icon = ko.observable(("icon" in args)? args.icon : "icon-check")
     self.icon_status = ko.observable(("status" in args)? args.status : "")
@@ -109,6 +110,7 @@ function gTable() {
     self.back_location = ko.observable("")
     self.display_no_data = ko.observable(true)
     self.no_data_message = ko.observable("No data to display")
+    self.buttons = ko.observableArray([])
     self.toggles = ko.observableArray([])
     self.title = ko.observable("")
     self.url = ko.observable("")
@@ -133,6 +135,7 @@ function gTable() {
         self.back_location("")
         self.display_no_data(true)
         self.no_data_message("No data to display")
+        self.buttons([])
         self.toggles([])
         self.title("")
         self.url("")

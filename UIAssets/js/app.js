@@ -10,14 +10,45 @@ function view_dashboard_fabric(vm){
             forward("/fb-"+fab.fabric()+"/history")
         }
     }
+
+    // refresh fabric until interesting fabric status changes to desired state or max tries are
+    // exceeded
+    var poll_fabric_status = function(callback, fabric_name, status, max_tries=10){
+        self.refresh_fabrics(function(){
+
+            max_tries--
+            var fabric_status = ""
+            var status_list = []
+            if(Array.isArray(status)){ status_list = status }
+            else{ status_list = [status] }
+            for(var i=0; i<=self.fabrics().length; i++){
+                if(self.fabrics()[i].fabric()==fabric_name){
+                    fabric_status = self.fabrics()[i].status()
+                    break
+                }
+            }
+            if(status_list.includes(fabric_status) || max_tries <= 0 ){
+                return callback()
+            }
+            if(max_tries > 0){
+                setTimeout(function(){ 
+                    poll_fabric_status(callback, fabric_name, status, max_tries) 
+                }, 1000);
+            }
+        }, fabric_name)
+    }
+
     // start fabric monitor
     var start_fabric = function(fab){
         if("fabric" in fab){
             var url="/api/uni/fb-"+fab.fabric()+"/start"
             self.table.isLoading(true)
             json_post(url, {}, function(data){
-                self.table.isLoading(false)
-                self.refresh_fabrics(undefined, fab.fabric())
+                poll_fabric_status(function(){
+                        self.table.isLoading(false)
+                        self.view_dashboard_fabric_refresh()
+                    }, 
+                    fab.fabric(), ["running"])
             })
         }
     }
@@ -27,11 +58,15 @@ function view_dashboard_fabric(vm){
             var url="/api/uni/fb-"+fab.fabric()+"/stop"
             self.table.isLoading(true)
             json_post(url, {}, function(data){
-                self.table.isLoading(false)
-                self.refresh_fabrics(undefined, fab.fabric())
+                poll_fabric_status(function(){
+                        self.table.isLoading(false)
+                        self.view_dashboard_fabric_refresh()
+                    }, 
+                    fab.fabric(), "stopped")
             })
         }
     }
+
     // forward to edit fabric settings
     var edit_fabric = function(fab){
         if("fabric" in fab){
@@ -65,6 +100,14 @@ function view_dashboard_fabric(vm){
     headers.forEach(function(h){
         self.table.headers.push(new gHeader(h))
     })
+    self.table.buttons([
+        new gCtrl({"tip":"Add Fabric", "status":"primary", "icon":"icon-add",
+                        "disabled":!self.admin_role(),
+                        "visible": !self.app_mode(),
+                        "click": function(){showModalForm()}
+        })
+    ])
+
 
     //get all fabrics and perform a refresh on each
     self.view_dashboard_fabric_refresh = function(){
@@ -639,6 +682,7 @@ function common_viewModel() {
     self.current_endpoint_not_found = ko.observable(false)
     self.current_endpoint = new eptEndpoint()
     self.endpoint_isLoading = ko.observable(false)
+    self.new_fabric_name = ko.observable("")
 
     // view functions 
     self.init = function(){
@@ -648,6 +692,7 @@ function common_viewModel() {
         self.view_endpoint(false)
         self.view_edit_fabric(false)
         self.edit_fabric_tab("")
+        self.new_fabric_name("")
         self.fabric_isLoading(false)
         self.current_fabric_not_found(false)
         self.historical_tab(false)
@@ -717,7 +762,18 @@ function common_viewModel() {
             })
         })
     }
-
+    //create a new fabric
+    self.create_fabric = function(){
+        var js = {"fabric": self.new_fabric_name() }
+        if(js.fabric.length>0){
+            var url = "/api/fabric"
+            self.fabric_isLoading(true)
+            json_post(url, js, function(data){
+                hideModal()
+                forward("#/fb-"+self.new_fabric_name()+"/settings")
+            })
+        }
+    }
     //save current fabric settings
     self.save_fabric = function(){
         var f = self.current_fabric

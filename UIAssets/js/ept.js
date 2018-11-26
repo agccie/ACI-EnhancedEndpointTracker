@@ -105,11 +105,19 @@ function fabric(fabric_name) {
     }
 
     // refresh full state for this fabric (fabric, settings, status, and counts)
-    self.refresh = function(success){
-        if(success===undefined){ success = function(){}}
+    self.refresh = function(user_success){
+        if(user_success===undefined){ user_success = function(){}}
+        var success = function(){
+            // always perform status check last
+            self.loading_status(true)
+            json_get(base+"/status", function(data){
+                self.status(data.status)
+                self.loading_status(false)
+                return user_success(self)
+            })
+        }
         self.loading_fabric(true)
         self.loading_settings(true)
-        self.loading_status(true)
         self.loading_count_mac(true)
         self.loading_count_ipv4(true)
         self.loading_count_ipv6(true)
@@ -127,11 +135,6 @@ function fabric(fabric_name) {
                 self.settings.fromJS(data.objects[0]["ept.settings"])
             }
             self.loading_settings(false)
-            if(!self.isLoading()){success(self)}
-        })
-        json_get(base+"/status", function(data){
-            self.status(data.status)
-            self.loading_status(false)
             if(!self.isLoading()){success(self)}
         })
         json_get(count_base+"eq(\"type\",\"mac\"))", function(data){

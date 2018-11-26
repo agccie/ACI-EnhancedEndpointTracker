@@ -2,7 +2,6 @@
 // receive instance of view modal and update table to fabric view
 function view_dashboard_fabric(vm){
     var self = vm;
-
     //build callbacks for each action
     var click_history = function(fab){
         if("fabric" in fab){
@@ -31,7 +30,6 @@ function view_dashboard_fabric(vm){
             })
         }
     }
-
     var headers = [
         {"title":"Name", "name":"fabric", "sortable":false},
         {"title":"Status", "name": "status", "sortable":false},
@@ -101,7 +99,8 @@ function view_dashboard_fabric_events(vm){
         }
         self.table.title(self.current_fabric_name())
         self.table.rows(rows)
-        self.table.result_count_wrapped(self.current_fabric.event_count())
+        self.table.result_count(self.current_fabric.event_count())
+        self.table.result_count_wrapped(rows.length)
     }
 
     self.view_dashboard_fabric_events_refresh = function(){

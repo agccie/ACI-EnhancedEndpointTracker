@@ -28,9 +28,9 @@ function gHeader(args) {
     self.get_sort_css = ko.computed(function(){
         if(self.sortable() && self.sorted()){
             if(self.sort_direction()=="asc"){
-                return "sort-indicator icon-chevron-down"
-            }else{
                 return "sort-indicator icon-chevron-up"
+            }else{
+                return "sort-indicator icon-chevron-down"
             }
         }
         return ""
@@ -179,7 +179,11 @@ function gTable() {
     //get total number of pages
     self.get_total_pages = ko.computed(function(){
         if(self.page_size()>0){
-            return Math.ceil(self.get_total_count()/self.page_size())
+            if(self.get_total_count_wrapped()>0){
+                return Math.ceil(self.get_total_count_wrapped()/self.page_size())
+            } else {
+                return Math.ceil(self.get_total_count()/self.page_size())
+            }
         }
         return 0
     })
@@ -252,7 +256,11 @@ function gTable() {
             hdr.sort_direction("asc")
             hdr.sorted(true)
         }
-        self.refresh_data()
+        if(self._client_paging()){
+            self.client_sort(hdr)
+        } else {
+            self.refresh_data()
+        }
     }
 
     // refresh data with sorting and paging
@@ -294,6 +302,39 @@ function gTable() {
             }
             self.rows(rows)
         })
+    }
+
+    // sort based on provided header
+    self.client_sort = function(hdr){
+        if(hdr===undefined){ 
+            //determine sort header from available headers
+            for(var i=0; i<self.headers().length; i++){
+                if(self.headers()[i].sorted()){
+                    hdr=self.headers()[i]
+                    break
+                }
+            }
+        }
+        if(hdr===undefined || !hdr.sorted()){  return }
+        var lt = hdr.sort_direction()=="asc"? -1 : 1
+        var gt = hdr.sort_direction()=="asc"? 1 : -1
+        var sort_name = hdr.get_sort_name()
+        var rows = self.rows()
+        rows.sort(function(a, b){
+            if("data" in a && sort_name in a.data && "data" in b && sort_name in b.data){
+                var av = a.data[sort_name]
+                var bv = b.data[sort_name]
+                if(ko.isObservable(av)){ av = av() }
+                if(ko.isObservable(bv)){ bv = bv() }
+                if(av < bv) {
+                    return lt
+                } else if (av > bv) {
+                    return gt
+                }
+            }
+            return 0
+        })
+        self.rows(rows)
     }
 }
 

@@ -224,7 +224,7 @@
 
                             <!-- per-endpoint tabs selection -->
                             <div class="qtr-padding" data-bind="visible: view_endpoint"> 
-                                <ul class="tabs tabs--bordered">
+                                <ul class="tabs">
                                     <li class="tab" data-bind="css: endpoint_detail_active_tab('history')">
                                         <a tabindex="0" data-bind="attr:{ href:endpoint_detail_tab_link()+'/history' }">
                                             <div class="tab__heading">
@@ -288,7 +288,7 @@
 
                             <!-- dashboard tabs selection -->
                             <div class="qtr-padding" data-bind="visible: view_dashboard"> 
-                                <ul class="tabs tabs--bordered">
+                                <ul class="tabs">
                                     <li class="tab" data-bind="css: dashboard_active_tab('dashboard_fabric')+dashboard_active_tab('dashboard_fabric_events')">
                                         <a tabindex="0" href="#/">
                                             <div class="tab__heading">
@@ -366,13 +366,17 @@
                                 <div class="row">
                                     <div class="col-md-5">
                                         <span data-bind="visible: table.back_enabled()">
-                                            <button class="btn btn--small btn--icon" data-balloon="Back" data-balloon-pos="up">
-                                                <span data-bind="click: function(){table.go_back()}" class="icon-back"></span>
+                                            <button class="btn btn--small btn--icon" 
+                                                    data-bind="click: function(){table.go_back()}"
+                                                    data-balloon="Back" data-balloon-pos="up">
+                                                <span  class="icon-back"></span>
                                             </button>
                                         </span>
                                         <span data-bind="visible: table.refresh_enabled()">
-                                            <button class="btn btn--small btn--icon" data-balloon="Refresh" data-balloon-pos="up">
-                                                <span data-bind="click: function(){table.refresh_data()}" class="icon-refresh"></span>
+                                            <button class="btn btn--small btn--icon" 
+                                                    data-bind="click: function(){table.refresh_data()}" 
+                                                    data-balloon="Refresh" data-balloon-pos="up">
+                                                <span class="icon-refresh"></span>
                                             </button>
                                         </span>
                                     </div>
@@ -413,13 +417,14 @@
                                                     <span data-bind="visible: h.control().length>0">
                                                         <span data-bind="foreach: { data: h.control, as: 'c' }">
                                                             <button class="btn btn--small btn--icon" 
-                                                                    data-bind="css: c.btn_status(),
+                                                                    data-bind="click: function(){c.click(r.data)},
+                                                                               css: c.btn_status(),
                                                                                attr: { 
                                                                                 'data-balloon': c.balloon, 
                                                                                 'data-balloon-pos': c.balloon_pos,
                                                                                 'disabled': c.disabled
                                                                                } ">
-                                                                <span data-bind="css: c.icon, click: function(){c.click(r.data)}"></span>
+                                                                <span data-bind="css: c.icon"></span>
                                                             </button>
                                                         </span>
                                                     </span>

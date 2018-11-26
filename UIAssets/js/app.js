@@ -31,11 +31,11 @@ function view_dashboard_fabric(vm){
         }
     }
     var headers = [
-        {"title":"Name", "name":"fabric", "sortable":false},
-        {"title":"Status", "name": "status", "sortable":false},
-        {"title": "MACs", "name":"count_mac", "sortable":false},
-        {"title": "IPv4", "name":"count_ipv4", "sortable":false},
-        {"title": "IPv6", "name":"count_ipv6", "sortable":false},
+        {"title":"Name", "name":"fabric", "sorted":true, "sort_direction":"asc"},
+        {"title":"Status", "name": "status"},
+        {"title": "MACs", "name":"count_mac"},
+        {"title": "IPv4", "name":"count_ipv4"},
+        {"title": "IPv6", "name":"count_ipv6"},
         {"title": "Control", "name":"control", "sortable":false, "control":[
             new gCtrl({"tip":"Start", "status":"success", "icon":"icon-right-arrow-contained",
                         "disabled":!self.admin_role(),
@@ -80,9 +80,9 @@ function view_dashboard_fabric_events(vm){
     var self = vm;
     self.table.back_enabled(true)
     var headers = [
-        {"title": "Time", "name":"ts_str", "sortable":false},
-        {"title": "Status", "name":"status", "sortable":false},
-        {"title": "Description", "name":"description", "sortable":false}
+        {"title": "Time", "name":"ts_str", "sorted":true, "sort_direction":"desc"},
+        {"title": "Status", "name":"status"},
+        {"title": "Description", "name":"description"}
     ]
     headers.forEach(function(h){
         self.table.headers.push(new gHeader(h))
@@ -385,8 +385,9 @@ function view_endpoint_detail_handler(vm){
     var event_type = generalEvent
 
     var get_endpoint_detail_url = function(classname){
-        //unique url for endpoint and moves, other are all filters
-        if(classname == "endpoint" || classname == "move"){
+        //unique url for endpoint and moves, other are all filters. However, moves may not exists
+        //and instead of adding 404 handlers, will only use direct url for endpoint
+        if(classname == "endpoint"){
             var url = "/api/uni/fb-"+self.endpoint_detail_fabric()+"/"+classname
             url+= "/vnid-"+self.endpoint_detail_vnid()+"/addr-"+self.endpoint_detail_addr()
             return url
@@ -405,15 +406,15 @@ function view_endpoint_detail_handler(vm){
         if(self.endpoint_detail_tab()=="detailed"){
             endpoint_detail_url = get_endpoint_detail_url("history")
             headers = [ 
-                {"title": "Time", "name":"ts_str"},
-                {"title": "Node", "name":"node_str"},
+                {"title": "Time", "name":"ts_str", "sorted":true, "sort_direction":"desc"},
+                {"title": "Node", "name":"node_str", "sort_name":"node"},
                 {"title": "Status", "name":"status"},
                 {"title": "Interface", "name":"intf_name"},
                 {"title": "Encap", "name":"encap_str"},
                 {"title": "Flags", "name":"flags_str"},
-                {"title": "pcTag", "name":"pctag_str"},
-                {"title": "Remote", "name":"remote_str"},
-                {"title": "EPG", "name":"epg_name"}
+                {"title": "pcTag", "name":"pctag_str", "sort_name":"pctag"},
+                {"title": "Remote", "name":"remote_str", "sort_name":"remote"},
+                {"title": "EPG", "name":"epg_name_str"}
             ]
             if(self.current_endpoint.type()!="mac"){
                 headers.splice(headers.length-1, 0, {"title":"Mac", "name":"mac_str"})
@@ -421,11 +422,11 @@ function view_endpoint_detail_handler(vm){
         } else if(self.endpoint_detail_tab() == "history") {
             endpoint_detail_url = get_endpoint_detail_url("endpoint")
             headers = [ 
-                {"title": "Time", "name":"ts_str"},
+                {"title": "Time", "name":"ts_str", "sorted":true, "sort_direction":"desc"},
                 {"title": "Status", "name":"status"},
                 {"title": "Local Node", "name":"node_str"},
                 {"title": "Interface", "name":"intf_name"},
-                {"title": "EPG", "name":"epg_name"}
+                {"title": "EPG", "name":"epg_name_str"}
             ]
             if(self.current_endpoint.type()!="mac"){
                 headers.splice(headers.length-1, 0, {"title":"Mac", "name":"mac_str"})
@@ -434,12 +435,12 @@ function view_endpoint_detail_handler(vm){
             event_type = moveEvent
             endpoint_detail_url = get_endpoint_detail_url("move")
             headers = [ 
-                {"title": "Time", "name":"ts_move_str"},
-                {"title": "Direction", "name":"direction"},
-                {"title": "Local Node", "name":"node_str"},
-                {"title": "Interface", "name":"intf_name"},
-                {"title": "Encap", "name":"encap"},
-                {"title": "EPG", "name":"epg_name"}
+                {"title": "Time", "name":"ts_str", "sorted":true, "sort_direction":"desc"},
+                {"title": "Direction", "name":"direction", "sortable":false},
+                {"title": "Local Node", "name":"node_str", "sortable":false},
+                {"title": "Interface", "name":"intf_name", "sortable":false},
+                {"title": "Encap", "name":"encap", "sortable":false},
+                {"title": "EPG", "name":"epg_name", "sortable":false}
             ]
             if(self.current_endpoint.type()!="mac"){
                 headers.splice(headers.length-1, 0, {"title":"Mac", "name":"mac_str"})
@@ -447,37 +448,37 @@ function view_endpoint_detail_handler(vm){
         } else if(self.endpoint_detail_tab() == "offsubnet") {
             endpoint_detail_url = get_endpoint_detail_url("offsubnet")
             headers = [ 
-                {"title": "Time", "name":"ts_str"},
-                {"title": "Node", "name":"node_str"},
+                {"title": "Time", "name":"ts_str", "sorted":true, "sort_direction":"desc"},
+                {"title": "Node", "name":"node_str", "sort_name":"node"},
                 {"title": "Interface", "name":"intf_name"},
                 {"title": "Encap", "name":"encap_str"},
-                {"title": "Remote", "name":"remote_str"},
-                {"title": "EPG", "name":"epg_name"}
+                {"title": "Remote", "name":"remote_str", "sort_name":"remote"},
+                {"title": "EPG", "name":"epg_name_str"}
             ]
         } else if(self.endpoint_detail_tab() == "stale") {
             endpoint_detail_url = get_endpoint_detail_url("stale")
             headers = [ 
-                {"title": "Time", "name":"ts_str"},
-                {"title": "Node", "name":"node_str"},
+                {"title": "Time", "name":"ts_str", "sorted":true, "sort_direction":"desc"},
+                {"title": "Node", "name":"node_str", "sort_name":"node"},
                 {"title": "Interface", "name":"intf_name"},
                 {"title": "Encap", "name":"encap_str"},
-                {"title": "Remote", "name":"remote_str"},
-                {"title": "Expected-Remote", "name":"expected_remote_str"},
-                {"title": "EPG", "name":"epg_name"}
+                {"title": "Remote", "name":"remote_str", "sort_name":"remote"},
+                {"title": "Expected-Remote", "name":"expected_remote_str", "sort_name":"expected_remote"},
+                {"title": "EPG", "name":"epg_name_str"}
             ]
         } else if(self.endpoint_detail_tab() == "rapid") {
             endpoint_detail_url = get_endpoint_detail_url("rapid")
             event_type = rapidEvent
             headers = [ 
-                {"title": "Time", "name":"ts_str"},
+                {"title": "Time", "name":"ts_str", "sorted":true, "sort_direction":"desc"},
                 {"title": "Event Count", "name":"count"},
-                {"title": "Event Rate", "name":"rate_str"}
+                {"title": "Event Rate (per-minute)", "name":"rate_str", "sort_name":"rate"}
             ]
         } else if(self.endpoint_detail_tab() == "remediate") {
             endpoint_detail_url = get_endpoint_detail_url("remediate")
             event_type = remediateEvent
             headers = [ 
-                {"title": "Time", "name":"ts_str"},
+                {"title": "Time", "name":"ts_str", "sorted":true, "sort_direction":"desc"},
                 {"title": "Node", "name":"node"},
                 {"title": "Action", "name":"action_str"},
                 {"title": "Reason", "name":"reason_str"}
@@ -503,10 +504,10 @@ function view_endpoint_detail_handler(vm){
                     var result_count = 0
                     var result_count_wrapped = 0
                     var rows = []
-                    var event_count = 0
                     data.objects.forEach(function(elem){
                         var classname = Object.keys(elem)[0]
                         var node = null
+                        var event_count = 0
                         if("node" in elem[classname]){ node = elem[classname].node }
                         if("events" in elem[classname]){
                             elem[classname].events.forEach(function(e){
@@ -526,6 +527,7 @@ function view_endpoint_detail_handler(vm){
                     self.table.result_count(result_count)
                     self.table.result_count_wrapped(result_count_wrapped)
                     self.table.rows(rows)
+                    self.table.client_sort()
                 })
             }
         })

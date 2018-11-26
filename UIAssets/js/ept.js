@@ -202,6 +202,10 @@ function generalEvent(){
         if(self.encap().length==0){ return "-" }
         return self.encap()
     })
+    self.epg_name_str = ko.computed(function(){
+        if(self.epg_name().length==0){ return "-" }
+        return self.epg_name()
+    })
     self.is_deleted = ko.computed(function(){
         return self.status()=="deleted"
     })
@@ -378,7 +382,7 @@ function moveEvent(){
         return moveWrapper(self.src.encap(), self.dst.encap())
     })
     self.epg_name = ko.computed(function(){
-        return moveWrapper(self.src.epg_name(), self.dst.epg_name())
+        return moveWrapper(self.src.epg_name_str(), self.dst.epg_name_str())
     })
     self.mac_str = ko.computed(function(){
         return moveWrapper(self.src.rw_mac(), self.dst.rw_mac())

@@ -1234,7 +1234,7 @@ class eptWorker(object):
         msg.wf.send_notification("rapid", subject, txt)
         if msg.wf.settings.refresh_rapid:
             key = "%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr)
-            msg.xts = msg.ts + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID
+            msg.xts = msg.now + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID
             with self.watch_rapid_lock:
                 self.watch_rapid[key] = msg
             logger.debug("watch rapid added with xts: %.03f", msg.xts)
@@ -1245,7 +1245,7 @@ class eptWorker(object):
             exists it is overwritten with the new watch event.
         """
         key = "%s,%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr, msg.node)
-        msg.xts = msg.ts + TRANSITORY_OFFSUBNET
+        msg.xts = msg.now + TRANSITORY_OFFSUBNET
         with self.watch_offsubnet_lock:
             self.watch_offsubnet[key] = msg
         logger.debug("watch offsubnet added with xts: %.03f", msg.xts)
@@ -1257,9 +1257,9 @@ class eptWorker(object):
         """
         key = "%s,%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr, msg.node)
         if msg.event["expected_remote"] == 0:
-            msg.xts = msg.ts + TRANSITORY_STALE_NO_LOCAL
+            msg.xts = msg.now + TRANSITORY_STALE_NO_LOCAL
         else:
-            msg.xts = msg.ts + TRANSITORY_STALE
+            msg.xts = msg.now + TRANSITORY_STALE
         with self.watch_stale_lock:
             self.watch_stale[key] = msg
         logger.debug("watch stale added with xts: %.03f", msg.xts)

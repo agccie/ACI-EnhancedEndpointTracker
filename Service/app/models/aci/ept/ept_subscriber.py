@@ -1062,14 +1062,15 @@ class eptSubscriber(object):
         logger.debug("initialize endpoint db")
 
         start_time = time.time()
-        data = get_class(self.session, "epmDb", queryTarget="subtree",
-                targetSubtreeClass="epmMacEp,epmIpEp,epmRsMacEpToIpEpAtt")
+        data = []
 
         # we will start epm subscription AFTER get_class (which can take a long time) but before 
         # processing endpoints.  This minimizes amount of time we lose data without having to buffer
         # all events that are recieved during get requests.
         paused = self.settings.queue_init_epm_events
         for c in self.epm_subscription_classes:
+            cdata = get_class(self.session, c, orderBy="%s.dn" % c)
+            if cdata is not None: data+= cdata
             self.subscriber.add_interest(c, self.handle_epm_event, paused=paused)
 
         ts = time.time()

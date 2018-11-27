@@ -854,6 +854,21 @@ function common_viewModel() {
             })
         })
     }
+    // test notification
+    self.test_fabric_notification = function(notify_type){
+        if(notify_type=="syslog" || notify_type=="email"){
+            var url="/api/uni/fb-"+self.current_fabric.fabric()+"/settings-default/test/"+notify_type
+            self.fabric_isLoading(true)
+            json_post(url, {}, function(data){
+                self.fabric_isLoading(false)
+                var msg = "Test "+notify_type+" sent. Please validate the message was received."
+                showInfoModal(msg)
+            }, function(json, status_code, status_text){
+                self.fabric_isLoading(false)
+                generic_ajax_error(json, status_code, status_text)
+            })
+        }
+    }
 
 
     ///////////////////////////////////////////////////////////////////////////////////////////////

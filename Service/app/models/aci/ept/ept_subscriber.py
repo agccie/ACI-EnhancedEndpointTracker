@@ -113,10 +113,15 @@ class eptSubscriber(object):
         }
 
         # epm subscriptions expect a high volume of events
+        # note the order of the subscription classes is also the order in which analysis is performed
+        # we want all mac first, then rs-ip-events, and finally epmIpEp so that each local epmIpEp
+        # will already have corresponding mac rewrite info ready. Ideally, all epmIpEp analysis 
+        # completes in under TRANSITORY_STALE_NO_LOCAL time (300 seconds) so no false stale is 
+        # triggered.
         self.epm_subscription_classes = [
             "epmMacEp",
-            "epmIpEp",
             "epmRsMacEpToIpEpAtt",
+            "epmIpEp",
         ]
 
         all_interests = {}

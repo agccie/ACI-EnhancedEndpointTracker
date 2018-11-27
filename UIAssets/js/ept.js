@@ -122,7 +122,8 @@ function fabric(fabric_name) {
         self.loading_count_ipv4(true)
         self.loading_count_ipv6(true)
         var base = "/api/uni/fb-"+self.fabric()
-        var count_base = "/api/ept/endpoint?count=1&filter=and(eq(\"fabric\",\""+self.fabric()+"\"),neq(\"events.0.status\",\"deleted\"),"
+        var count_base = "/api/ept/endpoint?count=1&filter=and(eq(\"fabric\",\""+self.fabric()+"\"),"
+        count_base+= "or(eq(\"events.0.status\",\"created\"),eq(\"events.0.status\",\"modified\")),"
         json_get(base, function(data){
             if(data.objects.length>0){
                 self.fromJS(data.objects[0].fabric)

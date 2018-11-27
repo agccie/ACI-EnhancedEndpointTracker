@@ -233,7 +233,7 @@ function view_dashboard_endpoints(vm){
     }
     var handle_toggles = function(label, checked){
         var flt = ""
-        if(label == "Active"){ flt = "neq(\"events.0.status\",\"deleted\")" }
+        if(label == "Active"){ flt = "or(eq(\"events.0.status\",\"created\"),eq(\"events.0.status\",\"modified\"))" }
         else if(label == "OffSubnet"){ flt = "eq(\"is_offsubnet\",true)" }
         else if(label == "Stale"){ flt = "eq(\"is_stale\",true)" }
         else if(label == "Rapid"){ flt = "eq(\"is_rapid\",true)" }
@@ -822,28 +822,28 @@ function common_viewModel() {
                         var ssh_success = (data.ssh_error.length==0)
                         var msg = '<h3>Credential verification failed</h3>';
                         if(apic_success){
-                            msg+= '<div>'+
-                                    '<span class="label label--success">success</span> ' +
-                                    '<span class="text-bold">APIC Credentials</span> '
+                            msg+= '<div class="row">'+
+                                    '<div class="col-md-2"><span class="text-bold">APIC Credentials</span></div>' +
+                                    '<div class="col-md-10"><span class="label label--success">success</span></div>' +
                                  '</div>'
                         } else {
-                            msg+= '<div>'+
-                                    '<span class="label label--warning-alt">failed</span> ' +
-                                    '<span class="text-bold">APIC Credentials</span> '+
-                                  '</div><div>' + data.apic_error + 
-                                 '</div>'
+                            msg+= '<div class="row">'+
+                                    '<div class="col-md-2"><span class="text-bold">APIC Credentials</span></div>' +
+                                    '<div class="col-md-10"><span class="label label--warning-alt">failed</span> ' +
+                                     data.apic_error + '</div>' +
+                                  '</div>'
                         }
                         if(ssh_success){
-                            msg+= '<div>'+
-                                    '<span class="label label--success">success</span> ' +
-                                    '<span class="text-bold">SSH Credentials</span> '
+                            msg+= '<div class="row">'+
+                                    '<div class="col-md-2"><span class="text-bold">SSH Credentials</span></div>' +
+                                    '<div class="col-md-10"><span class="label label--success">success</span></div>' +
                                  '</div>'
                         } else {
-                            msg+= '<div>'+
-                                    '<span class="label label--warning-alt">failed</span> ' +
-                                    '<span class="text-bold">SSH Credentials</span> '+
-                                  '</div><div>' + data.ssh_error + 
-                                 '</div>'
+                            msg+= '<div class="row">'+
+                                    '<div class="col-md-2"><span class="text-bold">SSH Credentials</span></div>' +
+                                    '<div class="col-md-10"><span class="label label--warning-alt">failed</span> ' +
+                                    data.ssh_error + '</div>' +
+                                  '</div>'
                         }
                         showInfoModal(msg, true)
                     }

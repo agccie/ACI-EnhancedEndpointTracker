@@ -163,14 +163,11 @@
                     <div>
                         <a href="#/" class="btn btn--small btn--icon" data-balloon="Dashboard" data-balloon-pos="down">
                             <span class="icon-computer"></span>
-                        </a>
-                        <a class="btn btn--small btn--icon" data-balloon="Accounts" data-balloon-pos="down">
+                        </a><a class="btn btn--small btn--icon" data-balloon="Accounts" data-balloon-pos="down">
                             <span class="icon-user"></span>
-                        </a>
-                        <a class="btn btn--small btn--icon" data-balloon="Help" data-balloon-pos="down">
+                        </a><a class="btn btn--small btn--icon" data-balloon="Help" data-balloon-pos="down">
                             <span class="icon-help"></span>
-                        </a>
-                        <a class="btn btn--small btn--icon btn--negative" data-balloon="Sign-out" data-balloon-pos="down">
+                        </a><a class="btn btn--small btn--icon btn--negative" data-balloon="Sign-out" data-balloon-pos="down">
                             <span class="icon-sign-out"></span>
                         </a>
                     </div>
@@ -490,9 +487,9 @@
                                                 <td>
                                                     <span data-bind="html: r.get_attribute_html(h.name())"></span>
                                                     <span data-bind="visible: h.control().length>0">
-                                                        <span data-bind="foreach: { data: h.control, as: 'c' }">
-                                                            <button class="btn btn--small btn--icon" 
-                                                                    data-bind="click: function(){c.click(r.data)},
+                                                        <span data-bind="foreach: { data: h.control, as: 'c' }"><button 
+                                                                class="btn btn--small btn--icon" 
+                                                                data-bind="click: function(){c.click(r.data)},
                                                                                css: c.btn_status(),
                                                                                attr: { 
                                                                                 'data-balloon': c.balloon, 
@@ -500,8 +497,7 @@
                                                                                 'disabled': c.disabled
                                                                                } ">
                                                                 <span data-bind="css: c.icon"></span>
-                                                            </button>
-                                                        </span>
+                                                            </button></span>
                                                     </span>
                                                 </td>
                                             </tr>

@@ -425,7 +425,7 @@ function view_dashboard_rapid(vm){
         {"title": "Time", "name":"ts_str", "sort_name":"events.ts", "sorted":true},
         {"title": "Fabric", "name":"fabric"},
         {"title": "Address", "name":"addr"},
-        {"title": "Count", "name":"count_str", "sort_name":"events.count"},
+        {"title": "Rapid Count", "name":"count", "sort_name":"count"},
         {"title": "Event Rate (per minute)", "name":"rate", "sort_name":"events.rate"},
         {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.vnid_name"} 
     ]
@@ -1279,6 +1279,7 @@ function common_viewModel() {
     }
 }
 
+
 var page_vm
 $().ready(function(){
     var self = new common_viewModel();
@@ -1297,7 +1298,13 @@ $().ready(function(){
     self.navigate()
 
     // listen for/refresh app token when running in app mode
-    appTokenRefresh()
+    if(self.app_mode()){
+        appTokenRefresh()
+    } else {
+        // verify we are authenticated via check to app-status/manager (which also verifies that
+        // manager is running). If unauthenticated, display login 
+        
+    }
 })
 
 

@@ -606,6 +606,7 @@ function eptRapid(){
     self.addr = ko.observable("")
     self.type = ko.observable("")
     self.events = ko.observableArray([])
+    self.count = ko.observable(0)
 
     //get ts_str from first event
     self.ts_str = ko.computed(function(){
@@ -615,11 +616,6 @@ function eptRapid(){
     // get rate from events.0
     self.rate = ko.computed(function(){
         if(self.events().length>0){ return parseInt(self.events()[0].rate()) }
-        return "-"
-    })
-    // get count from events.0
-    self.count_str = ko.computed(function(){
-        if(self.events().length>0){ return parseInt(self.events()[0].count()) }
         return "-"
     })
 

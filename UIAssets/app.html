@@ -115,6 +115,36 @@
             </div>
         </div>
     </div>
+
+    <!-- clear endpoint modal -->
+    <div class="modal modal-form-clear modal--large hide">
+        <div class="modal__dialog">
+            <div class="modal__content">
+                <a class="modal__close" onclick="hideModal()"><span class="icon-close"></span></a>
+                <div class="modal__body">
+                    <div class="row">
+                        <div class="col-md-2">
+                            <h6>Nodes</h6>
+                        </div>
+                        <div class="col-md-9 text-left">
+                            <h6>
+                                <select required id="clearEndpointSelect" multiple="multiple" style="width:100%"></select>
+                                <div class="qtr-margin-top">
+                                    <span class=A"text-muted">Example: 101-102, 105</span>
+                                </div>
+                            </h6>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal__footer" data-bind="loadingWhen: clear_endpoint_isLoading">
+                    <button class="btn btn btn--gray-ghost" onclick="hideModal()">Close</button>
+                    <button class="btn btn--negative" data-bind="click: function(){submit_clear_endpoint()}">
+                        <span class="icon icon-exclamation-triangle"></span> Clear Endpoint
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     
 	<!-- page content container -->
     <div class="content-fluid">

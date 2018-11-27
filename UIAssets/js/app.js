@@ -676,6 +676,7 @@ function common_viewModel() {
     self.view_edit_fabric = ko.observable(false)
     self.edit_fabric_tab = ko.observable("")
     self.fabric_isLoading = ko.observable(false)
+    self.clear_endpoint_isLoading = ko.observable(false)
     self.endpoint_detail_fabric = ko.observable("")
     self.endpoint_detail_vnid = ko.observable(0)
     self.endpoint_detail_addr = ko.observable("")
@@ -695,6 +696,7 @@ function common_viewModel() {
         self.edit_fabric_tab("")
         self.new_fabric_name("")
         self.fabric_isLoading(false)
+        self.clear_endpoint_isLoading(false)
         self.current_fabric_not_found(false)
         self.historical_tab(false)
         self.endpoint_detail_fabric("")
@@ -1006,7 +1008,8 @@ function common_viewModel() {
         })
     }
     self.endpoint_force_clear = function(){
-        showInfoModal("TODO clear endpoint")
+        self.init_clear_endpoint_select()
+        showModalClearEndpointForm()
     }
 
 
@@ -1180,6 +1183,76 @@ function common_viewModel() {
             }
         });
     }
+
+    // clear node select option
+    self.clearEndpointSelect = null;
+    self.init_clear_endpoint_select = function(){
+        //destroy any existing select2 anchored on searchBar
+        if(self.clearEndpointSelect != null){
+            $("#clearEndpointSelect").empty()
+            try{$("#clearEndpointSelect").select2("destroy")}catch(err){}
+        }
+        self.clearEndpointSelect = $("#clearEndpointSelect").select2({
+            allowClear: true,
+            placeholder: "Select nodes to execute clear endpoint",
+            escapeMarkup: function (markup) { return markup; }, // let our custom formatter work
+            tags: true,
+            data: [],
+            minimumInputLength: 2,
+            templateSelection: function(obj){
+                return obj.text.replace(/ /g, " ")
+            }
+        });
+        self.clearEndpointSelect.on("select2:select", function (evt) { 
+            if (!evt) { return; } 
+            if (!evt.params || !evt.params.data){ return; }
+            if("text" in evt.params.data){
+                var val = data.text
+                //no-op for now, validation on submit
+            }
+        });
+    }
+
+    // submit clear endpoint
+    self.submit_clear_endpoint = function(){
+        var nodes=[]
+        self.clearEndpointSelect.val().forEach(function(elem){
+            elem.split(",").forEach(function(val){
+                val = val.replace(/^[ ]*/g, "")
+                val = val.replace(/[ ]*$/g, "")
+                if(val.match(/^[0-9]+$/)!=null){
+                    val = parseInt(val)
+                    if(!nodes.includes(val)){ nodes.push(val) }
+                } else if(val.match(/^[0-9]+[ ]*-[ ]*[0-9]+$/)!=null){
+                    var val1 = parseInt(val.split("-")[0])
+                    var val2 = parseInt(val.split("-")[1])
+                    if(val1 > val2){
+                        for(var i=val2; i<=val1; i++){ 
+                            if(!nodes.includes(i)){ nodes.push(i) } 
+                        }
+                    } else {
+                        for(var i=val1; i<=val2; i++){ 
+                            if(!nodes.includes(i)){ nodes.push(i) } 
+                        }
+                    }
+                }
+            })
+        })
+        if(nodes.length==0){
+            var msg = "Please select one or more valid nodes to execute clear command"
+            showInfoModal(msg)
+        } else {
+            var url = self.get_endpoint_api()+"/clear"
+            self.clear_endpoint_isLoading(true) 
+            json_post(url, {"nodes": nodes }, function(data){
+                self.clear_endpoint_isLoading(false)
+                hideModal()
+                if(!data.success){
+                    showAlertModal(data.error)
+                }
+            })
+        }
+    }
 }
 
 var page_vm
@@ -1192,8 +1265,9 @@ $().ready(function(){
     //add listener for hash change
     $(window).on("hashchange", function(){self.navigate();})
 
-    //initialize searchbar if present
+    //initialize search bars if present
     self.init_searchbar()
+    self.init_clear_endpoint_select()
 
     //trigger navigation on load
     self.navigate()

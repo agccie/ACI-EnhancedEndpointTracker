@@ -357,6 +357,11 @@ function showInfoModal(msg, html=false){
         $("#modal-info-content").text(msg)
     }
 }
+function showModalClearEndpointForm(){
+    hideModal()
+    $(".modal-form-clear").removeClass("hide")
+    $(".modal-backdrop").removeClass("hide")
+}
 function showModalForm(){
     hideModal()
     $(".modal-form").removeClass("hide")

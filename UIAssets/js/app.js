@@ -1118,13 +1118,22 @@ function common_viewModel() {
                 url: "/api/ept/endpoint",
                 dataType: 'json',
                 delay: 250,
+                transport: function (params, success, failure){
+                    var url_params = [
+                        'filter='+params.data.filter,
+                        "include=fabric,addr,vnid,type,first_learn",
+                        "page-size=20",
+                        "sort=addr"
+                    ]
+                    var url = "/api/ept/endpoint?"+url_params.join("&")
+                    var $request = json_get(url, success, failure)
+                    $request.then(success);
+                    $request.fail(failure);
+                    return $request;
+                },
                 data: function (params) {
                     return {
-                        "filter": 'regex("addr","'+escapeRegExp(params.term).toUpperCase()+'")',
-                        "include": "fabric,addr,vnid,type,first_learn",
-                        "page-size": "20",
-                        "sort": "addr",
-                        "page": params.page
+                        "filter": 'regex("addr","'+escapeRegExp(params.term).toUpperCase()+'")'
                     };
                 },
                 processResults: function (data, params) {

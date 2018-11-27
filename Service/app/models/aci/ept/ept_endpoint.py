@@ -232,7 +232,7 @@ class eptEndpoint(Rest):
         from .. fabric import Fabric
         # validate credentials exists before any other validation
         f = Fabric.load(fabric=self.fabric)
-        if len(f.ssh_password) == 0:
+        if len(f.ssh_password) == 0 or len(f.ssh_username) == 0:
             abort(400, "cannot clear endpoint, ssh credentials not configured.")
         
         if self.type == "mac":

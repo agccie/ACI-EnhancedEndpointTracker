@@ -1,12 +1,15 @@
 {
   "name": "eptracker",
-  "version": "0.0.0",
+  "version": "2.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
-    "build-standalone": "ng build -c standalone",
+    "start": "ng serve --open",
+    "start-prod": "ng serve --open --prod",
+    "prebuild": "npm run clean",
+    "build": "ng build --prod",
     "build-app": "ng build -c app",
+    "build-standalone": "ng build -c standalone",
+    "clean": "rm -f dist/*",
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e"

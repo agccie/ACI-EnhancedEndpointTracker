@@ -1081,7 +1081,6 @@ class eptSubscriber(object):
         endpoints = {}
         # queue all the events to send at one time...
         create_msgs = []
-        delete_msgs = []
         for (classname, attr) in self.parse_event(data, verify_ts=False):
             msg = self.ept_epm_parser.parse(classname, attr, ts)
             if msg is not None:
@@ -1093,39 +1092,8 @@ class eptSubscriber(object):
         # free classquery data list
         data = []
 
-        # get entries in db and create delete events for those not deleted and not in class query.
-        # we need to iterate through the results and do so as fast as possible and current rest
-        # class does not support an iterator.  Therefore, using direct db call...
-        flt = {
-            "fabric": self.fabric.fabric,
-            "events.0.status": {"$ne": "deleted"},
-        }
-        projection = {
-            "node": 1,
-            "vnid": 1,
-            "addr": 1,
-            "type": 1,
-        }
-        for obj in self.db[eptHistory._classname].find(flt, projection):
-            # if in endpoints dict, then stil exists in the fabric so do not create a delete event
-            if obj["node"] in endpoints and obj["vnid"] in endpoints[obj["node"]] and \
-                obj["addr"] in endpoints[obj["node"]][obj["vnid"]]:
-                continue
-            if obj["type"] == "mac":
-                msg = self.ept_epm_parser.get_delete_event("epmMacEp", obj["node"], 
-                    obj["vnid"], obj["addr"], ts)
-                if msg is not None:
-                    delete_msgs.append(msg)
-            else:
-                # create an epmRsMacEpToIpEpAtt and epmIpEp delete event
-                msg = self.ept_epm_parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"], 
-                    obj["vnid"], obj["addr"], ts)
-                if msg is not None:
-                    delete_msgs.append(msg)
-                msg = self.ept_epm_parser.get_delete_event("epmIpEp", obj["node"], 
-                    obj["vnid"], obj["addr"], ts)
-                if msg is not None:
-                    delete_msgs.append(msg)
+        # get delete jobs
+        delete_msgs = self.get_epm_delete_msgs(endpoints)
 
         # send all create and delete messages to workers (delete first just because...)
         logger.debug("build_endoint_db sending %s delete and %s create messages", len(delete_msgs),
@@ -1159,9 +1127,13 @@ class eptSubscriber(object):
                 "targetSubtreeClass": "epmIpEp,epmRsMacEpToIpEpAtt",
                 "queryTargetFilter": f
             }
-        work = []
         objects = get_class(self.session, classname, **kwargs)
         ts = time.time()
+        # 3-level dict to track endpoints returned from class query endpoints[node][vnid][addr] = 1
+        endpoints = {}
+        # queue all the events to send at one time...
+        create_msgs = []
+        # queue all the events to send at one time...
         if objects is not None:
             for obj in objects:
                 classname = obj.keys()[0]
@@ -1170,17 +1142,66 @@ class eptSubscriber(object):
                     attr["_ts"] = ts
                     msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
                     if msg is not None:
-                        if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
-                            if msg.ip == addr and msg.vrf == vnid:
-                                work.append(eptMsgWorkRaw(addr,"worker",{classname:attr},
-                                                                    WORK_TYPE.RAW,qnum=qnum))
-                        elif msg.addr == addr and msg.vnid == vnid:
-                            work.append(eptMsgWorkRaw(addr,"worker",{classname:attr},
-                                                                WORK_TYPE.RAW,qnum=qnum))
+                        msg.qnum = qnum
+                        create_msgs.append(msg)
+                        if msg.node not in endpoints: endpoints[msg.node] = {}
+                        if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
+                        endpoints[msg.node][msg.vnid][msg.addr] = 1
                 else:
                     logger.debug("ignoring invalid epm object %s", obj)
+            # get delete jobs
+            delete_msgs = self.get_epm_delete_msgs(endpoints, addr=addr, vnid=vnid)
+            for msg in delete_msgs:
+                msgs.qnum = qnum
+            logger.debug("sending %s create and %s delete msgs from refresh", len(create_msgs),
+                    len(delete_msgs))
+            self.send_msg(create_msgs)
+            self.send_msg(delete_msgs)
         else:
             logger.debug("failed to get epm objects")
-        logger.debug("sending %s work events from refresh", len(work))
-        self.send_msg(work)
+
+    def get_epm_delete_msgs(self, endpoints, addr=None, vnid=None):
+        """ from provided create endpoint dict and flt, return list of delete msgs 
+            endpoints must be 3-level dict in the form endpoints[node][vnid][addr]
+        """
+
+        # get entries in db and create delete events for those not deleted and not in class query.
+        # we need to iterate through the results and do so as fast as possible and current rest
+        # class does not support an iterator.  Therefore, using direct db call...
+        projection = {
+            "node": 1,
+            "vnid": 1,
+            "addr": 1,
+            "type": 1,
+        }
+        flt = {
+            "fabric": self.fabric.fabric,
+            "events.0.status": {"$ne": "deleted"},
+        }
+        if addr is not None and vnid is not None:
+            flt["addr"] = addr
+            flt["vnid"] = vnid
+
+        delete_msgs = []
+        for obj in self.db[eptHistory._classname].find(flt, projection):
+            # if in endpoints dict, then stil exists in the fabric so do not create a delete event
+            if obj["node"] in endpoints and obj["vnid"] in endpoints[obj["node"]] and \
+                obj["addr"] in endpoints[obj["node"]][obj["vnid"]]:
+                continue
+            if obj["type"] == "mac":
+                msg = self.ept_epm_parser.get_delete_event("epmMacEp", obj["node"], 
+                    obj["vnid"], obj["addr"], ts)
+                if msg is not None:
+                    delete_msgs.append(msg)
+            else:
+                # create an epmRsMacEpToIpEpAtt and epmIpEp delete event
+                msg = self.ept_epm_parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"], 
+                    obj["vnid"], obj["addr"], ts)
+                if msg is not None:
+                    delete_msgs.append(msg)
+                msg = self.ept_epm_parser.get_delete_event("epmIpEp", obj["node"], 
+                    obj["vnid"], obj["addr"], ts)
+                if msg is not None:
+                    delete_msgs.append(msg)
+        return delete_msgs
 

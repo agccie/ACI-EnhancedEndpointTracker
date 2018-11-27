@@ -292,7 +292,7 @@ function eptEndpoint(){
             // need to have labels for active/deleted/offsubnet/stale/rapid
             var state=""
             if(self.is_deleted()){
-                state+='<span class="'+get_status_label("deleted")+'">deleted</span>'
+                state+='<span class="'+get_status_label("deleted")+'">inactive</span>'
             } else {
                 state+='<span class="'+get_status_label("created")+'">active</span>'
             }

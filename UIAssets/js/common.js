@@ -1,7 +1,7 @@
 
 /* SHARED VARIABLES */
 var vendorDomain = "Cisco"
-var appId = "CSCvf18506"
+var appId = "EnhancedEndpointTracker"
 
 /**
 * listen for token objects from parent frame when running on apic
@@ -38,18 +38,42 @@ function appTokenRefresh(success, error){
 */
 pollAppTimeout = 1000;
 function pollAppStatus(success, fail){
-    var url = "/api/aci/app-status/"
+    var url = "/api/app-status/"
     if(success === undefined){success = function(){}}
+    // after app-status is ok, wait for app-status/manager
+    var success_shim = function(){pollAppStatusManager(success, fail)}
     repeat = function(data, status_code, status_text){
         if(fail === undefined){}
         else{ fail(data,status_code,status_text)}
         //schedule repeat
         console.log((new Date())+" app has not yet started, recheck in "+pollAppTimeout+"ms");
-        setTimeout(function(){ pollAppStatus(success,fail) }, pollAppTimeout);
+        setTimeout(function(){ pollAppStatus(success_shim,fail) }, pollAppTimeout);
     }
     json_get(url, function(data){
         console.log((new Date())+" app has started")
-        return success()
+        return success_shim()
+    }, function(data,status_code,status_text){
+        repeat(data,status_code,status_text)
+    }) 
+}
+
+function pollAppStatusManager(success, fail){
+    var url = "/api/app-status/manager"
+    if(success === undefined){success = function(){}}
+    repeat = function(data, status_code, status_text){
+        if(fail === undefined){}
+        else{ fail(data,status_code,status_text)}
+        //schedule repeat
+        console.log((new Date())+" manager has not yet started, recheck in "+pollAppTimeout+"ms");
+        setTimeout(function(){ pollAppStatusManager(success,fail) }, pollAppTimeout);
+    }
+    json_get(url, function(data){
+        if("manager" in data && data.manager.status=="running"){
+            console.log((new Date())+" manager is ready")
+            return success()
+        } else {
+            return repeat(data, 200, "waiting for manager process")
+        }
     }, function(data,status_code,status_text){
         repeat(data,status_code,status_text)
     }) 
@@ -368,9 +392,9 @@ function escapeRegExp(string) {
 //forward user to provided route hash
 function forward(route) {
     if(route == null){
-        window.top.location.hash = "/";
+        window.location.hash = "/";
     }else{
-        window.top.location.hash = route;
+        window.location.hash = route;
     }
 }
 

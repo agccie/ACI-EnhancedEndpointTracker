@@ -32,6 +32,10 @@ function build_frontend() {
         mkdir -p $DST_DIR
     fi
 
+    # with ko just need to copy of the files, no build required
+    cp -rp $SRC_DIR/. $DST_DIR/
+    return
+
     # copy source into tmp directory and perform build
     rm -r $TMP_DIR
     mkdir -p $TMP_DIR

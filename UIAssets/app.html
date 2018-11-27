@@ -120,7 +120,7 @@
     <div class="content-fluid">
         <main>
     		<!-- page header -->
-    		<header class="header header--compressed">
+    		<header class="header header--compressed" data-bind="visible: !app_mode()">
     		    <div class="header-bar container">
                     <a class="header-bar__logo">
                         <span class="icon-cisco"></span>
@@ -140,6 +140,9 @@
                         <a class="btn btn--small btn--icon" data-balloon="Help" data-balloon-pos="down">
                             <span class="icon-help"></span>
                         </a>
+                        <a class="btn btn--small btn--icon btn--negative" data-balloon="Sign-out" data-balloon-pos="down">
+                            <span class="icon-sign-out"></span>
+                        </a>
                     </div>
     		    </div>
     		</header>
@@ -150,7 +153,7 @@
                 <div class="container">
                     <div class="section" data-bind="loadingWhen: isLoading">
                         <!-- search (shared by case and decode) -->
-                        <div data-bind="">
+                        <div>
                             <div class="row text-small">
                                 <div class="col-md-12">
                                     <div class="form-group">
@@ -167,8 +170,7 @@
                         <div data-bind="visible: view_endpoint, loadingWhen: endpoint_isLoading"
                             class="content content--alt half-margin-top half-padding">
                             <blockquote data-bind="visible: current_endpoint_not_found()">
-                                    <h3> No data for <span data-bind="text:endpoint_detail_addr"></span>
-                                </h3>
+                                <h3>No data for <span data-bind="text:endpoint_detail_addr"></span></h3>
                             </blockquote>
                             <blockquote data-bind="visible: !current_endpoint_not_found(), css: current_endpoint.blockquote_css">
                                 <h3>

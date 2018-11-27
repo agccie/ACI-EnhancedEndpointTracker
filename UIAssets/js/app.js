@@ -500,6 +500,7 @@ function view_endpoint_detail(vm, args){
         }
     }
     self.endpoint_detail_tab(tab)
+    self.table.back_enabled(true)
 
     var endpoint_detail_url = ""
     var event_type = generalEvent
@@ -663,7 +664,6 @@ function common_viewModel() {
     self.view = ko.observable("index")
     self.table = new gTable()
     self.app_mode = ko.observable(executing_in_app_mode())
-    //self.app_mode(true)
     self.admin_role = ko.observable(true)       
     self.fabrics = ko.observableArray([])
     self.current_fabric_name = ko.observable("")
@@ -1007,7 +1007,7 @@ function common_viewModel() {
         for (var i in routes) {
             var r = routes[i]
             var regex = new RegExp("^#"+r["route"]+"$")
-            var match = regex.exec(window.top.location.hash)
+            var match = regex.exec(window.location.hash)
             if (match != null){
                 if(match.length>1){
                     return r["view"](self, match.slice(1, match.length));
@@ -1141,6 +1141,8 @@ $().ready(function(){
     //trigger navigation on load
     self.navigate()
 
+    // listen for/refresh app token when running in app mode
+    appTokenRefresh()
 })
 
 

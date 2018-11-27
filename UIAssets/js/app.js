@@ -547,6 +547,7 @@ function view_endpoint_detail(vm, args){
                 {"title": "Status", "name":"status"},
                 {"title": "Local Node", "name":"node_str"},
                 {"title": "Interface", "name":"intf_name"},
+                {"title": "Encap", "name":"encap_str"},
                 {"title": "EPG", "name":"epg_name_str"}
             ]
             if(self.current_endpoint.type()!="mac"){
@@ -881,14 +882,24 @@ function common_viewModel() {
             if(data.objects.length>0 && "ept.endpoint" in data.objects[0]){
                 self.current_endpoint_not_found(false)
                 self.current_endpoint.fromJS(data.objects[0]["ept.endpoint"])
+                var inflight = 6
+                var check_all_complete = function(){
+                    inflight--
+                    if(inflight==0){
+                        self.endpoint_isLoading(false)
+                        return success()
+                    }
+                }
+                var flt = [
+                    "eq(\"fabric\",\""+self.endpoint_detail_fabric()+"\")",
+                    "eq(\"vnid\","+self.endpoint_detail_vnid()+")", 
+                    "eq(\"addr\",\""+self.endpoint_detail_addr()+"\")"
+                ]
                 //get list of is_stale and is_offsubnet nodes from history table
-                var url2="/api/ept/history?include=is_offsubnet,is_stale,node&filter=and("
-                url2+="eq(\"fabric\",\""+self.endpoint_detail_fabric()+"\"),"
-                url2+="eq(\"vnid\","+self.endpoint_detail_vnid()+"),"
-                url2+="eq(\"addr\",\""+self.endpoint_detail_addr()+"\"),"
-                url2+="or(eq(\"is_stale\",true),eq(\"is_offsubnet\",true)))"
-                json_get(url2, function(data){
-                    self.endpoint_isLoading(false)
+                var url1="/api/ept/history?include=is_offsubnet,is_stale,node&filter=and("
+                url1+= flt.join(",")+","
+                url1+="or(eq(\"is_stale\",true),eq(\"is_offsubnet\",true)))"
+                json_get(url1, function(data){
                     var stale_nodes = []
                     var offsubnet_nodes = []
                     data.objects.forEach(function(elem){
@@ -900,7 +911,53 @@ function common_viewModel() {
                     offsubnet_nodes.sort()
                     self.current_endpoint.stale_nodes(stale_nodes)
                     self.current_endpoint.offsubnet_nodes(offsubnet_nodes)
-                    return success()
+                    check_all_complete()
+                })
+                // set node count 
+                var url2="/api/ept/history?count=1&filter=and("+flt.join(",")+")"
+                json_get(url2, function(data){
+                    self.current_endpoint.count_nodes(data.count)
+                    check_all_complete()
+                })
+                // set move count 
+                var url3="/api/ept/move?include=count&filter=and("+flt.join(",")+")"
+                json_get(url3, function(data){
+                    var count = 0
+                    data.objects.forEach(function(obj){
+                        if("ept.move" in obj){count+= obj["ept.move"].count}
+                    })
+                    self.current_endpoint.count_moves(count)
+                    check_all_complete()
+                })
+                // set offsubnet count 
+                var url4="/api/ept/offsubnet?include=count&filter=and("+flt.join(",")+")"
+                json_get(url4, function(data){
+                    var count = 0
+                    data.objects.forEach(function(obj){
+                        if("ept.offsubnet" in obj){count+= obj["ept.offsubnet"].count}
+                    })
+                    self.current_endpoint.count_offsubnet(count)
+                    check_all_complete()
+                })
+                // set stale count 
+                var url5="/api/ept/stale?include=count&filter=and("+flt.join(",")+")"
+                json_get(url5, function(data){
+                    var count = 0
+                    data.objects.forEach(function(obj){
+                        if("ept.stale" in obj){count+= obj["ept.stale"].count}
+                    })
+                    self.current_endpoint.count_stale(count)
+                    check_all_complete()
+                })
+                // set rapid count 
+                var url6="/api/ept/rapid?include=count&filter=and("+flt.join(",")+")"
+                json_get(url6, function(data){
+                    var count = 0
+                    data.objects.forEach(function(obj){
+                        if("ept.rapid" in obj){count+= obj["ept.rapid"].count}
+                    })
+                    self.current_endpoint.count_rapid(count)
+                    check_all_complete()
                 })
             } else {
                 console.log("invalid response...")

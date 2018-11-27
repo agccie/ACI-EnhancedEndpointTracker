@@ -195,16 +195,16 @@
                                     <span class="label label label--danger">Rapid</span>
                                     triggered at <span data-bind="text: current_endpoint.is_rapid_ts_str"></span>
                                 </div>
-                                <div class="qtr-margin">
+                                <div class="qtr-margin-top">
                                     Fabric <span class="text-bold" data-bind="text:current_endpoint.fabric"></span>
                                     <span data-bind="text:current_endpoint.vnid_identifier"></span>
                                     <span class="text-bold" data-bind="text:current_endpoint.vnid_value"></span>
                                     EPG <span class="text-bold" data-bind="text:current_endpoint.epg_name"></span>
                                 </div>
-                                <div data-bind="visible: current_endpoint.is_deleted()">
+                                <div class="qtr-margin-top" data-bind="visible: current_endpoint.is_deleted()">
                                     <span class="label label--dkgray">Not local on any node</span>
                                 </div>
-                                <div data-bind="visible: !current_endpoint.is_deleted()">
+                                <div class="qtr-margin-top" data-bind="visible: !current_endpoint.is_deleted()">
                                     Local on node <span class="text-bold" data-bind="text:current_endpoint.local_node"></span>
                                     interface <span class="text-bold" data-bind="text: current_endpoint.local_interface"></span>
                                     encap <span class="text-bold" data-bind="text: current_endpoint.local_encap"></span>
@@ -214,6 +214,13 @@
                                             <span class="text-bold" data-bind="text: current_endpoint.local_mac"></span>
                                         </a>
                                     </span>
+                                </div>
+                                <div class="qtr-margin-top" data-bind="!current_endpoint.is_deleted()">
+                                    <span class="label" data-bind="text:current_endpoint.count_moves"></span> moves,
+                                    <span class="label" data-bind="text:current_endpoint.count_offsubnet"></span> offsubnet events,
+                                    <span class="label" data-bind="text:current_endpoint.count_stale"></span> stale events,
+                                    <span class="label" data-bind="text:current_endpoint.count_rapid"></span> rapid events,
+                                    <span class="label" data-bind="text:current_endpoint.count_nodes"></span> nodes
                                 </div>
                                 <!-- endpoint control -->
                                 <div class="half-margin-top">
@@ -529,7 +536,7 @@
                                             <span class="icon-save"></span>
                                         </button>
                                         <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete" data-balloon-pos="down"
-                                            data-bind="click: function(){delete_fabric()}">
+                                            data-bind="visible: !app_mode(), click: function(){delete_fabric()}">
                                             <span class="icon-trash"></span>
                                         </button>
                                     </div>

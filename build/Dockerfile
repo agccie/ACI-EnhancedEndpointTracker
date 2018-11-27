@@ -40,7 +40,9 @@ RUN mkdir -p $LOG_DIR && \
     mkdir -p $BACKEND_DIR
 
 # update config for exim4 for internet email
-RUN sed -i -e "s/dc_eximconfig_configtype.*/dc_eximconfig_configtype='internet'/g" /etc/exim4/update-exim4.conf.conf
+RUN sed -i -e "s/dc_eximconfig_configtype.*/dc_eximconfig_configtype='internet'/g" /etc/exim4/update-exim4.conf.conf && \
+    sed -i -e "s/; ::1//g" /etc/exim4/update-exim4.conf.conf
+    
 
 # setup redis which only requires copying over config file
 COPY ./conf/redis.conf /etc/redis/redis.conf

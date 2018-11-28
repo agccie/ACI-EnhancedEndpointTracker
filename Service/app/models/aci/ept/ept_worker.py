@@ -6,6 +6,7 @@ from . common import CACHE_STATS_INTERVAL
 from . common import HELLO_INTERVAL
 from . common import MANAGER_WORK_QUEUE
 from . common import RAPID_CALCULATE_INTERVAL
+from . common import TRANSITORY_UPTIME
 from . common import TRANSITORY_DELETE
 from . common import TRANSITORY_OFFSUBNET
 from . common import TRANSITORY_RAPID
@@ -179,8 +180,10 @@ class eptWorker(object):
                         self.work_type_handlers[msg.wt](msg)
                     else:
                         logger.warn("unsupported work type: %s", msg.wt)
-                elif msg.msg_type == MSG_TYPE.FLUSH_FABRIC:
-                    self.flush_fabric(fabric=msg.data["fabric"])
+                elif msg.msg_type == MSG_TYPE.FABRIC_START:
+                    self.fabric_start(fabric=msg.data["fabric"])
+                elif msg.msg_type == MSG_TYPE.FABRIC_STOP:
+                    self.fabric_stop(fabric=msg.data["fabric"])
                 else:
                     logger.warn("unsupported worker msg type: %s", msg.msg_type)
 
@@ -247,12 +250,20 @@ class eptWorker(object):
         self.hello_thread.daemon = True
         self.hello_thread.start()
 
-    def flush_fabric(self, fabric):
-        """ flush only requires removing fabric from local fabrics, manager will handle removing any
-            pending work from queue.  If this is a watcher, then also need to purge any watch events
+    def fabric_start(self, fabric):
+        """ start fabric to init cache and for watcher process, to set a start timestamp for the 
+            fabric for extending transitory timers
+        """
+        logger.debug("[%s] start fabric: %s", self, fabric)
+        self.fabrics.pop(fabric, None)
+        self.fabrics[fabric] = eptWorkerFabric(fabric)
+
+    def fabric_stop(self, fabric):
+        """ stop only requires removing fabric from local fabrics, manager will handle removing any
+            pending work from queue. If this is a watcher, then also need to purge any watch events
             for this fabric.
         """
-        logger.debug("[%s] flush fabric: %s", self, fabric)
+        logger.debug("[%s] stop fabric: %s", self, fabric)
         self.fabrics.pop(fabric, None)
         if self.role == "watcher":
             watches = [
@@ -1240,7 +1251,8 @@ class eptWorker(object):
         msg.wf.send_notification("rapid", subject, txt)
         if msg.wf.settings.refresh_rapid:
             key = "%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr)
-            msg.xts = msg.now + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID
+            uptime_delta = msg.wf.get_uptime_delta_offset(TRANSITORY_UPTIME)
+            msg.xts = msg.now + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID + uptime_delta
             with self.watch_rapid_lock:
                 self.watch_rapid[key] = msg
             logger.debug("watch rapid added with xts: %.03f", msg.xts)
@@ -1251,7 +1263,8 @@ class eptWorker(object):
             exists it is overwritten with the new watch event.
         """
         key = "%s,%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr, msg.node)
-        msg.xts = msg.now + TRANSITORY_OFFSUBNET
+        uptime_delta = msg.wf.get_uptime_delta_offset(TRANSITORY_UPTIME)
+        msg.xts = msg.now + TRANSITORY_OFFSUBNET + uptime_delta
         with self.watch_offsubnet_lock:
             self.watch_offsubnet[key] = msg
         logger.debug("watch offsubnet added with xts: %.03f", msg.xts)
@@ -1262,10 +1275,11 @@ class eptWorker(object):
             If object already exists it is overwritten with the new watch event.
         """
         key = "%s,%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr, msg.node)
+        uptime_delta = msg.wf.get_uptime_delta_offset(TRANSITORY_UPTIME)
         if msg.event["expected_remote"] == 0:
-            msg.xts = msg.now + TRANSITORY_STALE_NO_LOCAL
+            msg.xts = msg.now + TRANSITORY_STALE_NO_LOCAL + uptime_delta
         else:
-            msg.xts = msg.now + TRANSITORY_STALE
+            msg.xts = msg.now + TRANSITORY_STALE + uptime_delta
         with self.watch_stale_lock:
             self.watch_stale[key] = msg
         logger.debug("watch stale added with xts: %.03f", msg.xts)

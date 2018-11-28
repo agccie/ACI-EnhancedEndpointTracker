@@ -3,6 +3,22 @@
 var vendorDomain = "Cisco"
 var appId = "EnhancedEndpointTracker"
 
+function appTokenRefreshShim(success, error){
+    // if we already have a token set, then test the token to see if connectivity works instead of
+    // waiting for a new token.  We will use app_status since the assumption here is that we're 
+    // running. We assume app is ready else token may not be valid
+    if(executing_in_app_mode()){
+        var url = "/api/app-status/"
+        json_get(url, function(data){
+            return success()
+        }, function(){
+            return appTokenRefresh(success, error)
+        }) 
+    } else {
+        return appTokenRefresh(success, error)
+    }
+}
+
 /**
 * listen for token objects from parent frame when running on apic
 * success and error functions can be provided for proper action to take

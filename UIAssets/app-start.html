@@ -38,7 +38,7 @@
                 }
                 pollAppStatus(started, waiting)
             }
-            appTokenRefresh(app_token_success, function(err){
+            appTokenRefreshShim(app_token_success, function(err){
                 showAlertModal("window error: "+err)
             });
         })

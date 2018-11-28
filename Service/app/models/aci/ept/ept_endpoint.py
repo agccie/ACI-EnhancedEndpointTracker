@@ -283,6 +283,7 @@ class eptEndpoint(Rest):
                         "node": switch["node"],
                     }, {
                         "ts": time.time(),
+                        "vnid_name": self.first_learn["vnid_name"],
                         "reason": "api",
                         "action": "clear"
                     })

@@ -1471,6 +1471,7 @@ class eptWorker(object):
                         reason = "stale" if ept_db_attr == "is_stale" else "offsubnet"
                         msg.wf.push_event(eptRemediate._classname, key, {
                             "ts": ts,
+                            "vnid_name": event.vnid_name,
                             "action": "clear",
                             "reason": reason,
                         })

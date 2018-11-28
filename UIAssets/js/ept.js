@@ -592,6 +592,7 @@ function rapidEvent(){
     // endpoint count/rate when rapid was triggered
     self.rate = ko.observable(0)    
     self.count = ko.observable(0)   
+    self.vnid_name = ko.observable("")
     self.rate_str = ko.computed(function(){
         return parseInt(self.rate())
     })
@@ -650,6 +651,7 @@ function remediateEvent(){
     self.ts_str = ko.computed(function(){
         return timestamp_to_string(self.ts())
     }) 
+    self.vnid_name = ko.observable("")
     self.action = ko.observable("")
     self.reason = ko.observable("")
     self.action_str = ko.computed(function(){
@@ -694,6 +696,15 @@ function eptRemediate(){
         if(self.events().length>0 && self.events()[0].reason().length>0){ 
                 return self.events()[0].reason()
         }
+        return "-"
+    })
+    // get vnid_name from events.0
+    self.vnid_name = ko.computed(function(){
+        var name = ""
+        if(self.events().length>0 && self.events()[0].vnid_name().length>0){ 
+            name = self.events()[0].vnid_name(); 
+        }
+        if(name.length>0){ return name }
         return "-"
     })
 

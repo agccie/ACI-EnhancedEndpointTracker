@@ -256,7 +256,7 @@
                                             click: function(){endpoint_force_refresh()}
                                             ">
                                         <span class="icon icon-refresh"></span>
-                                        Force refresh
+                                        Dataplane refresh
                                     </button>
                                     <button class="btn btn--small btn--gray-ghost" data-bind="
                                             enable: admin_role,
@@ -484,7 +484,7 @@
                                         </thead>
                                         <tbody data-bind="foreach: { data: table.get_paged_rows, as: 'r' }">
                                             <tr data-bind="foreach: { data: $root.table.headers, as: 'h' }">
-                                                <td>
+                                                <td style="word-wrap:break-word">
                                                     <span data-bind="html: r.get_attribute_html(h.name())"></span>
                                                     <span data-bind="visible: h.control().length>0">
                                                         <span data-bind="foreach: { data: h.control, as: 'c' }"><button 

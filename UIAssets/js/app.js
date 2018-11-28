@@ -213,6 +213,7 @@ function view_dashboard_endpoints(vm){
     var headers = [
         {"title": "Fabric", "name":"fabric"},
         {"title": "State", "name":"state", "sortable": false},
+        {"title": "Type", "name": "type"},
         {"title": "Address", "name":"addr", "sorted":true, "sort_direction":"asc"},
         {"title": "VRF/BD", "name":"vnid_name" , "sort_name":"first_learn.vnid_name"}, 
         {"title": "EPG", "name":"epg_name", "sort_name":"events.0.epg_name"}
@@ -294,9 +295,9 @@ function view_dashboard_moves(vm){
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.0.dst.ts"},
         {"title": "Fabric", "name":"fabric"},
-        {"title": "Count", "name":"count", "sorted":true},
         {"title": "Type", "name":"type"},
         {"title": "Address", "name":"addr"},
+        {"title": "Event Count", "name":"count", "sorted":true},
         {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.0.dst.vnid_name"} 
     ]
     headers.forEach(function(h){
@@ -326,9 +327,10 @@ function view_dashboard_offsubnet(vm){
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.0.ts", "sorted":true},
         {"title": "Fabric", "name":"fabric"},
-        {"title": "Node", "name":"node"},
         {"title": "Type", "name":"type"},
         {"title": "Address", "name":"addr"},
+        {"title": "Node", "name":"node"},
+        {"title": "Event Count", "name":"count"},
         {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.0.vnid_name"} 
     ]
     headers.forEach(function(h){
@@ -359,9 +361,10 @@ function view_dashboard_stale(vm){
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.0.ts", "sorted":true},
         {"title": "Fabric", "name":"fabric"},
-        {"title": "Node", "name":"node"},
         {"title": "Type", "name":"type"},
         {"title": "Address", "name":"addr"},
+        {"title": "Node", "name":"node"},
+        {"title": "Event Count", "name":"count"},
         {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.0.vnid_name"} 
     ]
     headers.forEach(function(h){
@@ -391,9 +394,10 @@ function view_dashboard_latest_events(vm){
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.0.ts", "sorted":true},
         {"title": "Fabric", "name":"fabric"},
-        {"title": "Node", "name":"node"},
         {"title": "Status", "name":"status_str", "sort_name":"events.0.status"},
+        {"title": "Type", "name":"type"},
         {"title": "Address", "name":"addr"},
+        {"title": "Node", "name":"node"},
         {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.0.vnid_name"} 
     ]
     headers.forEach(function(h){
@@ -424,9 +428,10 @@ function view_dashboard_rapid(vm){
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.ts", "sorted":true},
         {"title": "Fabric", "name":"fabric"},
+        {"title": "Type", "name":"type"},
         {"title": "Address", "name":"addr"},
-        {"title": "Rapid Count", "name":"count", "sort_name":"count"},
-        {"title": "Event Rate (per minute)", "name":"rate", "sort_name":"events.rate"},
+        {"title": "Event Count", "name":"count"},
+        {"title": "Rate (per minute)", "name":"rate", "sort_name":"events.rate"},
         {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.vnid_name"} 
     ]
     headers.forEach(function(h){
@@ -456,10 +461,13 @@ function view_dashboard_remediate(vm){
     var headers = [
         {"title": "Time", "name":"ts_str", "sort_name":"events.ts", "sorted":true},
         {"title": "Fabric", "name":"fabric"},
+        {"title": "Type", "name":"type"},
         {"title": "Node", "name":"node"},
         {"title": "Address", "name":"addr"},
+        {"title": "Event Count", "name":"count"},
         {"title": "Action", "name":"action", "sortable":false},
         {"title": "Reason", "name":"reason", "sortable":false},
+        {"title": "VRF/BD", "name":"vnid_name", "sort_name":"events.vnid_name"} 
     ]
     headers.forEach(function(h){
         self.table.headers.push(new gHeader(h))

@@ -679,6 +679,7 @@ def clear_endpoint(fabric, pod, node, vnid, addr, addr_type="ip", vrf_name=""):
         return False
 
     if addr_type == "ip":
+        ctype = "ipv6" if ":" in addr else "ip"
         if len(vrf_name) == 0:
             # try to determine vrf name from eptVnid table
             v = eptVnid.find(fabric=f.fabric, vnid=vnid)
@@ -690,7 +691,7 @@ def clear_endpoint(fabric, pod, node, vnid, addr, addr_type="ip", vrf_name=""):
             else:
                 logger.warn("failed to determine vnid_name for fabric: %s, vnid: %s",f.fabric,vnid)
                 return False
-        cmd = "vsh -c 'clear system internal epm endpoint key vrf %s ip %s'" % (vrf_name, addr)
+        cmd = "vsh -c 'clear system internal epm endpoint key vrf %s %s %s'" % (vrf_name,ctype,addr)
         if ssh.cmd(cmd) == "prompt":
             logger.debug("successfully cleared endpoint: %s", cmd)
             return True

@@ -15,7 +15,6 @@ function view_dashboard_fabric(vm){
     // exceeded
     var poll_fabric_status = function(callback, fabric_name, status, max_tries=10){
         self.refresh_fabrics(function(){
-
             max_tries--
             var fabric_status = ""
             var status_list = []
@@ -75,7 +74,7 @@ function view_dashboard_fabric(vm){
     }
     var headers = [
         {"title":"Name", "name":"fabric", "sorted":true, "sort_direction":"asc"},
-        {"title":"Status", "name": "status"},
+        {"title":"Status", "name": "status_str"},
         {"title": "MACs", "name":"count_mac"},
         {"title": "IPv4", "name":"count_ipv4"},
         {"title": "IPv6", "name":"count_ipv6"},

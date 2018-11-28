@@ -424,9 +424,12 @@ label_ipv4 = 'label label--vibblue'
 label_ipv6 = 'label label--indigo'
 label_status_running = 'label label--success'
 label_status_stopped = 'label label--dkgray'
+label_status_starting = 'label label--info'
+label_status_failed = 'label label--danger'
 label_status_created = 'label label--vibblue'
 label_status_modified = 'label label--default'
 label_status_deleted = 'label label--dkgray'
+label_status_default = 'label label--default'
 
 function get_endpoint_type_label(type){
     switch(type){
@@ -456,11 +459,13 @@ function get_status_label(st){
     switch(st){
         case 'running': return label_status_running
         case 'stopped': return label_status_stopped
+        case 'starting':return label_status_starting
+        case 'failed':  return label_status_failed
         case 'created': return label_status_created
         case 'deleted': return label_status_deleted
         case 'modified': return label_status_modified
     }
-    return label_status_stopped
+    return label_status_default
 }
 
 

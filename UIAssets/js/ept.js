@@ -12,15 +12,7 @@ function fabricEvent(){
     // custom cell formatting per attribute
     self.formatter = function(attr, text){
         if(attr == "status"){
-            var alabel = ""
-            switch(text){
-                case "running": alabel = "label--success" ; break;
-                case "starting":alabel = "label--info" ; break;
-                case "stopped": alabel = "label--dkgray" ; break;
-                case "failed":  alabel = "label--danger"; break;
-                default:        alabel = "label--default";
-            }
-            return '<span class="label '+alabel+'">'+text+'</span>'
+            return '<span class="label '+get_status_label(text)+'">'+text+'</span>'
         } else if(attr == "description"){
             if(text.length==0){ return "-" }
             return text
@@ -94,9 +86,17 @@ function fabric(fabric_name) {
                 self.loading_count_mac() || self.loading_count_ipv4() || self.loading_count_ipv6())
     })
 
+    // display stopped if current status is stopped, else display the last status in events
+    self.status_str = ko.computed(function(){
+        if(self.events().length>0 && self.status()!="stopped"){ 
+            return self.events()[0].status()
+        }
+        return self.status()
+    })
+
     // custom cell formatting per attribute
     self.formatter = function(attr, text){
-        if(attr == "status"){
+        if(attr == "status_str"){
             return '<span class="'+get_status_label(text)+'">'+text+'</span>'
         } else if (attr == "fabric"){
             return '<span class="text-bold">'+text+'</span>'
@@ -374,7 +374,7 @@ function moveEvent(){
     self.src = new generalEvent()
     self.dst = new generalEvent()
     self.fabric = ko.observable("")     // embedded from parent classname for endpoint detail
-    self.direction = moveWrapper("src","dst")
+    self.direction = moveWrapper("source","destination")
     self.ts_str = ko.computed(function(){
         return self.dst.ts_str()
     })

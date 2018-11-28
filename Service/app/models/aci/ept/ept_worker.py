@@ -279,7 +279,7 @@ class eptWorker(object):
                             pop.append(key)
                     for k in pop: 
                         d.pop(k, None)
-                logger.debug("[%s] % events removed from watch_%s", self, len(pop), name)
+                logger.debug("[%s] %s events removed from watch_%s", self, len(pop), name)
 
     def flush_cache(self, msg):
         """ receive flush cache work containing cache and optional object name """
@@ -1255,7 +1255,7 @@ class eptWorker(object):
             msg.xts = msg.now + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID + uptime_delta
             with self.watch_rapid_lock:
                 self.watch_rapid[key] = msg
-            logger.debug("watch rapid added with xts: %.03f", msg.xts)
+            logger.debug("watch rapid added with xts: %.03f, delta: %.03f", msg.xts, msg.xts-msg.now)
 
     def handle_watch_offsubnet(self, msg):
         """ recieves an eptMsgWorkWatchOffSubnet message and adds object to watch_offsubnet dict with 
@@ -1267,7 +1267,7 @@ class eptWorker(object):
         msg.xts = msg.now + TRANSITORY_OFFSUBNET + uptime_delta
         with self.watch_offsubnet_lock:
             self.watch_offsubnet[key] = msg
-        logger.debug("watch offsubnet added with xts: %.03f", msg.xts)
+        logger.debug("watch offsubnet added with xts: %.03f, delta: %.03f", msg.xts, msg.xts-msg.now)
 
     def handle_watch_stale(self, msg):
         """ recevie an eptMsgWorkWatchStale message and adds object to watch_stale dict with execute
@@ -1282,7 +1282,7 @@ class eptWorker(object):
             msg.xts = msg.now + TRANSITORY_STALE + uptime_delta
         with self.watch_stale_lock:
             self.watch_stale[key] = msg
-        logger.debug("watch stale added with xts: %.03f", msg.xts)
+        logger.debug("watch stale added with xts: %.03f, delta: %.03f", msg.xts, msg.xts-msg.now)
 
     def execute_watch(self):
         """ check for watch events with execute ts ready and perform corresponding actions

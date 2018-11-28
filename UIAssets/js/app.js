@@ -1113,7 +1113,7 @@ function common_viewModel() {
         }
         self.searchBar = $("#searchBar").select2({
             allowClear: true,
-            placeholder: "Search MAC or IP address, 00:50:56:01:BB:12, 10.1.1.101, or 2001:A:B:C:D:65",
+            placeholder: "Search MAC or IP address, 00:50:56:01:BB:12, 10.1.1.101, or 2001:a:b::65",
             ajax: {
                 url: "/api/ept/endpoint",
                 dataType: 'json',
@@ -1132,8 +1132,14 @@ function common_viewModel() {
                     return $request;
                 },
                 data: function (params) {
+                    var term = params.term
+                    if(params.term.charAt(0)=="/"){
+                        term = params.term.substring(1)
+                    } else { 
+                        term = "(?i)"+escapeRegExp(params.term)
+                    }
                     return {
-                        "filter": 'regex("addr","'+escapeRegExp(params.term).toUpperCase()+'")'
+                        "filter": 'regex("addr","'+term+'")'
                     };
                 },
                 processResults: function (data, params) {

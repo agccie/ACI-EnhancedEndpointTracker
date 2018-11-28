@@ -1095,8 +1095,14 @@ class eptWorker(object):
                 else:
                     # non-deleted event when endpoint is not currently learned within the fabric
                     if msg.wf.settings.stale_no_local:
-                        logger.debug("stale on %s to %s (no local)", node, h_event.remote)
-                        stale_nodes[node] = event
+                        # if there is no local set and this node has 'local' flag, then it must be
+                        # a transient event and we're waiting on rewrite info. save some cycles on
+                        # watcher and relax this check
+                        if "local" in h_event.flags:
+                            logger.debug("node %s claiming local with incomplete local_node", node)
+                        else:
+                            logger.debug("stale on %s to %s (no local)", node, h_event.remote)
+                            stale_nodes[node] = event
                     else:
                         logger.debug("ignoring stale_no_local")
 

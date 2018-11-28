@@ -1187,6 +1187,7 @@ class eptSubscriber(object):
             flt["addr"] = addr
             flt["vnid"] = vnid
 
+        ts = time.time()
         delete_msgs = []
         for obj in self.db[eptHistory._classname].find(flt, projection):
             # if in endpoints dict, then stil exists in the fabric so do not create a delete event

@@ -33,6 +33,11 @@ WORKER_UPDATE_INTERVAL              = 15.0
 RAPID_CALCULATE_INTERVAL            = 15.0
 
 # transitory timers:
+#   uptime          amount of time added to all transitory events when fabric is first started. For
+#                   example, if the uptime of the fabric subscription is 100 seconds and transitory
+#                   uptime is 300, then an additional 200 seconds needs to be added to any transitory
+#                   event before they are triggered.  This allows additionally buffer during start
+#                   up for large scale.
 #   delete          amount of time between delete and create events to treat as a change/move
 #   offsubnet       amount of time to wait before declaring endpoint is learned offsubnet
 #   stale           amount of time to wait for new events before declaring endpoint is stale
@@ -49,6 +54,7 @@ RAPID_CALCULATE_INTERVAL            = 15.0
 #   watch_offsubnet amount of time to suppress new watch_offsubnet events for single node/ep
 #   watch_stale     amount of time to suppress new watch_stale events for single node/ep
 #   fabric_restart  amount of time to suppress new fabric monitor restart events
+TRANSITORY_UPTIME                   = 300.0 
 TRANSITORY_DELETE                   = 60.0
 TRANSITORY_OFFSUBNET                = 10.0
 TRANSITORY_STALE                    = 30.0

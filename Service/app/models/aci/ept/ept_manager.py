@@ -238,6 +238,11 @@ class eptManager(object):
                 self.fabrics[fabric]["waiting_for_retry"] = False
                 f.restart_ts = time.time()
                 f.save()
+                # help notification to workers that new fabric is present - mostly needed for 
+                # watchers but can be sent to all workers to pre-load their caches with fabric 
+                # settings for this fabric.
+                start = eptMsg(MSG_TYPE.FABRIC_START, data={"fabric": fabric})
+                self.worker_tracker.broadcast(start)
                 return True
             else:
                 logger.warn("start requested for fabric '%s' which does not exist", fabric)
@@ -265,8 +270,8 @@ class eptManager(object):
             terminate_process(self.fabrics[fabric]["process"])
             self.fabrics[fabric]["process"] = None
             # need to force all workers to flush their caches for this fabric
-            flush = eptMsg(MSG_TYPE.FLUSH_FABRIC, data={"fabric": fabric})
-            self.worker_tracker.broadcast(flush)
+            stop = eptMsg(MSG_TYPE.FABRIC_STOP, data={"fabric": fabric})
+            self.worker_tracker.broadcast(stop)
             # manager should flush all events from worker queues for the fabric instead of 
             # having worker perform the operation which could lead to race conditions
             self.worker_tracker.flush_fabric(fabric)

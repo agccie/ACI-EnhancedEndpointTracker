@@ -653,27 +653,27 @@ class eptWorker(object):
                 # entry actual came from cache, analysis already performed, only need to update count
                 cached_rapid.rapid_count+= 1
 
-        if endpoint is not None and len(endpoint["events"])>0:
-            ret.exists = True
+        last_event = None
+        if endpoint is not None:
             ret.is_offsubnet = endpoint["is_offsubnet"]
             ret.is_stale = endpoint["is_stale"]
-            ret.local_events = [eptEndpointEvent.from_dict(e) for e in endpoint["events"]]
-            last_event = ret.local_events[0]
+            if len(endpoint["events"])>0:
+                ret.exists = True
+                ret.local_events = [eptEndpointEvent.from_dict(e) for e in endpoint["events"]]
+                last_event = ret.local_events[0]
         else:
             # always create an eptEndpoint object for the endpoint even if no local events are 
             # ever created for it. Without eptEndpoint object then eptHistory total endpoints will
             # be out of sync. This is common scenario for vip/cache/svi/loopback endpoints that may
             # never have rw info and thus never 'complete local'
-            if endpoint is None:
-                # there is on exception, if endpoint is None and event is a delete, then ignore it
-                if msg.status == "deleted" or msg.status == "modified":
-                    logger.debug("ignorning deleted/modified event for non-existing eptEndpoint")
-                    return None
-                endpoint_type = get_addr_type(msg.addr, msg.type)
-                dummy_event = eptEndpointEvent.from_dict({"vnid_name":msg.vnid_name}).to_dict()
-                eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr,type=endpoint_type,
+            # there is one exception, if endpoint is None and event is a delete, then ignore it
+            if msg.status == "deleted" or msg.status == "modified":
+                logger.debug("ignorning deleted/modified event for non-existing eptEndpoint")
+                return None
+            endpoint_type = get_addr_type(msg.addr, msg.type)
+            dummy_event = eptEndpointEvent.from_dict({"vnid_name":msg.vnid_name}).to_dict()
+            eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr,type=endpoint_type,
                     first_learn = dummy_event).save()
-            last_event = None
 
         # determine current complete local event
         local_event = None

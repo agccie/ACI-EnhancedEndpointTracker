@@ -71,6 +71,7 @@ function fabric(fabric_name) {
     self.events = ko.observableArray([])
     self.event_count = ko.observable(0)
     self.status = ko.observable("")
+    self.uptime = ko.observable(0)
     self.count_mac = ko.observable(".")
     self.count_ipv4 = ko.observable(".")
     self.count_ipv6 = ko.observable(".")
@@ -147,6 +148,8 @@ function fabric(fabric_name) {
         })
         json_get(base+"/status", function(data){
             self.status(data.status)
+            self.uptime(moment.utc(data.uptime*1000).format("HH:mm:ss.SSS"))
+            console.log("uptime: "+self.uptime())
             self.loading_status(false)
             if(!self.isLoading()){success(self)}
         })

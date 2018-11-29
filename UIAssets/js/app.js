@@ -75,6 +75,7 @@ function view_dashboard_fabric(vm){
     var headers = [
         {"title":"Name", "name":"fabric", "sorted":true, "sort_direction":"asc"},
         {"title":"Status", "name": "status_str"},
+        {"title":"Uptime", "name": "uptime"},
         {"title": "MACs", "name":"count_mac"},
         {"title": "IPv4", "name":"count_ipv4"},
         {"title": "IPv6", "name":"count_ipv6"},

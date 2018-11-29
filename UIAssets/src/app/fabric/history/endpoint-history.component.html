@@ -1,0 +1,161 @@
+<div class="row">
+    <div class="col-md-6">
+        <span class="text-xlarge">History for {{ endpoint?.addr }}</span>&nbsp;
+        <span class="label" [ngClass]="{
+                'label--success': endpoint?.type === 'ipv4',
+                'label--info': endpoint?.type==='ipv6',
+                'label--warning':endpoint?.type === 'mac'
+            }">{{ endpoint?.type.toUpperCase() }}</span>&nbsp;
+        <div class="dropdown" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
+            <button class="btn btn--small btn--primary">Actions</button>
+            <div class="dropdown__menu">
+                <a (click)="refresh()">Refresh events</a>
+                <a (click)="onClickOfDelete()">Clear events</a>
+                <a (click)="showClearModal = true">Clear endpoint</a>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        &nbsp;
+    </div>
+</div>
+<div *ngIf="!loading">
+    <div class="panel panel--bordered">
+        <div *ngIf="staleoffsubnetDetails != ''">
+            <div class="row">
+                <div class="col-md-12">
+                    {{ staleoffsubnetDetails }}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    &nbsp;
+                </div>
+            </div>
+        </div>
+        <div *ngIf="fabricDetails != ''">
+            <div class="row">
+                <div class="col-md-12">
+                    {{ fabricDetails }}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    &nbsp;
+                </div>
+            </div>
+        </div>
+        <div *ngIf="endpointStatus != ''">
+            <div class="row">
+                <div class="col-md-12">
+                    <strong>{{ endpointStatus }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    <br>
+    <div class="panel">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="secondary-tabs">
+                    <ul class="tabs">
+                        <li *ngFor="let tab of tabs ; let i=index" id="i" class="tab" routerLinkActive="active">
+                            <a tabindex="i" [routerLink]="[tab.path]">
+                                <div class="tab__heading" title="tab.name">
+                                    <a class="btn btn--icon btn--small"><span [attr.class]=tab.icon></span></a>
+                                    {{ tab.name }}
+                                </div>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <router-outlet></router-outlet>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop hide" [ngClass]="{'hide':showModal === false}" style="left:0"></div>
+<div class="modal modal--small hide" [ngClass]="{'hide':showModal === false}" id="modal-small">
+    <div class="modal__dialog">
+        <div class="modal__content">
+            <a class="modal__close" (click)="showModal = false"><span class="icon-close"></span></a>
+            <div class="modal__header">
+                <div class="row">
+                    <div class="col-md-3"></div>
+                    <h1>
+                        <span class="icon-warning"></span>{{ modalTitle }}
+                    </h1>
+                </div>
+            </div>
+            <div class="modal__body">
+                <p class="subtitle">{{ modalBody }}</p>
+            </div>
+            <div class="modal__footer">
+                <button class="btn" (click)="deleteEndpoint()">Yes</button>
+                <button class="btn" (click)="showModal = false">No</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop hide" [ngClass]="{'hide':showSuccessModal === false}" style="left:0"></div>
+<div class="modal modal--small hide" [ngClass]="{'hide':showSuccessModal === false}" id="modal-small">
+    <div class="modal__dialog">
+        <div class="modal__content">
+            <a class="modal__close" (click)="showSuccessModal = false"><span class="icon-close"></span></a>
+            <div class="modal__header">
+                <div class="row">
+                    <div class="col-md-3"></div>
+                    <h1>
+                        {{ modalTitle }}
+                    </h1>
+                </div>
+            </div>
+            <div class="modal__body">
+                <p class="subtitle">{{ modalBody }}</p>
+            </div>
+            <div class="modal__footer">
+                <button class="btn" (click)="showSuccessModal = false">Ok</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop hide" [ngClass]="{'hide':showClearModal === false}" style="left:0"></div>
+<div class="modal modal--large hide" [ngClass]="{'hide':showClearModal === false}" id="modal-small">
+    <div class="modal__dialog">
+        <div class="modal__content">
+            <a class="modal__close" (click)="showClearModal = false"><span class="icon-close"></span></a>
+            <div class="modal__header">
+                <h1>Clear Endpoints</h1>
+            </div>
+            <div class="modal__body">
+                <div class="form-group">
+                    <label for="endpoints">Endpoints</label>
+                    <ng-select
+                            class="text-left"
+                            id="endpoints"
+                            name="nodes"
+                            [items]="clearEndpointOptions"
+                            [multiple]="true"
+                            [hideSelected]="true"
+                            bindLabel="label"
+                            bindValue="value"
+                            [addTag]="addNodes"
+                            [(ngModel)]="clearNodes"
+                    >
+                    </ng-select>
+                </div>
+            </div>
+            <div class="modal__footer">
+                <button class="btn" (click)="clearEndpoints()">Submit</button>
+                <button class="btn" (click)="showClearModal = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>

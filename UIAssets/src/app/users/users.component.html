@@ -1,52 +1,52 @@
-<div *ngIf="!loading" class="container" style="margin-top:1%">
-    <h4>
-        <a class="btn btn--icon btn--primary" [routerLink]="['/fabrics','fabric-overview']">
-            <span class="icon-back"></span>
-        </a>
-        Available users
-        <button class="btn btn--icon btn--small btn--primary" (click)='getUsers()'>
-            <span class="icon-refresh"></span>
-        </button>
-        <button class="btn btn--icon btn--small btn--success" *ngIf="userRole === 0"
-                (click)='openAddModal(addtemplate)'>
-            <span class="icon-add"></span>
-        </button>
-    </h4>
-    <br>
-    <div class="row">
-        <div class="col-md-12">
-            <div class="panel panel--raised">
-                <div class="row">
-                    <div class="col-md-12">
-                        <form>
-                            <div class="form-group input--icon">
-                                <div class="form-group__text">
-                                    <input id="search" type="search" placeholder="Search User"
-                                           (keyup)='updateFilter($event)' required>
-                                    <button type="button" class="link">
-                                        <span class="icon-search"></span>
-                                    </button>
-                                </div>
+<h4>
+    <a class="btn btn--icon btn--primary" [routerLink]="['/']">
+        <span class="icon-back"></span>
+    </a>
+    Available users
+    <button class="btn btn--icon btn--small btn--primary" (click)='getUsers()'>
+        <span class="icon-refresh"></span>
+    </button>
+    <button class="btn btn--icon btn--small btn--success" *ngIf="userRole === 0"
+            (click)='openAddModal(addtemplate)'>
+        <span class="icon-add"></span>
+    </button>
+</h4>
+<br>
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel panel--raised">
+            <div class="row">
+                <div class="col-md-12">
+                    <form>
+                        <div class="form-group input--icon">
+                            <div class="form-group__text">
+                                <input id="search" type="search" placeholder="Search User"
+                                       (keyup)='updateFilter($event)' required>
+                                <button type="button" class="link">
+                                    <span class="icon-search"></span>
+                                </button>
                             </div>
-                        </form>
-                    </div>
+                        </div>
+                    </form>
                 </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        &nbsp;
-                    </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    &nbsp;
                 </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        <ngx-datatable
-                                class="fullscreen"
-                                [columnMode]="'flex'"
-                                [footerHeight]="50"
-                                [rowHeight]="'auto'"
-                                [limit]="10"
-                                [rows]="rows"
-                                [sorts]="usernameSort"
-                                [cssClasses]="{
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <ngx-datatable
+                            class="fullscreen"
+                            [columnMode]="'flex'"
+                            [footerHeight]="50"
+                            [rowHeight]="'auto'"
+                            [limit]="pageSize"
+                            [loadingIndicator]="loading"
+                            [rows]="rows"
+                            [sorts]="usernameSort"
+                            [cssClasses]="{
                 sortAscending: 'icon-chevron-down',
                 sortDescending: 'icon-chevron-up',
                 pagerLeftArrow: 'icon-step-prev',
@@ -55,39 +55,38 @@
                 pagerNext: 'icon-step-forward'
               }"
 
-                        >
-                            <ngx-datatable-column prop="username" name="Username" [sortable]="true" [flexGrow]="0.6">
-                                <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
-                                             let-row="row">
+                    >
+                        <ngx-datatable-column prop="username" name="Username" [sortable]="true" [flexGrow]="0.6">
+                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
+                                         let-row="row">
                   <span>
                       {{ value }}
                   </span>
-                                </ng-template>
-                            </ngx-datatable-column>
-                            <ngx-datatable-column prop="role" name="Role" [sortable]="true" [flexGrow]="0.3">
-                                <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
-                                             let-row="row">
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="role" name="Role" [sortable]="true" [flexGrow]="0.3">
+                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
+                                         let-row="row">
                   <span>
                     {{ value==0?'Admin':value==1?'User':value==2?'Blacklist':value}}
                   </span>
-                                </ng-template>
-                            </ngx-datatable-column>
-                            <ngx-datatable-column name="Actions" [flexGrow]="0.1">
-                                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                    <a class="btn btn--small btn--icon btn--primary"
-                                       *ngIf="row.username === userName || userRole === 0"
-                                       (click)="openModal(addtemplate,row)">
-                                        <span class="icon-pencil"></span>
-                                    </a>
-                                    <a class="btn btn--small btn--icon btn--negative"
-                                       *ngIf="row.username === userName || userRole === 0"
-                                       (click)='openModal(deletetemplate, row)'>
-                                        <span class="icon-trash"></span>
-                                    </a>
-                                </ng-template>
-                            </ngx-datatable-column>
-                        </ngx-datatable>
-                    </div>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column name="Actions" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <a class="btn btn--small btn--icon btn--primary"
+                                   *ngIf="row.username === userName || userRole === 0"
+                                   (click)="openModal(addtemplate,row)">
+                                    <span class="icon-pencil"></span>
+                                </a>
+                                <a class="btn btn--small btn--icon btn--negative"
+                                   *ngIf="row.username === userName || userRole === 0"
+                                   (click)='openModal(deletetemplate, row)'>
+                                    <span class="icon-trash"></span>
+                                </a>
+                            </ng-template>
+                        </ngx-datatable-column>
+                    </ngx-datatable>
                 </div>
             </div>
         </div>

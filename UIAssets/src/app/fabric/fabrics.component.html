@@ -1,0 +1,41 @@
+<div class="row">
+    <div class="col-md-12">
+        &nbsp;
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-2">
+        <nav class="sidebar" style="position: relative; width: 100%; height: 85vh;">
+            <div class="sidebar__header">
+                <div class="sidebar__header-title">{{ fabricName }}</div>
+            </div>
+            <ul>
+                <li class="sidebar__item"><a [routerLink]="['.']">Overview</a></li>
+                <li class="sidebar__item"><a [routerLink]="['events']">Events</a></li>
+                <li class="sidebar__item"><a [routerLink]="['moves']">Moves</a></li>
+                <li class="sidebar__drawer" [class.sidebar__drawer--opened]="endpointExpanded"
+                    (click)="endpointExpanded = !endpointExpanded">
+                    <a>Endpoints</a>
+                    <ul (click)="$event.stopPropagation()">
+                        <li class="sidebar__item"><a [routerLink]="['endpoints']">Current</a></li>
+                        <li class="sidebar__item"><a [routerLink]="['offsubnet-endpoints']">OffSubnet</a></li>
+                        <li class="sidebar__item"><a [routerLink]="['stale-endpoints']">Stale</a></li>
+                    </ul>
+                </li>
+                <li class="sidebar__drawer" [class.sidebar__drawer--opened]="configurationExpanded"
+                    (click)="configurationExpanded = !configurationExpanded">
+                    <a>Configuration</a>
+                    <ul (click)="$event.stopPropagation()">
+                        <li class="sidebar__item"><a [routerLink]="['settings','connectivity']">Connectivity</a></li>
+                        <li class="sidebar__item"><a [routerLink]="['settings','notification']">Notification</a></li>
+                        <li class="sidebar__item"><a [routerLink]="['settings','remediation']">Remediation</a></li>
+                        <li class="sidebar__item"><a [routerLink]="['settings','advanced']">Advanced</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    <div class="col-md-10">
+        <router-outlet></router-outlet>
+    </div>
+</div>

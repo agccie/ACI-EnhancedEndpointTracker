@@ -21,6 +21,7 @@ export class UsersComponent implements OnInit {
     userRole: number;
     userName: string;
     roles: ({ id: number; name: string })[];
+    pageSize: number;
 
     constructor(private backendService: BackendService, private prefs: PreferencesService, private modalService: BsModalService) {
         this.loadingMessage = 'Loading users';
@@ -31,6 +32,7 @@ export class UsersComponent implements OnInit {
 
         this.userName = localStorage.getItem('userName');
         this.userRole = parseInt(localStorage.getItem('userRole'));
+        this.pageSize = this.prefs.pageSize;
     }
 
     ngOnInit(): void {
@@ -49,7 +51,6 @@ export class UsersComponent implements OnInit {
             this.rows = tempRows;
             this.loading = false;
         }, (err) => {
-            console.error('Error', 'Could not get user list');
             this.loading = false;
         });
     }
@@ -67,7 +68,6 @@ export class UsersComponent implements OnInit {
         this.backendService.deleteUser(this.selectedUser).subscribe((results) => {
             this.getUsers();
         }, (err) => {
-            console.error('Error', 'Could not delete user');
             this.loading = false;
         });
     }
@@ -79,14 +79,12 @@ export class UsersComponent implements OnInit {
             this.backendService.createUser(this.user).subscribe((results) => {
                 this.getUsers();
             }, (err) => {
-                console.error('Error', 'Could not add user');
                 this.loading = false;
             });
         } else {
             this.backendService.updateUser(this.user).subscribe((results) => {
                 this.getUsers();
             }, (err) => {
-                console.error('Error', 'Could not update user');
                 this.loading = false;
             });
         }

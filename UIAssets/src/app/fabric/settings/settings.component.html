@@ -1,0 +1,30 @@
+<div class="panel panel--raised">
+    <router-outlet>
+    </router-outlet>
+    <br>
+    <div class="pull-center">
+        <button class="btn btn--small btn--primary" (click)="onSubmit()">Submit</button>
+        <button class="btn btn--small btn--secondary" (click)="reset()" type="reset">Reset</button>
+    </div>
+</div>
+<ng-template #errorMessage>
+    <div class="modal__body">
+            <div class="col-xl-12">
+                    <div class="alert alert--success" *ngIf="modalIcon !== 'error'">
+                        <div class="alert__icon icon-check-outline"></div>
+                        <div class="alert__message text-left">
+                            <h4>{{modalBody}}</h4>
+                        </div>
+                    </div>
+            </div>
+            <div class="alert alert--danger" *ngIf="modalIcon === 'error'">
+                    <div class="alert__icon icon-error-outline"></div>
+                    <div class="alert__message text-left">
+                        <h4>{{modalBody}}</h4>
+                    </div>
+            </div>
+    <div class="modal__footer">
+            <button class="btn" (click)="modalService.hideModal()">Ok</button>
+    </div> 
+    </div>  
+</ng-template>

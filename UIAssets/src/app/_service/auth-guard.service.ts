@@ -1,6 +1,5 @@
 import {Injectable} from '@angular/core';
-import {CanActivate} from '@angular/router';
-import {PreferencesService} from './preferences.service';
+import {CanActivate, Router} from '@angular/router';
 
 @Injectable({
     providedIn: 'root'
@@ -8,10 +7,15 @@ import {PreferencesService} from './preferences.service';
 
 export class AuthGuardService implements CanActivate {
 
-    constructor(public prefs: PreferencesService) {
+    constructor(public router: Router) {
     }
 
     canActivate(): boolean {
-        return localStorage.getItem('cul') === '1';
+        if (localStorage.getItem('isLoggedIn') != 'true') {
+            this.router.navigate(['login']);
+            return false;
+        } else {
+            return true;
+        }
     }
 }

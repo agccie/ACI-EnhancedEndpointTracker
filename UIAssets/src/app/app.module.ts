@@ -2,55 +2,86 @@ import {BrowserModule} from '@angular/platform-browser';
 import {NgModule} from '@angular/core';
 import {NgxDatatableModule} from '@swimlane/ngx-datatable';
 import {AppComponent} from './app.component';
-import {FabricsComponent} from './fabrics/fabrics.component';
+import {FabricsComponent} from './fabric/fabrics.component';
 import {RouterModule, Routes} from '@angular/router';
 import {UsersComponent} from './users/users.component';
-import {EndpointHistoryComponent} from './endpoint-history/endpoint-history.component';
+import {EndpointHistoryComponent} from './fabric/history/endpoint-history.component';
 import {LoginComponent} from './login/login.component'
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
-import {MoveEventsComponent} from './endpoint-history/move-events/move-events.component';
-import {OffSubnetEventsComponent} from './endpoint-history/off-subnet-events/off-subnet-events.component';
-import {StaleEventsComponent} from './endpoint-history/stale-events/stale-events.component';
-import {PerNodeHistoryComponent} from './endpoint-history/per-node-history/per-node-history.component';
+import {MoveEventsComponent} from './fabric/history/move-events/move-events.component';
+import {OffSubnetEventsComponent} from './fabric/history/off-subnet-events/off-subnet-events.component';
+import {StaleEventsComponent} from './fabric/history/stale-events/stale-events.component';
+import {PerNodeHistoryComponent} from './fabric/history/per-node-history/per-node-history.component';
 import {AuthGuardService} from './_service/auth-guard.service';
 import {AccordionModule, ModalModule, TypeaheadModule} from 'ngx-bootstrap';
-import {FabricOverviewComponent} from './fabrics/fabric-overview/fabric-overview.component';
-import {EndpointsComponent} from './fabrics/endpoints/endpoints.component';
-import {HistoryComponent} from './fabrics/history/history.component';
-import {MovesComponent} from './fabrics/moves/moves.component';
-import {StaleEptComponent} from './fabrics/stale-ept/stale-ept.component';
-import {OffsubnetEptComponent} from './fabrics/offsubnet-ept/offsubnet-ept.component';
+import {EndpointsComponent} from './fabric/endpoint/endpoints.component';
+import {EventComponent} from './fabric/event/event.component';
+import {MovesComponent} from './fabric/moves/moves.component';
+import {StaleEptComponent} from './fabric/stale-ept/stale-ept.component';
+import {OffsubnetEptComponent} from './fabric/offsubnet-ept/offsubnet-ept.component';
 import {BackendService} from './_service/backend.service';
 import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
 import {MomentModule} from 'ngx-moment';
-import {SettingsComponent} from './settings/settings.component';
 import {NgSelectModule} from '@ng-select/ng-select';
 import {NgbModule} from '@ng-bootstrap/ng-bootstrap';
 import {BackendInterceptorService} from './_service/backend-interceptor.service';
 import {CookieService} from 'ngx-cookie-service';
-import {ConnectivityComponent} from './settings/connectivity/connectivity.component';
-import {NotificationComponent} from './settings/notification/notification.component';
-import {RemediationComponent} from './settings/remediation/remediation.component';
-import {AdvancedComponent} from './settings/advanced/advanced.component';
 import {HashLocationStrategy, LocationStrategy} from '@angular/common';
-import {LocalLearnsComponent} from './endpoint-history/local-learns/local-learns.component';
+import {LocalLearnsComponent} from './fabric/history/local-learns/local-learns.component';
+import {WelcomeComponent} from "./welcome/welcome.component";
+import {SettingsComponent} from "./fabric/settings/settings.component";
+import {ConnectivityComponent} from "./fabric/settings/connectivity/connectivity.component";
+import {NotificationComponent} from "./fabric/settings/notification/notification.component";
+import {RemediationComponent} from "./fabric/settings/remediation/remediation.component";
+import {AdvancedComponent} from "./fabric/settings/advanced/advanced.component";
+import {OverviewComponent} from "./fabric/overview/overview.component";
+import {NotFoundComponent} from "./notfound/notfound.component";
 
 const appRoutes: Routes = [
     {
-        path: '',
-        component: LoginComponent
+        path: 'login',
+        component: LoginComponent,
     },
     {
-        path: 'fabrics',
+        path: '',
+        canActivate: [AuthGuardService],
+        children: [
+            {path: '', component: WelcomeComponent}
+        ]
+    },
+    {
+        path: 'fabric/:fabric',
         component: FabricsComponent,
         canActivate: [AuthGuardService],
         children: [
-            {path: 'fabric-overview', component: FabricOverviewComponent},
+            {path: '', component: OverviewComponent},
             {path: 'endpoints', component: EndpointsComponent},
-            {path: 'latest-events', component: HistoryComponent},
+            {path: 'events', component: EventComponent},
             {path: 'moves', component: MovesComponent},
             {path: 'stale-endpoints', component: StaleEptComponent},
-            {path: 'offsubnet-endpoints', component: OffsubnetEptComponent}
+            {path: 'offsubnet-endpoints', component: OffsubnetEptComponent},
+            {
+                path: 'settings',
+                component: SettingsComponent,
+                children: [
+                    {path: 'connectivity', component: ConnectivityComponent},
+                    {path: 'notification', component: NotificationComponent},
+                    {path: 'remediation', component: RemediationComponent},
+                    {path: 'advanced', component: AdvancedComponent}
+                ]
+            },
+            {
+                path: 'history/:vnid/:address',
+                component: EndpointHistoryComponent,
+                children: [
+                    {path: '', redirectTo: 'locallearns', pathMatch: 'full'},
+                    {path: 'locallearns', component: LocalLearnsComponent},
+                    {path: 'pernodehistory', component: PerNodeHistoryComponent},
+                    {path: 'moveevents', component: MoveEventsComponent},
+                    {path: 'offsubnetevents', component: OffSubnetEventsComponent},
+                    {path: 'staleevents', component: StaleEventsComponent}
+                ]
+            }
         ]
     },
     {
@@ -58,40 +89,7 @@ const appRoutes: Routes = [
         component: UsersComponent,
         canActivate: [AuthGuardService]
     },
-    {
-        path: 'ephistory/:fabric/:vnid/:address',
-        component: EndpointHistoryComponent,
-        canActivate: [AuthGuardService],
-        children: [
-            {path: 'pernodehistory', component: PerNodeHistoryComponent},
-            {path: 'moveevents', component: MoveEventsComponent},
-            {path: 'offsubnetevents', component: OffSubnetEventsComponent},
-            {path: 'staleevents', component: StaleEventsComponent},
-            {path: 'locallearns', component: LocalLearnsComponent}
-        ]
-    },
-    {
-        path: 'settings',
-        component: SettingsComponent,
-        canActivate: [AuthGuardService],
-        children: [
-            {path: 'connectivity', component: ConnectivityComponent},
-            {path: 'notification', component: NotificationComponent},
-            {path: 'remediation', component: RemediationComponent},
-            {path: 'advanced', component: AdvancedComponent}
-        ]
-    },
-    {
-        path: 'settings/:fabric',
-        component: SettingsComponent,
-        canActivate: [AuthGuardService],
-        children: [
-            {path: 'connectivity', component: ConnectivityComponent},
-            {path: 'notification', component: NotificationComponent},
-            {path: 'remediation', component: RemediationComponent},
-            {path: 'advanced', component: AdvancedComponent}
-        ]
-    }
+    {path: '**', component: NotFoundComponent},
 ];
 
 @NgModule({
@@ -105,9 +103,8 @@ const appRoutes: Routes = [
         MoveEventsComponent,
         OffSubnetEventsComponent,
         StaleEventsComponent,
-        FabricOverviewComponent,
         EndpointsComponent,
-        HistoryComponent,
+        EventComponent,
         MovesComponent,
         StaleEptComponent,
         OffsubnetEptComponent,
@@ -116,8 +113,10 @@ const appRoutes: Routes = [
         NotificationComponent,
         RemediationComponent,
         AdvancedComponent,
-        LocalLearnsComponent
-
+        LocalLearnsComponent,
+        WelcomeComponent,
+        OverviewComponent,
+        NotFoundComponent
     ],
     imports: [
         BrowserModule,

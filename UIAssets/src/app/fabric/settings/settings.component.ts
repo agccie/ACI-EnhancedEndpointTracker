@@ -1,8 +1,11 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ViewChild, TemplateRef} from '@angular/core';
 import {FabricSettings} from "../../_model/fabric-settings";
 import {BackendService} from "../../_service/backend.service";
 import {PreferencesService} from "../../_service/preferences.service";
 import {ActivatedRoute, Router} from "@angular/router";
+import { Fabric } from '../../_model/fabric';
+import { ModalService } from '../../_service/modal.service';
+import { forkJoin } from '../../../../node_modules/rxjs';
 
 @Component({
     selector: 'app-settings',
@@ -15,9 +18,21 @@ export class SettingsComponent implements OnInit {
     showSelectionModal = false;
     fabrics = [];
     fabric: any;
-
-    constructor(private backendService: BackendService, public preferencesService: PreferencesService, private activatedRoute: ActivatedRoute, private router: Router) {
-
+    @ViewChild('errorMessage') msgModal: TemplateRef<any> ;
+    modalTitle = '' ;
+    modalBody='' ;
+    modalIcon = ''; 
+    resetList:any ;
+    constructor(private backendService: BackendService, public preferencesService: PreferencesService, private activatedRoute: ActivatedRoute, 
+        private router: Router, public modalService:ModalService) {
+           this.resetList = {
+                "connectivity":["apic_hostname","apic_cert","apic_username","apic_password","ssh_username","ssh_password"],
+                "notification":["email_address",'syslog_server','syslog_port','notify_move_email','notify_move_syslog',"notify_offsubnet_email",
+                "notify_offsubnet_syslog", "notify_stale_email","notify_stale_syslog","notify_rapid_syslog","notify_rapid_email","notify_clear_email","notify_clear_syslog"],
+                "remediation":["auto_clear_offsubnet","auto_clear_stale"],
+                "advanced":["analyze_move",'analyze_offsubnet', "analyze_stale","analyze_rapid","max_events","max_endpoint_events","max_per_node_endpoint_events",
+                "refresh_rapid","rapid_threshold","rapid_holdtime","stale_no_local","stale_multiple_local","queue_init_epm_events","queue_init_events","max_per_node_endpoint_events"]   
+            } ;
     }
 
     ngOnInit() {
@@ -46,12 +61,16 @@ export class SettingsComponent implements OnInit {
                 this.showSelectionModal = false;
             },
             (error) => {
+                this.modalTitle = 'Error' ;
+                this.modalBody = 'Could not fetch fabric settings! ' + error['error']['error'] ;
+                this.modalIcon = 'error' ;
+                this.modalService.openModal(this.msgModal) ;
             }
         )
     }
 
     onSubmit() {
-        let connSettings = {};
+        let connSettings = new Fabric();
         let otherSettings = new FabricSettings();
         for (let prop in this.preferencesService.fabric) {
             if (this.preferencesService.fabric[prop] !== undefined && (this.preferencesService.fabric[prop] !== '' || this.preferencesService.fabric[prop] !== 0)) {
@@ -66,44 +85,42 @@ export class SettingsComponent implements OnInit {
         if (otherSettings.hasOwnProperty('dn')) {
             delete otherSettings['dn'];
         }
-        const fields = ['dn', 'event_count', 'controllers', 'events', 'auto_start'];
+        const fields = ['dn', 'event_count', 'controllers', 'events', 'auto_start','status','mac','ipv4','ipv6'];
         for (let field of fields) {
             if (connSettings.hasOwnProperty(field)) {
                 delete connSettings[field];
             }
         }
-        this.backendService.updateFabric(this.preferencesService.fabric).subscribe(
+        const updateObservable = this.backendService.updateFabric(connSettings) ;
+        const updateSettingsObservable = this.backendService.updateFabricSettings(otherSettings) ;
+        forkJoin(updateObservable,updateSettingsObservable).subscribe(
             (data) => {
+                let message = '' ;
+               if(data[0]['success'] && data[1]['success']) {
+                message+='Successfully updated settings' ;
+               }
+               this.modalTitle = 'Success' ;
+               this.modalBody = message ;
+               this.modalIcon='icon-check-square' ;
+               this.modalService.openModal(this.msgModal) ;
             },
             (error) => {
-
-            }
-        );
-        this.backendService.updateFabricSettings(this.preferencesService.fabricSettings).subscribe(
-            (data) => {
-
-            },
-            (error) => {
-
+                this.modalTitle = 'Error' ;
+                this.modalBody = 'Failed to update fabric settings! ' + error['error']['error'] ;
+                this.modalIcon='error' ;
+                this.modalService.openModal(this.msgModal) ;
             }
         )
     }
 
-    isSubmitDisabled() {
-        let fabricFormValid = true;
-        let fabricSettingsFormValid = true;
-        for (let prop in this.preferencesService.fabric) {
-            if (this.preferencesService.fabric[prop] === undefined || this.preferencesService.fabric[prop] === '') {
-                fabricFormValid = false;
-                break;
-            }
+    public reset() {
+        const params = this.activatedRoute.snapshot.children[0].url[0].path ;
+        let settings = 'fabricSettings' ;
+        if(params === 'connectivity') {
+            settings = 'fabric'
         }
-        for (let prop in this.preferencesService.fabricSettings) {
-            if (this.preferencesService.fabricSettings[prop] === undefined || this.preferencesService.fabricSettings[prop] === '') {
-                fabricSettingsFormValid = false;
-                break;
-            }
+        for(let prop of this.resetList[params]) {
+            delete this.preferencesService[settings][prop] ;
         }
-        return (fabricFormValid && fabricSettingsFormValid);
     }
 }

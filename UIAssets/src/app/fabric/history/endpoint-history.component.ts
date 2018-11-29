@@ -2,6 +2,8 @@ import {Component, OnInit} from '@angular/core';
 import {PreferencesService} from '../../_service/preferences.service';
 import {BackendService} from '../../_service/backend.service';
 import {ActivatedRoute, Router} from '@angular/router';
+import {forkJoin} from '../../../../node_modules/rxjs' ;
+
 
 @Component({
     selector: 'app-endpoint-history',
@@ -13,6 +15,7 @@ export class EndpointHistoryComponent implements OnInit {
     endpointStatus = '';
     fabricDetails = '';
     staleoffsubnetDetails = '';
+    vpcDetails = '' ;
     showModal = false;
     modalTitle = '';
     modalBody = '';
@@ -42,6 +45,7 @@ export class EndpointHistoryComponent implements OnInit {
             {name: ' Off-Subnet Events', path: 'offsubnetevents', icon: 'icon-jump-out'},
             {name: ' Stale Events', path: 'staleevents', icon: 'icon-warning'}
         ];
+
     }
 
     ngOnInit() {
@@ -86,18 +90,38 @@ export class EndpointHistoryComponent implements OnInit {
             this.staleoffsubnetDetails += 'Currently stale on node ' + node;
             //query ept.endpoint filter on vnid,fabric,address,is_stale or is_offsubnet for finding out is stale or is offsubnet currently
             //for finding a list of stale offsubnet nodes query same on ept.hisotry
+            
+            const currentlyOffsubnet = this.backendService.offsubnetStaleEndpointHistory(this.fabricName,this.vnid,this.address,'is_offsubnet','endpoint') ;
+            const currentlyStale = this.backendService.offsubnetStaleEndpointHistory(this.fabricName,this.vnid,this.address,'is_stale','endpoint') ;
+            const offsubnetHistory = this.backendService.offsubnetStaleEndpointHistory(this.fabricName,this.vnid,this.address,'is_offsubnet','history') ;
+            const staleHistory = this.backendService.offsubnetStaleEndpointHistory(this.fabricName,this.vnid,this.address,'is_stale','history') ;
+            forkJoin([currentlyOffsubnet,currentlyStale,offsubnetHistory,staleHistory]).subscribe(
+                (data)=>{
+                    //data[0] , data[1] , data[2],data[3]
+                    debugger ;
+                },
+                (error)=>{
+                    debugger;
+                }
+            )
+
         }
         if (status === 'deleted') {
             this.endpointStatus = 'Not currently present in the fabric';
         } else {
-            this.endpointStatus = 'Local on node ' + node;
+            this.endpointStatus = 'Local on node ' + node
+            if(node > 0xffff) {
+                const nodeA = (node & 0xffff0000) >> 16 ;
+                const nodeB = (node & 0x0000ffff) ;
+                this.endpointStatus = 'Local on node (' + nodeA +',' + nodeB + ')' ;
+            }
             if (intf !== '') {
                 this.endpointStatus += ', interface ' + intf;
             }
             if (encap !== '') {
                 this.endpointStatus += ', encap ' + encap;
             }
-            //rw_mac logic and vpc decoding here
+           
             if (epgname !== '') {
                 this.endpointStatus += ', epg ' + epgname
             }

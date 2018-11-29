@@ -1,5 +1,5 @@
 <h3>Remediation</h3><br>
-<div class="row" *ngFor="let inp of inputs">
+<!--<div class="row" *ngFor="let inp of inputs">
     <div class="col-md-12">
         <div class="form-group label--inline" *ngIf="inp.type==='text' || inp.type==='number'">
             <div class="form-group__text">
@@ -20,5 +20,26 @@
     </div>
     <div class="col-md-12" *ngIf="!inp.hidden">
         &nbsp;
+    </div>
+</div>-->
+
+<div style="margin-left:1%">
+    <div class="row half-margin-bottom">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['auto_clear_offsubnet']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Auto Clear OffSubnet Endpoints</span>
+            </label>
+        </div>
+    </div>
+    <div class="row half-margin-bottom">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['auto_clear_stale']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Auto Clear Stale Endpoints</span>
+            </label>
+        </div>
     </div>
 </div>

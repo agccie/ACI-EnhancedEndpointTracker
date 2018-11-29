@@ -1798,3 +1798,49 @@ def test_handle_endpoint_event_stale_scenario_1(app, func_prep):
     logger.debug(pretty_print(h.to_json()))
     assert h.is_stale
 
+
+def test_handle_endpoint_invalid_old_last_local(app, func_prep):
+    # this test we want to create two valid local entries.  First, on node-101 and then on node-102.
+    # Next, we invalidate the local entry on node-102 without an update on node-101. We need to 
+    # ensure that we don't reuse node-101 as best local and instead return a delete as the last 
+    # local.
+    
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # initial local learn
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=2.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=2.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # at this point eptEndpoint should have 102 as current local
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    assert len(e[0].events)==2
+    e0 = eptEndpointEvent.from_dict(e[0].events[0])
+    assert e0.node == 102
+
+    # now we invalidate leaf-102 as the local and eptEndpoint should have last local as deleted,
+    # not leaf-101
+    msg = get_epm_event(102, ip, status="deleted", ts=3.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # at this point eptEndpoint should have 102 as current local
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    assert len(e[0].events)==3
+    e0 = eptEndpointEvent.from_dict(e[0].events[0])
+    assert e0.node == 0
+    assert e0.status == "deleted"
+

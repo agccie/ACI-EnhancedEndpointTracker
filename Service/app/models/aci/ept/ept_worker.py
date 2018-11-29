@@ -708,12 +708,13 @@ class eptWorker(object):
                 local_event = eptEndpointEvent.from_dict({
                     "ts":msg.ts, 
                     "status":"deleted",
-                    "vnid_name": last_event.vnid_name       # maintain vnid_name even on delete
+                    # maintain vnid_name and epg_name even on delete
+                    "vnid_name": last_event.vnid_name,
+                    "epg_name": last_event.epg_name,
                 })
                 logger.debug("adding delete event to endpoint table: %s", local_event)
                 msg.wf.push_event(eptEndpoint._classname,flt,local_event.to_dict(),per_node=False)
                 ret.local_events.insert(0, local_event)
-                ret.analyze_move = True
             else:
                 logger.debug("ignoring local delete event for XR/deleted/non-existing endpoint")
         else:
@@ -746,36 +747,55 @@ class eptWorker(object):
                 updated = False
                 ts_delta = local_event.ts - last_event.ts
                 if ts_delta < 0:
-                    logger.debug("current event is less recent than eptEndpoint event (%.3f < %.3f)",
+                    logger.debug("local_event is less recent than eptEndpoint last_event(%.3f<%.3f)",
                         local_event.ts, last_event.ts)
+                    # this should only happen if events are received out of order (perhaps a refresh
+                    # from user or resume from rapid while other events are queued or during start
+                    # up where new events were received on subscription before build completed).
+                    # the last_event must no longer be valid else it would have been choosen as the 
+                    # best local_event. therefore, we need to treat this as a delete of last local
+                    de = eptEndpointEvent.from_dict({
+                        "ts":msg.ts, 
+                        "status":"deleted",
+                        # maintain vnid_name and epg_name even on delete
+                        "vnid_name": last_event.vnid_name,
+                        "epg_name": last_event.epg_name,
+                    })
+                    logger.debug("adding delete event to endpoint table: %s", de)
+                    msg.wf.push_event(eptEndpoint._classname,flt,de.to_dict(),per_node=False)
+                    ret.local_events.insert(0, de)
                 else:
                     for a in ["node", "pctag", "encap", "intf_id", "rw_mac", "rw_bd"]:
                         if getattr(last_event, a) != getattr(local_event, a):
                             logger.debug("%s changed from '%s' to '%s'", a, getattr(last_event,a),
                                     getattr(local_event,a))
                             updated = True
-                            #break  (can add a break later as only one attribute needs to change)
-                if updated:
-                    # if the previous entry was a delete and the current entry is not a delete, 
-                    # then check for possible merge.
-                    if last_event.node==0 and local_event.node>0 and ts_delta<=TRANSITORY_DELETE:
-                        logger.debug("overwritting eptEndpoint [ts delta(%.3f) < %.3f] with: %s",
-                            ts_delta, TRANSITORY_DELETE, local_event)
-                        self.db[eptEndpoint._classname].update(flt, {"$set":{"events.0": db_event}})
-                        ret.local_events[0] = local_event
-                        ret.analyze_move = True
-                    # push new event to eptEndpoint events  
+                            # only one update required to trigger updated logic...
+                            break
+                    if updated:
+                        # if the previous entry was a delete and the current entry is not a delete, 
+                        # then check for possible merge.
+                        if last_event.node==0 and local_event.node>0 and ts_delta<=TRANSITORY_DELETE:
+                            logger.debug("overwritting eptEndpoint [ts delta(%.3f) < %.3f] with: %s",
+                                ts_delta, TRANSITORY_DELETE, local_event)
+                            self.db[eptEndpoint._classname].update(flt, 
+                                    {"$set":{"events.0": db_event}}
+                                )
+                            ret.local_events[0] = local_event
+                            ret.analyze_move = True
+                        # push new event to eptEndpoint events  
+                        else:
+                            logger.debug("adding event to eptEndpoint: %s", local_event)
+                            msg.wf.push_event(eptEndpoint._classname, flt, db_event,per_node=False)
+                            ret.local_events.insert(0, local_event)
+                            ret.analyze_move = True
                     else:
-                        logger.debug("adding event to eptEndpoint: %s", local_event)
-                        msg.wf.push_event(eptEndpoint._classname, flt, db_event,per_node=False)
-                        ret.local_events.insert(0, local_event)
-                        ret.analyze_move = True
-                else:
-                    logger.debug("no update detected for eptEndpoint")
+                        logger.debug("no update detected for eptEndpoint")
 
-        #logger.debug("eptEndpoint most recent local events(%s)", len(ret.local_events))
-        #for i, l in enumerate(ret.local_events):
-        #    logger.debug("event(%s): %s", i, l)
+        if len(ret.local_events)>0:
+            logger.debug("final local result: %s", ret.local_events[0])
+        else:
+            logger.debug("final local result: empty")
         # return last local endpoint events
         return ret
 
@@ -1107,10 +1127,14 @@ class eptWorker(object):
                     # non-deleted event when endpoint is not currently learned within the fabric
                     if msg.wf.settings.stale_no_local:
                         # if there is no local set and this node has 'local' flag, then it must be
-                        # a transient event and we're waiting on rewrite info. save some cycles on
-                        # watcher and relax this check
+                        # a transient event and we're waiting on rewrite info OR it is an old event
+                        # where we are waiting for the delete. we will consider this a type of 
+                        # stale_multiple_local
                         if "local" in h_event.flags:
                             logger.debug("node %s claiming local with incomplete local_node", node)
+                            if msg.wf.settings.stale_multiple_local:
+                                logger.debug("stale on %s to %s (no local)", node, h_event.remote)
+                                stale_nodes[node] = event
                         else:
                             logger.debug("stale on %s to %s (no local)", node, h_event.remote)
                             stale_nodes[node] = event

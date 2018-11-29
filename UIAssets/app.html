@@ -86,8 +86,8 @@
                     </div>
                 </div>
                 <div class="modal__footer">
-                    <button class="btn btn btn--gray-ghost" onclick="hideModal()">Close</button>
-                    <button class="btn btn btn--gray-ghost" onclick="confirmedModal()">Proceed</button>
+                    <button class="btn btn btn--gray-ghost" onclick="confirmedModal()">Yes</button>
+                    <button class="btn btn btn--primary" onclick="hideModal()">No</button>
                 </div>
             </div>
         </div>
@@ -109,7 +109,7 @@
                     </h5>
                 </div>
                 <div class="modal__footer" data-bind="loadingWhen: fabric_isLoading">
-                    <button class="btn btn btn--gray-ghost" onclick="hideModal()">Close</button>
+                    <button class="btn btn btn--gray-ghost" onclick="hideModal()">Cancel</button>
                     <button class="btn btn--primary" data-bind="click: create_fabric">Submit</button>
                 </div>
             </div>
@@ -137,7 +137,7 @@
                     </div>
                 </div>
                 <div class="modal__footer" data-bind="loadingWhen: clear_endpoint_isLoading">
-                    <button class="btn btn btn--gray-ghost" onclick="hideModal()">Close</button>
+                    <button class="btn btn btn--gray-ghost" onclick="hideModal()">Cancel</button>
                     <button class="btn btn--negative" data-bind="click: function(){submit_clear_endpoint()}">
                         <span class="icon icon-exclamation-triangle"></span> Clear Endpoint
                     </button>

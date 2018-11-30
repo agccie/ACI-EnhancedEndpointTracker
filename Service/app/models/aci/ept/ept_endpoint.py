@@ -212,7 +212,7 @@ class eptEndpoint(Rest):
                 "type": self.type,
             })
         if success:
-            return jsonify({"success": True})
+            return self.refresh_endpoint()
         abort(500, err_str)
 
     @api_route(path="refresh", methods=["POST"], swag_ret=["success"])

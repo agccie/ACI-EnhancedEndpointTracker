@@ -194,6 +194,21 @@ function timestamp_to_string(ts){
     return moment(ts*1000).format('YYYY-MM-DD HH:mm:ss');
 }
 
+//convert uptime in seconds to common string days hh:mm:ss
+function uptime_to_string(ts){
+    var d = parseInt(ts/86400)
+    var s = parseInt(ts%60)
+    var h = 0
+    var m = 0
+    if(ts-d*86400>0){
+        h = parseInt((ts-d*86400)/3600)
+    }
+    if(ts-d*86400-h*3600 > 0){
+        m = parseInt((ts-d*86400-h*3600)/60)
+    }
+    return d+" days, "+(""+h).padStart(2,'0')+":"+(""+m).padStart(2,'0')+":"+(""+s).padStart(2,'0')
+}
+
 // generic ajax error handler
 function generic_ajax_error(json, status_code, status_text){
     //console.trace()

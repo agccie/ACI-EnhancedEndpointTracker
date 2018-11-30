@@ -148,7 +148,7 @@ function fabric(fabric_name) {
         })
         json_get(base+"/status", function(data){
             self.status(data.status)
-            self.uptime(moment.utc(data.uptime*1000).format("HH:mm:ss.SSS"))
+            self.uptime(uptime_to_string(data.uptime))
             self.loading_status(false)
             if(!self.isLoading()){success(self)}
         })

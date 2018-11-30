@@ -616,11 +616,13 @@ class RouteInfo(object):
                 # skip key args if keyed_url is set
                 if self.keyed_url and farg in keys: continue
                 required = isinstance(fval, _undefined)
-                if farg in data:
+                # if route is not keyed but user specified path with args available, then those are
+                # preferred over user data. Check/validate those values first 
+                if farg in kwargs or farg in data:
+                    val = kwargs[farg] if farg in kwargs else data[farg]
                     # perform validation if attribute exists in _attributes or _attributes_reference
-                    val = data[farg]
                     if farg in cls._attributes or farg in cls._attributes_reference:
-                        val = cls.validate_attribute(farg, data[farg])
+                        val = cls.validate_attribute(farg, val)
                     # add to ordered args if required, else add to optional_args.
                     if required: ordered_args.append(val)
                     else: optional_args[farg] = val

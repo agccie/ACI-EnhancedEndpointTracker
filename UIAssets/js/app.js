@@ -1032,6 +1032,9 @@ function common_viewModel() {
             json_post(url, {}, function(data){
                 self.endpoint_isLoading(false)
                 self.refresh_endpoint()
+            }, function(json, status_code, status_text){
+                self.endpoint_isLoading(false)
+                generic_ajax_error(json, status_code, status_text)
             })
         })
     }
@@ -1046,6 +1049,9 @@ function common_viewModel() {
             json_delete(url, {}, function(data){
                 self.endpoint_isLoading(false)
                 forward(window.location.hash+"?")
+            }, function(json, status_code, status_text){
+                self.endpoint_isLoading(false)
+                generic_ajax_error(json, status_code, status_text)
             })
         })
     }

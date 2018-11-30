@@ -171,6 +171,38 @@ class eptEndpoint(Rest):
         },
     }
 
+    @classmethod
+    @api_route(path="delete", methods=["DELETE"], swag_ret=["success"])
+    def bulk_delete_all_endpoints(cls, fabric, vnid=None):
+        """ delete all endpoints and all historical data from database for the provided fabric.
+            This requires that the fabric monitor is stopped.
+        """
+        from .. fabric import Fabric
+        f = Fabric.load(fabric=fabric)
+        if not f.exists():
+            abort(404, "fabric '%s' not found" % fabric)
+        # ensure that the fabric is not running
+        if f.get_fabric_status(api=False):
+            abort(400, "cannot perform bulk endpoint delete while fabric is running")
+        flt = {"fabric": fabric}
+        if vnid is not None and vnid>0: 
+            flt["vnid"] = vnid
+        # get number of endpoints that will be cleared
+        count = 0
+        js = eptEndpoint.read(_params={"count":1}, _projection={"addr":1}, _filters=flt)
+        if "count" in js:
+            count = js["count"]
+        # create message for fabric history
+        msg = "bulk delete"
+        if vnid is not None:
+            msg+= " endpoint filter(vnid:%s)" % vnid
+        else:
+            msg+= " all endpoints"
+        msg+= " count(%s)" % js["count"]
+        f.add_fabric_event("cleared", msg)
+        cls.delete(_filters=flt)
+        return jsonify({"success":True, "count":js["count"]})
+
     @api_route(path="delete", methods=["DELETE"], swag_ret=["success"])
     def delete_endpoint(self):
         """ delete endpoint and all historical data from database """

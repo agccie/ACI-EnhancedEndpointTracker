@@ -202,10 +202,10 @@ class eptManager(object):
                 return False
         return True
 
-    def start_fabric(self, fabric, reason=None):
+    def start_fabric(self, fabric, reason=None, restarting=False):
         # manager start monitoring provided fabric name.  
-        # if auto_start is set disabled, then references to this fabric will be removed from manager. 
-        # Else, if a new worker comes online the fabric may automatically restart.
+        # if auto_start is disabled, then references to this fabric will be removed from manager 
+        # on failure. Else, if a new worker comes online the fabric may automatically restart.
         # return boolean success
         if reason is None: reason = "generic start"
         logger.debug("manager start fabric: %s (%s)", fabric, reason)
@@ -219,17 +219,22 @@ class eptManager(object):
         if self.fabrics[fabric]["process"] is None or not self.fabrics[fabric]["process"].is_alive():
             f = Fabric.load(fabric=fabric)
             if f.exists():
-                f.add_fabric_event("starting", reason)
+                # check start suppression threshold
+                ts_delta = (time.time() - f.restart_ts)
+                if ts_delta < SUPPRESS_FABRIC_RESTART:
+                    logger.debug("suppressing fabric %s restart (%.3f < %.3f)", fabric, ts_delta, 
+                            SUPPRESS_FABRIC_RESTART)
+                    self.fabrics[fabric]["waiting_for_retry"] = True
+                    return False
+
                 # check that minimim workers are present
                 if not self.minimum_workers_ready():
-                    if not f.auto_start:
-                        self.fabrics.pop(fabric, None)
-                        f.add_fabric_event("stopped", "worker processes are not ready")
-                    else: 
-                        self.fabrics[fabric]["waiting_for_retry"] = True
+                    if not restarting:
+                        f.add_fabric_event("starting", reason)
                         f.add_fabric_event("waiting to start", "worker processes are not ready")
                     return False
 
+                f.add_fabric_event("starting", reason)
                 sub = eptSubscriber(f)
                 self.fabrics[fabric]["subscriber"] = sub
                 self.fabrics[fabric]["process"] = Process(target=sub.run)
@@ -276,6 +281,7 @@ class eptManager(object):
             # having worker perform the operation which could lead to race conditions
             self.worker_tracker.flush_fabric(fabric)
             if not f.exists() or not f.auto_start: 
+                logger.debug("removing fabric '%s' from managed fabrics", f.fabric())
                 self.fabrics.pop(fabric, None)
             else:
                 self.fabrics[fabric]["waiting_for_retry"] = True
@@ -284,7 +290,6 @@ class eptManager(object):
     def check_fabric_processes(self):
         # check if each running fabric is still running. If not attempt to restart process
         # triggered by worker_tracker thread at WORKER_UDPATE_INTERVAL interval
-        ts = time.time()
         remove_list = []
         fabric_list = [(f, fab) for f, fab in self.fabrics.items()]
         for f, fab in fabric_list:
@@ -294,14 +299,12 @@ class eptManager(object):
                 self.stop_fabric(f, reason="subscriber no longer running")
                 db_fab = Fabric.load(fabric=f)
                 if db_fab.auto_start:
-                    ts_delta = (ts - db_fab.restart_ts)
-                    if ts_delta >= SUPPRESS_FABRIC_RESTART:
-                        self.start_fabric(f, reason="auto restarting")
-                    else:
-                        logger.debug("suppressing fabric %s restart (%.3f < %.3f)", db_fab.fabric,
-                            ts_delta, SUPPRESS_FABRIC_RESTART)
+                    self.start_fabric(f, reason="auto restarting", restarting=True)
                 else: 
                     remove_list.append(f)
+            elif fab["process"] is None and fab["waiting_for_retry"]:
+                self.start_fabric(f, reason="auto restarting", restarting=True)
+
         # stop tracking fabrics in remove list
         for f in remove_list: self.fabrics.pop(f, None)
 
@@ -384,10 +387,10 @@ class WorkerTracker(object):
                 self.active_workers[w.role].append(w)
                 w.active = True
                 new_workers = True
-                # trigger fabric restarts if any are in 'waiting_for_retry' state
-                for f, fab in self.manager.fabrics.items():
-                    if fab["waiting_for_retry"]:
-                        self.manager.start_fabric(f, reason="new worker '%s' online" % wid)
+                # no need to trigger fabric restart here, it will be picked up by check_fabric
+                #for f, fab in self.manager.fabrics.items():
+                #    if fab["waiting_for_retry"]:
+                #        self.manager.start_fabric(f, reason="new worker '%s' online" % wid)
             #elif w.last_head_check + SEQUENCE_TIMEOUT < ts:
             #    # check if seq is stuck on any queue which indicates a problem with the worker
             #    for i, last_head in enumerate(w.last_head):
@@ -417,9 +420,17 @@ class WorkerTracker(object):
                 with w.queue_locks[i]:
                     self.redis.delete(q)
             # restart all fabrics
+            minimum_ready = self.manager.minimum_workers_ready()
             for f in self.manager.fabrics.keys():
                 self.manager.stop_fabric(f, reason="worker '%s' no longer active" % w.worker_id)
-                self.manager.start_fabric(f, reason="restarting after active worker change")
+                if minimum_ready:
+                    self.manager.start_fabric(f, reason="restarting after active worker change")
+                else:
+                    fab = Fabric.load(fabric=f)
+                    if not fab.auto_start:
+                        fab.add_fabric_event("stopped", "worker processes are not ready")
+                    else: 
+                        fab.add_fabric_event("waiting to start", "worker processes are not ready")
 
         if len(remove_workers)>0 or new_workers:
             logger.info("total workers: %s", len(self.known_workers))

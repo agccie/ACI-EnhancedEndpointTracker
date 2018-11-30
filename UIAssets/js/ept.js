@@ -175,6 +175,7 @@ function generalEvent(){
     self.expected_remote = ko.observable(0)
     self.classname = ko.observable("")
     self.flags = ko.observableArray([])
+
     self.ts_str = ko.computed(function(){
         return timestamp_to_string(self.ts())
     }) 
@@ -251,6 +252,27 @@ function eptEndpoint(){
     self.count_offsubnet = ko.observable(0)
     self.count_stale = ko.observable(0)
     self.count_rapid = ko.observable(0)
+
+    self.init = function(){
+        self.fabric("")
+        self.vnid(0)
+        self.addr("")
+        self.type("")
+        self.is_stale(false)
+        self.is_offsubnet(false)
+        self.is_rapid(false)
+        self.is_rapid_ts(0)
+        self.events([])
+        self.count(0)
+        self.stale_nodes([])
+        self.offsubnet_nodes([])
+        self.count_nodes(0)
+        self.count_moves(0)
+        self.count_offsubnet(0)
+        self.count_stale(0)
+        self.count_rapid(0)
+    }
+
 
     //determine if endpoint is deleted from fabric
     self.is_deleted = ko.computed(function(){

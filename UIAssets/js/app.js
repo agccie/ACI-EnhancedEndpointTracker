@@ -921,6 +921,7 @@ function common_viewModel() {
         if(success===undefined){ success = function(){}}
         var url = self.get_endpoint_api()
         self.endpoint_isLoading(true)
+        self.current_endpoint.init()
         json_get(url, function(data){
             if(data.objects.length>0 && "ept.endpoint" in data.objects[0]){
                 self.current_endpoint_not_found(false)
@@ -1044,7 +1045,7 @@ function common_viewModel() {
             self.endpoint_isLoading(true)
             json_delete(url, {}, function(data){
                 self.endpoint_isLoading(false)
-                self.refresh_endpoint()
+                forward(window.location.hash+"?")
             })
         })
     }
@@ -1107,7 +1108,7 @@ function common_viewModel() {
         self.init()
         for (var i in routes) {
             var r = routes[i]
-            var regex = new RegExp("^#"+r["route"]+"$")
+            var regex = new RegExp("^#"+r["route"]+"(\\?.*)?$")
             var match = regex.exec(window.location.hash)
             if (match != null){
                 if(match.length>1){

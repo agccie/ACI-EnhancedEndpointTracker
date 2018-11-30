@@ -69,31 +69,35 @@ class eptSubscriber(object):
         self.subscription_check_interval = 5.0   # interval to check subscription health
 
         # classes that have corresponding mo Rest object and handled by handle_std_mo_event
-        mo_classes = [
-            "fvAEPg",
+        # the order shouldn't matter during build but just to be safe we'll control the order...
+        self.ordered_mo_classes = [
+            # ordered l3out dependencies
             "fvCtx",
-            "fvBD",
-            "fvRsBd",
-            "fvSvcBD",
-            "fvSubnet",
-            "fvIpAttr",
+            "l3extRsEctx",
+            "l3extOut",
             "l3extExtEncapAllocator",
             "l3extInstP",
-            "l3extOut",
-            "l3extRsEctx",
-            "mgmtInB",
+            # ordered BD/EPG/subnet dependencies
+            "fvBD",
+            "fvSvcBD",
+            "fvRsBd",
+            "vnsRsEPpInfoToBD",
+            "vnsRsLIfCtxToBD",
+            "vnsLIfCtx",
             "mgmtRsMgmtBD",
+            "mgmtInB",
+            "fvAEPg",
+            "vnsEPpInfo",
+            "fvSubnet",
+            "fvIpAttr",
+            # no dependencies
             "pcAggrIf",
             "tunnelIf",
-            "vnsEPpInfo",
-            "vnsLIfCtx",
-            "vnsRsLIfCtxToBD",
-            "vnsRsEPpInfoToBD",
             "vpcRsVpcConf",
         ]
         # dict of classname to import mo object
         self.mo_classes = {}
-        for mo in mo_classes:
+        for mo in self.ordered_mo_classes:
             self.mo_classes[mo] = getattr(import_module(".%s" % mo, MO_BASE), mo)
 
         # static/special handlers for a subset of 'slow' subscriptions
@@ -280,8 +284,10 @@ class eptSubscriber(object):
        
         # setup slow subscriptions to catch events occurring during build 
         if self.settings.queue_init_events:
-            self.subscriber.pause(self.subscription_classes + self.mo_classes.keys())
-        self.subscriber.subscribe(blocking=False)
+            self.subscriber.pause(self.subscription_classes + self.ordered_mo_classes)
+        if not self.subscriber.subscribe(blocking=False):
+            self.fabric.add_fabric_event("failed", "failed to start one or more subscriptions")
+            return
 
         # build mo db first as other objects rely on it
         self.fabric.add_fabric_event(init_str, "collecting base managed objects")
@@ -325,7 +331,7 @@ class eptSubscriber(object):
         # slow objects (including std mo objects) initialization completed
         self.initializing = False
         # safe to call resume even if never paused
-        self.subscriber.resume(self.subscription_classes + self.mo_classes.keys())
+        self.subscriber.resume(self.subscription_classes + self.ordered_mo_classes)
 
         # build current epm state, start subscriptions for epm objects after query completes
         self.ept_epm_parser = eptEpmEventParser(self.fabric.fabric, self.settings.overlay_vnid)
@@ -397,7 +403,7 @@ class eptSubscriber(object):
         init_str = "re-initializing"
         # remove slow interests from subscriber
         self.initializing = True
-        self.subscriber.remove_interest(self.subscription_classes + self.mo_classes.keys())
+        self.subscriber.remove_interest(self.subscription_classes + self.ordered_mo_classes)
         for c in self.subscription_classes:
             self.subscriber.add_interest(c, self.handle_event, paused=True)
         for c in self.mo_classes:
@@ -429,7 +435,7 @@ class eptSubscriber(object):
 
         self.fabric.add_fabric_event("running")
         self.initializing = False
-        self.subscriber.resume(self.subscription_classes + self.mo_classes.keys())
+        self.subscriber.resume(self.subscription_classes + self.ordered_mo_classes)
 
     def send_msg(self, msg):
         """ send one or more eptMsgWork objects to worker via manager work queue """
@@ -571,8 +577,9 @@ class eptSubscriber(object):
 
     def build_mo(self):
         """ build managed objects for defined classes """
-        for mo in sorted(self.mo_classes):
-            self.mo_classes[mo].rebuild(self.fabric, session=self.session)
+        for mo in self.ordered_mo_classes:
+            if not self.mo_classes[mo].rebuild(self.fabric, session=self.session):
+                return False
         return True
 
     def initialize_ept_collection(self, eptObject, mo_classname, attribute_map=None, 
@@ -1076,7 +1083,9 @@ class eptSubscriber(object):
         for c in self.epm_subscription_classes:
             cdata = get_class(self.session, c, orderBy="%s.dn" % c)
             if cdata is not None: data+= cdata
-            self.subscriber.add_interest(c, self.handle_epm_event, paused=paused)
+            if not self.subscriber.add_interest(c, self.handle_epm_event, paused=paused):
+                logger.warn("failed to add interest %s to subscriber", c)
+                return False
 
         ts = time.time()
         if data is None:

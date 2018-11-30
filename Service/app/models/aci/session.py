@@ -424,7 +424,7 @@ class CallbackHandler(object):
 
     def resume(self):
         # trigger all callbacks before setting pause to false
-        logger.debug("resume %s with queue-size %s", self.url, self.event_q.qsize())
+        logger.debug("resume (queue-size %s) url %s", self.event_q.qsize(), self.url)
         while not self.event_q.empty():
             event = self.event_q.get()
             try:

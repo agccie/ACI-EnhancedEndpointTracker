@@ -102,6 +102,7 @@ def apic_app_init(args):
         f.apic_hostname = hostname
         f.apic_username = app_username
         f.apic_cert = cert_key
+        f.auto_start = True
         if not f.save():
             logger.error("failed to save fabric settings for: %s",fabric_domain)
             return False

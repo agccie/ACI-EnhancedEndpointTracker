@@ -1,0 +1,123 @@
+<h4>
+    <a class="btn btn--icon btn--primary" [routerLink]="['/']">
+        <span class="icon-back"></span>
+    </a>
+    Available queues
+    <button class="btn btn--icon btn--small btn--primary" (click)='getQueues()'>
+        <span class="icon-refresh"></span>
+    </button>
+</h4>
+<br>
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel panel--raised">
+            <div class="row">
+                <div class="col-md-12">
+                    <form>
+                        <div class="form-group input--icon">
+                            <div class="form-group__text">
+                                <input id="search" type="search" placeholder="Search Queue"
+                                       (keyup)='updateFilter($event)' required>
+                                <button type="button" class="link">
+                                    <span class="icon-search"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    &nbsp;
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <ngx-datatable
+                            class="fullscreen"
+                            [columnMode]="'flex'"
+                            [footerHeight]="50"
+                            [rowHeight]="'auto'"
+                            [limit]="pageSize"
+                            [loadingIndicator]="loading"
+                            [rows]="rows"
+                            [sorts]="sorts"
+                            [count]="count"
+                            [externalPaging]="true"
+                            [externalSorting]="true"
+                            [offset]="pageNumber"
+                            (page)="setPage($event)"
+                            (sort)="onSort($event)"
+                            [cssClasses]="{
+                                sortAscending: 'icon-chevron-down',
+                                sortDescending: 'icon-chevron-up',
+                                pagerLeftArrow: 'icon-step-prev',
+                                pagerRightArrow: 'icon-step-next',
+                                pagerPrevious: 'icon-step-backward',
+                                pagerNext: 'icon-step-forward'
+                              }"
+                    >
+                        <ngx-datatable-column prop="dn" name="DN" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
+                                         let-row="row">
+                              <span>
+                                  {{ value }}
+                              </span>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="proc" name="Process" [sortable]="true" [flexGrow]="0.1">
+                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
+                                         let-row="row">
+                              <span>
+                                  {{ value }}
+                              </span>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="queue" name="Queue" [sortable]="true" [flexGrow]="0.2">
+                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
+                                         let-row="row">
+                              <span>
+                                  {{ value }}
+                              </span>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="start_timestamp" name="Start Timestamp" [sortable]="true"
+                                              [flexGrow]="0.2">
+                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
+                                         let-row="row">
+                              <span>
+                                {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                              </span>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="total_rx_msg" name="# Rx Messages" [sortable]="true"
+                                              [flexGrow]="0.1">
+                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
+                                         let-row="row">
+                              <span>
+                                  {{ value | number }}
+                              </span>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="total_tx_msg" name="# Tx Messages" [sortable]="true"
+                                              [flexGrow]="0.1">
+                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
+                                         let-row="row">
+                              <span>
+                                  {{ value | number }}
+                              </span>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column name="Actions" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <a [routerLink]="['/queue',row.dn]">
+                                    <span class="icon-graph"></span>
+                                </a>
+                            </ng-template>
+                        </ngx-datatable-column>
+                    </ngx-datatable>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

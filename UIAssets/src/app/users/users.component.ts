@@ -29,7 +29,6 @@ export class UsersComponent implements OnInit {
             {'id': 0, name: 'Admin'},
             {'id': 1, name: 'User'},
         ];
-
         this.userName = localStorage.getItem('userName');
         this.userRole = parseInt(localStorage.getItem('userRole'));
         this.pageSize = this.prefs.pageSize;

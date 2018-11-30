@@ -7,6 +7,7 @@ import {FabricSettings} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
 import {Fabric, FabricList} from "../_model/fabric";
 import {EndpointList} from "../_model/endpoint";
+import {QueueList} from "../_model/queue";
 
 
 @Injectable({
@@ -65,16 +66,6 @@ export class BackendService {
         return this.http.get<EndpointList>(this.baseUrl + '/ept/endpoint?filter=and(eq("fabric","' + fabricName + '"),eq("is_offsubnet",' + offsubnetFilter + '),eq("is_stale",' + staleFilter + '))&page-size=25');
     }
 
-    getFilteredEndpointsOld(offsubnetFilter, staleFilter) {
-        if(offsubnetFilter && staleFilter) {
-            return this.http.get(this.baseUrl + '/ept/endpoint?filter=or(eq("is_offsubnet",' + offsubnetFilter + '),eq("is_stale",' + staleFilter + '))&page-size=25');
-        }else if(offsubnetFilter) {
-            return this.http.get(this.baseUrl + '/ept/endpoint?filter=eq("is_offsubnet",' + offsubnetFilter + ')&page-size=25');
-        }else{
-            return this.http.get(this.baseUrl + '/ept/endpoint?filter=eq("is_stale",' + staleFilter + ')&page-size=25');
-        }
-    }
-        
     getEndpoint(fabricName, vnid, address): Observable<EndpointList> {
         return this.http.get<EndpointList>(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address);
     }
@@ -225,21 +216,17 @@ export class BackendService {
         return this.http.get(url);
     }
 
-    getPerNodeHistory(fabric, node, vnid, address) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/history/node-' + node + '/vnid-' + vnid + '/addr-' + address);
+    getQueues(pageOffset: number, sorts): Observable<QueueList> {
+        if (sorts.length === 0) {
+            return this.http.get<QueueList>(this.baseUrl + '/ept/queue?include=dn,proc,queue,start_timestamp,total_rx_msg,total_tx_msg&page-size=10&page=' + pageOffset);
+        } else {
+            const sortsStr = this.getSortsArrayAsString(sorts);
+            return this.http.get<QueueList>(this.baseUrl + '/ept/queue?include=dn,proc,queue,start_timestamp,total_rx_msg,total_tx_msg&sort=' + sortsStr + '&page-size=10&page=' + pageOffset);
+        }
     }
 
-    offsubnetStaleEndpointHistory(fabric,vnid,address,endpointState,table) {
-        
-        return this.http.get(this.baseUrl + '/ept/'+ table + '?filter=and(eq("' + endpointState +'",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))') ;
+    getQueue(dn: string): Observable<QueueList> {
+        return this.http.get<QueueList>(this.baseUrl + dn);
     }
-
-    testEmailNotifications(type:String,fabricName:String) {
-        return this.http.post(this.baseUrl + '/uni/fb-' + fabricName + '/settings-default/test/' + type,{}) ;
-    }
-
-    
-
-
 
 }

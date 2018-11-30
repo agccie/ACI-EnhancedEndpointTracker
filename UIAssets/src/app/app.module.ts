@@ -36,6 +36,10 @@ import {RemediationComponent} from "./fabric/settings/remediation/remediation.co
 import {AdvancedComponent} from "./fabric/settings/advanced/advanced.component";
 import {OverviewComponent} from "./fabric/overview/overview.component";
 import {NotFoundComponent} from "./notfound/notfound.component";
+import {QueueComponent} from "./queue/queue.component";
+import {QueueDetailComponent} from "./queue-detail/queue-detail.component";
+import {HighchartsChartModule} from "highcharts-angular";
+import {QueryBuilderModule} from "angular2-query-builder";
 
 const appRoutes: Routes = [
     {
@@ -89,6 +93,16 @@ const appRoutes: Routes = [
         component: UsersComponent,
         canActivate: [AuthGuardService]
     },
+    {
+        path: 'queues',
+        component: QueueComponent,
+        canActivate: [AuthGuardService]
+    },
+    {
+        path: 'queue/:dn',
+        component: QueueDetailComponent,
+        canActivate: [AuthGuardService]
+    },
     {path: '**', component: NotFoundComponent},
 ];
 
@@ -116,7 +130,9 @@ const appRoutes: Routes = [
         LocalLearnsComponent,
         WelcomeComponent,
         OverviewComponent,
-        NotFoundComponent
+        NotFoundComponent,
+        QueueComponent,
+        QueueDetailComponent
     ],
     imports: [
         BrowserModule,
@@ -128,9 +144,11 @@ const appRoutes: Routes = [
         HttpClientModule,
         MomentModule,
         NgSelectModule,
+        HighchartsChartModule,
         NgbModule.forRoot(),
         TypeaheadModule.forRoot(),
-        ModalModule.forRoot()
+        ModalModule.forRoot(),
+        QueryBuilderModule,
     ],
     providers: [
         BackendService,

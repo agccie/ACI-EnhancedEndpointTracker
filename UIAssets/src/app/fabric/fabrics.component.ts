@@ -1,10 +1,10 @@
 import {Component} from '@angular/core';
 import {BackendService} from '../_service/backend.service';
 import {ActivatedRoute, Router} from '@angular/router';
-import {Observable} from 'rxjs';
-import {mergeMap} from 'rxjs/operators';
 import {PreferencesService} from '../_service/preferences.service';
-import {Fabric} from "../_model/fabric";
+import {ModalService} from "../_service/modal.service";
+import {QueryBuilderConfig} from "angular2-query-builder";
+import {FormBuilder, FormControl} from "@angular/forms";
 
 
 @Component({
@@ -14,74 +14,99 @@ import {Fabric} from "../_model/fabric";
 })
 
 export class FabricsComponent {
-    title = 'app';
-    sorts: [{ name: "fabric", dir: 'asc' }];
-    rows: any;
-    tabs: any;
-    tabIndex = 0;
-    expanded: any = {};
-    events: any;
-    showModal: boolean;
-    modalTitle: string;
-    modalBody: string;
-    placeholder = "Search MAC or IP address (Ex: 00:50:56:01:11:12, 10.1.1.101, or 2001:a::65)";
-    searchKey = '';
-    eventObservable: Observable<any>;
-    loading: boolean;
-    fabric: Fabric;
     endpointExpanded: boolean;
     configurationExpanded: boolean;
     fabricName: string;
+    currentConfig: QueryBuilderConfig;
+    queryCtrl: FormControl;
 
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private activatedRoute: ActivatedRoute) {
-        this.searchKey = '';
-        this.events = ['event1'];
+    config: QueryBuilderConfig = {
+        fields: {
+            address: {name: 'Address', type: 'string'},
+            node: {name: 'Node', type: 'number'},
+            type: {
+                name: 'Type',
+                type: 'category',
+                options: [
+                    {name: 'IPv4', value: 'ipv4'},
+                    {name: 'IPv6', value: 'ipv6'},
+                    {name: 'MAC', value: 'mac'},
+                ]
+            },
+            stale: {name: 'Stale', type: 'boolean'},
+            timestamp: {
+                name: 'Timestamp', type: 'date', operators: ['=', '<=', '>'],
+                defaultValue: (() => new Date())
+            },
+        }
+    };
+    query: any = {
+        condition: 'and',
+        rules: [
+            {field: 'address', operator: '='},
+        ]
+    };
+    queryText: string;
+
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private activatedRoute: ActivatedRoute, public modalService: ModalService, private formBuilder: FormBuilder) {
         this.endpointExpanded = true;
         this.configurationExpanded = false;
+        this.queryText = '';
     }
 
     ngOnInit(): void {
-        if (!this.prefs.checkedThreadStatus) {
-            this.getAppStatus();
-            this.prefs.checkedThreadStatus = true;
-        }
-        this.eventObservable = Observable.create((observer: any) => {
-            observer.next(this.searchKey);
-        }).pipe(
-            mergeMap((token: string) => this.backendService.getSearchResults(token))
-        );
         this.activatedRoute.paramMap.subscribe(params => {
             this.fabricName = params.get('fabric');
+            this.queryCtrl = this.formBuilder.control(this.query);
+            this.currentConfig = this.config;
         });
     }
 
-    getAppStatus() {
-        this.backendService.getAppStatus().subscribe(
-            (data) => {
-                this.getAppManagerStatus();
-            },
-            (error) => {
-                this.modalTitle = 'Error';
-                this.modalBody = 'The app could not be started';
-                this.showModal = true;
-            }
-        )
+    onChange() {
+        this.queryText = this.queryToText();
     }
 
-    getAppManagerStatus() {
-        this.backendService.getAppManagerStatus().subscribe(
-            (data) => {
-                if (data['manager']['status'] === 'stopped') {
-                    this.modalBody = 'Thread managers not running';
-                    this.modalTitle = 'Error';
-                    this.showModal = true;
-                }
-            },
-            (error) => {
-                this.modalTitle = 'Error';
-                this.modalBody = 'Could not reach thread manager';
-                this.showModal = true;
+    private valueToSQL(value) {
+        switch (typeof value) {
+            case 'string':
+                return "'" + value + "'";
+            case 'boolean':
+                return value ? '1' : '0';
+            case 'number':
+                if (isFinite(value)) return value;
+        }
+    }
+
+    private isDefined(value) {
+        return value !== undefined;
+    }
+
+    private queryToText(ruleset = this.query) {
+        return ruleset.rules.map((rule) => {
+            if (rule.rules) {
+                return "(" + this.queryToText(rule) + ")";
             }
-        )
+            var column = rule.field, operator, value;
+            switch (rule.operator) {
+                case "is null":
+                case "is not null":
+                    operator = rule.operator;
+                    value = "";
+                    break;
+                case "in":
+                case "not in":
+                    operator = rule.operator;
+                    if (Array.isArray(rule.value) && rule.value.length)
+                        value = "(" + rule.value.map(this.valueToSQL).filter(this.isDefined).join(", ") + ")";
+                    break;
+                default:
+                    operator = rule.operator;
+                    value = this.valueToSQL(rule.value);
+                    break;
+            }
+            if (this.isDefined(column) && this.isDefined(value) && this.isDefined(operator)) {
+                return "(" + (column + " " + operator + " " + value).trim() + ")";
+            }
+        }).filter(this.isDefined).join(" " + ruleset.condition + " ");
     }
 }

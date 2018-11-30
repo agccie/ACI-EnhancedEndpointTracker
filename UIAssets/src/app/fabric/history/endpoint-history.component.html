@@ -9,7 +9,7 @@
         <div class="dropdown" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
             <button class="btn btn--small btn--primary">Actions</button>
             <div class="dropdown__menu">
-                <a (click)="refresh()">Refresh events</a>
+                <a (click)="onClickOfRefresh()">Refresh events</a>
                 <a (click)="onClickOfDelete()">Clear events</a>
                 <a (click)="showClearModal = true">Clear endpoint</a>
             </div>
@@ -80,57 +80,8 @@
         </div>
     </div>
 </div>
-<div class="modal-backdrop hide" [ngClass]="{'hide':showModal === false}" style="left:0"></div>
-<div class="modal modal--small hide" [ngClass]="{'hide':showModal === false}" id="modal-small">
-    <div class="modal__dialog">
-        <div class="modal__content">
-            <a class="modal__close" (click)="showModal = false"><span class="icon-close"></span></a>
-            <div class="modal__header">
-                <div class="row">
-                    <div class="col-md-3"></div>
-                    <h1>
-                        <span class="icon-warning"></span>{{ modalTitle }}
-                    </h1>
-                </div>
-            </div>
-            <div class="modal__body">
-                <p class="subtitle">{{ modalBody }}</p>
-            </div>
-            <div class="modal__footer">
-                <button class="btn" (click)="deleteEndpoint()">Yes</button>
-                <button class="btn" (click)="showModal = false">No</button>
-            </div>
-        </div>
-    </div>
-</div>
 
-<div class="modal-backdrop hide" [ngClass]="{'hide':showSuccessModal === false}" style="left:0"></div>
-<div class="modal modal--small hide" [ngClass]="{'hide':showSuccessModal === false}" id="modal-small">
-    <div class="modal__dialog">
-        <div class="modal__content">
-            <a class="modal__close" (click)="showSuccessModal = false"><span class="icon-close"></span></a>
-            <div class="modal__header">
-                <div class="row">
-                    <div class="col-md-3"></div>
-                    <h1>
-                        {{ modalTitle }}
-                    </h1>
-                </div>
-            </div>
-            <div class="modal__body">
-                <p class="subtitle">{{ modalBody }}</p>
-            </div>
-            <div class="modal__footer">
-                <button class="btn" (click)="showSuccessModal = false">Ok</button>
-            </div>
-        </div>
-    </div>
-</div>
-<div class="modal-backdrop hide" [ngClass]="{'hide':showClearModal === false}" style="left:0"></div>
-<div class="modal modal--large hide" [ngClass]="{'hide':showClearModal === false}" id="modal-small">
-    <div class="modal__dialog">
-        <div class="modal__content">
-            <a class="modal__close" (click)="showClearModal = false"><span class="icon-close"></span></a>
+       <ng-template #clearMsg>
             <div class="modal__header">
                 <h1>Clear Endpoints</h1>
             </div>
@@ -156,6 +107,41 @@
                 <button class="btn" (click)="clearEndpoints()">Submit</button>
                 <button class="btn" (click)="showClearModal = false">Cancel</button>
             </div>
+        </ng-template>
+
+<ng-template #errorMsg>
+        <div class="modal__body">
+                <div class="col-xl-12">
+                        <div class="alert alert--success" *ngIf="modalIcon === 'success'">
+                            <div class="alert__icon icon-check-outline"></div>
+                            <div class="alert__message text-left">
+                                <h4>{{modalTitle}}</h4>
+                                <div>{{modalBody}}</div>
+                            </div>
+                        </div>
+                </div>
+                <div class="alert alert--danger" *ngIf="modalIcon === 'error'">
+                        <div class="alert__icon icon-error-outline"></div>
+                        <div class="alert__message text-left">
+                            <h4>{{modalTitle}}</h4>
+                            <div>{{modalBody}}</div>
+                        </div>
+                </div>
+                <div class="alert alert--info" *ngIf="modalIcon === 'info'">
+                        <div class="alert__icon icon-info-outline"></div>
+                        <div class="alert__message text-left">
+                            <h4>{{modalTitle}}</h4>
+                            <div>{{modalBody}}</div>
+                        </div>
+                </div>
+                
+        <div class="modal__footer" *ngIf="!decisionBox">
+                <button class="btn" (click)="modalService.hideModal()">Ok</button>
         </div>
-    </div>
-</div>
+        <div class="modal__footer" *ngIf="decisionBox">
+                <button class="btn btn--primary" (click)="callback()">Proceed</button>
+                <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
+        </div>
+         
+        </div>  
+    </ng-template>

@@ -40,6 +40,9 @@ import {QueueComponent} from "./queue/queue.component";
 import {QueueDetailComponent} from "./queue-detail/queue-detail.component";
 import {HighchartsChartModule} from "highcharts-angular";
 import {QueryBuilderModule} from "angular2-query-builder";
+import { RapidEptComponent } from './fabric/rapid-ept/rapid-ept.component';
+import { ClearedEptComponent } from './fabric/cleared-ept/cleared-ept.component';
+
 
 const appRoutes: Routes = [
     {
@@ -64,6 +67,8 @@ const appRoutes: Routes = [
             {path: 'moves', component: MovesComponent},
             {path: 'stale-endpoints', component: StaleEptComponent},
             {path: 'offsubnet-endpoints', component: OffsubnetEptComponent},
+            {path:'rapid-endpoints', component:RapidEptComponent},
+            {path:'cleared-endpoints',component:ClearedEptComponent},
             {
                 path: 'settings',
                 component: SettingsComponent,
@@ -130,6 +135,9 @@ const appRoutes: Routes = [
         LocalLearnsComponent,
         WelcomeComponent,
         OverviewComponent,
+        NotFoundComponent,
+        RapidEptComponent,
+        ClearedEptComponent,
         NotFoundComponent,
         QueueComponent,
         QueueDetailComponent

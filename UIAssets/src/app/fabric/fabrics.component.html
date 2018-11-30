@@ -17,9 +17,11 @@
                     (click)="endpointExpanded = !endpointExpanded">
                     <a>Endpoints</a>
                     <ul (click)="$event.stopPropagation()">
-                        <li class="sidebar__item"><a [routerLink]="['endpoints']">Current</a></li>
+                        <li class="sidebar__item"><a [routerLink]="['endpoints']">All</a></li>
                         <li class="sidebar__item"><a [routerLink]="['offsubnet-endpoints']">OffSubnet</a></li>
                         <li class="sidebar__item"><a [routerLink]="['stale-endpoints']">Stale</a></li>
+                        <li class="sidebar__item"><a [routerLink]="['rapid-endpoints']">Rapid</a></li>
+                        <li class="sidebar__item"><a [routerLink]="['cleared-endpoints']">Cleared</a></li>
                     </ul>
                 </li>
                 <li class="sidebar__drawer" [class.sidebar__drawer--opened]="configurationExpanded"

@@ -36,6 +36,9 @@ import {RemediationComponent} from "./fabric/settings/remediation/remediation.co
 import {AdvancedComponent} from "./fabric/settings/advanced/advanced.component";
 import {OverviewComponent} from "./fabric/overview/overview.component";
 import {NotFoundComponent} from "./notfound/notfound.component";
+import { RapidEptComponent } from './fabric/rapid-ept/rapid-ept.component';
+import { ClearedEptComponent } from './fabric/cleared-ept/cleared-ept.component';
+
 
 const appRoutes: Routes = [
     {
@@ -60,6 +63,8 @@ const appRoutes: Routes = [
             {path: 'moves', component: MovesComponent},
             {path: 'stale-endpoints', component: StaleEptComponent},
             {path: 'offsubnet-endpoints', component: OffsubnetEptComponent},
+            {path:'rapid-endpoints', component:RapidEptComponent},
+            {path:'cleared-endpoints',component:ClearedEptComponent},
             {
                 path: 'settings',
                 component: SettingsComponent,
@@ -116,7 +121,9 @@ const appRoutes: Routes = [
         LocalLearnsComponent,
         WelcomeComponent,
         OverviewComponent,
-        NotFoundComponent
+        NotFoundComponent,
+        RapidEptComponent,
+        ClearedEptComponent,
     ],
     imports: [
         BrowserModule,

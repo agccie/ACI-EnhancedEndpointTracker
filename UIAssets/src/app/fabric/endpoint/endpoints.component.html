@@ -42,12 +42,11 @@
                     [rowHeight]="'auto'"
                     [loadingIndicator]="loading"
                     [rows]="rows"
-                    [rowClass]="getRowClass"
                     [externalPaging]="true"
                     [externalSorting]="true"
-                    [count]="count"
-                    [offset]="pageNumber"
-                    [limit]="pageSize"
+                    [count]="pagingService.count"
+                    [offset]="pagingService.pageOffset"
+                    [limit]="pagingService.pageSize"
                     (page)="setPage($event)"
                     (sort)="onSort($event)"
                     [cssClasses]="{
@@ -89,12 +88,12 @@
                     </span>
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.35">
+                <ngx-datatable-column prop="first_learn.vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.35">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         {{ row.events.length > 0 ? row.events[0].vnid_name : row.first_learn.vnid_name }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]="0.35">
+                <ngx-datatable-column prop="events.0.epg_name" name="EPG" [sortable]="true" [flexGrow]="0.35">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         {{ row.events.length > 0 
                             ? (row.events[0].epg_name !== '' ? row.events[0].epg_name : '&mdash;') : 

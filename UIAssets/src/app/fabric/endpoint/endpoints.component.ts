@@ -3,6 +3,7 @@ import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Endpoint} from "../../_model/endpoint";
+import { PagingService } from '../../_service/paging.service';
 
 @Component({
     selector: 'app-endpoints',
@@ -22,22 +23,29 @@ export class EndpointsComponent implements OnInit {
     loading = true;
     fabricName: string;
 
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private activatedRoute: ActivatedRoute) {
+    constructor(public backendService: BackendService, private router: Router, 
+        private prefs: PreferencesService, private activatedRoute: ActivatedRoute, public pagingService:PagingService) {
         this.rows = [];
         this.endpoints = [];
         this.pageSize = this.prefs.pageSize;
     }
 
     ngOnInit() {
-        this.getEndpoints();
-    }
-
-    getEndpoints(pageOffset = this.pageNumber, sorts = this.sorts) {
-        this.loading = true;
         this.activatedRoute.parent.paramMap.subscribe(params => {
             this.fabricName = params.get('fabric');
             if (this.fabricName != null) {
-                this.backendService.getEndpoints(this.fabricName, pageOffset, sorts).subscribe(
+               this.getEndpoints() ;
+            }
+        });
+        
+    }
+
+    getEndpoints() {
+        this.loading = true;
+        this.activatedRoute.parent.paramMap.subscribe(params => {
+            this.pagingService.fabricName = params.get('fabric');
+            if (this.fabricName != null) {
+                this.backendService.getFilteredEndpoints(this.pagingService.fabricName,this.sorts, this.osFilter, this.stFilter,this.activeFilter,this.rapidFilter,'endpoint',this.pagingService.pageOffset,this.pagingService.pageSize).subscribe(
                     (data) => {
                         this.endpoints = [];
                         this.rows = [];
@@ -46,7 +54,7 @@ export class EndpointsComponent implements OnInit {
                             this.endpoints.push(endpoint);
                             this.rows.push(endpoint);
                         }
-                        this.count = data['count'];
+                        this.pagingService.count = data['count'];
                         this.loading = false;
                     }, (error) => {
                         this.loading = false;
@@ -58,7 +66,7 @@ export class EndpointsComponent implements OnInit {
 
     onFilterToggle() {
         this.loading = false;
-        this.backendService.getFilteredEndpoints(this.fabricName, this.osFilter, this.stFilter).subscribe(
+        this.backendService.getFilteredEndpoints(this.fabricName,this.sorts, this.osFilter, this.stFilter,this.activeFilter,this.rapidFilter,'endpoint',this.pagingService.pageOffset,this.pagingService.pageSize).subscribe(
             (data) => {
                 this.endpoints = [];
                 this.rows = [];
@@ -75,22 +83,13 @@ export class EndpointsComponent implements OnInit {
         )
     }
 
-    getRowClass(endpoint) {
-        if (endpoint.is_stale) {
-        }
-        if (endpoint.is_offsubnet) {
-        }
-        if (endpoint.events.length > 0 && endpoint.events[0].status === 'deleted') {
-        }
-    }
-
     setPage(event) {
-        this.pageNumber = event.offset;
-        this.getEndpoints(event.offset, this.sorts);
+        this.pagingService.pageOffset = event.offset;
+        this.getEndpoints();
     }
 
     onSort(event) {
         this.sorts = event.sorts;
-        this.getEndpoints(this.pageNumber, event.sorts);
+        this.getEndpoints();
     }
 }

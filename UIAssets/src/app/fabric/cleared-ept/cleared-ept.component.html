@@ -1,17 +1,13 @@
 <div class="row">
     <div class="col-md-12">
-        <div class="alert">
-            <div class="alert__icon icon-info-outline"></div>
-            <div class="alert__message">This is historic data. The endpoints shown may not be offsubnet anymore.</div>
-        </div>
     </div>
     <div class="col-md-12">
         &nbsp;
     </div>
     <div class="col-md-12">
         <div class="panel panel--raised">
-            <h4>Off Subnet Endpoints
-                <button class="btn btn--icon btn--small btn--primary" (click)='getOffsubnetEndpoints()'>
+            <h4>Cleared Endpoints
+                <button class="btn btn--icon btn--small btn--primary" (click)="getClearedEndpoints()">
                     <span class="icon-refresh"></span>
                 </button>
             </h4>
@@ -20,11 +16,10 @@
                     [headerHeight]="25"
                     [footerHeight]="50"
                     [rowHeight]="'auto'"
-                    [externalPaging]="true"
                     [externalSorting]="true"
-                    [count]="count"
-                    [offset]="pageNumber"
-                    [limit]="pageSize"
+                    [count]="pagingService.count"
+                    [offset]="pagingService.pageOffset"
+                    [limit]="pagingService.pageSize"
                     (page)="setPage($event)"
                     (sort)="onSort($event)"
                     [sorts]="sorts"
@@ -40,43 +35,55 @@
                     }">
                 <ngx-datatable-column prop="events.0.ts" name="Time" [sortable]="true" [flexGrow]="0.2">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ (row.events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                        {{ (row['ept.remediate'].events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
                     </ng-template>
                 </ngx-datatable-column>
+               
                 <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.1">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         <span class="label label--raised" [ngClass]="{
-                                'label--warning': value === 'mac',
-                                'label--success': value ==='ipv4',
-                                'label--info': value ==='ipv6'
-                            }">
-                        {{ value }}
+                            'label--warning': value === 'mac',
+                            'label--success': value ==='ipv4',
+                            'label--info': value ==='ipv6'
+                         }">
+                            {{ row['ept.remediate'].type }}
                         </span>
                     </ng-template>
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        <a [routerLink]="['../history', row.vnid, row.addr]">
-                            {{ value }}
+                        <a [routerLink]="['../history', row['ept.remediate'].vnid, row['ept.remediate'].addr]">
+                            {{ row['ept.remediate'].addr }}
                         </a>
                     </ng-template>
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]="0.1">
                         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                            {{ value }}
-                        </ng-template>
-                </ngx-datatable-column>
-                <ngx-datatable-column prop="event_count" name="Event Count" [sortable]="true" [flexGrow]="0.2">
-                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                            {{ row.events.length }}
+                            {{ row['ept.remediate'].node }}
                         </ng-template>
                     </ngx-datatable-column>
-                <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.2">
+                    <ngx-datatable-column prop="event_count" name="Event Count" [sortable]="true" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{ row['ept.remediate'].count }}
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="action" name="Action" [sortable]="true" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{ row['ept.remediate'].action }}
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="reason" name="Reason" [sortable]="true" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{ row['ept.remediate'].reason }}
+                            </ng-template>
+                        </ngx-datatable-column>
+                <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.4">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row.events[0].vnid_name}}
+                        {{ row['ept.remediate'].events[0].vnid_name}}
                     </ng-template>
                 </ngx-datatable-column>
             </ngx-datatable>
         </div>
     </div>
 </div>
+  

@@ -23,6 +23,7 @@ export class SettingsComponent implements OnInit {
     modalBody='' ;
     modalIcon = ''; 
     resetList:any ;
+    fabricConnectivityBackup:any ;
     constructor(private backendService: BackendService, public preferencesService: PreferencesService, private activatedRoute: ActivatedRoute, 
         private router: Router, public modalService:ModalService) {
            this.resetList = {
@@ -48,8 +49,10 @@ export class SettingsComponent implements OnInit {
     getFabricSettings(fabric, settings) {
         this.backendService.getFabricSettings(fabric, settings).subscribe(
             (data) => {
-                this.settings = data['objects'][0]['ept.settings'];
-                this.preferencesService.fabricSettings = this.settings;
+                 
+                this.preferencesService.fabricSettings = data['objects'][0]['ept.settings'];
+                this.settings = this.cloneObject(this.preferencesService.fabricSettings)
+                
             }
         )
     }
@@ -58,6 +61,7 @@ export class SettingsComponent implements OnInit {
         this.backendService.getFabricByName(fabric).subscribe(
             (data) => {
                 this.preferencesService.fabric = data.objects[0].fabric;
+                this.fabricConnectivityBackup = this.cloneObject(this.preferencesService.fabric) ;
                 this.showSelectionModal = false;
             },
             (error) => {
@@ -116,11 +120,24 @@ export class SettingsComponent implements OnInit {
     public reset() {
         const params = this.activatedRoute.snapshot.children[0].url[0].path ;
         let settings = 'fabricSettings' ;
+        let backup = this.settings ;
         if(params === 'connectivity') {
             settings = 'fabric'
+            backup = this.fabricConnectivityBackup ;
         }
         for(let prop of this.resetList[params]) {
-            delete this.preferencesService[settings][prop] ;
+            this.preferencesService[settings][prop] = backup[prop] ;
         }
     }
-}
+
+    public cloneObject(src:Object) 
+    {
+        let copy = src.constructor() ;
+        for(let x in src) {
+            if(src.hasOwnProperty(x)) {
+                copy[x] = src[x] ;
+            }
+        }
+        return copy ;
+    }
+} 

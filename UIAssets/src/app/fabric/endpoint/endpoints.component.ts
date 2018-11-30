@@ -13,8 +13,8 @@ export class EndpointsComponent implements OnInit {
     rows: any[];
     osFilter = false;
     stFilter = false;
-    activeFilter=false;
-    rapidFilter=false;
+    activeFilter = false;
+    rapidFilter = false;
     endpoints: Endpoint[];
     pageSize: number;
     count: number;

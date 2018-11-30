@@ -38,6 +38,38 @@
         </nav>
     </div>
     <div class="col-md-10">
-        <router-outlet></router-outlet>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="panel panel--bordered panel--loose">
+                    <button type="button" class="link">
+                        <span class="icon-small icon-edit" (click)='modalService.openModal(filtertemplate)'></span>
+                    </button>
+                    {{ queryText }}
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                &nbsp;
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <router-outlet></router-outlet>
+            </div>
+        </div>
     </div>
 </div>
+<ng-template #filtertemplate>
+    <div class="modal--large">
+        <div class="modal__body text-left">
+            <query-builder [formControl]='queryCtrl' [config]='currentConfig' (ngModelChange)="onChange($event)">
+            </query-builder>
+        </div>
+        &nbsp;
+        <div class="modal-footer">
+            <button class="btn btn--small btn--negative" (click)="modalService.hideModal()">Apply</button>
+            <button class="btn btn--small" (click)="modalService.hideModal()">Cancel</button>
+        </div>
+    </div>
+</ng-template>

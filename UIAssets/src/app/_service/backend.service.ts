@@ -7,6 +7,7 @@ import {FabricSettings} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
 import {Fabric, FabricList} from "../_model/fabric";
 import {EndpointList} from "../_model/endpoint";
+import {QueueList} from "../_model/queue";
 
 
 @Injectable({
@@ -248,6 +249,19 @@ export class BackendService {
         return this.http.get(url);
     }
 
+    getQueues(pageOffset: number, sorts): Observable<QueueList> {
+        if (sorts.length === 0) {
+            return this.http.get<QueueList>(this.baseUrl + '/ept/queue?include=dn,proc,queue,start_timestamp,total_rx_msg,total_tx_msg&page-size=10&page=' + pageOffset);
+        } else {
+            const sortsStr = this.getSortsArrayAsString(sorts);
+            return this.http.get<QueueList>(this.baseUrl + '/ept/queue?include=dn,proc,queue,start_timestamp,total_rx_msg,total_tx_msg&sort=' + sortsStr + '&page-size=10&page=' + pageOffset);
+        }
+    }
+
+    getQueue(dn: string): Observable<QueueList> {
+        return this.http.get<QueueList>(this.baseUrl + dn);
+    }
+
     getPerNodeHistory(fabric, node, vnid, address) {
         return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/history/node-' + node + '/vnid-' + vnid + '/addr-' + address);
     }
@@ -265,7 +279,7 @@ export class BackendService {
         return this.http.post(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address + '/refresh', {});
     }
 
-    
+
 
 
 

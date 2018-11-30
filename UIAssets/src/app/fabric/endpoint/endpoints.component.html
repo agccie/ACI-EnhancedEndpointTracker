@@ -8,12 +8,12 @@
             </h4>
             <br>
             <div class="form-group form-group--inline">
-                    <label class="switch">
-                        <input type="checkbox" [(ngModel)]="activeFilter" (change)="onFilterToggle()">
-                        <span class="switch__input"></span>
-                        <span class="switch__label">Active</span>
-                    </label>
-                </div>
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="activeFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Active</span>
+                </label>
+            </div>
             <div class="form-group form-group--inline">
                 <label class="switch">
                     <input type="checkbox" [(ngModel)]="osFilter" (change)="onFilterToggle()">
@@ -29,12 +29,12 @@
                 </label>
             </div>
             <div class="form-group form-group--inline">
-                    <label class="switch">
-                        <input type="checkbox" [(ngModel)]="rapidFilter" (change)="onFilterToggle()">
-                        <span class="switch__input"></span>
-                        <span class="switch__label">Rapid</span>
-                    </label>
-                </div>
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="rapidFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Rapid</span>
+                </label>
+            </div>
             <ngx-datatable
                     [columnMode]="'flex'"
                     [headerHeight]="25"
@@ -95,10 +95,10 @@
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="events.0.epg_name" name="EPG" [sortable]="true" [flexGrow]="0.35">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row.events.length > 0 
-                            ? (row.events[0].epg_name !== '' ? row.events[0].epg_name : '&mdash;') : 
-                            (row.first_learn.epg_name !== '' ?  row.first_learn.epg_name : '&mdash;')
-                        }}
+                        {{ row.events.length > 0
+                                ? (row.events[0].epg_name !== '' ? row.events[0].epg_name : '&mdash;') :
+                                (row.first_learn.epg_name !== '' ?  row.first_learn.epg_name : '&mdash;')
+                                }}
                     </ng-template>
                 </ngx-datatable-column>
             </ngx-datatable>

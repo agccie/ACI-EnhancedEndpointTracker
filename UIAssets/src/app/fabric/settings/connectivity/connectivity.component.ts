@@ -1,6 +1,6 @@
 import {Component, OnInit} from '@angular/core';
 import {PreferencesService} from "../../../_service/preferences.service";
-import { environment } from '../../../../environments/environment.standalone';
+import {environment} from '../../../../environments/environment.standalone';
 
 @Component({
     selector: 'app-connectivity',
@@ -8,7 +8,8 @@ import { environment } from '../../../../environments/environment.standalone';
 })
 export class ConnectivityComponent implements OnInit {
     inputs = [];
-    app_mode = environment.app_mode ;
+    app_mode = environment.app_mode;
+
     constructor(public prefs: PreferencesService) {
         this.inputs = [
             {name: 'Hostname', model: 'apic_hostname', type: 'text', hidden: ''},

@@ -561,7 +561,11 @@
                                             data-bind="click: function(){save_fabric()}">
                                             <span class="icon-save"></span>
                                         </button>
-                                        <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete" data-balloon-pos="down"
+                                        <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete Endpoint History" data-balloon-pos="down"
+                                            data-bind="visible: !app_mode(), click: function(){delete_fabric_endpoints()}">
+                                            <span class="icon-virtual-machine"></span>
+                                        </button>
+                                        <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete Fabric" data-balloon-pos="down"
                                             data-bind="visible: !app_mode(), click: function(){delete_fabric()}">
                                             <span class="icon-trash"></span>
                                         </button>

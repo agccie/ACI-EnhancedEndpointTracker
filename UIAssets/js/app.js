@@ -758,11 +758,29 @@ function common_viewModel() {
         })
     }
 
+    //delete all endpoint history in the fabric
+    self.delete_fabric_endpoints = function(){
+        var msg = '<h3>Wait</h3><div>Are you sure you want to delete all endpoint history for ' +
+        'fabric <span class="text-bold">'+self.current_fabric.fabric()+'</span>? '+
+        'This action cannot be undone.';
+        confirmModal(msg, true, function(){
+            var url="/api/ept/endpoint/delete"
+            self.fabric_isLoading(true)
+            json_delete(url, {"fabric":self.current_fabric.fabric()}, function(){
+                self.fabric_isLoading(false)
+                forward("#/")
+            }, 
+            function(json, status_code, status_text){
+                self.fabric_isLoading(false)
+                generic_ajax_error(json, status_code, status_text)
+            })
+        })
+    }
     //delete the currently viewed fabric
     self.delete_fabric = function(){
-        var msg = '<h3>Wait</h3><div>Are you sure you want to delete ' +
-        '<span class="text-bold">'+self.current_fabric.fabric()+'</span>. '+
-        'This operation will delete all endpoint history for the corresponding fabric. ' +
+        var msg = '<h3>Wait</h3><div>Are you sure you want to delete fabric ' +
+        '<span class="text-bold">'+self.current_fabric.fabric()+'</span>? '+
+        'This operation will delete all historical data for this fabric. ' +
         'This action cannot be undone.';
         confirmModal(msg, true, function(){
             var url="/api/uni/fb-"+self.current_fabric.fabric()

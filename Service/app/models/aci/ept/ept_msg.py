@@ -512,6 +512,7 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         self.vnid = int(data.get("vnid", 0))
         self.vrf = int(data.get("vrf", 0))
         self.bd = int(data.get("bd", 0))
+        self.force = bool(data.get("bool", False))
 
     def parse(self, overlay_vnid, classname, attr, ts):
         # parse event and set data dict to prepare 

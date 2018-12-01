@@ -327,7 +327,7 @@ class eptWorker(object):
 
         # get cached rapid eptWorkerRapidEndpoint object and ensure not currently is_rapid
         cached_rapid = None
-        if msg.wf.settings.analyze_rapid:
+        if msg.wf.settings.analyze_rapid and not msg.force:
             cached_rapid = msg.wf.cache.get_rapid_endpoint(msg.vnid, addr, msg.type)
             if cached_rapid.rapid_count == 0:
                 # if entry was not in cache then cached_rapid.type is invalid, let's fix it here
@@ -376,7 +376,7 @@ class eptWorker(object):
         update_local_result = self.update_local(msg, per_node_history_events, cached_rapid) 
 
         # perform move/offsubnet/stale analysis
-        if analysis_required and update_local_result is not None:
+        if (analysis_required or msg.force) and update_local_result is not None:
             if msg.wf.settings.analyze_move:
                 if update_local_result.analyze_move:
                     self.analyze_move(msg, update_local_result.local_events)
@@ -1102,7 +1102,7 @@ class eptWorker(object):
                             if msg.wf.settings.stale_multiple_local:
                                 stale_nodes[node] = event
                             else:
-                                logger.debug("ignroing stale_multiple_local")
+                                logger.debug("igorning stale_multiple_local")
                     else:
                         # ensure that this node has correct remote pointer or is pointing to a node
                         # with bounce and correct node pointer.  Need to come back and validate if

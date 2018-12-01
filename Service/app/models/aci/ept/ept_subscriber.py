@@ -1161,7 +1161,6 @@ class eptSubscriber(object):
                     attr["_ts"] = ts
                     msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
                     if msg is not None:
-                        msg.qnum = qnum
                         create_msgs.append(msg)
                         if msg.node not in endpoints: endpoints[msg.node] = {}
                         if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
@@ -1170,10 +1169,13 @@ class eptSubscriber(object):
                     logger.debug("ignoring invalid epm object %s", obj)
             # get delete jobs
             delete_msgs = self.get_epm_delete_msgs(endpoints, addr=addr, vnid=vnid)
-            for msg in delete_msgs:
-                msgs.qnum = qnum
             logger.debug("sending %s create and %s delete msgs from refresh", len(create_msgs),
                     len(delete_msgs))
+            # set force flag and qnum on each msg to trigger analysis update
+            for msg in create_msgs+delete_msgs:
+                msg.qnum = qnum
+                msg.force = True
+
             self.send_msg(create_msgs)
             self.send_msg(delete_msgs)
         else:

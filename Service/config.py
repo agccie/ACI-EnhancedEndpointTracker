@@ -17,6 +17,7 @@ app_vars = {
     "APP_COMMIT_DATE_EPOCH": 0,
     "APP_COMMIT_AUTHOR":    "",
     "APP_COMMIT_BRANCH":    "",
+    "APP_FULL_VERSION":     "",
 }
 
 # read in env.sh file if present and set local environ objects (with filter)
@@ -32,6 +33,8 @@ if os.path.exists(appfile):
                 app_vars["APP_ID"] = js["appid"]
             if "version" in js:
                 app_vars["APP_VERSION"] = js["version"]
+            if "full_version" in js:
+                app_vars["APP_FULL_VERSION"] = js["full_version"]
     except Exception as e: pass
 
 # version.txt is created at build and should be in the following format
@@ -101,6 +104,7 @@ APP_VERSION = os.environ.get("APP_VERSION", app_vars["APP_VERSION"])
 APP_ID = os.environ.get("APP_ID", app_vars["APP_ID"])
 APP_VENDOR_DOMAIN = os.environ.get("APP_VENDOR_DOMAIN", 
                                         app_vars["APP_VENDOR_DOMAIN"])
+APP_FULL_VERSION = app_vars["APP_FULL_VERSION"]
 APP_COMMIT = app_vars["APP_COMMIT"]
 APP_COMMIT_DATE = app_vars["APP_COMMIT_DATE"]
 APP_COMMIT_DATE_EPOCH = app_vars["APP_COMMIT_DATE_EPOCH"]

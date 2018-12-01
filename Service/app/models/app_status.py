@@ -204,8 +204,11 @@ class AppStatus(Rest):
     @api_route(path="/version", methods=["GET"], authenticated=False, swag_ret=["version"])
     def get_version():
         """ get app version and build info """
+        version = current_app.config.get("APP_FULL_VERSION", "")
+        if len(version) == 0: 
+            version = current_app.config.get("APP_VERSION", "")
         return jsonify({
-            "version": current_app.config.get("APP_VERSION", "-"),
+            "version": version,
             "commit": current_app.config.get("APP_COMMIT", ""),
             "date": current_app.config.get("APP_COMMIT_DATE", ""),
             "timestamp": current_app.config.get("APP_COMMIT_DATE_EPOCH", 0),

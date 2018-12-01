@@ -671,6 +671,7 @@ function common_viewModel() {
     var self = this; 
     self.isLoading = ko.observable(false)
     self.view = ko.observable("index")
+    self.version = new appVersion()
     self.table = new gTable()
     self.app_mode = ko.observable(executing_in_app_mode())
     self.admin_role = ko.observable(true)       
@@ -1342,8 +1343,16 @@ $().ready(function(){
     } else {
         // verify we are authenticated via check to app-status/manager (which also verifies that
         // manager is running). If unauthenticated, display login 
-        
     }
+
+    // set app version info
+    json_get("/api/app-status/version", function(data){
+        self.version.fromJS(data)
+        console.log(self.version.toJS())
+    }, function(){
+        console.log("app-status/version failed, silently ignoring...")
+    })
+
 })
 
 

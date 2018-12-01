@@ -1,4 +1,15 @@
 
+function appVersion(){
+    baseModelObject.call(this)
+    var self = this
+    self.author = ko.observable("")
+    self.branch = ko.observable("")
+    self.commit = ko.observable("")
+    self.data = ko.observable("")
+    self.timestamp = ko.observable("")
+    self.version = ko.observable("")
+}
+
 function fabricEvent(){
     baseModelObject.call(this)
     var self = this

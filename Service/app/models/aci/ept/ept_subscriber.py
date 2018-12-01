@@ -118,14 +118,13 @@ class eptSubscriber(object):
 
         # epm subscriptions expect a high volume of events
         # note the order of the subscription classes is also the order in which analysis is performed
-        # we want all mac first, then rs-ip-events, and finally epmIpEp so that each local epmIpEp
-        # will already have corresponding mac rewrite info ready. Ideally, all epmIpEp analysis 
-        # completes in under TRANSITORY_STALE_NO_LOCAL time (300 seconds) so no false stale is 
-        # triggered.
+        #rs-ip-events before  epmIpEp so that each local epmIpEp will already have corresponding mac 
+        # rewrite info ready. Ideally, all epmIpEp analysis completes in under 
+        # TRANSITORY_STALE_NO_LOCAL time (300 seconds) so no false stale is triggered. 
         self.epm_subscription_classes = [
-            "epmMacEp",
             "epmRsMacEpToIpEpAtt",
             "epmIpEp",
+            "epmMacEp",
         ]
 
         all_interests = {}
@@ -1113,8 +1112,14 @@ class eptSubscriber(object):
         logger.debug("build_endoint_db sending %s delete and %s create messages", len(delete_msgs),
                 len(create_msgs))
         ts2 = time.time()
-        self.send_msg(delete_msgs)
-        self.send_msg(create_msgs)
+        #self.send_msg(delete_msgs)
+        #self.send_msg(create_msgs)
+        # create merged create/delete messages sorted by address to prevent invalid stale analysis
+        # on scale setups.
+        merged = sorted(create_msgs+delete_msgs, 
+                key=lambda m:m.ip if m.wt==WORK_TYPE.EPM_RS_IP_EVENT else m.addr)
+        #for msg in merged: logger.debug(msg)
+        self.send_msg(merged)
         ts3 = time.time()
         logger.debug("build_endpoint_db query: %.3f, build: %.3f, send_msg: %.3f, total: %.3f", 
             ts-start_time, ts2-ts, ts3 - ts2, ts3 - start_time) 

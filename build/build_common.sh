@@ -12,6 +12,7 @@ app_pack="1.2_min"
 APP_VENDOR_DOMAIN="Cisco"
 APP_ID="ExampleApp"
 APP_VERSION="1.0"
+APP_FULL_VERSION="1.0.1"
 
 # use python to read app.json and print each variable to stdout
 out=`BASE_DIR="$BASE_DIR" python - <<END
@@ -27,6 +28,8 @@ try:
                 print "APP_ID=%s" % js["appid"]
             if "version" in js:
                 print "APP_VERSION=%s" % js["version"]
+            if "full_version" in js:
+                print "APP_FULL_VERSION=%s" % js["full_version"]
             sys.exit(0)
 except Exception as e:
     print "fail: %s" % e

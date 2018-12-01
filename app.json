@@ -23,5 +23,6 @@
     "shortdescr":"Track endpoint activity within the ACI fabric",
     "vendor":"Cisco",
     "vendordomain":"Cisco",
-    "version":"2.0"
+    "version":"2.0",
+    "full_version":"2.0.5"
 }

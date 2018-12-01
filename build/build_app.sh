@@ -31,8 +31,6 @@ function add_version() {
     git rev-parse --abbrev-ref HEAD >> ./version.txt
 }
 
-
-
 # build development standalone container
 function build_standalone_container() {
     set -e
@@ -229,7 +227,7 @@ function build_app() {
     rm -rf $TMP_DIR/$APP_ID.build
     rm -rf $TMP_DIR/$APP_ID
 
-    log "build complete: `ls -a $TMP_DIR/*.aci`"
+    #log "build complete: `ls -a $TMP_DIR/*.aci`"
     set +e
 }
 
@@ -331,6 +329,14 @@ while getopts "$optspec" optchar; do
   esac
 done
 
+if [ "$APP_FULL_VERSION" == "" ] ; then
+    APP_FULL_VERSION=$APP_VERSION
+fi
+app_original_filename=$APP_VENDOR_DOMAIN-$APP_ID-$APP_VERSION.aci
+app_final_filename=$APP_VENDOR_DOMAIN-$APP_ID-$APP_FULL_VERSION.aci
+# reset APP_VERSION to APP_FULL_VERSION for docker info to reflect patch
+APP_VERSION=$APP_FULL_VERSION
+
 # check depedencies first and then execute build
 if [ "$build_standalone" == "1" ] ; then
     check_build_tools "backend"
@@ -341,5 +347,12 @@ elif [ "$build_all_in_one" == "1" ] ; then
 else
     check_build_tools
     build_app
+    if [ -f $TMP_DIR/$app_original_filename ] ; then
+        mv $TMP_DIR/$app_original_filename ./$app_final_filename
+    elif [ -f $TMP_DIR/$app_final_filename ] ; then
+        mv $TMP_DIR/$app_final_filename ./$app_final_filename
+    fi
+    log "build complete: $app_final_filename"
+
 fi
 

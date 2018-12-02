@@ -36,6 +36,7 @@ class eptManager(object):
     REQUIRED_ROLES = ["worker", "watcher"]
 
     def __init__(self, worker_id):
+        logger.debug("init role manager id %s", worker_id)
         self.worker_id = "%s" % worker_id
         self.db = get_db(uniq=True, overwrite_global=True)
         self.redis = get_redis()

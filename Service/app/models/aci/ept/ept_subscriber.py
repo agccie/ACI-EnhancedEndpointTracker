@@ -1071,58 +1071,48 @@ class eptSubscriber(object):
             Return boolean success
         """
         logger.debug("initialize endpoint db")
-
         start_time = time.time()
-        data = []
 
+        # 3-level dict to track endpoints returned from class query endpoints[node][vnid][addr] = 1
+        endpoints = {}
         # we will start epm subscription AFTER get_class (which can take a long time) but before 
         # processing endpoints.  This minimizes amount of time we lose data without having to buffer
         # all events that are recieved during get requests.
         paused = self.settings.queue_init_epm_events
+        data = []
+        create_msgs = []
         for c in self.epm_subscription_classes:
-            cdata = get_class(self.session, c, orderBy="%s.dn" % c)
-            if cdata is not None: data+= cdata
+            if c == "epmRsMacEpToIpEpAtt":
+                data = get_class(self.session, c, orderBy="%s.dn" % c)
+            else:
+                data = get_class(self.session, c, orderBy="%s.addr" % c)
+            if data is None:
+                logger.error("failed to get epm data for class %s", c)
+                return False
             if not self.subscriber.add_interest(c, self.handle_epm_event, paused=paused):
                 logger.warn("failed to add interest %s to subscriber", c)
                 return False
-
-        ts = time.time()
-        if data is None:
-            logger.warn("failed to get data for epmDb")
-            return
-        # 3-level dict to track endpoints returned from class query endpoints[node][vnid][addr] = 1
-        endpoints = {}
-        # queue all the events to send at one time...
-        create_msgs = []
-        for (classname, attr) in self.parse_event(data, verify_ts=False):
-            msg = self.ept_epm_parser.parse(classname, attr, ts)
-            if msg is not None:
-                create_msgs.append(msg)
-                if msg.node not in endpoints: endpoints[msg.node] = {}
-                if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
-                endpoints[msg.node][msg.vnid][msg.addr] = 1
-
+            # process the data now as we can't afford buffer all msgs in memory on scale setups
+            create_msgs = []
+            ts = time.time()
+            for (classname, attr) in self.parse_event(data, verify_ts=False):
+                msg = self.ept_epm_parser.parse(classname, attr, ts)
+                if msg is not None:
+                    create_msgs.append(msg)
+                    if msg.node not in endpoints: endpoints[msg.node] = {}
+                    if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
+                    endpoints[msg.node][msg.vnid][msg.addr] = 1
+            # send all create and delete messages to workers (delete first just because...)
+            logger.debug("build_endpoint_db sending %s create for %s", len(create_msgs),c)
+            self.send_msg(create_msgs)
         # free classquery data list
         data = []
-
+        create_msgs = []
         # get delete jobs
         delete_msgs = self.get_epm_delete_msgs(endpoints)
-
-        # send all create and delete messages to workers (delete first just because...)
-        logger.debug("build_endoint_db sending %s delete and %s create messages", len(delete_msgs),
-                len(create_msgs))
-        ts2 = time.time()
-        #self.send_msg(delete_msgs)
-        #self.send_msg(create_msgs)
-        # create merged create/delete messages sorted by address to prevent invalid stale analysis
-        # on scale setups.
-        merged = sorted(create_msgs+delete_msgs, 
-                key=lambda m:m.ip if m.wt==WORK_TYPE.EPM_RS_IP_EVENT else m.addr)
-        #for msg in merged: logger.debug(msg)
-        self.send_msg(merged)
-        ts3 = time.time()
-        logger.debug("build_endpoint_db query: %.3f, build: %.3f, send_msg: %.3f, total: %.3f", 
-            ts-start_time, ts2-ts, ts3 - ts2, ts3 - start_time) 
+        logger.debug("build_endpoint_db sending %s delete jobs", len(delete_msgs))
+        self.send_msg(delete_msgs)
+        logger.debug("build_endpoint_db total time: %.3f", time.time()-start_time)
         return True
 
     def refresh_endpoint(self, vnid, addr, addr_type, qnum=1):

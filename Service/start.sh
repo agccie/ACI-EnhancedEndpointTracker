@@ -492,7 +492,7 @@ function init_db_cluster() {
 function run_all_in_one_mgr_workers() {
     set_status "starting mgr with $worker_count workers"
     cd $SCRIPT_DIR
-    python -m app.models.aci.ept.main --all-in-one --worker $worker_count >> $LOG_FILE 2>> $LOG_FILE 
+    python -m app.models.aci.ept.main --all-in-one --count $worker_count >> $LOG_FILE 2>> $LOG_FILE 
     log "unexpected mgr exit"
 }
 
@@ -590,7 +590,7 @@ function main(){
         validate_identity
         set_running
         cd $SCRIPT_DIR
-        python -m app.models.aci.ept.main --role worker --id $identity >> $LOG_FILE 2>> $LOG_FILE 
+        python -m app.models.aci.ept.main --role worker --id $identity --count $worker_count >> $LOG_FILE 2>> $LOG_FILE 
     else
         log "error: unknown startup role '$role'"
     fi
@@ -606,20 +606,20 @@ function display_help() {
     echo "Help documentation for $self"
     echo "    -r [role] role to execute (defaults to all-in-one)"
     echo "              options: web, db, redis, mgr, watcher, worker, all-in-one"
-    echo "    -w [count] number of workers to run when executing all-in-one mode"
+    echo "    -c [count] number of workers to run when executing all-in-one mode"
     echo "    -i [identity] manager/worker identity"
     echo "    -l enable log rotation"
     echo ""
     exit 0
 }
 
-optspec=":r:w:i:lh"
+optspec=":r:c:i:lh"
 while getopts "$optspec" optchar; do
   case $optchar in
     r)
         role=$OPTARG
         ;;
-    w)
+    c)
         worker_count=$OPTARG
         ;;
     l)

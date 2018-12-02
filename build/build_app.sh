@@ -136,6 +136,29 @@ function build_app() {
     mkdir -p $TMP_DIR/$APP_ID/Media/License
     mkdir -p $TMP_DIR/$APP_ID.build
 
+    # build docker container
+    if [ "$docker_image" ] ; then
+        log "saving docker container image to application"
+        cp $docker_image > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
+        docker_image_name=$docker_image
+    else
+        log "building container"
+        docker_image_name=`echo "aci/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
+        if [ "$enable_proxy" == "1" ] ; then
+            ba=""
+            if [ "$https_proxy" ] ; then ba="$ba --build-arg https_proxy=$https_proxy" ; fi
+            if [ "$http_proxy" ] ; then ba="$ba --build-arg http_proxy=$http_proxy" ; fi
+            if [ "$no_proxy" ] ; then ba="$ba --build-arg no_proxy=$no_proxy" ; fi
+            log "cmd: docker build -t $docker_image_name $ba --build-arg APP_MODE=1 ./"
+            docker build -t $docker_image_name $ba --build-arg APP_MODE=1 ./build/
+        else
+            log "cmd: docker build -t $docker_image_name --build-arg APP_MODE=1 ./"
+            docker build -t $docker_image_name --build-arg APP_MODE=1 ./build/
+        fi
+        log "saving docker container image to application"
+        docker save $docker_image_name | gzip -c > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
+    fi
+
     # copy source code to service
     cp -rp ./Service/* $TMP_DIR/$APP_ID/Service/
     cp -p ./app.json $TMP_DIR/$APP_ID/
@@ -143,7 +166,8 @@ function build_app() {
     cp -p ./app.json $TMP_DIR/$APP_ID/Service/
     cp -p ./version.txt $TMP_DIR/$APP_ID/Service/
     # dynamically create clusterMgrConfig
-    python ./cluster/apic/create_config.py > $TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
+    conf=$TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
+    python ./cluster/apic/create_config.py --image $docker_image_name > $conf
 
     # create media and legal files
     # (note, snapshots are required in order for intro_video to be displayed on appcenter
@@ -190,28 +214,6 @@ function build_app() {
                 cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
             fi
         fi
-    fi
-
-    # build docker container
-    if [ "$docker_image" ] ; then
-        log "saving docker container image to application"
-        cp $docker_image > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
-    else
-        log "building container"
-        docker_image_name=`echo "aci/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
-        if [ "$enable_proxy" == "1" ] ; then
-            ba=""
-            if [ "$https_proxy" ] ; then ba="$ba --build-arg https_proxy=$https_proxy" ; fi
-            if [ "$http_proxy" ] ; then ba="$ba --build-arg http_proxy=$http_proxy" ; fi
-            if [ "$no_proxy" ] ; then ba="$ba --build-arg no_proxy=$no_proxy" ; fi
-            log "cmd: docker build -t $docker_image_name $ba --build-arg APP_MODE=1 ./"
-            docker build -t $docker_image_name $ba --build-arg APP_MODE=1 ./build/
-        else
-            log "cmd: docker build -t $docker_image_name --build-arg APP_MODE=1 ./"
-            docker build -t $docker_image_name --build-arg APP_MODE=1 ./build/
-        fi
-        log "saving docker container image to application"
-        docker save $docker_image_name | gzip -c > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
     fi
 
     # execute packager

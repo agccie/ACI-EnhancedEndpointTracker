@@ -66,6 +66,7 @@ class eptWorker(object):
     """
 
     def __init__(self, worker_id, role):
+        logger.debug("init role %s id %s", role, worker_id)
         self.worker_id = "%s" % worker_id
         self.role = role
         self.db = get_db(uniq=True, overwrite_global=True)

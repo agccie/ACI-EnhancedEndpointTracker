@@ -1,4 +1,5 @@
 
+import argparse
 import copy
 import logging
 import json
@@ -20,7 +21,8 @@ class KronConfig(object):
         self.https_port = 8443
         self.redis_name = "redis"
         self.redis_port = 6379
-        self.workers = 6
+        self.worker_containers = 4
+        self.workers_per_container = 2
         self.shards = 3
         self.db_memory = 2
         self.containers = []
@@ -38,7 +40,8 @@ class KronConfig(object):
                 logger.debug(e)
                 raise Exception("failed to parse config file")
             # relax checks here, just try and import what we expect
-            for a in ["name", "short_name", "https_port", "redis_name", "redis_port", "workers"]:
+            for a in ["name", "short_name", "https_port", "redis_name", "redis_port", 
+                    "worker_containers", "workers_per_container"]:
                 if a in config:
                     setattr(self, a, config[a])
             # force name and short_name to all lower case and set service_name
@@ -179,8 +182,8 @@ class KronConfig(object):
         mgr_name = "%s_mgr" % self.short_name
         primary_containers[mgr_name] = get_generic_service(
             mgr_name,
-            srv_args=["-r", "mgr", "-i", "m1"],
-            memory="medium",
+            srv_args=["-r", "mgr", "-i", "1"],
+            memory="large",
             cpu="medium",
             container_only=True,
         )
@@ -188,16 +191,17 @@ class KronConfig(object):
         watch_name = "%s_watch" % self.short_name
         primary_containers[watch_name] = get_generic_service(
             watch_name,
-            srv_args=["-r", "watcher", "-i", "w0"],
+            srv_args=["-r", "watcher", "-i", "0"],
             memory="small",
-            cpu="medium",
+            cpu="small",
             container_only=True,
         )
-        for w in xrange(0, self.workers):
+        for w in xrange(0, self.worker_containers):
+            wid = self.workers_per_container*w 
             worker_name = "%s_worker%s" % (self.short_name, w+1)
             primary_containers[worker_name] = get_generic_service(
                 worker_name,
-                srv_args=["-r", "worker", "-i", "w%s" % (w+1)],
+                srv_args=["-r", "worker", "-i", "%s"%wid, "-c", "%s"%self.workers_per_container],
                 memory="small",
                 cpu="medium",
                 container_only=True,
@@ -242,5 +246,17 @@ class KronConfig(object):
 if __name__ == "__main__":
 
     default_config = "%s/kron_config.yml" % os.path.dirname(os.path.realpath(__file__))
-    k = KronConfig(default_config)
+
+    desc = """ create cluster mgmt config """
+    parser = argparse.ArgumentParser(description=desc,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+    parser.add_argument("--kron", dest="kron", default=default_config, help="kron config file")
+    parser.add_argument("--image", dest="image", default=None, help="docker ept image")
+    args = parser.parse_args()
+
+    if args.image is not None:
+        KronConfig.APP_IMAGE = args.image
+
+    k = KronConfig(args.kron)
     print json.dumps(k.build_cluster_config(), indent=4, separators=(",", ":"), sort_keys=True)

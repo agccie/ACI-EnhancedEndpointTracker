@@ -9,8 +9,10 @@ https_port: 6443
 # redis info
 redis_name: "redis"
 redis_port: 6379
-# number of workers to process events in all-in-one-mode
-workers: 10
+# number of workers containers to deploy
+worker_containers: 3
+# number of workers per container 
+workers_per_container: 4
 
 # mongodb cluster configuration
 database:
@@ -19,7 +21,7 @@ database:
     # tigerWired memory per db instance (note there is 1+shards db's running per container)
     # note, ( shards + cfg ) * memory < container memory 
     # in this case (3 + 1) * 1.9 < 8
-    memory: 1.9
+    memory: 1.75
     # in kron all-in-one-mode, mongos, cfg and all shards are deployed within same container. The 
     # number of containers configured implicitly represent the number of replicas. Each container has 
     # configurable number of shards.  The port numbers are assigned as follows:

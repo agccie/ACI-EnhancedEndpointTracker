@@ -1,9 +1,18 @@
 from ...rest import Rest
 from ...rest import api_register
+from . common import common_event_attribute
+from . ept_stale import eptStaleEvent
 import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
+
+history_event = {}
+common_attr = ["classname", "ts", "status", "remote", "pctag", "flags", "tunnel_flags", "encap",
+                "intf_id", "intf_name", "rw_mac", "rw_bd", "epg_name", "vnid_name"]
+# pull interesting common attributes
+for a in common_attr:
+    history_event[a] = common_event_attribute[a]
 
 @api_register(parent="fabric", path="ept/history")
 class eptHistory(Rest):
@@ -75,6 +84,10 @@ class eptHistory(Rest):
             "type": float,
             "description": "timestamp last stale watch was set on endpoint",
         },
+        "watch_stale_event": {
+            "type": dict,
+            "description": "eptStale event for watch stale event suppression",
+        },
         "watch_offsubnet_ts": {
             "type": float,
             "description": "timestamp last offsubnet watch was set on endpoint",
@@ -90,79 +103,7 @@ class eptHistory(Rest):
         "events": {
             "type": list,
             "subtype": dict,
-            "meta": {
-                "classname": {
-                    "type": str,
-                    "description": "epm classname that triggered the event"
-                },
-                "ts": {
-                    "type": float,
-                    "description": "epoch timestamp the event was detected",
-                },
-                "status": {
-                    "type": str,
-                    "description": "current status of the endpoint (created, modified, deleted)",
-                    "values": ["created", "modified", "deleted"],
-                },
-                "remote": {
-                    "type": int,
-                    "description": """
-                    resolved tunnel to node id for remote learns. Note, this may be an emulated 
-                    node-id representing a vpc pair.  See eptNode object for more details
-                    """
-                },
-                "pctag": {
-                    "type": int,
-                    "description": """ 
-                    policy control tag representing epg.  For epgs with pctag of 'any', this is 
-                    programmed with a value of 0
-                    """,
-                },
-                "flags": {
-                    "type": list,
-                    "subtype": str,
-                    "description": "epm flags for endpoint event",
-                },
-                "tunnel_flags": {
-                    "type": str,
-                    "description": """ interface flags if intf_id is a tunnel """,
-                },
-                "encap": {
-                    "type": str,
-                    "description": "vlan or vxlan encap for local learn",
-                },
-                "intf_id": {
-                    "type": str,
-                    "description": "interface id where endpoint was learned",
-                },
-                "intf_name": {
-                    "type": str,
-                    "description": """ 
-                    interface name. This is only relevant for port-channels, all interface types
-                    should have identical intf_id and intf_name 
-                    """,
-                },
-                "rw_mac": {
-                    "type": str,
-                    "description": """
-                    rewrite mac address for local ipv4/ipv6 endpoints.
-                    """,
-                },
-                "rw_bd": {
-                    "type": int,
-                    "description": """
-                    BD VNID for mac of local ipv4/ipv6 endpoints.  This is 0 if not known.
-                    """,
-                },
-                "epg_name": {
-                    "type": str,
-                    "description": "epg name based on vrf and pctag at the time of this event",
-                },
-                "vnid_name": {
-                    "type": str,
-                    "description": "vnid name based on at the time of this event",
-                },
-            },
+            "meta": history_event,
         },
     }
 
@@ -187,8 +128,9 @@ class eptHistoryEvent(object):
         # workaround - embed object watch_ts within event 0 when ept_worker is generating 
         # per_node_history_event.  These values will be set manually, they are never added to the
         # db or transmit via eptMsg and therefore intentionally not referenced in other functions.
-        self.watch_stale_ts = 0
         self.watch_offsubnet_ts = 0
+        self.watch_stale_ts = 0
+        self.watch_stale_event = eptStaleEvent()
 
     def __repr__(self):
         return "%s %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s], flags(%s):[%s], tflags:%s"%(

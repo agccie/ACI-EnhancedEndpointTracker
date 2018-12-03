@@ -347,6 +347,7 @@ class eptWorker(object):
         projection = {
             "node": 1,
             "watch_stale_ts":1,         # will embed value into events.0
+            "watch_stale_event":1,      # will embed value into events.0
             "watch_offsubnet_ts": 1,    # will embed value into events.0
             "events": {"$slice": 1}     # pull only events.0
         }
@@ -358,6 +359,7 @@ class eptWorker(object):
             # embed watch_ts into events.0
             if len(events) > 0:
                 events[0].watch_stale_ts = h["watch_stale_ts"]
+                events[0].watch_stale_event = eptStaleEvent.from_dict(h["watch_stale_event"])
                 events[0].watch_offsubnet_ts = h["watch_offsubnet_ts"]
                 per_node_history_events[h["node"]] = events
 
@@ -501,6 +503,7 @@ class eptWorker(object):
             # function but used by suppression in later analysis
             last_event = last_event[0]
             event.watch_stale_ts = last_event.watch_stale_ts
+            event.watch_stale_event = last_event.watch_stale_event
             event.watch_offsubnet_ts = last_event.watch_offsubnet_ts
 
         # a few more events that can be ignored
@@ -989,7 +992,7 @@ class eptWorker(object):
         if len(offsubnet_nodes)>0:
             suppress_nodes = []
             # need to suppress rapid events if recent watch job created
-            # last watch ts is embedded in per_node_history_events
+            # last watch_offsubnet_ts is embedded/hacked in per_node_history_events
             for node in offsubnet_nodes:
                 if node in per_node_history_events:
                     delta = msg.ts - per_node_history_events[node][0].watch_offsubnet_ts
@@ -1068,7 +1071,7 @@ class eptWorker(object):
             if vpc_nodes[0] == 0:
                 vpc_nodes.remove(0)
 
-        stale_nodes = {}    # indexed by node with stale eptHistory event
+        stale_nodes = {}    # indexed by node with eptStaleEvent
         for node in per_node_history_events:
             h_event = per_node_history_events[node][0]
             event = eptStaleEvent.from_history_event(local_node, h_event)
@@ -1168,14 +1171,19 @@ class eptWorker(object):
             suppress_nodes = []
 
             # need to suppress rapid events if recent watch job created
-            # last watch ts is embedded in per_node_history_events
+            # last watch_stale_ts and watch_stale_event is embedded/hacked in per_node_history_events
             for node in stale_nodes:
                 if node in per_node_history_events:
-                    delta = msg.ts - per_node_history_events[node][0].watch_stale_ts
+                    last_node_event = per_node_history_events[node][0]
+                    delta = msg.ts - last_node_event.watch_stale_ts
                     if delta != 0 and delta < SUPPRESS_WATCH_STALE:
-                        logger.debug("suppress watch_stale for node 0x%04x (delta %.03f<%.03f)", 
+                        # if this stale event is non-duplicate of previous event, then we need to 
+                        # skip suppression and send updated stale event to watcher.
+                        stale_event = stale_nodes[node]
+                        if stale_event.is_duplicate(last_node_event.watch_stale_event):
+                            logger.debug("suppress watch_stale for node 0x%04x (delta %.03f<%.03f)", 
                                 node, delta, SUPPRESS_WATCH_STALE)
-                        suppress_nodes.append(node)
+                            suppress_nodes.append(node)
 
             # remove suppress_nodes from offsubnet_nodes list
             for node in suppress_nodes:
@@ -1198,7 +1206,8 @@ class eptWorker(object):
                     # mark watch ts for suppression of future events
                     flt["node"] = node
                     self.db[eptHistory._classname].update_one(flt, {"$set":{
-                        "watch_stale_ts":msg.ts
+                        "watch_stale_ts": msg.ts,
+                        "watch_stale_event": stale_nodes[node].to_dict()
                     }})
                 logger.debug("sending %s stale events to watcher", len(msgs))
                 self.send_msg(msgs)

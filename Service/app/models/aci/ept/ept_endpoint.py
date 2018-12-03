@@ -4,6 +4,7 @@ from ... rest import api_register
 from ... rest import api_route
 from ... rest import api_callback
 from .. utils import clear_endpoint
+from . common import common_event_attribute
 from . common import get_mac_value
 from . common import parse_vrf_name
 from . common import subscriber_op
@@ -38,9 +39,9 @@ local_event = {
         """,
     },
 }
-# pull common attributes from eptHistory 
+# pull interesting common attributes
 for a in common_attr:
-    local_event[a] = eptHistory.META["events"]["meta"][a]
+    local_event[a] = common_event_attribute[a]
 
 @api_register(parent="fabric", path="ept/endpoint")
 class eptEndpoint(Rest):

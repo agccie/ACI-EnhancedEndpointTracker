@@ -1,6 +1,6 @@
 from ...rest import Rest
 from ...rest import api_register
-from . ept_history import eptHistory
+from . common import common_event_attribute
 import logging
 
 # module level logging
@@ -59,8 +59,8 @@ class eptRapid(Rest):
             "type": list,
             "subtype": dict,
             "meta": {
-                "ts": eptHistory.META["events"]["meta"]["ts"],
-                "vnid_name": eptHistory.META["events"]["meta"]["vnid_name"],
+                "ts": common_event_attribute["ts"],
+                "vnid_name": common_event_attribute["vnid_name"],
                 "count": {
                     "type": int,
                     "description": """

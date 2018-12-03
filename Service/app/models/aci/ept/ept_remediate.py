@@ -1,7 +1,6 @@
-
 from ...rest import Rest
 from ...rest import api_register
-from . ept_history import eptHistory
+from . common import common_event_attribute
 import logging
 
 # module level logging
@@ -73,8 +72,8 @@ class eptRemediate(Rest):
                     "type": float,
                     "description": "epoch timestamp the event was detected",
                 },
-                "ts": eptHistory.META["events"]["meta"]["ts"],
-                "vnid_name": eptHistory.META["events"]["meta"]["vnid_name"],
+                "ts": common_event_attribute["ts"],
+                "vnid_name": common_event_attribute["vnid_name"],
                 "action": {
                     "type": str,
                     "values": ["clear"],

@@ -69,6 +69,7 @@ import pytest
 import time
 
 from app.models.aci.fabric import Fabric
+from app.models.aci.ept.common import MANAGER_WORK_QUEUE
 from app.models.aci.ept.ept_msg import *
 from app.models.aci.ept.ept_worker import eptWorker
 from app.models.aci.ept.ept_queue_stats import eptQueueStats
@@ -452,6 +453,18 @@ def get_worker(role="worker"):
     dut.db = get_db()
     dut.redis = get_redis()
     return dut
+
+def get_queue_msgs(queue=None, pop=False):
+    # return list of all msgs on queue.  If pop is true then messages are removed from queue else
+    # just a read is performed.  Defaults to queue MANAGER_WORK_QUEUE
+    if queue is None:
+        queue = MANAGER_WORK_QUEUE  
+    msgs = []
+    for data in redis.lrange(queue, 0, -1):
+        msgs.append(eptMsg.parse(data))
+    if pop:
+        redis.delete(queue)
+    return msgs
 
 def test_handle_endpoint_event_new_local_mac(app, func_prep):
     # create event for new mac and ensure entry is added to eptHistory and eptEndpoint tables
@@ -1798,7 +1811,6 @@ def test_handle_endpoint_event_stale_scenario_1(app, func_prep):
     logger.debug(pretty_print(h.to_json()))
     assert h.is_stale
 
-
 def test_handle_endpoint_invalid_old_last_local(app, func_prep):
     # this test we want to create two valid local entries.  First, on node-101 and then on node-102.
     # Next, we invalidate the local entry on node-102 without an update on node-101. We need to 
@@ -1844,3 +1856,65 @@ def test_handle_endpoint_invalid_old_last_local(app, func_prep):
     assert e0.node == 0
     assert e0.status == "deleted"
 
+def test_handle_endpoint_suppress_stale_event(app, func_prep):
+    # suppress stale is a mechanism to suppress events sent to watcher on a per-node/per-endpoint
+    # basis. The assumption is, once the endpoint is stale, redundant watch events do not need to 
+    # be sent to watcher as this will increase the watch time. This verifies that the stale event
+    # is suppressed for duplicate event.
+
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # initial local learn on node-101
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # stale learn on node-103 pointing to node-104
+    msg = get_epm_event(103, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=104, ts=1000000001.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    # correct learn on node-102 pointing to node-101, this triggers stale analysis for node-103
+    # but that event should be suppressed
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=101, ts=1000000002.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # validate that one stale events sent on redis queue
+    msgs = get_queue_msgs() 
+    assert len(msgs) == 1
+    assert msgs[0].event["remote"] == 104
+    assert msgs[0].event["expected_remote"] == 101
+
+def test_handle_endpoint_ignore_suppress_for_new_stale_event(app, func_prep):
+    # this test verifies that stale event is NOT suppressed if the stale event is different from 
+    # the previous event.
+    # For this test, create a stale event for node-101 pointing to node-103.  Then create another
+    # stale event where remote has changed to node-104 and verify an updated stale event sent to 
+    # watcher (which will be waiting on mq to dispatch to a watcher). 
+
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # initial learn on node-101 toward node-103 (stale since local does not exists)
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=103, ts=1000000001.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # second learn pointing to node-104 (still stale as no local exists)
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=104, ts=1000000002.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # validate that two stale events sent on redis queue
+    msgs = get_queue_msgs() 
+    assert len(msgs) == 2
+    assert msgs[0].event["remote"] == 103
+    assert msgs[0].event["expected_remote"] == 0
+    assert msgs[1].event["remote"] == 104
+    assert msgs[1].event["expected_remote"] == 0

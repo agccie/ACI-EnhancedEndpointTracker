@@ -1,7 +1,7 @@
 from ...rest import Rest
 from ...rest import api_register
 from . common import get_vpc_domain_name
-from . ept_history import eptHistory
+from . common import common_event_attribute
 import logging
 
 # module level logging
@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 common_attr = ["ts", "pctag", "encap", "intf_name", "intf_id", "rw_mac", "rw_bd", "remote", 
                 "epg_name", "vnid_name"]
 offsubnet_event = { }
-# pull common attributes from eptHistory 
+# pull interesting common attributes
 for a in common_attr:
-    offsubnet_event[a] = eptHistory.META["events"]["meta"][a]
+    offsubnet_event[a] = common_event_attribute[a]
 
 
 @api_register(parent="fabric", path="ept/offsubnet")

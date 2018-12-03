@@ -176,18 +176,22 @@ def subscriber_op(fabric, msg_type, data=None, qnum=1):
 
     if data is None: data = {}
     if Fabric(fabric=fabric).get_fabric_status(api=False):
+        r = None
         try:
             # fabric and qnum are always in data, add if not present
             data["fabric"] = fabric
             data["qnum"] = qnum
-            r = get_redis()
             msg = eptMsgSubOp(msg_type, data = data)
+            r = get_redis()
             r.publish(SUBSCRIBER_CTRL_CHANNEL, msg.jsonify())
             # no error sending message so assume success
             return (True, "")
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
             return (False, "failed to publish message on redis channel")
+        finally:
+            if r is not None and hasattr(r, "connection_pool"):
+                r.connection_pool.disconnect()
     else:
         return (False, "Fabric '%s' is not running" % fabric)
 

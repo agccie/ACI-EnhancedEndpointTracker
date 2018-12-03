@@ -560,6 +560,7 @@ function main(){
             cmd="$cmd --port $REDIS_PORT "
         fi
         set_running
+        cmd="$cmd --maxclients 10000"
         cmd="$cmd --logfile $LOG_DIR/redis-server.log"
         log "starting redis: $cmd"
         log `eval $cmd 2>&1`

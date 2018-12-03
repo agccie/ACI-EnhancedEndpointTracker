@@ -64,6 +64,86 @@ SUPPRESS_WATCH_OFFSUBNET            = 8.0
 SUPPRESS_WATCH_STALE                = 25.0
 SUPPRESS_FABRIC_RESTART             = 60.0
 
+###############################################################################
+#
+# common attribute names for ept event objects
+#
+###############################################################################
+
+common_event_attribute = {
+    "classname": {
+        "type": str,
+        "description": "epm classname that triggered the event"
+    },
+    "ts": {
+        "type": float,
+        "description": "epoch timestamp the event was detected",
+    },
+    "status": {
+        "type": str,
+        "description": "current status of the endpoint (created, modified, deleted)",
+        "values": ["created", "modified", "deleted"],
+    },
+    "remote": {
+        "type": int,
+        "description": """
+        resolved tunnel to node id for remote learns. Note, this may be an emulated
+        node-id representing a vpc pair.  See eptNode object for more details
+        """
+    },
+    "pctag": {
+        "type": int,
+        "description": """
+        policy control tag representing epg.  For epgs with pctag of 'any', this is
+        programmed with a value of 0
+        """,
+    },
+    "flags": {
+        "type": list,
+        "subtype": str,
+        "description": "epm flags for endpoint event",
+    },
+    "tunnel_flags": {
+        "type": str,
+        "description": """ interface flags if intf_id is a tunnel """,
+    },
+    "encap": {
+        "type": str,
+        "description": "vlan or vxlan encap for local learn",
+    },
+    "intf_id": {
+        "type": str,
+        "description": "interface id where endpoint was learned",
+    },
+    "intf_name": {
+        "type": str,
+        "description": """
+        interface name. This is only relevant for port-channels, all interface types
+        should have identical intf_id and intf_name
+        """,
+    },
+    "rw_mac": {
+        "type": str,
+        "description": """
+        rewrite mac address for local ipv4/ipv6 endpoints.
+        """,
+    },
+    "rw_bd": {
+        "type": int,
+        "description": """
+        BD VNID for mac of local ipv4/ipv6 endpoints.  This is 0 if not known.
+        """,
+    },
+    "epg_name": {
+        "type": str,
+        "description": "epg name based on vrf and pctag at the time of this event",
+    },
+    "vnid_name": {
+        "type": str,
+        "description": "vnid name based on at the time of this event",
+    }
+}
+
 
 ###############################################################################
 #

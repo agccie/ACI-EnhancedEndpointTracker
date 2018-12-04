@@ -54,9 +54,9 @@ export class Endpoint {
         this.vnid = vnid;
     }
 
-    public static getEventProperties(property,endpoint) {
-        if(endpoint !== undefined) {
-            return '' ;
+    public static getEventProperties(property, endpoint) {
+        if (endpoint !== undefined) {
+            return '';
         }
         if (endpoint.events.length > 0) {
             return endpoint.events[0][property];

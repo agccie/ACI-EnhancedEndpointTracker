@@ -12,8 +12,8 @@ export class ModalService {
     modalTitle: String;
     modalBody: String;
     modalIcon: String;
-    decisionBox = false ;
-    callback:any ;
+    decisionBox = false;
+    callback: any;
 
     constructor(private modalService: BsModalService) {
         this.modalTitle = 'Error';
@@ -33,24 +33,21 @@ export class ModalService {
         this.modalRef.hide();
     }
 
-
-      setAndOpenModal(modalIcon,modalTitle,modalBody,modalRef:TemplateRef<any>,decisionBox = false,callback=undefined,context=undefined) {
-        if(context === undefined) {
-            context = this ;
+    setAndOpenModal(modalIcon, modalTitle, modalBody, modalRef: TemplateRef<any>, decisionBox = false, callback = undefined, context = undefined) {
+        if (context === undefined) {
+            context = this;
         }
-        context.modalIcon = modalIcon ;
-        context.modalTitle = modalTitle ;
-        context.modalBody = modalBody ;
-        context.decisionBox = decisionBox ;
-        context.callback = callback ;
-        this.openModal(modalRef) ;
+        context.modalIcon = modalIcon;
+        context.modalTitle = modalTitle;
+        context.modalBody = modalBody;
+        context.decisionBox = decisionBox;
+        context.callback = callback;
+        this.openModal(modalRef);
     }
 
     runCallback() {
-        if(this.callback !== undefined) {
-            this.callback() ;
+        if (this.callback !== undefined) {
+            this.callback();
         }
-        
     }
-
 }

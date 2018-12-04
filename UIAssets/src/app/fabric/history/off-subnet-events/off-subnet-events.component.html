@@ -64,9 +64,10 @@
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" let-row = 'row' ngx-datatable-cell-template>
-                <a *ngIf="value !== ''" [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value}}</a> 
-                <span *ngIf="value === ''">&mdash;</span>
+        <ng-template let-value="value" let-row='row' ngx-datatable-cell-template>
+            <a *ngIf="value !== ''"
+               [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value }}</a>
+            <span *ngIf="value === ''">'&mdash;'</span>
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="remote" name="Remote Node" [sortable]="true" [flexGrow]='0.1'>
@@ -74,5 +75,4 @@
             {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
-
 </ngx-datatable>

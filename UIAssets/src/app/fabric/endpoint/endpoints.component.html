@@ -57,12 +57,14 @@
                   pagerPrevious: 'icon-step-backward',
                   pagerNext: 'icon-step-forward'
                   }">
-                  <ngx-datatable-column prop="events[0].status" name="State" [sortable]="true" [flexGrow]="0.35">
+                <ngx-datatable-column prop="events[0].status" name="State" [sortable]="true" [flexGrow]="0.35">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        <span *ngIf="(row.events.length > 0) && (row.events[0].status === 'created' || row.events[0].status === 'modified')" class="label label--indigo">
+                        <span *ngIf="(row.events.length > 0) && (row.events[0].status === 'created' || row.events[0].status === 'modified')"
+                              class="label label--vibblue">
                                 active
                         </span>
-                        <span class="label label--dkgray" *ngIf="row.events.length === 0 || row.events[0].status === 'deleted'">
+                        <span class="label label--dkgray"
+                              *ngIf="row.events.length === 0 || row.events[0].status === 'deleted'">
                             inactive
                         </span>
                         <span class="label label--danger" *ngIf="row.is_offsubnet">offsubnet</span>

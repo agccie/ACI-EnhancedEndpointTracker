@@ -1,5 +1,5 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
-import {NavigationEnd, Router} from '@angular/router';
+import {ActivatedRoute, NavigationEnd, Router} from '@angular/router';
 import {BackendService} from './_service/backend.service';
 import {PreferencesService} from './_service/preferences.service';
 import {environment} from '../environments/environment.app';
@@ -16,14 +16,27 @@ export class AppComponent implements OnInit, OnDestroy {
     konami: boolean;
     login_required: boolean;
     private stopListening: () => void;
+    menuVisible: boolean;
+    fabricName: string;
+    endpointExpanded: boolean;
+    configurationExpanded: boolean;
+    sidebarCollapsed: boolean;
 
-    constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService) {
+    constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService, private activatedRoute: ActivatedRoute,) {
+        this.endpointExpanded = false;
+        this.configurationExpanded = false;
+        this.sidebarCollapsed = true;
     }
 
     ngOnInit() {
+        localStorage.setItem('menuVisible', 'false');
         this.login_required = localStorage.getItem('isLoggedIn') != 'true';
         this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(event => {
             this.login_required = localStorage.getItem('isLoggedIn') != 'true';
+            this.menuVisible = localStorage.getItem('menuVisible') == 'true';
+            this.activatedRoute.firstChild.paramMap.subscribe(params => {
+                this.fabricName = params.get('fabric');
+            });
         });
     }
 
@@ -50,5 +63,4 @@ export class AppComponent implements OnInit, OnDestroy {
     noKonami() {
         this.konami = false;
     }
-
 }

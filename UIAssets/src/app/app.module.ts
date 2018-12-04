@@ -40,10 +40,10 @@ import {QueueComponent} from "./queue/queue.component";
 import {QueueDetailComponent} from "./queue-detail/queue-detail.component";
 import {HighchartsChartModule} from "highcharts-angular";
 import {QueryBuilderModule} from "angular2-query-builder";
-import { RapidEptComponent } from './fabric/rapid-ept/rapid-ept.component';
-import { ClearedEptComponent } from './fabric/cleared-ept/cleared-ept.component';
-import { RapidComponent } from './fabric/history/rapid/rapid.component';
-import { ClearedComponent } from './fabric/history/cleared/cleared.component';
+import {RapidEptComponent} from './fabric/rapid-ept/rapid-ept.component';
+import {ClearedEptComponent} from './fabric/cleared-ept/cleared-ept.component';
+import {RapidComponent} from './fabric/history/rapid/rapid.component';
+import {ClearedComponent} from './fabric/history/cleared/cleared.component';
 
 const appRoutes: Routes = [
     {
@@ -90,8 +90,8 @@ const appRoutes: Routes = [
                     {path: 'moveevents', component: MoveEventsComponent},
                     {path: 'offsubnetevents', component: OffSubnetEventsComponent},
                     {path: 'staleevents', component: StaleEventsComponent},
-                    {path:'rapid',component:RapidComponent},
-                    {path:'cleared',component:ClearedComponent}
+                    {path: 'rapid', component: RapidComponent},
+                    {path: 'cleared', component: ClearedComponent}
                 ]
             }
         ]

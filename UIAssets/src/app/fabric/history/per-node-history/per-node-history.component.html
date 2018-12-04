@@ -33,73 +33,74 @@
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.1'>
-            <ng-template let-value="value" ngx-datatable-cell-template>
-                {{ value !== '' ? value : '-'}}
-            </ng-template>
-        </ngx-datatable-column>
-        <ngx-datatable-column prop="encap" name="Encap" [sortable]="true" [flexGrow]='0.1'>
-                <ng-template let-value="value" ngx-datatable-cell-template>
-                    {{ value !== '' ? value : '-'}}
-                </ng-template>
-            </ngx-datatable-column>
-            <ngx-datatable-column prop="flags" name="Flags" [sortable]="true" [flexGrow]='0.1'>
-                    <ng-template let-value="value" ngx-datatable-cell-template>
-                        {{ value.length > 0  ? value.join() : '-'}}
-                    </ng-template>
-            </ngx-datatable-column>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="encap" name="Encap" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="flags" name="Flags" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value.length > 0  ? value.join() : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
     <ngx-datatable-column prop="pctag" name="pcTAG" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '-'}}
+            {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="remote" name="Remote" [sortable]="true" [flexGrow]='0.1'>
-            <ng-template let-value="value" ngx-datatable-cell-template>
-                {{ value !== '' ? value : '-'}}
-            </ng-template>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-value="value" let-row='row' ngx-datatable-cell-template>
-                <a *ngIf="value !== ''" [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value}}</a> 
-                <span *ngIf="value === ''">&mdash;</span>
+            <a *ngIf="value !== ''"
+               [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value }}</a>
+            <span *ngIf="value === ''">&mdash;</span>
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.1'>
-            <ng-template let-value="value" ngx-datatable-cell-template>
-                {{ value !== '' ? value : '-'}}
-            </ng-template>
-        </ngx-datatable-column>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
 </ngx-datatable>
 <ng-template #errorMsg>
-    <div ></div>
-        <div class="modal__body">
-                <div class="col-xl-12">
-                        <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
-                            <div class="alert__icon icon-check-outline"></div>
-                            <div class="alert__message text-left">
-                                <h4>{{modalService.modalTitle}}</h4>
-                                <div>{{modalService.modalBody}}</div>
-                            </div>
-                        </div>
+    <div></div>
+    <div class="modal__body">
+        <div class="col-xl-12">
+            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
+                <div class="alert__icon icon-check-outline"></div>
+                <div class="alert__message text-left">
+                    <h4>{{ modalService.modalTitle }}</h4>
+                    <div>{{ modalService.modalBody }}</div>
                 </div>
-                <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
-                        <div class="alert__icon icon-error-outline"></div>
-                        <div class="alert__message text-left">
-                            <h4>{{modalService.modalTitle}}</h4>
-                            <div>{{modalService.modalBody}}</div>
-                        </div>
-                </div>
-                <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
-                        <div class="alert__icon icon-info-outline"></div>
-                        <div class="alert__message text-left">
-                            <h4>{{modalService.modalTitle}}</h4>
-                            <div>{{modalService.modalBody}}</div>
-                        </div>
-                </div>
-                
+            </div>
+        </div>
+        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
+            <div class="alert__icon icon-error-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+
         <div class="modal__footer" *ngIf="!decisionBox">
-                <button class="btn" (click)="modalService.hideModal()">Ok</button>
+            <button class="btn" (click)="modalService.hideModal()">Ok</button>
         </div>
-        </div>
+    </div>
 </ng-template>
 
 

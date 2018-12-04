@@ -31,11 +31,11 @@ export class OffSubnetEventsComponent implements OnInit {
                 this.rows = [];
                 for (let object of data.objects) {
                     const endpoint = object["ept.offsubnet"];
-                    for(let event of endpoint.events) {
-                        event.node = endpoint['node'] ;
+                    for (let event of endpoint.events) {
+                        event.node = endpoint['node'];
                         this.rows.push(event);
                     }
-                    
+
                 }
                 this.loading = false;
             },

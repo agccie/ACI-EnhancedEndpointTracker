@@ -1,13 +1,17 @@
-/* You can add global styles to this file, and also import other style files */
 @import '../src/cui/css/cui-standard.min.css';
 @import '~@swimlane/ngx-datatable/release/index.css';
 @import '~@swimlane/ngx-datatable/release/themes/material.css';
 @import '~@swimlane/ngx-datatable/release/assets/icons.css';
 @import "~@ng-select/ng-select/themes/default.theme.css";
 
+body {
+    background-color: #f5f5f6;
+}
+
 .datatable-body-row {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
     padding: 5px 10px;
     vertical-align: middle;
     border-left: 4px solid transparent;
@@ -37,6 +41,7 @@
 
 .datatable-body-cell-label {
     overflow: hidden;
+    white-space: nowrap;
     text-overflow: ellipsis;
     width: 100%;
 }
@@ -127,17 +132,10 @@ del {
     padding: 5px;
 }
 
-.content {
-    height: 100%;
-    background-color: white;
+.cui .fixed-header {
+    padding-top: 10px;
 }
 
-    .cui .fixed-header{
-      padding-top:10px;
-    }
-
-    .ng-select .ng-select-container .ng-value-container .ng-input>input {
-        background:whitesmoke ;
-    }
-
-    
+.ng-select .ng-select-container .ng-value-container .ng-input > input {
+    background: whitesmoke;
+}

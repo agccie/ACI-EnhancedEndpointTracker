@@ -6,11 +6,11 @@ import {forkJoin} from '../../../../node_modules/rxjs' ;
 import { ModalService } from '../../_service/modal.service';
 import { Fabric } from '../../_model/fabric';
 
-
 @Component({
     selector: 'app-endpoint-history',
     templateUrl: './endpoint-history.component.html',
 })
+
 export class EndpointHistoryComponent implements OnInit {
     tabs: any;
     endpoint: any;
@@ -20,7 +20,7 @@ export class EndpointHistoryComponent implements OnInit {
     vpcDetails = '' ;
     modalTitle = '';
     modalBody = '';
-    modalIcon = 'error' ;
+    modalIcon = 'error';
     fabricName: string;
     vnid: string;
     address: string;
@@ -56,6 +56,7 @@ export class EndpointHistoryComponent implements OnInit {
             {name: ' Rapid', path:'rapid', icon:'icon-too-fast'},
             {name: ' Cleared', path:'cleared', icon:'icon-delete'}
         ];
+
     }
 
     ngOnInit() {
@@ -72,7 +73,7 @@ export class EndpointHistoryComponent implements OnInit {
                     this.loading = false;
                 });
             }
-           
+
         }, error => {
             this.loading = false;
         });
@@ -125,7 +126,7 @@ export class EndpointHistoryComponent implements OnInit {
         if (this.endpoint.is_stale) {
             this.staleoffsubnetDetails += 'Currently stale on node ' + node;
             const currentlyStale = this.backendService.offsubnetStaleEndpointHistory(this.fabricName,this.vnid,this.address,'is_stale','endpoint') ;
-           
+
             const staleHistory = this.backendService.offsubnetStaleEndpointHistory(this.fabricName,this.vnid,this.address,'is_stale','history') ;
             forkJoin([currentlyStale,staleHistory]).subscribe(
                 (data)=>{
@@ -158,7 +159,7 @@ export class EndpointHistoryComponent implements OnInit {
             }
             if (encap !== '') {
                 this.endpointStatus += `, encap <strong>${encap}</strong>`;
-            } 
+            }
         }
         this.fabricDetails = 'Fabric <strong>' + this.endpoint.fabric + '</strong>' ;
         if (this.endpoint.type === 'ipv4' || this.endpoint.type === 'ipv6') {
@@ -205,8 +206,6 @@ export class EndpointHistoryComponent implements OnInit {
             }
         );
     }
-
-
 
     public refresh() {
         this.backendService.dataplaneRefresh(this.fabricName, this.endpoint.vnid, this.endpoint.addr).subscribe(

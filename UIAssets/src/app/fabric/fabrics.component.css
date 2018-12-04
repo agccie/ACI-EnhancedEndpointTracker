@@ -1,3 +1,11 @@
 ngx-datatable.fixed-header {
     padding: 0 0 0 0;
 }
+
+.q-connector {
+    position: inherit !important;
+}
+
+.q-row {
+    border: none !important;
+}

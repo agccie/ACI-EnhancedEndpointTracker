@@ -5,6 +5,7 @@ import {PreferencesService} from "../../../_service/preferences.service";
     selector: 'app-advanced',
     templateUrl: './advanced.component.html',
 })
+
 export class AdvancedComponent implements OnInit {
 
     constructor(public prefs: PreferencesService) {

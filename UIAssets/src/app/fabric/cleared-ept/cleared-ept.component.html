@@ -46,25 +46,25 @@
                     </ng-template>
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]="0.1">
-                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                            {{ row['ept.remediate'].node }}
-                        </ng-template>
-                    </ngx-datatable-column>
-                    <ngx-datatable-column prop="event_count" name="Event Count" [sortable]="true" [flexGrow]="0.1">
-                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                {{ row['ept.remediate'].count }}
-                            </ng-template>
-                        </ngx-datatable-column>
-                        <ngx-datatable-column prop="action" name="Action" [sortable]="true" [flexGrow]="0.1">
-                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                {{ row['ept.remediate'].action }}
-                            </ng-template>
-                        </ngx-datatable-column>
-                        <ngx-datatable-column prop="reason" name="Reason" [sortable]="true" [flexGrow]="0.1">
-                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                {{ row['ept.remediate'].reason }}
-                            </ng-template>
-                        </ngx-datatable-column>
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row['ept.remediate'].node }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="event_count" name="Event Count" [sortable]="true" [flexGrow]="0.1">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row['ept.remediate'].count }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="action" name="Action" [sortable]="true" [flexGrow]="0.1">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row['ept.remediate'].action }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="reason" name="Reason" [sortable]="true" [flexGrow]="0.1">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row['ept.remediate'].reason }}
+                    </ng-template>
+                </ngx-datatable-column>
                 <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.4">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         {{ row['ept.remediate'].events[0].vnid_name}}
@@ -74,4 +74,3 @@
         </div>
     </div>
 </div>
-  

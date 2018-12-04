@@ -45,7 +45,6 @@ import { ClearedEptComponent } from './fabric/cleared-ept/cleared-ept.component'
 import { RapidComponent } from './fabric/history/rapid/rapid.component';
 import { ClearedComponent } from './fabric/history/cleared/cleared.component';
 
-
 const appRoutes: Routes = [
     {
         path: 'login',
@@ -69,8 +68,8 @@ const appRoutes: Routes = [
             {path: 'moves', component: MovesComponent},
             {path: 'stale-endpoints', component: StaleEptComponent},
             {path: 'offsubnet-endpoints', component: OffsubnetEptComponent},
-            {path:'rapid-endpoints', component:RapidEptComponent},
-            {path:'cleared-endpoints',component:ClearedEptComponent},
+            {path: 'rapid-endpoints', component: RapidEptComponent},
+            {path: 'cleared-endpoints', component: ClearedEptComponent},
             {
                 path: 'settings',
                 component: SettingsComponent,

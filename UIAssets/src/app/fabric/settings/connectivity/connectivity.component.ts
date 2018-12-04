@@ -6,6 +6,7 @@ import {environment} from '../../../../environments/environment.standalone';
     selector: 'app-connectivity',
     templateUrl: './connectivity.component.html',
 })
+
 export class ConnectivityComponent implements OnInit {
     inputs = [];
     app_mode = environment.app_mode;

@@ -12,6 +12,8 @@ export class ModalService {
     modalTitle: String;
     modalBody: String;
     modalIcon: String;
+    decisionBox = false ;
+    callback:any ;
 
     constructor(private modalService: BsModalService) {
         this.modalTitle = 'Error';
@@ -29,6 +31,26 @@ export class ModalService {
 
     public hideModal() {
         this.modalRef.hide();
+    }
+
+
+      setAndOpenModal(modalIcon,modalTitle,modalBody,modalRef:TemplateRef<any>,decisionBox = false,callback=undefined,context=undefined) {
+        if(context === undefined) {
+            context = this ;
+        }
+        context.modalIcon = modalIcon ;
+        context.modalTitle = modalTitle ;
+        context.modalBody = modalBody ;
+        context.decisionBox = decisionBox ;
+        context.callback = callback ;
+        this.openModal(modalRef) ;
+    }
+
+    runCallback() {
+        if(this.callback !== undefined) {
+            this.callback() ;
+        }
+        
     }
 
 }

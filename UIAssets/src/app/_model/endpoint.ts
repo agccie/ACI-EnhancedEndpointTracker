@@ -53,4 +53,17 @@ export class Endpoint {
         this.type = type;
         this.vnid = vnid;
     }
+
+    public static getEventProperties(property,endpoint) {
+        if(endpoint !== undefined) {
+            return '' ;
+        }
+        if (endpoint.events.length > 0) {
+            return endpoint.events[0][property];
+        } else if (endpoint.hasOwnProperty('first_learn')) {
+            return endpoint.first_learn[property];
+        } else {
+            return '';
+        }
+    }
 }

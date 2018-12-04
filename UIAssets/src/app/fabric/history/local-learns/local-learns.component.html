@@ -59,8 +59,9 @@
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.2'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '&mdash;'}}
+        <ng-template let-value="value" let-row='row' ngx-datatable-cell-template>
+                <a *ngIf="value !== ''" [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value}}</a> 
+                <span *ngIf="value === ''">&mdash;</span>
         </ng-template>
     </ngx-datatable-column>
 </ngx-datatable>

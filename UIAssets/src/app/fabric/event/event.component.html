@@ -50,16 +50,6 @@
                         {{ row['ept.history'].node}}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.1">
-                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        <span class="label label--raised" [ngClass]="{
-                              'label--warning':row['ept.history'].type === 'mac',
-                              'label--success':row['ept.history'].type === 'ip'
-                            }">
-                            {{ row['ept.history'].type.toUpperCase()}}
-                        </span>
-                    </ng-template>
-                </ngx-datatable-column>
                 <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         <a [routerLink]="['../history', row['ept.history'].vnid, row['ept.history'].addr]">

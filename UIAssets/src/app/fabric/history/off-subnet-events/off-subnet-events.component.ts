@@ -26,12 +26,16 @@ export class OffSubnetEventsComponent implements OnInit {
 
     getNodesForOffsubnetEndpoints(fabricName, vnid, address) {
         this.loading = true;
-        this.backendService.getNodesForOffsubnetEndpoints(fabricName, vnid, address, 'offsubnet').subscribe(
+        this.backendService.getAllOffsubnetEndpoints().subscribe(
             (data) => {
                 this.rows = [];
                 for (let object of data.objects) {
                     const endpoint = object["ept.offsubnet"];
-                    this.rows.push(endpoint);
+                    for(let event of endpoint.events) {
+                        event.node = endpoint['node'] ;
+                        this.rows.push(event);
+                    }
+                    
                 }
                 this.loading = false;
             },

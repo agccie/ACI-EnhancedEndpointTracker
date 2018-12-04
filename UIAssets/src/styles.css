@@ -3,6 +3,7 @@
 @import '~@swimlane/ngx-datatable/release/index.css';
 @import '~@swimlane/ngx-datatable/release/themes/material.css';
 @import '~@swimlane/ngx-datatable/release/assets/icons.css';
+@import "~@ng-select/ng-select/themes/default.theme.css";
 
 .datatable-body-row {
     overflow: hidden;
@@ -133,6 +134,10 @@ del {
 
     .cui .fixed-header{
       padding-top:10px;
+    }
+
+    .ng-select .ng-select-container .ng-value-container .ng-input>input {
+        background:whitesmoke ;
     }
 
     

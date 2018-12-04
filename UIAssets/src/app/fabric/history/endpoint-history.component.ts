@@ -223,12 +223,15 @@ export class EndpointHistoryComponent implements OnInit {
 
     onClickOfRefresh() {
         const msg = 
-        'Are you sure you want to force a refresh of ' + this.address + '? This operation may take longer than expected' ;
+        'Are you sure you want to force a refresh of ' + this.address + '? This operation will query the APIC for the most recent state of the endpoint and then update the local database. It may take a few moments for the updates to be seen.' ;
         this.openModal('info','Wait',msg,this.msgModal,true,this.refresh) ;
     }
 
     public clearEndpoints() {
        console.log(this.clearNodes) ;
+       if(this.clearNodes.length > 0 && this.clearNodes[0].label.toLowerCase() === 'select all') {
+
+       }
     }
 
     openModal(modalIcon,modalTitle,modalBody,modalRef:TemplateRef<any>,decisionBox = false,callback=undefined) {
@@ -238,7 +241,6 @@ export class EndpointHistoryComponent implements OnInit {
         this.decisionBox = decisionBox ;
         this.callback = callback ;
         this.modalService.openModal(modalRef) ;
-
     }
 
     runFunction() {
@@ -260,5 +262,43 @@ export class EndpointHistoryComponent implements OnInit {
         if(event.label === 'Select All') {
 
         }
+    }
+
+    public filterNodes(nodes): any[] {
+        let newarr: any[] = [];
+        if (nodes !== undefined) {
+            for (let i = 0; i < nodes.length; i++) {
+                if (typeof(nodes[i]) === 'string') {
+                    if (nodes[i] !== 'global') {
+                        if (nodes[i].includes(',')) {
+                            nodes[i] = nodes[i].replace(/\s/g, '');
+                            const csv = nodes[i].split(',');
+                            for (let j = 0; j < csv.length; j++) {
+                                if (csv[j].includes('-')) {
+                                    newarr = newarr.concat(this.getArrayForRange(csv[j]));
+                                }
+                            }
+                        } else if (nodes[i].includes('-')) {
+                            newarr = newarr.concat(this.getArrayForRange(nodes[i]));
+                        } else {
+                            newarr.push(nodes[i]);
+                        }
+                    } else {
+                        newarr.push(0);
+                    }
+                }
+            }
+        }
+        return newarr;
+    }
+
+    public getArrayForRange(range: string) {
+        const r = range.split('-');
+        const arr = [];
+        r.sort();
+        for (let i = parseInt(r[0], 10); i <= parseInt(r[1], 10); i++) {
+            arr.push(i);
+        }
+        return arr;
     }
 }

@@ -1,4 +1,4 @@
-import {Component} from '@angular/core';
+import {Component, ViewEncapsulation} from '@angular/core';
 import {BackendService} from '../_service/backend.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {PreferencesService} from '../_service/preferences.service';
@@ -8,6 +8,7 @@ import {FormBuilder, FormControl} from "@angular/forms";
 
 
 @Component({
+    encapsulation: ViewEncapsulation.None,
     selector: 'app-fabrics',
     templateUrl: './fabrics.component.html',
     styleUrls: ['./fabrics.component.css']
@@ -19,7 +20,6 @@ export class FabricsComponent {
     fabricName: string;
     currentConfig: QueryBuilderConfig;
     queryCtrl: FormControl;
-
     config: QueryBuilderConfig = {
         fields: {
             address: {name: 'Address', type: 'string'},
@@ -62,7 +62,7 @@ export class FabricsComponent {
         });
     }
 
-    onChange() {
+    updateQueryText() {
         this.queryText = this.queryToText();
     }
 
@@ -71,7 +71,7 @@ export class FabricsComponent {
             case 'string':
                 return "'" + value + "'";
             case 'boolean':
-                return value ? '1' : '0';
+                return value ? 'true' : 'false';
             case 'number':
                 if (isFinite(value)) return value;
         }

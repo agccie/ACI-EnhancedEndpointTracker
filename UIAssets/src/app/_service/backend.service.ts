@@ -62,43 +62,43 @@ export class BackendService {
         }
     }
 
-    getFilteredEndpoints(fabricName,sorts=[],offsubnetFilter=false, staleFilter=false,activeFilter=false,rapidFilter=false,tab='endpoint',pageOffset=0,pageSize=25):Observable<EndpointList> {
+    getFilteredEndpoints(fabricName, sorts = [], offsubnetFilter = false, staleFilter = false, activeFilter = false, rapidFilter = false, tab = 'endpoint', pageOffset = 0, pageSize = 25): Observable<EndpointList> {
         let conditions = '';
-        let fabricFilter = 'eq("fabric","' + fabricName + '")' ;
-        let count = 0 ;
-        let sortsStr = '' ;
-        if(offsubnetFilter) {
-            conditions+=',eq("is_offsubnet",' + offsubnetFilter + ')' ;
-            count++ ;
+        let fabricFilter = 'eq("fabric","' + fabricName + '")';
+        let count = 0;
+        let sortsStr = '';
+        if (offsubnetFilter) {
+            conditions += ',eq("is_offsubnet",' + offsubnetFilter + ')';
+            count++;
         }
-        if(staleFilter) {
-            conditions+=',eq("is_stale",' + staleFilter + ')' ;
-            count++ ;
+        if (staleFilter) {
+            conditions += ',eq("is_stale",' + staleFilter + ')';
+            count++;
         }
-        if(activeFilter) {
-            conditions+=',or(eq("events.0.status","created"),eq("events.0.status","modified"))' ;
-            count++ ;
+        if (activeFilter) {
+            conditions += ',or(eq("events.0.status","created"),eq("events.0.status","modified"))';
+            count++;
         }
-        if(rapidFilter) {
-            conditions+=',eq("is_rapid",' + rapidFilter + ')' ;
-            count++ ;
+        if (rapidFilter) {
+            conditions += ',eq("is_rapid",' + rapidFilter + ')';
+            count++;
         }
-        if(count > 1) {
-            conditions = conditions.replace(',','') ;
-            conditions = 'and(' + fabricFilter + ',or(' + conditions + '))' ;
-        }else if(count === 1){
-            conditions = 'and(' + fabricFilter  + conditions + ')' ;
-        }else{
+        if (count > 1) {
+            conditions = conditions.replace(',', '');
+            conditions = 'and(' + fabricFilter + ',or(' + conditions + '))';
+        } else if (count === 1) {
+            conditions = 'and(' + fabricFilter + conditions + ')';
+        } else {
             conditions = fabricFilter
         }
-        if(sorts.length > 0) {
-            sortsStr = '&sort='+this.getSortsArrayAsString(sorts) ;
+        if (sorts.length > 0) {
+            sortsStr = '&sort=' + this.getSortsArrayAsString(sorts);
 
         }
-        let url = this.baseUrl + '/ept/' + tab + '?page-size=' + pageSize +'&page='+pageOffset + '&filter=' + conditions + sortsStr ;
-        return this.http.get<EndpointList>(url) ;
+        let url = this.baseUrl + '/ept/' + tab + '?page-size=' + pageSize + '&page=' + pageOffset + '&filter=' + conditions + sortsStr;
+        return this.http.get<EndpointList>(url);
     }
-        
+
     getEndpoint(fabricName, vnid, address): Observable<EndpointList> {
         return this.http.get<EndpointList>(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address);
     }
@@ -116,7 +116,7 @@ export class BackendService {
     }
 
     deleteEndpoint(fabricName: String, vnid, address) {
-        return this.http.delete(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address +'/delete');
+        return this.http.delete(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address + '/delete');
     }
 
     login(username, password) {
@@ -266,21 +266,18 @@ export class BackendService {
         return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/history/node-' + node + '/vnid-' + vnid + '/addr-' + address);
     }
 
-    offsubnetStaleEndpointHistory(fabric,vnid,address,endpointState,table) {
-        
-        return this.http.get(this.baseUrl + '/ept/'+ table + '?filter=and(eq("' + endpointState +'",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))') ;
+    offsubnetStaleEndpointHistory(fabric, vnid, address, endpointState, table) {
+
+        return this.http.get(this.baseUrl + '/ept/' + table + '?filter=and(eq("' + endpointState + '",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))');
     }
 
-    testEmailNotifications(type:String,fabricName:String) {
-        return this.http.post(this.baseUrl + '/uni/fb-' + fabricName + '/settings-default/test/' + type,{}) ;
+    testEmailNotifications(type: String, fabricName: String) {
+        return this.http.post(this.baseUrl + '/uni/fb-' + fabricName + '/settings-default/test/' + type, {});
     }
 
-    dataplaneRefresh(fabricName:String,vnid:String,address:String) {
+    dataplaneRefresh(fabricName: String, vnid: String, address: String) {
         return this.http.post(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address + '/refresh', {});
     }
-
-
-
 
 
 }

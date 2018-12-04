@@ -1,66 +1,64 @@
-<h3>Connectivity</h3><br>        
-        <div style="margin-left:1%">
-            <div class="row half-margin-bottom">
-                <div class="col-md-12">
-                    <div class="form-group">
-                        <div class="form-group__text">
-                            <input type="text"  id="hostname" [disabled]="app_mode" [(ngModel)]="prefs['fabric']['apic_hostname']">
-                            <label for="hostname">Hostname</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="row half-margin-bottom" *ngIf="app_mode">
-                <div class="col-md-12">
-                    <div class="form-group">
-                        <div class="form-group__text">
-                            <input type="text" [disabled]="app_mode" [(ngModel)]="prefs['fabric']['apic_cert']">
-                            <label>Certificate File</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="row half-margin-bottom">
-                <div class="col-md-12">
-                    <div class="form-group">
-                        <div class="form-group__text">
-                            <input type="text" [(ngModel)]="prefs['fabric']['apic_username']" [disabled]="app_mode">
-                            <label>APIC Username</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="row half-margin-bottom" *ngIf="!app_mode">
-                <div class="col-md-12">
-                    <div class="form-group">
-                        <div class="form-group__text">
-                            <input type="password" [(ngModel)]="prefs['fabric']['apic_password']" >
-                            <label>APIC Password</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="row half-margin-bottom">
-                <div class="col-md-12">
-                    <div class="form-group">
-                        <div class="form-group__text">
-                            <input type="text" [(ngModel)]="prefs['fabric']['ssh_username']" >
-                            <label>SSH Username</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="row half-margin-bottom">
-                <div class="col-md-12">
-                    <div class="form-group">
-                        <div class="form-group__text">
-                            <input type="password" [(ngModel)]="prefs['fabric']['ssh_password']" >
-                            <label>SSH Password</label>
-                        </div>
-                    </div>
-                </div>
+<h3>Connectivity</h3><br>
+<div class="row half-margin-bottom">
+    <div class="col-md-12">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="text" id="hostname" [disabled]="app_mode"
+                       [(ngModel)]="prefs['fabric']['apic_hostname']">
+                <label for="hostname">Hostname</label>
             </div>
         </div>
-      
-
-      
+    </div>
+</div>
+<div class="row half-margin-bottom" *ngIf="app_mode">
+    <div class="col-md-12">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="text" id="certificate" [disabled]="app_mode"
+                       [(ngModel)]="prefs['fabric']['apic_cert']">
+                <label for="certificate">Certificate File</label>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row half-margin-bottom">
+    <div class="col-md-12">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="text" id="apic_username" [(ngModel)]="prefs['fabric']['apic_username']"
+                       [disabled]="app_mode">
+                <label for="apic_username">APIC Username</label>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row half-margin-bottom" *ngIf="!app_mode">
+    <div class="col-md-12">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="password" id="apic_password" [(ngModel)]="prefs['fabric']['apic_password']">
+                <label for="apic_password">APIC Password</label>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row half-margin-bottom">
+    <div class="col-md-12">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="text" id="ssh_username" [(ngModel)]="prefs['fabric']['ssh_username']">
+                <label for="ssh_username">SSH Username</label>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row half-margin-bottom">
+    <div class="col-md-12">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="password" id="ssh_password" [(ngModel)]="prefs['fabric']['ssh_password']">
+                <label for="ssh_password">SSH Password</label>
+            </div>
+        </div>
+    </div>
+</div>

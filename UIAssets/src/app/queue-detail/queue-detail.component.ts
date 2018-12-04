@@ -100,6 +100,11 @@ export class QueueDetailComponent implements OnInit {
         });
     }
 
+    public onChartInstance(chart: any) {
+        this.chart = chart;
+        this.makeCharts();
+    }
+
     private makeCharts(statsType = '1') {
         this.dropDownValue = this.statsTypes.get(statsType)['value'];
         const stats = this.queue[this.statsTypes.get(statsType)['index']];
@@ -113,10 +118,5 @@ export class QueueDetailComponent implements OnInit {
         this.chart.series[0].setData(rx_data);
         this.chart.series[1].setData(tx_data);
         this.chart.zoomOut()
-    }
-
-    public onChartInstance(chart: any) {
-        this.chart = chart;
-        this.makeCharts();
     }
 }

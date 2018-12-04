@@ -11,11 +11,11 @@ import {filter} from "rxjs/operators";
 })
 
 export class AppComponent implements OnInit, OnDestroy {
-    private stopListening: () => void;
     ls = localStorage;
     app_mode = environment.app_mode;
     konami: boolean;
     login_required: boolean;
+    private stopListening: () => void;
 
     constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService) {
     }

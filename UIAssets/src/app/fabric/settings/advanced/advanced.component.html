@@ -1,75 +1,53 @@
 <h3>Advanced</h3><br>
-<!--<div class="row" *ngFor="let inp of inputs">
+<div class="row half-margin-bottom">
     <div class="col-md-12">
-        <div class="form-group label--inline" *ngIf="inp.type==='text' || inp.type==='number'">
-            <div class="form-group__text">
-                <input id="input-layout-inline" [type]="inp.type" [(ngModel)]="prefs['fabricSettings'][inp.model]"
-                       [min]='inp.min' [max]='inp.max' required>
-                <label class="col-3" for="input-layout-inline">{{ inp.name }}</label>
-            </div>
-        </div>
-        <div class="form-group half-margin-bottom label--inline" *ngIf="inp.type==='boolean'">
-            <div class="form-group__text select">
-                <select id="input-type-select" [(ngModel)]="prefs['fabricSettings'][inp.model]">
-                    <option value="false">No</option>
-                    <option value="true">Yes</option>
-                </select>
-                <label class="col-3" for="input-type-select">{{ inp.name }}</label>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-12" *ngIf="!inp.hidden">
-        &nbsp;
-    </div>
-</div>-->
-
-<div style="margin-left:1%">
-    <div class="row half-margin-bottom">
         <blockquote class="">
             Each analysis feature can be enabled/disabled as needed. Disabling analysis for uninteresting events can
             improve worker efficiency. By default, analysis is enabled for all events.
             See the online documentation for more information about each feature.
         </blockquote>
     </div>
-    <div class="row base-margin-bottom">
-        <div class="col-md-3">
-            <div class="form-group">
-                <label class="switch">
-                    <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['analyze_move']">
-                    <span class="switch__input"></span>
-                    <span class="switch__label">Analyze Move</span>
-                </label>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="form-group">
-                <label class="switch">
-                    <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['analyze_offsubnet']">
-                    <span class="switch__input"></span>
-                    <span class="switch__label">Analyze OffSubnet</span>
-                </label>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="form-group">
-                <label class="switch">
-                    <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['analyze_stale']">
-                    <span class="switch__input"></span>
-                    <span class="switch__label">Analyze Stale</span>
-                </label>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="form-group">
-                <label class="switch">
-                    <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['analyze_rapid']">
-                    <span class="switch__input"></span>
-                    <span class="switch__label">Analyze Rapid</span>
-                </label>
-            </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-3">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['analyze_move']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Analyze Move</span>
+            </label>
         </div>
     </div>
-    <div class="row base-margin-bottom">
+    <div class="col-md-3">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['analyze_offsubnet']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Analyze OffSubnet</span>
+            </label>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['analyze_stale']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Analyze Stale</span>
+            </label>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['analyze_rapid']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Analyze Rapid</span>
+            </label>
+        </div>
+    </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-12">
         <blockquote class="">
             Fabric monitor events (i.e., starting and stopping the monitor) are wrapped at a configurable count.
             Endpoint events are also wrapped within the database. Some events, such as local endpoint history and
@@ -77,33 +55,37 @@
             wrapped per node and per endpoint.
         </blockquote>
     </div>
-    <div class="row base-margin-bottom">
-        <div class="col-md-3">
-            <div class="form-group">
-                <div class="form-group__text">
-                    <input type="number" [(ngModel)]="prefs['fabricSettings']['max_events']">
-                    <label>Max Fabric Monitor Events</label>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="form-group">
-                <div class="form-group__text">
-                    <input type="number" [(ngModel)]="prefs['fabricSettings']['max_endpoint_events']">
-                    <label>Max Endpoint Events</label>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="form-group">
-                <div class="form-group__text">
-                    <input type="number" [(ngModel)]="prefs['fabricSettings']['max_per_node_endpoint_events']">
-                    <label>Max Per-Node Endpoint Events</label>
-                </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-4">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" id="max_events" [(ngModel)]="prefs['fabricSettings']['max_events']">
+                <label for="max_events">Max Fabric Monitor Events</label>
             </div>
         </div>
     </div>
-    <div class="row base-margin-bottom">
+    <div class="col-md-4">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" id='max_endpoint_events'
+                       [(ngModel)]="prefs['fabricSettings']['max_endpoint_events']">
+                <label for="max_endpoint_events">Max Endpoint Events</label>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" id='max_per_node_endpoint_events'
+                       [(ngModel)]="prefs['fabricSettings']['max_per_node_endpoint_events']">
+                <label for="max_per_node_endpoint_events">Max Per-Node Endpoint Events</label>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-12">
         <blockquote class="">
             It is helpful be notified when an endpoint creating a high number of events. This often indicates
             that the endpoint is unstable.
@@ -116,36 +98,38 @@
             is no longer marked as rapid.
         </blockquote>
     </div>
-    <div class="row base-margin-bottom">
-        <div class="col-md-3">
-            <div class="form-group">
-                <label class="switch">
-                    <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['refresh_rapid']">
-                    <span class="switch__input"></span>
-                    <span class="switch__label">Rapid Refresh</span>
-                </label>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-12">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['refresh_rapid']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Rapid Refresh</span>
+            </label>
+        </div>
+    </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-6">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" id="rapid_threshold" [(ngModel)]="prefs['fabricSettings']['rapid_threshold']">
+                <label for="rapid_threshold">Rapid Event Threshold</label>
             </div>
         </div>
     </div>
-    <div class="row base-margin-bottom">
-        <div class="col-md-3">
-            <div class="form-group">
-                <div class="form-group__text">
-                    <input type="number" [(ngModel)]="prefs['fabricSettings']['rapid_threshold']">
-                    <label>Rapid Event Threshold</label>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="form-group">
-                <div class="form-group__text">
-                    <input type="number" [(ngModel)]="prefs['fabricSettings']['rapid_holdtime']">
-                    <label>Rapid Holdtime (seconds)</label>
-                </div>
+    <div class="col-md-6">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" id="rapid_holdtime" [(ngModel)]="prefs['fabricSettings']['rapid_holdtime']">
+                <label for="rapid_holdtime">Rapid Holdtime (seconds)</label>
             </div>
         </div>
     </div>
-    <div class="row base-margin-bottom">
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-12">
         <blockquote class="">
             When stale analysis is enabled, there are a few events that user may not wish to be treated as a stale
             event. A stale endpoint is generally a remote learn (XR) pointing to a leaf where the endpoint is
@@ -156,27 +140,29 @@
             which are expected to be learned on both nodes within the vpc.
         </blockquote>
     </div>
-    <div class="row base-margin-bottom">
-        <div class="col-md-3">
-            <div class="form-group">
-                <label class="switch">
-                    <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['stale_no_local']">
-                    <span class="switch__input"></span>
-                    <span class="switch__label">Stale-no-local</span>
-                </label>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="form-group">
-                <label class="switch">
-                    <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['stale_multiple_local']">
-                    <span class="switch__input"></span>
-                    <span class="switch__label">Stale-multiple-local</span>
-                </label>
-            </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-6">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['stale_no_local']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Stale-no-local</span>
+            </label>
         </div>
     </div>
-    <div class="row base-margin-bottom">
+    <div class="col-md-6">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['stale_multiple_local']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Stale-multiple-local</span>
+            </label>
+        </div>
+    </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-12">
         <blockquote class="">
             subscriptions are enabled for several MOs during the initial db build. If events are received on the
             subscription
@@ -187,24 +173,24 @@
             initialization, in which case queue events should be disabled.
         </blockquote>
     </div>
-    <div class="row base-margin-bottom">
-        <div class="col-md-3">
-            <div class="form-group">
-                <label class="switch">
-                    <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['queue_init_events']">
-                    <span class="switch__input"></span>
-                    <span class="switch__label">Queue initial events</span>
-                </label>
-            </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-6">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['queue_init_events']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Queue initial events</span>
+            </label>
         </div>
-        <div class="col-md-3">
-            <div class="form-group">
-                <label class="switch">
-                    <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['queue_init_epm_events']">
-                    <span class="switch__input"></span>
-                    <span class="switch__label">Queue initial endpoint events</span>
-                </label>
-            </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['queue_init_epm_events']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Queue initial endpoint events</span>
+            </label>
         </div>
     </div>
 </div>

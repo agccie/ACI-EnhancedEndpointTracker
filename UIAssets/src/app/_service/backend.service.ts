@@ -287,8 +287,12 @@ export class BackendService {
         return this.http.get<EndpointList>(this.baseUrl + `/uni/fb-${fabricName}/remediate/node-${node}/vnid-${vnid}/addr-${address}`)
     }
 
-    getAllOffsubnetEndpoints():Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + '/ept/offsubnet') ;
+    getAllOffsubnetStaleEndpoints(fabric:String,vnid:String,address:String,table:String):Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + `/ept/${table}?filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`) ;
+    }
+
+    clearNodes(fabric:String,vnid:String,addr:String,nodeList:Array<Number>) {
+        return this.http.post(this.baseUrl + `/uni/fb-${fabric}/endpoint/vnid-${vnid}/addr-${addr}/clear`,nodeList)
     }
 
 

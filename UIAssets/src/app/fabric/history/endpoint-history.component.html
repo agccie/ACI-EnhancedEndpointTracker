@@ -105,26 +105,50 @@
 
        <ng-template #clearMsg>
             <div class="modal__header">
-                <h1>Clear Endpoints</h1>
+                <h2>Clear Endpoints</h2>
             </div>
             <div class="modal__body">
                 <div class="form-group">
-                    <label for="endpoints">Endpoints</label>
+                        <label for="endpoints">Endpoints</label>
                     <ng-select
                             class="text-left"
                             id="endpoints"
                             name="endpoints"
-                            [multiple]="true"
-                            [hideSelected]="true"
                             bindLabel="label"
                             bindValue="value"
+                            placeholder="Enter range or comma seperated nodes to be cleared here (e.g. 100-150, 101,102,105)"
+                            [isOpen]="false"
+                            [multiple]="true"
+                            [hideSelected]="true"
                             [addTag]="addNodes"
                             [(ngModel)]="clearNodes"
-                            (add)="onClearDropdownAdd($event)"
-                            (remove)="onClearDropdownRemove($event)"
-                    >
+                            [items]="clearEndpointOptions">
                     </ng-select>
                 </div>
+                <div align="left" style="margin-top:2%">
+                        <span style="vertical-align:top">Presets&nbsp;&nbsp;</span>
+                         <div class="form-group form-group--inline form-group--loose">
+                                 <label class="checkbox">
+                                     <input type="checkbox" checked>
+                                     <span class="checkbox__input"></span>
+                                     <span class="checkbox__label">Select All Nodes</span>
+                                 </label>
+                             </div>
+                             <div class="form-group form-group--inline form-group--loose">
+                                 <label class="checkbox">
+                                     <input type="checkbox">
+                                     <span class="checkbox__input"></span>
+                                     <span class="checkbox__label">Offsubnet Nodes</span>
+                                 </label>
+                             </div>
+                             <div class="form-group form-group--inline form-group--loose">
+                                 <label class="checkbox">
+                                     <input type="checkbox">
+                                     <span class="checkbox__input"></span>
+                                     <span class="checkbox__label">Stale Nodes</span>
+                                 </label>
+                             </div>
+                    </div>
             </div>
             <div class="modal__footer">
                 <button class="btn" (click)="clearEndpoints()">Submit</button>
@@ -135,34 +159,34 @@
 <ng-template #errorMsg>
         <div class="modal__body">
                 <div class="col-xl-12">
-                        <div class="alert alert--success" *ngIf="modalIcon === 'success'">
+                        <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
                             <div class="alert__icon icon-check-outline"></div>
                             <div class="alert__message text-left">
-                                <h4>{{modalTitle}}</h4>
-                                <div>{{modalBody}}</div>
+                                <h4>{{modalService.modalTitle}}</h4>
+                                <div>{{modalService.modalBody}}</div>
                             </div>
                         </div>
                 </div>
-                <div class="alert alert--danger" *ngIf="modalIcon === 'error'">
+                <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
                         <div class="alert__icon icon-error-outline"></div>
                         <div class="alert__message text-left">
-                            <h4>{{modalTitle}}</h4>
-                            <div>{{modalBody}}</div>
+                            <h4>{{modalService.modalTitle}}</h4>
+                            <div>{{modalService.modalBody}}</div>
                         </div>
                 </div>
-                <div class="alert alert--info" *ngIf="modalIcon === 'info'">
+                <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
                         <div class="alert__icon icon-info-outline"></div>
                         <div class="alert__message text-left">
-                            <h4>{{modalTitle}}</h4>
-                            <div>{{modalBody}}</div>
+                            <h4>{{modalService.modalTitle}}</h4>
+                            <div>{{modalService.modalBody}}</div>
                         </div>
                 </div>
                 
-        <div class="modal__footer" *ngIf="!decisionBox">
+        <div class="modal__footer" *ngIf="!modalService.decisionBox">
                 <button class="btn" (click)="modalService.hideModal()">Ok</button>
         </div>
-        <div class="modal__footer" *ngIf="decisionBox">
-                <button class="btn btn--primary" (click)="runFunction()">Proceed</button>
+        <div class="modal__footer" *ngIf="modalService.decisionBox">
+                <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
                 <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
         </div>
          

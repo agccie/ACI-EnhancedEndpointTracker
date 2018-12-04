@@ -136,8 +136,6 @@ del {
       padding-top:10px;
     }
 
-    .ng-select .ng-select-container .ng-value-container .ng-input>input {
-        background:whitesmoke ;
-    }
+    .ng-select .ng-arrow-wrapper { display:none }
 
     

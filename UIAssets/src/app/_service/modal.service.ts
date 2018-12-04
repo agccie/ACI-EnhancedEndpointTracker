@@ -1,4 +1,4 @@
-import {Injectable, TemplateRef} from '@angular/core';
+import {Injectable, TemplateRef, Component} from '@angular/core';
 import {BsModalRef, BsModalService} from 'ngx-bootstrap';
 
 @Injectable({
@@ -14,6 +14,7 @@ export class ModalService {
     modalIcon: String;
     decisionBox = false ;
     callback:any ;
+    callbackContext:any ;
 
     constructor(private modalService: BsModalService) {
         this.modalTitle = 'Error';
@@ -38,17 +39,22 @@ export class ModalService {
         if(context === undefined) {
             context = this ;
         }
-        context.modalIcon = modalIcon ;
-        context.modalTitle = modalTitle ;
-        context.modalBody = modalBody ;
+        this.modalIcon = modalIcon ;
+        this.modalTitle = modalTitle ;
+        this.modalBody = modalBody ;
+        this.decisionBox = decisionBox ;
         context.decisionBox = decisionBox ;
+        this.template = modalRef ;
         context.callback = callback ;
+        this.callback = callback;
+        this.callbackContext = context ;
+        this.template = modalRef ;
         this.openModal(modalRef) ;
     }
 
     runCallback() {
         if(this.callback !== undefined) {
-            this.callback() ;
+            this.callbackContext.callback() ;
         }
         
     }

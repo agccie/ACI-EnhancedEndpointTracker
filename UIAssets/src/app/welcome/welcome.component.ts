@@ -6,6 +6,7 @@ import {PreferencesService} from "../_service/preferences.service";
 import {forkJoin} from "rxjs";
 import {Fabric} from "../_model/fabric";
 import {BsModalRef, BsModalService} from "ngx-bootstrap";
+import { ModalService } from '../_service/modal.service';
 
 
 @Component({
@@ -28,8 +29,9 @@ export class WelcomeComponent implements OnInit {
     modalRef: BsModalRef;
 
     @ViewChild('myTable') table: any;
-
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private modalService: BsModalService) {
+    @ViewChild('errorMsg') msgModal:TemplateRef<any> ;
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private modalService: BsModalService,
+    public localModalService:ModalService) {
         this.rows = [];
         this.showFabricModal = false;
         this.fabrics = [];
@@ -63,6 +65,8 @@ export class WelcomeComponent implements OnInit {
                         this.loading = false;
                     }, (error) => {
                         this.loading = false;
+                        const msg = 'Failed to load fabrics! ' + error['error']['error'] ;
+                        this.localModalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
                     });
                 }
             },
@@ -116,6 +120,11 @@ export class WelcomeComponent implements OnInit {
             (data) => {
                 this.hideModal();
                 this.getFabrics();
+            },
+            (error) => {
+                this.hideModal() ;
+                const msg = 'Failed to create fabric! ' + error['error']['error'] ;
+                this.localModalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
             }
         );
     }
@@ -126,10 +135,13 @@ export class WelcomeComponent implements OnInit {
             this.hideModal();
             this.getFabrics();
         }, (err) => {
+            let msg = 'Failed to delete fabric!'
+            this.hideModal() ;
             if (err['error'] !== undefined && err['error']['error'] !== undefined) {
-            } else {
-            }
+                 msg += ' ' + err['error']['error'] ;
+            } 
             this.loading = false;
+            this.localModalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
         });
     }
 

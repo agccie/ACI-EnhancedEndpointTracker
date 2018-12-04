@@ -1,11 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, TemplateRef } from '@angular/core';
 import { BackendService } from '../../../_service/backend.service';
 import { PreferencesService } from '../../../_service/preferences.service';
+import { ModalService } from '../../../_service/modal.service';
 
 @Component({
   selector: 'app-rapid',
   templateUrl: './rapid.component.html',
-  styleUrls: ['./rapid.component.css']
 })
 export class RapidComponent implements OnInit {
 
@@ -15,7 +15,8 @@ export class RapidComponent implements OnInit {
   loading=true;
   pageSize = 25 ;
   sorts = [{ prop:'events[0].ts' , dir:'desc'}] ;
-  constructor(private backendService:BackendService, private prefs: PreferencesService) { 
+  @ViewChild('errorMsg') msgModal : TemplateRef<any> ;
+  constructor(private backendService:BackendService, private prefs: PreferencesService, public modalService:ModalService) { 
     this.endpoint = this.prefs.selectedEndpoint ;
     this.rows = [] ;
     
@@ -38,6 +39,8 @@ export class RapidComponent implements OnInit {
       },
       (error) => {
           this.loading = false;
+          const msg = 'Failed to load rapid endpoints! ' + error['error']['error'] ;
+          this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
       }
     )
   }

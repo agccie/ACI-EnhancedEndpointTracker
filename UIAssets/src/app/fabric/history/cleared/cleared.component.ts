@@ -1,11 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, TemplateRef } from '@angular/core';
 import { BackendService } from '../../../_service/backend.service';
 import { PreferencesService } from '../../../_service/preferences.service';
+import { ModalService } from '../../../_service/modal.service';
 
 @Component({
   selector: 'app-cleared',
   templateUrl: './cleared.component.html',
-  styleUrls: ['./cleared.component.css']
 })
 export class ClearedComponent implements OnInit {
 
@@ -14,7 +14,8 @@ export class ClearedComponent implements OnInit {
   loading=true;
   pageSize = 25 ;
   sorts = [{ prop:'events[0].ts' , dir:'desc'}] ;
-  constructor(private backendService:BackendService, private prefs: PreferencesService) { 
+  @ViewChild('errorMsg') msgModal : TemplateRef<any> ;
+  constructor(private backendService:BackendService, private prefs: PreferencesService, public modalService:ModalService) { 
     this.endpoint = this.prefs.selectedEndpoint ;
     this.rows = [] ;
     
@@ -43,6 +44,8 @@ export class ClearedComponent implements OnInit {
       },
       (error) => {
           this.loading = false;
+          const msg = 'Failed to load cleared endpoints! ' + error['error']['error'] ;
+          this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
       }
   )
   }

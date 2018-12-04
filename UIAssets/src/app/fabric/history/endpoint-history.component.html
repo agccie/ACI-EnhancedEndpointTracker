@@ -11,7 +11,7 @@
             <div class="dropdown__menu">
                 <a (click)="onClickOfRefresh()">Refresh events</a>
                 <a (click)="onClickOfDelete()">Clear events</a>
-                <a (click)="showClearModal = true">Clear endpoint</a>
+                <a (click)="onClickOfClear()">Clear endpoint</a>
             </div>
         </div>
     </div>
@@ -23,22 +23,40 @@
 </div>
 <div *ngIf="!loading">
     <div class="panel panel--bordered">
-        <div *ngIf="staleoffsubnetDetails != ''">
+        <div *ngIf="endpoint?.is_offsubnet">
             <div class="row">
-                <div class="col-md-12">
-                    {{ staleoffsubnetDetails }}
-                </div>
+                    <div class="col-md-12">
+                            <span class="label label--danger">offsubnet</span>
+                            <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
+                        <span *ngFor='let node of offsubnetList' class="label label--dkgray">{{node}}</span>
+                    </div>
+                
             </div>
+        </div>
+        <div *ngIf="endpoint?.is_stale">
+                <div class="row">
+                        <div class="col-md-12">
+                                <span class="label label--danger">Stale</span>
+                                <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
+                            <span *ngFor='let node of staleList' class="label label--dkgray">{{node}}</span>
+                        </div>
+                </div>
+        </div>
+        <div *ngIf="endpoint?.is_rapid">
+                <div class="row">
+                        <div class="col-md-12">
+                                <span class="label label--danger">Rapid</span>
+                        </div>
+                </div>
+        </div>
             <div class="row">
                 <div class="col-md-12">
                     &nbsp;
                 </div>
             </div>
-        </div>
         <div *ngIf="fabricDetails != ''">
             <div class="row">
-                <div class="col-md-12">
-                    {{ fabricDetails }}
+                <div class="col-md-12" [innerHTML]='fabricDetails'>
                 </div>
             </div>
             <div class="row">
@@ -50,10 +68,14 @@
         <div *ngIf="endpointStatus != ''">
             <div class="row">
                 <div class="col-md-12">
-                    <strong>{{ endpointStatus }}</strong>
+                    <span [innerHTML]='endpointStatus'></span>
+                    <span *ngIf="rw_mac !== ''">, mac 
+                        <a [routerLink]="['/fabric',this.endpoint.fabric,'history',rw_bd,rw_mac]">{{rw_mac}}</a>
+                    </span>
                 </div>
             </div>
         </div>
+    </div>
     </div>
     <br>
     <div class="panel">
@@ -79,7 +101,7 @@
             </div>
         </div>
     </div>
-</div>
+
 
        <ng-template #clearMsg>
             <div class="modal__header">
@@ -91,7 +113,7 @@
                     <ng-select
                             class="text-left"
                             id="endpoints"
-                            name="nodes"
+                            name="endpoints"
                             [items]="clearEndpointOptions"
                             [multiple]="true"
                             [hideSelected]="true"
@@ -99,13 +121,15 @@
                             bindValue="value"
                             [addTag]="addNodes"
                             [(ngModel)]="clearNodes"
+                            (add)="onClearDropdownAdd($event)"
+                            (remove)="onClearDropdownRemove($event)"
                     >
                     </ng-select>
                 </div>
             </div>
             <div class="modal__footer">
                 <button class="btn" (click)="clearEndpoints()">Submit</button>
-                <button class="btn" (click)="showClearModal = false">Cancel</button>
+                <button class="btn" (click)="modalService.hideModal()">Cancel</button>
             </div>
         </ng-template>
 
@@ -139,7 +163,7 @@
                 <button class="btn" (click)="modalService.hideModal()">Ok</button>
         </div>
         <div class="modal__footer" *ngIf="decisionBox">
-                <button class="btn btn--primary" (click)="callback()">Proceed</button>
+                <button class="btn btn--primary" (click)="runFunction()">Proceed</button>
                 <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
         </div>
          

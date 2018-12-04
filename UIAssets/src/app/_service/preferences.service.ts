@@ -1,6 +1,7 @@
 import {Injectable} from '@angular/core';
 import {FabricSettings} from '../_model/fabric-settings';
 import {Fabric} from '../_model/fabric';
+import { Endpoint } from '../_model/endpoint';
 
 @Injectable({
     providedIn: 'root'
@@ -9,7 +10,7 @@ import {Fabric} from '../_model/fabric';
 export class PreferencesService {
     pageSize = 10;
     endpointDetailsObject: any;
-    selectedEndpoint = {};
+    selectedEndpoint={};
     fabricSettings: FabricSettings;
     fabric: Fabric;
     checkedThreadStatus = false;

@@ -75,7 +75,7 @@ export class EndpointsComponent implements OnInit {
                     this.endpoints.push(endpoint);
                     this.rows.push(endpoint);
                 }
-                this.count = data['count'];
+                this.pagingService.count = data['count'];
             },
             (error) => {
                 this.loading = false;

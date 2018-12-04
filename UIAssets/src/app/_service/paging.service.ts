@@ -23,7 +23,5 @@ export class PagingService {
   setSorts(sorts) {
     this.sorts = sorts ;
   }
-
-  
     
 }

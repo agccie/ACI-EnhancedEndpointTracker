@@ -2,7 +2,8 @@
     <div class="col-md-12">
         <div class="alert">
             <div class="alert__icon icon-info-outline"></div>
-            <div class="alert__message">This is historic data. Check the endpoints tab to validate the current status</div>
+            <div class="alert__message">This is historic data. Check the endpoints tab to validate the current status
+            </div>
         </div>
     </div>
     <div class="col-md-12">
@@ -49,19 +50,19 @@
                         </a>
                     </ng-template>
                 </ngx-datatable-column>
-                    <ngx-datatable-column prop="event_count" name="Event Count" [sortable]="true" [flexGrow]="0.1">
-                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                {{ row['ept.rapid'].count }}
-                            </ng-template>
-                        </ngx-datatable-column>
-                        <ngx-datatable-column prop="rate_per_minute" name="Rate(/minute)" [sortable]="true" [flexGrow]="0.2">
-                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                {{ row['ept.rapid'].events[0].rate | number : '1.0-0' }}
-                            </ng-template>
-                        </ngx-datatable-column>
+                <ngx-datatable-column prop="event_count" name="Event Count" [sortable]="true" [flexGrow]="0.1">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row['ept.rapid'].count }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="rate_per_minute" name="Rate(/minute)" [sortable]="true" [flexGrow]="0.2">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row['ept.rapid'].events[0].rate | number : '1.0-0' }}
+                    </ng-template>
+                </ngx-datatable-column>
                 <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.3">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                {{ row['ept.rapid'].events[0].vnid_name}}
+                        {{ row['ept.rapid'].events[0].vnid_name}}
                     </ng-template>
                 </ngx-datatable-column>
             </ngx-datatable>

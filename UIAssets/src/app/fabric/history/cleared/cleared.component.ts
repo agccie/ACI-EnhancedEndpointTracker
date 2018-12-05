@@ -7,8 +7,8 @@ import { ModalService } from '../../../_service/modal.service';
   selector: 'app-cleared',
   templateUrl: './cleared.component.html',
 })
-export class ClearedComponent implements OnInit {
 
+export class ClearedComponent {
   endpoint:any ;
   rows:any ;
   loading=true;
@@ -19,15 +19,6 @@ export class ClearedComponent implements OnInit {
     this.endpoint = this.prefs.selectedEndpoint ;
     this.rows = [] ;
     
-  }
-
-  ngOnInit() {
-    if (this.endpoint.events.length === 0) {
-      this.getClearedEndpoints(this.endpoint.fabric,this.endpoint.first_learn.node, this.endpoint.vnid, this.endpoint.addr);
-  } else {
-    this.getClearedEndpoints(this.endpoint.fabric,this.endpoint.events[0].node, this.endpoint.vnid, this.endpoint.addr);
-  }
-      
   }
 
   getClearedEndpoints(fabricName,node,vnid,address) {

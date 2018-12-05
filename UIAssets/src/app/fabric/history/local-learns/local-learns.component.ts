@@ -10,12 +10,12 @@ import { ModalService } from '../../../_service/modal.service';
 })
 export class LocalLearnsComponent implements OnInit {
     rows: any;
-    endpoint:any;
+    endpoint: any;
     loading = false;
     sorts = [{prop: 'ts', dir: 'desc'}];
     pageSize: number;
-    rw_bd='' ;
-    rw_mac='' ;
+    rw_bd = '';
+    rw_mac = '';
 
     constructor(private bs: BackendService, private prefs: PreferencesService) {
         this.pageSize = this.prefs.pageSize;
@@ -24,9 +24,9 @@ export class LocalLearnsComponent implements OnInit {
     ngOnInit() {
         this.endpoint = this.prefs.selectedEndpoint;
         this.rows = this.endpoint.events;
-        this.rw_bd = Endpoint.getEventProperties('rw_bd',this.endpoint) ;
-        this.rw_mac = Endpoint.getEventProperties('rw_mac',this.endpoint) ;
+        this.rw_bd = Endpoint.getEventProperties('rw_bd', this.endpoint);
+        this.rw_mac = Endpoint.getEventProperties('rw_mac', this.endpoint);
     }
 
-   
+
 }

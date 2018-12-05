@@ -25,35 +25,34 @@
     <div class="panel panel--bordered">
         <div *ngIf="endpoint?.is_offsubnet">
             <div class="row">
-                    <div class="col-md-12">
-                            <span class="label label--danger">offsubnet</span>
-                            <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
-                        <span *ngFor='let node of offsubnetList' class="label label--dkgray">{{node}}</span>
-                    </div>
-
+                <div class="col-md-12">
+                    <span class="label label--danger">offsubnet</span>
+                    <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
+                    <span *ngFor='let node of offsubnetList' class="label label--dkgray">{{ node }}</span>
+                </div>
             </div>
         </div>
         <div *ngIf="endpoint?.is_stale">
-                <div class="row">
-                        <div class="col-md-12">
-                                <span class="label label--danger">Stale</span>
-                                <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
-                            <span *ngFor='let node of staleList' class="label label--dkgray">{{node}}</span>
-                        </div>
-                </div>
-        </div>
-        <div *ngIf="endpoint?.is_rapid">
-                <div class="row">
-                        <div class="col-md-12">
-                                <span class="label label--danger">Rapid</span>
-                        </div>
-                </div>
-        </div>
             <div class="row">
                 <div class="col-md-12">
-                    &nbsp;
+                    <span class="label label--danger">Stale</span>
+                    <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
+                    <span *ngFor='let node of staleList' class="label label--dkgray">{{ node }}</span>
                 </div>
             </div>
+        </div>
+        <div *ngIf="endpoint?.is_rapid">
+            <div class="row">
+                <div class="col-md-12">
+                    <span class="label label--danger">Rapid</span>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                &nbsp;
+            </div>
+        </div>
         <div *ngIf="fabricDetails != ''">
             <div class="row">
                 <div class="col-md-12" [innerHTML]='fabricDetails'>
@@ -70,35 +69,34 @@
                 <div class="col-md-12">
                     <span [innerHTML]='endpointStatus'></span>
                     <span *ngIf="rw_mac !== ''">, mac
-                        <a [routerLink]="['/fabric',this.endpoint.fabric,'history',rw_bd,rw_mac]">{{rw_mac}}</a>
+                        <a [routerLink]="['/fabric',this.endpoint.fabric,'history',rw_bd,rw_mac]">{{ rw_mac }}</a>
                     </span>
                 </div>
             </div>
         </div>
     </div>
-    </div>
-    <br>
-    <div class="panel">
-        <div class="row">
-            <div class="col-md-12">
-                <div class="secondary-tabs">
-                    <ul class="tabs">
-                        <li *ngFor="let tab of tabs ; let i=index" id="i" class="tab" routerLinkActive="active">
-                            <a tabindex="i" [routerLink]="[tab.path]">
-                                <div class="tab__heading" title="tab.name">
-                                    <a class="btn btn--icon btn--small"><span [attr.class]=tab.icon></span></a>
-                                    {{ tab.name }}
-                                </div>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
+</div>
+<br>
+<div class="panel">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="secondary-tabs">
+                <ul class="tabs">
+                    <li *ngFor="let tab of tabs ; let i=index" id="i" class="tab" routerLinkActive="active">
+                        <a tabindex="i" [routerLink]="[tab.path]">
+                            <div class="tab__heading" title="tab.name">
+                                <a class="btn btn--icon btn--small"><span [attr.class]=tab.icon></span></a>
+                                {{ tab.name }}
+                            </div>
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
-        <div class="row">
-            <div class="col-md-12">
-                <router-outlet></router-outlet>
-            </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <router-outlet></router-outlet>
         </div>
     </div>
 
@@ -150,10 +148,6 @@
                              </div>
                     </div>
             </div>
-            <div class="modal__footer">
-                <button class="btn" (click)="clearEndpoints()">Submit</button>
-                <button class="btn" (click)="modalService.hideModal()">Cancel</button>
-            </div>
         </ng-template>
 
 <ng-template #errorMsg>
@@ -189,6 +183,5 @@
                 <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
                 <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
         </div>
-         
-        </div>  
-    </ng-template>
+    </div>
+</ng-template>

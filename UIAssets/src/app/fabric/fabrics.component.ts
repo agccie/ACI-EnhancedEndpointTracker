@@ -1,4 +1,4 @@
-import {Component, ViewEncapsulation} from '@angular/core';
+import {Component, OnDestroy, OnInit, ViewEncapsulation} from '@angular/core';
 import {BackendService} from '../_service/backend.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {PreferencesService} from '../_service/preferences.service';
@@ -14,9 +14,7 @@ import {FormBuilder, FormControl} from "@angular/forms";
     styleUrls: ['./fabrics.component.css']
 })
 
-export class FabricsComponent {
-    endpointExpanded: boolean;
-    configurationExpanded: boolean;
+export class FabricsComponent implements OnInit, OnDestroy {
     fabricName: string;
     currentConfig: QueryBuilderConfig;
     queryCtrl: FormControl;
@@ -49,9 +47,8 @@ export class FabricsComponent {
     queryText: string;
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private activatedRoute: ActivatedRoute, public modalService: ModalService, private formBuilder: FormBuilder) {
-        this.endpointExpanded = true;
-        this.configurationExpanded = false;
         this.queryText = '';
+        localStorage.setItem('menuVisible', 'true');
     }
 
     ngOnInit(): void {
@@ -60,6 +57,10 @@ export class FabricsComponent {
             this.queryCtrl = this.formBuilder.control(this.query);
             this.currentConfig = this.config;
         });
+    }
+
+    ngOnDestroy(): void {
+        localStorage.setItem('menuVisible', 'false');
     }
 
     updateQueryText() {

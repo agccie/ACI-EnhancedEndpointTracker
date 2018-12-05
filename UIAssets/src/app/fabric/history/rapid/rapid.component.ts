@@ -7,23 +7,18 @@ import { ModalService } from '../../../_service/modal.service';
   selector: 'app-rapid',
   templateUrl: './rapid.component.html',
 })
-export class RapidComponent implements OnInit {
-
-
+export class RapidComponent {
   endpoint:any ;
   rows:any ;
   loading=true;
   pageSize = 25 ;
   sorts = [{ prop:'events[0].ts' , dir:'desc'}] ;
   @ViewChild('errorMsg') msgModal : TemplateRef<any> ;
+
   constructor(private backendService:BackendService, private prefs: PreferencesService, public modalService:ModalService) { 
     this.endpoint = this.prefs.selectedEndpoint ;
     this.rows = [] ;
     
-  }
-
-  ngOnInit() {
-      this.getRapidEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr);
   }
 
   getRapidEndpoints(fabricName,vnid,address) {

@@ -6,7 +6,7 @@ import {environment} from '../../environments/environment';
 import {FabricSettings} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
 import {Fabric, FabricList} from "../_model/fabric";
-import {EndpointList, Endpoint} from "../_model/endpoint";
+import {EndpointList} from "../_model/endpoint";
 import {QueueList} from "../_model/queue";
 
 
@@ -279,11 +279,11 @@ export class BackendService {
         return this.http.post(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address + '/refresh', {});
     }
 
-    getRapidEndpoints(fabricName:String,vnid:String,address:String):Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + `/uni/fb-${fabricName}/rapid/vnid-${vnid}/addr-${address}`) ;
+    getRapidEndpoints(fabricName: String, vnid: String, address: String): Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + `/uni/fb-${fabricName}/rapid/vnid-${vnid}/addr-${address}`);
     }
 
-    getClearedEndpoints(fabricName:String,node:String,vnid:String,address:String):Observable<EndpointList>{
+    getClearedEndpoints(fabricName: String, node: String, vnid: String, address: String): Observable<EndpointList> {
         return this.http.get<EndpointList>(this.baseUrl + `/uni/fb-${fabricName}/remediate/node-${node}/vnid-${vnid}/addr-${address}`)
     }
 

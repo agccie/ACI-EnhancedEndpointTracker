@@ -34,10 +34,9 @@ export class ModalService {
         this.modalRef.hide();
     }
 
-
-      setAndOpenModal(modalIcon,modalTitle,modalBody,modalRef:TemplateRef<any>,decisionBox = false,callback=undefined,context=undefined) {
-        if(context === undefined) {
-            context = this ;
+    setAndOpenModal(modalIcon, modalTitle, modalBody, modalRef: TemplateRef<any>, decisionBox = false, callback = undefined, context = undefined) {
+        if (context === undefined) {
+            context = this;
         }
         this.modalIcon = modalIcon ;
         this.modalTitle = modalTitle ;
@@ -56,7 +55,5 @@ export class ModalService {
         if(this.callback !== undefined) {
             this.callbackContext.callback() ;
         }
-        
     }
-
 }

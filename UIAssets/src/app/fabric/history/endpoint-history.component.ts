@@ -1,10 +1,9 @@
-import {Component, OnInit, ViewChild, TemplateRef} from '@angular/core';
+import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {PreferencesService} from '../../_service/preferences.service';
 import {BackendService} from '../../_service/backend.service';
-import {ActivatedRoute, Router} from '@angular/router';
-import {forkJoin} from '../../../../node_modules/rxjs' ;
-import { ModalService } from '../../_service/modal.service';
-import { Fabric } from '../../_model/fabric';
+import {ActivatedRoute} from '@angular/router';
+import {forkJoin} from 'rxjs';
+import {ModalService} from '../../_service/modal.service';
 
 @Component({
     selector: 'app-endpoint-history',
@@ -21,24 +20,23 @@ export class EndpointHistoryComponent implements OnInit {
     fabricName: string;
     vnid: string;
     address: string;
-    rw_mac = '' ;
-    rw_bd = '' ;
+    rw_mac = '';
+    rw_bd = '';
     clearEndpointOptions: any;
     clearNodes = [];
     loading = true;
     dropdownActive: false;
-    decisionBox = false ;
-    callback:any ;
-    @ViewChild('errorMsg') msgModal : TemplateRef<any> ;
-    @ViewChild('clearMsg') clearModal : TemplateRef<any> ;
-    offsubnetList = [] ;
-    staleList = [] ;
+    decisionBox = false;
+    callback: any;
+    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
+    @ViewChild('clearMsg') clearModal: TemplateRef<any>;
+    offsubnetList = [];
+    staleList = [];
     addNodes = (term) => {
         return {label: term, value: term};
     };
 
-    constructor(private prefs: PreferencesService, private backendService: BackendService, private activatedRoute: ActivatedRoute, 
-        private router: Router, public modalService:ModalService) {
+    constructor(private prefs: PreferencesService, private backendService: BackendService, private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.clearEndpointOptions = [
             {label: 'Select all', value: 0},
             {label: 'Offsubnet endpoints', value: 1},
@@ -50,17 +48,16 @@ export class EndpointHistoryComponent implements OnInit {
             {name: ' Move Events', path: 'moveevents', icon: 'icon-panel-shift-right'},
             {name: ' Off-Subnet Events', path: 'offsubnetevents', icon: 'icon-jump-out'},
             {name: ' Stale Events', path: 'staleevents', icon: 'icon-warning'},
-            {name: ' Rapid', path:'rapid', icon:'icon-too-fast'},
-            {name: ' Cleared', path:'cleared', icon:'icon-delete'}
+            {name: ' Rapid', path: 'rapid', icon: 'icon-too-fast'},
+            {name: ' Cleared', path: 'cleared', icon: 'icon-delete'}
         ];
-
     }
 
     ngOnInit() {
         this.loading = true;
         this.activatedRoute.parent.paramMap.subscribe(params => {
             this.fabricName = params.get('fabric');
-            if(this.fabricName != undefined) {
+            if (this.fabricName != undefined) {
                 this.activatedRoute.paramMap.subscribe(params => {
                     this.vnid = params.get('vnid');
                     this.address = params.get('address');
@@ -70,7 +67,6 @@ export class EndpointHistoryComponent implements OnInit {
                     this.loading = false;
                 });
             }
-
         }, error => {
             this.loading = false;
         });
@@ -93,51 +89,50 @@ export class EndpointHistoryComponent implements OnInit {
         const encap = this.getEventProperties('encap');
         const epgname = this.getEventProperties('epg_name');
         const vrfbd = this.getEventProperties('vnid_name');
-        const mac = this.getEventProperties('rw_mac') ;
-        const mac_bd = this.getEventProperties('rw_bd') ;
-        if(mac != '' && mac_bd !='') {
-            this.rw_mac = mac ;
-            this.rw_bd = mac_bd ;
+        const mac = this.getEventProperties('rw_mac');
+        const mac_bd = this.getEventProperties('rw_bd');
+        if (mac != '' && mac_bd != '') {
+            this.rw_mac = mac;
+            this.rw_bd = mac_bd;
         }
         this.staleoffsubnetDetails = '';
         if (this.endpoint.is_offsubnet) {
             this.staleoffsubnetDetails += 'Currently offsubnet on node ' + node + '\n';
-            const currentlyOffsubnet = this.backendService.offsubnetStaleEndpointHistory(this.fabricName,this.vnid,this.address,'is_offsubnet','endpoint') ;
-            const offsubnetHistory = this.backendService.offsubnetStaleEndpointHistory(this.fabricName,this.vnid,this.address,'is_offsubnet','history') ;
-            forkJoin(currentlyOffsubnet,offsubnetHistory).subscribe(
+            const currentlyOffsubnet = this.backendService.offsubnetStaleEndpointHistory(this.fabricName, this.vnid, this.address, 'is_offsubnet', 'endpoint');
+            const offsubnetHistory = this.backendService.offsubnetStaleEndpointHistory(this.fabricName, this.vnid, this.address, 'is_offsubnet', 'history');
+            forkJoin(currentlyOffsubnet, offsubnetHistory).subscribe(
                 (data) => {
-                    const is_offsubnet = data[0]['objects'][0]['ept.endpoint']['is_offsubnet'] ;
-                    this.endpoint.is_offsubnet = is_offsubnet ;
-                    if(is_offsubnet) {
-                        for(let item of data[1]['objects']) {
-                            this.offsubnetList.push(item['ept.history'].node) ;
+                    const is_offsubnet = data[0]['objects'][0]['ept.endpoint']['is_offsubnet'];
+                    this.endpoint.is_offsubnet = is_offsubnet;
+                    if (is_offsubnet) {
+                        for (let item of data[1]['objects']) {
+                            this.offsubnetList.push(item['ept.history'].node);
                         }
                     }
                 },
                 (error) => {
-                    const msg = 'Could not check if the endpoint has offsubnet nodes! ' + error['error']['error'] ;
-                    this.modalService.setAndOpenModal('error','Error',msg,this.msgModal,false) ;
+                    const msg = 'Could not check if the endpoint has offsubnet nodes! ' + error['error']['error'];
+                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
                 }
             )
         }
         if (this.endpoint.is_stale) {
             this.staleoffsubnetDetails += 'Currently stale on node ' + node;
-            const currentlyStale = this.backendService.offsubnetStaleEndpointHistory(this.fabricName,this.vnid,this.address,'is_stale','endpoint') ;
-
-            const staleHistory = this.backendService.offsubnetStaleEndpointHistory(this.fabricName,this.vnid,this.address,'is_stale','history') ;
-            forkJoin([currentlyStale,staleHistory]).subscribe(
-                (data)=>{
-                    const is_stale = data[0]['objects'][0]['ept.endpoint'] ;
-                    this.endpoint.is_stale = is_stale ;
-                    if(is_stale) {
-                        for(let item of data[1]['objects']) {
-                            this.staleList.push(item['ept.history'].node) ;
+            const currentlyStale = this.backendService.offsubnetStaleEndpointHistory(this.fabricName, this.vnid, this.address, 'is_stale', 'endpoint');
+            const staleHistory = this.backendService.offsubnetStaleEndpointHistory(this.fabricName, this.vnid, this.address, 'is_stale', 'history');
+            forkJoin([currentlyStale, staleHistory]).subscribe(
+                (data) => {
+                    const is_stale = data[0]['objects'][0]['ept.endpoint'];
+                    this.endpoint.is_stale = is_stale;
+                    if (is_stale) {
+                        for (let item of data[1]['objects']) {
+                            this.staleList.push(item['ept.history'].node);
                         }
                     }
                 },
-                (error)=>{
-                    const msg = 'Could not check if the endpoint has stale nodes! ' + error['error']['error'] ;
-                    this.modalService.setAndOpenModal('error','Error',msg,this.msgModal,false) ;
+                (error) => {
+                    const msg = 'Could not check if the endpoint has stale nodes! ' + error['error']['error'];
+                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
                 }
             )
 
@@ -145,11 +140,11 @@ export class EndpointHistoryComponent implements OnInit {
         if (status === 'deleted') {
             this.endpointStatus = 'Not currently present in the fabric';
         } else {
-            this.endpointStatus = `Local on node <strong>${node}</strong>`
-            if(node > 0xffff) {
-                const nodeA = (node & 0xffff0000) >> 16 ;
-                const nodeB = (node & 0x0000ffff) ;
-                this.endpointStatus = `Local on node <strong>(${nodeA},${nodeB})</strong>` ;
+            this.endpointStatus = `Local on node <strong>${node}</strong>`;
+            if (node > 0xffff) {
+                const nodeA = (node & 0xffff0000) >> 16;
+                const nodeB = (node & 0x0000ffff);
+                this.endpointStatus = `Local on node <strong>(${nodeA},${nodeB})</strong>`;
             }
             if (intf !== '') {
                 this.endpointStatus += `, interface <strong>${intf}</strong>`;
@@ -158,19 +153,18 @@ export class EndpointHistoryComponent implements OnInit {
                 this.endpointStatus += `, encap <strong>${encap}</strong>`;
             }
         }
-        this.fabricDetails = 'Fabric <strong>' + this.endpoint.fabric + '</strong>' ;
+        this.fabricDetails = 'Fabric <strong>' + this.endpoint.fabric + '</strong>';
         if (this.endpoint.type === 'ipv4' || this.endpoint.type === 'ipv6') {
-            this.fabricDetails += ', VRF <strong>' + vrfbd +'</strong>' ;
+            this.fabricDetails += ', VRF <strong>' + vrfbd + '</strong>';
         } else {
             this.fabricDetails += ', BD <strong>' + vrfbd + '</strong>';
         }
         if (epgname !== '') {
-            this.fabricDetails += ', EPG <strong>' + epgname + '</strong>' ;
+            this.fabricDetails += ', EPG <strong>' + epgname + '</strong>';
         }
     }
 
     onClickOfDelete() {
-        
         const msg = 'Are you sure you want to delete all information for ' + this.endpoint.addr + ' from the local database? Note, this will not affect the endpoint state within the fabric.'
         this.modalService.setAndOpenModal('info','Wait',msg,this.msgModal,true,this.deleteEndpoint,this) ;
     }
@@ -223,7 +217,7 @@ export class EndpointHistoryComponent implements OnInit {
                 const msg = 'Failed to refresh endpoint' ;
                 this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
             }
-        ) 
+        )
     }
 
     onClickOfRefresh() {
@@ -253,7 +247,7 @@ export class EndpointHistoryComponent implements OnInit {
     }
 
     runFunction() {
-        this.callback() ;
+        this.callback();
     }
 
     onClickOfClear() {

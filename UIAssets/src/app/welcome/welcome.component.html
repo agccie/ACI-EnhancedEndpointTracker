@@ -50,7 +50,7 @@
                                     pagerNext: 'icon-step-forward'
                                   }"
                     >
-                        <ngx-datatable-column prop="fabric" name="Name" [sortable]="true" [flexGrow]="0.5">
+                        <ngx-datatable-column prop="fabric" name="Name" [sortable]="true" [flexGrow]="0.4">
                             <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                                 {{ row.fabric }}
                             </ng-template>
@@ -67,6 +67,12 @@
                                 </span>
                             </ng-template>
                         </ngx-datatable-column>
+                        <ngx-datatable-column prop="uptime" name="Uptime" [sortable]="true" [flexGrow]="0.1">
+                                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                    <span *ngIf="row.uptime > 0">{{ row.uptime | uptimeDays }}</span>
+                                    <span *ngIf="row.uptime === 0">&mdash;</span>
+                                </ng-template>
+                            </ngx-datatable-column>
                         <ngx-datatable-column prop="mac" name="# MAC" [sortable]="true" [flexGrow]="0.1">
                             <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                                 {{ row.mac !== '' ? (row.mac | number) : '&mdash;'}}

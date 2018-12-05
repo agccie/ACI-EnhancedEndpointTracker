@@ -17,7 +17,7 @@
             pagerNext: 'icon-step-forward'
           }"
 >
-    <ngx-datatable-column prop="ts" name="Timestamp" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column prop="ts" name="Timestamp" [sortable]="true" [flexGrow]='0.13'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
         </ng-template>
@@ -27,7 +27,7 @@
             {{ value }}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]='0.07'>
         <ng-template let-value="value" ngx-datatable-cell-template>
             {{ value }}
         </ng-template>
@@ -52,9 +52,9 @@
             {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="remote" name="Remote" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column prop="remote" name="Remote" [sortable]="true" [flexGrow]='0.07'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '&mdash;'}}
+            {{ value | localNode}}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
@@ -64,7 +64,7 @@
             <span *ngIf="value === ''">&mdash;</span>
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.13'>
         <ng-template let-value="value" ngx-datatable-cell-template>
             {{ value !== '' ? value : '&mdash;'}}
         </ng-template>

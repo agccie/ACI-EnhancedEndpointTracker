@@ -7,7 +7,7 @@
         [rowHeight]="'auto'"
         [limit]="pageSize"
         [loadingIndicator]="loading"
-        [rows]="rows"
+        [rows]="endpoint?.events"
         [sorts]="sorts"
         [cssClasses]="{
             sortAscending: 'icon-chevron-down',
@@ -33,9 +33,9 @@
             </span>
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column prop="node" name="Local Node" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value }}
+          {{ value !== '' ? (value | localNode) : '&mdash;' }}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.15'>

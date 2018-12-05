@@ -16,7 +16,7 @@ export class EndpointHistoryComponent implements OnInit {
     endpointStatus = '';
     fabricDetails = '';
     staleoffsubnetDetails = '';
-    vpcDetails = '';
+    vpcDetails = '' ;
     fabricName: string;
     vnid: string;
     address: string;
@@ -43,11 +43,11 @@ export class EndpointHistoryComponent implements OnInit {
             {label: 'Stale Endpoints', value: 2}
         ];
         this.tabs = [
-            {name: ' Local Learns', icon: 'icon-computer', path: 'locallearns'},
-            {name: ' Per Node History', icon: 'icon-clock', path: 'pernodehistory'},
-            {name: ' Move Events', path: 'moveevents', icon: 'icon-panel-shift-right'},
-            {name: ' Off-Subnet Events', path: 'offsubnetevents', icon: 'icon-jump-out'},
-            {name: ' Stale Events', path: 'staleevents', icon: 'icon-warning'},
+            {name: ' History', icon: 'icon-computer', path: 'locallearns'},
+            {name: ' Detailed', icon: 'icon-clock', path: 'pernodehistory'},
+            {name: ' Move', path: 'moveevents', icon: 'icon-panel-shift-right'},
+            {name: ' Off-Subnet', path: 'offsubnetevents', icon: 'icon-jump-out'},
+            {name: ' Stale', path: 'staleevents', icon: 'icon-warning'},
             {name: ' Rapid', path: 'rapid', icon: 'icon-too-fast'},
             {name: ' Cleared', path: 'cleared', icon: 'icon-delete'}
         ];
@@ -70,6 +70,23 @@ export class EndpointHistoryComponent implements OnInit {
         }, error => {
             this.loading = false;
         });
+    }
+
+    getEndpoint(fabric, vnid, address) {
+        this.loading = true;
+        this.backendService.getEndpoint(fabric, vnid, address).subscribe(
+            (data) => {
+                this.endpoint = data.objects[0]['ept.endpoint'];
+                this.prefs.selectedEndpoint = this.endpoint;
+                this.setupStatusAndInfoStrings();
+                this.loading = false;
+            },
+            (error) => {
+                this.loading = false ;
+                const msg = 'Failed to load endpoint! ' + error['error']['error'] ;
+                this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
+            }
+        );
     }
 
     getEventProperties(property) {
@@ -166,84 +183,73 @@ export class EndpointHistoryComponent implements OnInit {
 
     onClickOfDelete() {
         const msg = 'Are you sure you want to delete all information for ' + this.endpoint.addr + ' from the local database? Note, this will not affect the endpoint state within the fabric.'
-        this.modalService.setAndOpenModal('info', 'Wait', msg, this.msgModal, true, this.deleteEndpoint, this);
+        this.modalService.setAndOpenModal('info','Wait',msg,this.msgModal,true,this.deleteEndpoint,this) ;
     }
 
     deleteEndpoint() {
         this.backendService.deleteEndpoint(this.fabricName, this.vnid, this.address).subscribe(
             (data) => {
-                this.modalService.hideModal();
-                const msg = 'Endpoint deleted successfully';
-                this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
+                this.modalService.hideModal() ;
+                const msg = 'Endpoint deleted successfully' ;
+                this.modalService.setAndOpenModal('success','Success',msg,this.msgModal) ;
             },
             (error) => {
-                this.modalService.hideModal();
-                const msg = 'Could not delete endpoint! ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                this.modalService.hideModal() ;
+                const msg = 'Could not delete endpoint! ' + error['error']['error'] ;
+                this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
             }
         )
-    }
-
-    getEndpoint(fabric, vnid, address) {
-        this.loading = true;
-        this.backendService.getEndpoint(fabric, vnid, address).subscribe(
-            (data) => {
-                this.endpoint = data.objects[0]['ept.endpoint'];
-                this.prefs.selectedEndpoint = this.endpoint;
-                this.setupStatusAndInfoStrings();
-                this.loading = false;
-            },
-            (error) => {
-                this.loading = false;
-                const msg = 'Failed to load endpoint';
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
-            }
-        );
     }
 
     public refresh() {
         this.backendService.dataplaneRefresh(this.fabricName, this.endpoint.vnid, this.endpoint.addr).subscribe(
             (data) => {
-                if (data['success']) {
-                    this.modalService.hideModal();
-                    const msg = 'Refresh successful';
-                    this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
-                } else {
-                    const msg = 'Failed to refresh endpoint';
-                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                if(data['success']) {
+                this.modalService.hideModal() ;
+                const msg = 'Refresh successful' ;
+                this.modalService.setAndOpenModal('success','Success',msg,this.msgModal) ;
+                }else{
+                    const msg = 'Failed to refresh endpoint' ;
+                    this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
                 }
             },
             (error) => {
-                const msg = 'Failed to refresh endpoint';
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                const msg = 'Failed to refresh endpoint' ;
+                this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
             }
         )
     }
 
     onClickOfRefresh() {
-        const msg =
-            'Are you sure you want to force a refresh of ' + this.address + '? This operation will query the APIC for the most recent state of the endpoint and then update the local database. It may take a few moments for the updates to be seen.';
-        this.modalService.setAndOpenModal('info', 'Wait', msg, this.msgModal, true, this.refresh, this);
+        const msg = 
+        'Are you sure you want to force a refresh of ' + this.address + '? This operation will query the APIC for the most recent state of the endpoint and then update the local database. It may take a few moments for the updates to be seen.' ;
+        this.modalService.setAndOpenModal('info','Wait',msg,this.msgModal,true,this.refresh,this) ;
     }
 
     public clearEndpoints() {
-        let nodesList = this.filterNodes(this.clearNodes);
-        this.modalService.hideModal();
-        this.backendService.clearNodes(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, nodesList).subscribe(
-            (data) => {
-                if (data['success']) {
-                    const msg = 'Refresh successful';
-                    this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
-                } else {
-                    const msg = 'Failed to refresh endpoint';
-                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+       let nodesList = this.filterNodes(this.clearNodes) ;
+       if(this.endpoint.is_offsubnet) {
+       nodesList = nodesList.concat(this.offsubnetList) ;
+       }
+       if(this.endpoint.is_stale) {
+       nodesList = nodesList.concat(this.staleList) ;
+       }
+       this.modalService.hideModal() ;
+       this.backendService.clearNodes(this.endpoint.fabric,this.endpoint.vnid,this.endpoint.addr,nodesList).subscribe(
+           (data) => {
+            if(data['success']) {
+                const msg = 'Refresh successful' ;
+                this.modalService.setAndOpenModal('success','Success',msg,this.msgModal) ;
+                }else{
+                    const msg = 'Failed to refresh endpoint' ;
+                    this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
                 }
-            },
-            (error) => {
-                const msg = "Failed to clear nodes! " + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
-            }
-        )
+           },
+           (error) => {
+               const msg = "Failed to clear nodes! " + error['error']['error'] ;
+               this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
+           }
+       )
     }
 
     runFunction() {
@@ -251,7 +257,7 @@ export class EndpointHistoryComponent implements OnInit {
     }
 
     onClickOfClear() {
-        this.modalService.setAndOpenModal('', '', '', this.clearModal);
+        this.modalService.setAndOpenModal('','','',this.clearModal) ;
     }
 
     public filterNodes(nodes): any[] {
@@ -259,24 +265,24 @@ export class EndpointHistoryComponent implements OnInit {
         if (nodes !== undefined) {
             for (let i = 0; i < nodes.length; i++) {
                 if (typeof(nodes[i]) === 'string') {
-                    if (nodes[i].includes(',')) {
-                        nodes[i] = nodes[i].replace(/\s/g, '');
-                        const csv = nodes[i].split(',');
-                        for (let j = 0; j < csv.length; j++) {
-                            if (csv[j].includes('-')) {
-                                newarr = newarr.concat(this.getArrayForRange(csv[j]));
-                            } else {
-                                const node = parseInt(csv[j]);
-                                if (node != NaN) {
-                                    newarr.push(node);
+                        if (nodes[i].includes(',')) {
+                            nodes[i] = nodes[i].replace(/\s/g, '');
+                            const csv = nodes[i].split(',');
+                            for (let j = 0; j < csv.length; j++) {
+                                if (csv[j].includes('-')) {
+                                    newarr = newarr.concat(this.getArrayForRange(csv[j]));
+                                }else{
+                                    const node = parseInt(csv[j]) ;
+                                    if(node != NaN) {
+                                    newarr.push(node) ;
+                                    }
                                 }
                             }
+                        } else if (nodes[i].includes('-')) {
+                            newarr = newarr.concat(this.getArrayForRange(nodes[i]));
+                        } else {
+                            newarr.push(nodes[i]);
                         }
-                    } else if (nodes[i].includes('-')) {
-                        newarr = newarr.concat(this.getArrayForRange(nodes[i]));
-                    } else {
-                        newarr.push(nodes[i]);
-                    }
                 }
             }
         }

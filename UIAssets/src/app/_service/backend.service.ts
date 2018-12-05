@@ -104,7 +104,7 @@ export class BackendService {
     }
 
     getMoveEventsForEndpoint(fabricName: string, vnid, address) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabricName + '/move/vnid-' + vnid + '/addr-' + address);
+        return this.http.get(this.baseUrl + `/ept/move?filter=and(eq("fabric","${fabricName}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
     }
 
     getNodesForOffsubnetEndpoints(fabricName: string, vnid, address, tab): Observable<EndpointList> {
@@ -280,11 +280,11 @@ export class BackendService {
     }
 
     getRapidEndpoints(fabricName: String, vnid: String, address: String): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + `/uni/fb-${fabricName}/rapid/vnid-${vnid}/addr-${address}`);
+        return this.http.get<EndpointList>(this.baseUrl + `/ept/rapid?filter=and(eq("fabric","${fabricName}"),eq("vnid",${vnid}),eq("addr","${address}"))`)
     }
 
-    getClearedEndpoints(fabricName: String, node: String, vnid: String, address: String): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + `/uni/fb-${fabricName}/remediate/node-${node}/vnid-${vnid}/addr-${address}`)
+    getClearedEndpoints(fabricName: String, vnid: String, address: String): Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + `/ept/remediate?filter=and(eq("fabric","${fabricName}"),eq("vnid",${vnid}),eq("addr","${address}"))`)
     }
 
     getAllOffsubnetStaleEndpoints(fabric:String,vnid:String,address:String,table:String):Observable<EndpointList> {

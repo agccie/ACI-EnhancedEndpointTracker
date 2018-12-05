@@ -43,11 +43,11 @@ export class EndpointHistoryComponent implements OnInit {
             {label: 'Stale Endpoints', value: 2}
         ];
         this.tabs = [
-            {name: ' Local Learns', icon: 'icon-computer', path: 'locallearns'},
-            {name: ' Per Node History', icon: 'icon-clock', path: 'pernodehistory'},
-            {name: ' Move Events', path: 'moveevents', icon: 'icon-panel-shift-right'},
-            {name: ' Off-Subnet Events', path: 'offsubnetevents', icon: 'icon-jump-out'},
-            {name: ' Stale Events', path: 'staleevents', icon: 'icon-warning'},
+            {name: ' History', icon: 'icon-computer', path: 'locallearns'},
+            {name: ' Detailed', icon: 'icon-clock', path: 'pernodehistory'},
+            {name: ' Move', path: 'moveevents', icon: 'icon-panel-shift-right'},
+            {name: ' Off-Subnet', path: 'offsubnetevents', icon: 'icon-jump-out'},
+            {name: ' Stale', path: 'staleevents', icon: 'icon-warning'},
             {name: ' Rapid', path: 'rapid', icon: 'icon-too-fast'},
             {name: ' Cleared', path: 'cleared', icon: 'icon-delete'}
         ];
@@ -70,6 +70,23 @@ export class EndpointHistoryComponent implements OnInit {
         }, error => {
             this.loading = false;
         });
+    }
+
+    getEndpoint(fabric, vnid, address) {
+        this.loading = true;
+        this.backendService.getEndpoint(fabric, vnid, address).subscribe(
+            (data) => {
+                this.endpoint = data.objects[0]['ept.endpoint'];
+                this.prefs.selectedEndpoint = this.endpoint;
+                this.setupStatusAndInfoStrings();
+                this.loading = false;
+            },
+            (error) => {
+                this.loading = false ;
+                const msg = 'Failed to load endpoint! ' + error['error']['error'] ;
+                this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
+            }
+        );
     }
 
     getEventProperties(property) {
@@ -184,23 +201,6 @@ export class EndpointHistoryComponent implements OnInit {
         )
     }
 
-    getEndpoint(fabric, vnid, address) {
-        this.loading = true;
-        this.backendService.getEndpoint(fabric, vnid, address).subscribe(
-            (data) => {
-                this.endpoint = data.objects[0]['ept.endpoint'];
-                this.prefs.selectedEndpoint = this.endpoint;
-                this.setupStatusAndInfoStrings();
-                this.loading = false;
-            },
-            (error) => {
-                this.loading = false ;
-                const msg = 'Failed to load endpoint' ;
-                this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
-            }
-        );
-    }
-
     public refresh() {
         this.backendService.dataplaneRefresh(this.fabricName, this.endpoint.vnid, this.endpoint.addr).subscribe(
             (data) => {
@@ -228,6 +228,12 @@ export class EndpointHistoryComponent implements OnInit {
 
     public clearEndpoints() {
        let nodesList = this.filterNodes(this.clearNodes) ;
+       if(this.endpoint.is_offsubnet) {
+       nodesList = nodesList.concat(this.offsubnetList) ;
+       }
+       if(this.endpoint.is_stale) {
+       nodesList = nodesList.concat(this.staleList) ;
+       }
        this.modalService.hideModal() ;
        this.backendService.clearNodes(this.endpoint.fabric,this.endpoint.vnid,this.endpoint.addr,nodesList).subscribe(
            (data) => {

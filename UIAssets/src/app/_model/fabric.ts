@@ -28,6 +28,7 @@ export class Fabric {
     ipv4: number;
     ipv6: number;
     events: any[];
+    uptime:number;
 
     constructor(fabric: string = '', apic_hostname: string = '', apic_username: string = '', apic_password: string = '', apic_cert: string = '', ssh_username: string = '', ssh_password: string = '', max_events: number = 5) {
         if (environment.app_mode) {
@@ -46,5 +47,6 @@ export class Fabric {
         this.mac = 0;
         this.ipv4 = 0;
         this.ipv6 = 0;
+        this.uptime = 0;
     }
 }

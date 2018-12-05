@@ -2,6 +2,7 @@ import {Component, OnInit, ViewChild, TemplateRef} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
 import { ModalService } from '../../../_service/modal.service';
+import { ActivatedRoute } from '../../../../../node_modules/@angular/router';
 
 @Component({
     selector: 'app-move-events',
@@ -14,20 +15,27 @@ export class MoveEventsComponent implements OnInit {
     sorts = [{prop: 'ts', dir: 'desc'}];
     pageSize: number;
     @ViewChild('errorMsg') msgModal : TemplateRef<any>;
-    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService:ModalService) {
+    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService:ModalService,private activatedRoute:ActivatedRoute) {
         this.endpoint = this.prefs.selectedEndpoint;
         this.pageSize = this.prefs.pageSize;
     }
 
     ngOnInit() {
-        this.getMoveEventsForEndpoint(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr);
+        if(this.endpoint === undefined) {
+            this.prefs.getEndpointParams(this,'getMoveEventsForEndpoint',true) ;
+        }else{
+            this.getMoveEventsForEndpoint();
+        }
+        
     }
 
-    getMoveEventsForEndpoint(fabric, vnid, address) {
+    getMoveEventsForEndpoint() {
         this.loading = true;
-        this.backendService.getMoveEventsForEndpoint(fabric, vnid, address).subscribe(
+        this.backendService.getMoveEventsForEndpoint(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
             (data) => {
+                if(data['objects'].length > 0) {
                 this.rows = data['objects'][0]['ept.move']['events'];
+                }
                 this.loading = false;
             },
             (error) => {

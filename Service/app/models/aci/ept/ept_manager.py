@@ -282,7 +282,7 @@ class eptManager(object):
             # having worker perform the operation which could lead to race conditions
             self.worker_tracker.flush_fabric(fabric)
             if not f.exists() or not f.auto_start: 
-                logger.debug("removing fabric '%s' from managed fabrics", f.fabric())
+                logger.debug("removing fabric '%s' from managed fabrics", fabric)
                 self.fabrics.pop(fabric, None)
             else:
                 self.fabrics[fabric]["waiting_for_retry"] = True

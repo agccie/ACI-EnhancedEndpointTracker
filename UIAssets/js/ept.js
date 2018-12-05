@@ -387,6 +387,10 @@ function eptEndpoint(){
         return self.vnid()
     })
     // local info
+    self.local_pod = ko.computed(function(){
+        if(self.is_deleted()){ return "-" }
+        return self.events()[0].pod()
+    })
     self.local_node = ko.computed(function(){
         if(self.is_deleted()){ return "-" }
         return vpc_node_string(self.events()[0].node())

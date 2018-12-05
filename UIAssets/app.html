@@ -239,7 +239,9 @@
                                     </span>
                                 </div>
                                 <div class="qtr-margin-top" data-bind="visible: !current_endpoint.is_deleted()">
-                                    Local on node <span class="text-bold" data-bind="text:current_endpoint.local_node"></span>
+                                    Local on 
+                                    pod <span class="text-bold" data-bind="text:current_endpoint.local_pod"></span>
+                                    node <span class="text-bold" data-bind="text:current_endpoint.local_node"></span>
                                     interface <span class="text-bold" data-bind="text: current_endpoint.local_interface"></span>
                                     encap <span class="text-bold" data-bind="text: current_endpoint.local_encap"></span>
                                     <span data-bind="visible: current_endpoint.local_mac().length>0">

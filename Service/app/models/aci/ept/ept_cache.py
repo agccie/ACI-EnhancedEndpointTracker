@@ -182,11 +182,12 @@ class eptCache(object):
         if ret is None: return ""
         return ret.intf_name
 
-    def get_vnid_name(self, vnid):
+    def get_vnid_name(self, vnid, return_object=False):
         """ return vnid name(dn) for corresponding bd or vrf vnid.  If an error occurs or vnid is
             not in db, return an empty string
         """
         ret = self.generic_cache_lookup(self.vnid_cache, eptVnid, vnid=vnid)
+        if return_object: return ret
         if ret is None: return ""
         return ret.name
 

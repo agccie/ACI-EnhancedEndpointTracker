@@ -9,6 +9,7 @@ from . ept_msg import eptEpmEventParser
 from . ept_settings import eptSettings
 
 import logging
+import time
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ class eptWorkerFabric(object):
     """
     def __init__(self, fabric):
         self.fabric = fabric
+        self.start_ts = time.time()
         self.settings = eptSettings.load(fabric=fabric, settings="default")
         self.cache = eptCache(fabric)
         self.db = get_db()
@@ -34,6 +36,16 @@ class eptWorkerFabric(object):
             self.syslog_server = None
             self.syslog_port = None
 
+    def get_uptime_delta_offset(self, delta=None):
+        """ return difference between provided delta and current uptime. If the uptime_delta is 
+            less than zero, return 0.  If no delta is provided, then return the uptime.
+        """
+        uptime = time.time() - self.start_ts
+        if delta is None: return uptime
+        uptime_delta = delta - uptime
+        if uptime_delta > 0: return uptime_delta
+        return 0
+
     def push_event(self, table, key, event, per_node=True):
         # wrapper to push an event to eptHistory events list.  set per_node to false to use 
         # max_endpoint_event rotate length, else max_per_node_endpoint_events value is used
@@ -42,6 +54,24 @@ class eptWorkerFabric(object):
                     rotate=self.settings.max_per_node_endpoint_events)
         else:
             return push_event(self.db[table], key, event, rotate=self.settings.max_endpoint_events)
+
+    def get_learn_type(self, vnid, flags=[]):
+        # based on provide vnid and flags return learn type for endpoint:
+        #   loopback - if loopback in flags
+        #   psvi - if psvi in flags
+        #   overlay if vnid is overlay vnid
+        #   external if vnid is in eptVnid table with external set to true
+        #   else returns 'epg' (default learn type)
+        if "loopback" in flags: 
+            return "loopback"
+        elif "psvi" in flags:
+            return "psvi"
+        elif vnid == self.settings.overlay_vnid:
+            return "overlay"
+        ept_vnid = self.cache.get_vnid_name(vnid, return_object=True)
+        if ept_vnid is not None and ept_vnid.external:
+            return "external"
+        return "epg"
 
     def notification_enabled(self, notify_type):
         # return dict with email address, syslog server, syslog port for notify type. If not enabled,

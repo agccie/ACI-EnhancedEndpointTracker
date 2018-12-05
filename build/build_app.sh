@@ -31,8 +31,6 @@ function add_version() {
     git rev-parse --abbrev-ref HEAD >> ./version.txt
 }
 
-
-
 # build development standalone container
 function build_standalone_container() {
     set -e
@@ -138,6 +136,29 @@ function build_app() {
     mkdir -p $TMP_DIR/$APP_ID/Media/License
     mkdir -p $TMP_DIR/$APP_ID.build
 
+    # build docker container
+    if [ "$docker_image" ] ; then
+        log "saving docker container image to application"
+        cp $docker_image > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
+        docker_image_name=$docker_image
+    else
+        log "building container"
+        docker_image_name=`echo "aci/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
+        if [ "$enable_proxy" == "1" ] ; then
+            ba=""
+            if [ "$https_proxy" ] ; then ba="$ba --build-arg https_proxy=$https_proxy" ; fi
+            if [ "$http_proxy" ] ; then ba="$ba --build-arg http_proxy=$http_proxy" ; fi
+            if [ "$no_proxy" ] ; then ba="$ba --build-arg no_proxy=$no_proxy" ; fi
+            log "cmd: docker build -t $docker_image_name $ba --build-arg APP_MODE=1 ./"
+            docker build -t $docker_image_name $ba --build-arg APP_MODE=1 ./build/
+        else
+            log "cmd: docker build -t $docker_image_name --build-arg APP_MODE=1 ./"
+            docker build -t $docker_image_name --build-arg APP_MODE=1 ./build/
+        fi
+        log "saving docker container image to application"
+        docker save $docker_image_name | gzip -c > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
+    fi
+
     # copy source code to service
     cp -rp ./Service/* $TMP_DIR/$APP_ID/Service/
     cp -p ./app.json $TMP_DIR/$APP_ID/
@@ -145,7 +166,8 @@ function build_app() {
     cp -p ./app.json $TMP_DIR/$APP_ID/Service/
     cp -p ./version.txt $TMP_DIR/$APP_ID/Service/
     # dynamically create clusterMgrConfig
-    python ./cluster/apic/create_config.py > $TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
+    conf=$TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
+    python ./cluster/apic/create_config.py --image $docker_image_name > $conf
 
     # create media and legal files
     # (note, snapshots are required in order for intro_video to be displayed on appcenter
@@ -194,28 +216,6 @@ function build_app() {
         fi
     fi
 
-    # build docker container
-    if [ "$docker_image" ] ; then
-        log "saving docker container image to application"
-        cp $docker_image > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
-    else
-        log "building container"
-        docker_image_name=`echo "aci/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
-        if [ "$enable_proxy" == "1" ] ; then
-            ba=""
-            if [ "$https_proxy" ] ; then ba="$ba --build-arg https_proxy=$https_proxy" ; fi
-            if [ "$http_proxy" ] ; then ba="$ba --build-arg http_proxy=$http_proxy" ; fi
-            if [ "$no_proxy" ] ; then ba="$ba --build-arg no_proxy=$no_proxy" ; fi
-            log "cmd: docker build -t $docker_image_name $ba --build-arg APP_MODE=1 ./"
-            docker build -t $docker_image_name $ba --build-arg APP_MODE=1 ./build/
-        else
-            log "cmd: docker build -t $docker_image_name --build-arg APP_MODE=1 ./"
-            docker build -t $docker_image_name --build-arg APP_MODE=1 ./build/
-        fi
-        log "saving docker container image to application"
-        docker save $docker_image_name | gzip -c > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
-    fi
-
     # execute packager
     log "packaging application"
     tar -zxf ./build/app_package/cisco_aci_app_tools-$app_pack.tar.gz -C $TMP_DIR/$APP_ID.build/ 
@@ -229,7 +229,7 @@ function build_app() {
     rm -rf $TMP_DIR/$APP_ID.build
     rm -rf $TMP_DIR/$APP_ID
 
-    log "build complete: `ls -a $TMP_DIR/*.aci`"
+    #log "build complete: `ls -a $TMP_DIR/*.aci`"
     set +e
 }
 
@@ -331,6 +331,14 @@ while getopts "$optspec" optchar; do
   esac
 done
 
+if [ "$APP_FULL_VERSION" == "" ] ; then
+    APP_FULL_VERSION=$APP_VERSION
+fi
+app_original_filename=$APP_VENDOR_DOMAIN-$APP_ID-$APP_VERSION.aci
+app_final_filename=$APP_VENDOR_DOMAIN-$APP_ID-$APP_FULL_VERSION.aci
+# reset APP_VERSION to APP_FULL_VERSION for docker info to reflect patch
+APP_VERSION=$APP_FULL_VERSION
+
 # check depedencies first and then execute build
 if [ "$build_standalone" == "1" ] ; then
     check_build_tools "backend"
@@ -341,5 +349,12 @@ elif [ "$build_all_in_one" == "1" ] ; then
 else
     check_build_tools
     build_app
+    if [ -f $TMP_DIR/$app_original_filename ] ; then
+        mv $TMP_DIR/$app_original_filename ./$app_final_filename
+    elif [ -f $TMP_DIR/$app_final_filename ] ; then
+        mv $TMP_DIR/$app_final_filename ./$app_final_filename
+    fi
+    log "build complete: $app_final_filename"
+
 fi
 

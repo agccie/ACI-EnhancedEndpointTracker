@@ -15,12 +15,12 @@ export class AppComponent implements OnInit, OnDestroy {
     app_mode = environment.app_mode;
     konami: boolean;
     login_required: boolean;
-    private stopListening: () => void;
     menuVisible: boolean;
     fabricName: string;
     endpointExpanded: boolean;
     configurationExpanded: boolean;
     sidebarCollapsed: boolean;
+    private stopListening: () => void;
 
     constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService, private activatedRoute: ActivatedRoute,) {
         this.endpointExpanded = false;

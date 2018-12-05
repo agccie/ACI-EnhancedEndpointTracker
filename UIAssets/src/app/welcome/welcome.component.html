@@ -68,11 +68,11 @@
                             </ng-template>
                         </ngx-datatable-column>
                         <ngx-datatable-column prop="uptime" name="Uptime" [sortable]="true" [flexGrow]="0.1">
-                                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                    <span *ngIf="row.uptime > 0">{{ row.uptime | uptimeDays }}</span>
-                                    <span *ngIf="row.uptime === 0">&mdash;</span>
-                                </ng-template>
-                            </ngx-datatable-column>
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <span *ngIf="row.uptime > 0">{{ row.uptime | uptimeDays }}</span>
+                                <span *ngIf="row.uptime === 0">&mdash;</span>
+                            </ng-template>
+                        </ngx-datatable-column>
                         <ngx-datatable-column prop="mac" name="# MAC" [sortable]="true" [flexGrow]="0.1">
                             <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                                 {{ row.mac !== '' ? (row.mac | number) : '&mdash;'}}
@@ -179,38 +179,38 @@
     </form>
 </ng-template>
 <ng-template #errorMsg>
-        <div class="modal__body">
-                <div class="col-xl-12">
-                        <div class="alert alert--success" *ngIf="localModalService.modalIcon === 'success'">
-                            <div class="alert__icon icon-check-outline"></div>
-                            <div class="alert__message text-left">
-                                <h4>{{localModalService.modalTitle}}</h4>
-                                <div>{{localModalService.modalBody}}</div>
-                            </div>
-                        </div>
+    <div class="modal__body">
+        <div class="col-xl-12">
+            <div class="alert alert--success" *ngIf="localModalService.modalIcon === 'success'">
+                <div class="alert__icon icon-check-outline"></div>
+                <div class="alert__message text-left">
+                    <h4>{{ localModalService.modalTitle }}</h4>
+                    <div>{{ localModalService.modalBody }}</div>
                 </div>
-                <div class="alert alert--danger" *ngIf="localModalService.modalIcon === 'error'">
-                        <div class="alert__icon icon-error-outline"></div>
-                        <div class="alert__message text-left">
-                            <h4>{{localModalService.modalTitle}}</h4>
-                            <div>{{localModalService.modalBody}}</div>
-                        </div>
-                </div>
-                <div class="alert alert--info" *ngIf="localModalService.modalIcon === 'info'">
-                        <div class="alert__icon icon-info-outline"></div>
-                        <div class="alert__message text-left">
-                            <h4>{{localModalService.modalTitle}}</h4>
-                            <div>{{localModalService.modalBody}}</div>
-                        </div>
-                </div>
-                
+            </div>
+        </div>
+        <div class="alert alert--danger" *ngIf="localModalService.modalIcon === 'error'">
+            <div class="alert__icon icon-error-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ localModalService.modalTitle }}</h4>
+                <div>{{ localModalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="alert alert--info" *ngIf="localModalService.modalIcon === 'info'">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ localModalService.modalTitle }}</h4>
+                <div>{{ localModalService.modalBody }}</div>
+            </div>
+        </div>
+
         <div class="modal__footer" *ngIf="!localModalService.decisionBox">
-                <button class="btn" (click)="localModalService.hideModal()">Ok</button>
+            <button class="btn" (click)="localModalService.hideModal()">Ok</button>
         </div>
         <div class="modal__footer" *ngIf="localModalService.decisionBox">
-                <button class="btn btn--primary" (click)="localModalService.runCallback()">Proceed</button>
-                <button class="btn btn--secondary" (click)="localModalService.hideModal()">Cancel</button>
+            <button class="btn btn--primary" (click)="localModalService.runCallback()">Proceed</button>
+            <button class="btn btn--secondary" (click)="localModalService.hideModal()">Cancel</button>
         </div>
-         
-        </div>  
-    </ng-template>
+
+    </div>
+</ng-template>

@@ -44,6 +44,8 @@ class fvSubnet(ManagedObject):
                 uni/vDev-{[priKey]}-tn-{[tnDn]}-ctx-{ctxName}/rndrInfo/eppContr/G-{graphRn}-N-{nodeRn}-C-{connRn}
             vnsLIfCtx:
                 uni/tn-{name}/ldevCtx-c-{ctrctNameOrLbl}-g-{graphNameOrLbl}-n-{nodeNameOrLbl}/lIfCtx-c-{connNameOrLbl}
+            mgmtInB:
+                uni/tn-{name}/mgmtp-{name}/inb-{name}
         """
         data["parent"] = re.sub("/subnet-\[[^]]+\]$", "", data["dn"])
         if "/BD-" in data["parent"]:
@@ -56,6 +58,8 @@ class fvSubnet(ManagedObject):
             data["tCl"] = "vnsEPpInfo"
         elif "/ldevCtx-" in data["parent"]:
             data["tCl"] = "vnsLIfCtx"
+        elif "/mgmtp-" in data["parent"]:
+            data["tCl"] = "mgmtInB"
         else:
             logger.warn("failed to map parent class (tCl) for fvSubnet: %s", data["dn"])
         return data

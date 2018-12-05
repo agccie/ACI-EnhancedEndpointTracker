@@ -4,6 +4,7 @@ from ... rest import api_register
 from ... rest import api_route
 from ... rest import api_callback
 from .. utils import clear_endpoint
+from . common import common_event_attribute
 from . common import get_mac_value
 from . common import parse_vrf_name
 from . common import subscriber_op
@@ -37,10 +38,15 @@ local_event = {
         a vpc domain.
         """,
     },
+    "pod": {
+        "type": int,
+        "description": "pod-id where this endpoint is currently learned",
+        "default": 0,
+    },
 }
-# pull common attributes from eptHistory 
+# pull interesting common attributes
 for a in common_attr:
-    local_event[a] = eptHistory.META["events"]["meta"][a]
+    local_event[a] = common_event_attribute[a]
 
 @api_register(parent="fabric", path="ept/endpoint")
 class eptEndpoint(Rest):
@@ -101,6 +107,14 @@ class eptEndpoint(Rest):
             "default": "mac",
             "values": ["mac", "ipv4", "ipv6"],
         },
+        "learn_type": {
+            "type": str,
+            "default": "epg",
+            "values": ["epg", "external", "overlay", "psvi", "loopback"],
+            "description": """ control flag to distinguish between endpoints learned on an 
+            application epg, an external l3out, the infra overlay, loopback, or pervasive svi
+            """,
+        }, 
         "is_stale": {
             "type": bool,
             "default": False,
@@ -171,6 +185,38 @@ class eptEndpoint(Rest):
         },
     }
 
+    @classmethod
+    @api_route(path="delete", methods=["DELETE"], swag_ret=["success"])
+    def bulk_delete_all_endpoints(cls, fabric, vnid=None):
+        """ delete all endpoints and all historical data from database for the provided fabric.
+            This requires that the fabric monitor is stopped.
+        """
+        from .. fabric import Fabric
+        f = Fabric.load(fabric=fabric)
+        if not f.exists():
+            abort(404, "fabric '%s' not found" % fabric)
+        # ensure that the fabric is not running
+        if f.get_fabric_status(api=False):
+            abort(400, "cannot perform bulk endpoint delete while fabric is running")
+        flt = {"fabric": fabric}
+        if vnid is not None and vnid>0: 
+            flt["vnid"] = vnid
+        # get number of endpoints that will be cleared
+        count = 0
+        js = eptEndpoint.read(_params={"count":1}, _projection={"addr":1}, _filters=flt)
+        if "count" in js:
+            count = js["count"]
+        # create message for fabric history
+        msg = "bulk delete"
+        if vnid is not None:
+            msg+= " endpoint filter(vnid:%s)" % vnid
+        else:
+            msg+= " all endpoints"
+        msg+= " count(%s)" % js["count"]
+        f.add_fabric_event("cleared", msg)
+        cls.delete(_filters=flt)
+        return jsonify({"success":True, "count":js["count"]})
+
     @api_route(path="delete", methods=["DELETE"], swag_ret=["success"])
     def delete_endpoint(self):
         """ delete endpoint and all historical data from database """
@@ -180,7 +226,7 @@ class eptEndpoint(Rest):
                 "type": self.type,
             })
         if success:
-            return jsonify({"success": True})
+            return self.refresh_endpoint()
         abort(500, err_str)
 
     @api_route(path="refresh", methods=["POST"], swag_ret=["success"])
@@ -229,6 +275,12 @@ class eptEndpoint(Rest):
         """ clear endpoint on one or more nodes """
         # on-demand import of eptWorkerFabric only at api call (prevents circular imports)
         from . ept_worker_fabric import eptWorkerFabric
+        from .. fabric import Fabric
+        # validate credentials exists before any other validation
+        f = Fabric.load(fabric=self.fabric)
+        if len(f.ssh_password) == 0 or len(f.ssh_username) == 0:
+            abort(400, "cannot clear endpoint, ssh credentials not configured.")
+        
         if self.type == "mac":
             addr_type = "mac"
             vrf_name = ""
@@ -277,6 +329,7 @@ class eptEndpoint(Rest):
                         "node": switch["node"],
                     }, {
                         "ts": time.time(),
+                        "vnid_name": self.first_learn["vnid_name"],
                         "reason": "api",
                         "action": "clear"
                     })
@@ -318,6 +371,7 @@ class eptEndpointEvent(object):
     def __init__(self, **kwargs):
         self.ts = kwargs.get("ts", 0)
         self.node = kwargs.get("node", 0)
+        self.pod = kwargs.get("pod", 0)
         self.status = kwargs.get("status", "created")
         self.intf_id = kwargs.get("intf_id", "")
         self.intf_name = kwargs.get("intf_name", "")
@@ -329,8 +383,8 @@ class eptEndpointEvent(object):
         self.vnid_name = kwargs.get("vnid_name", "")
 
     def __repr__(self):
-        return "%s node:0x%04x %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
-                self.status, self.node, self.ts, self.pctag, self.intf_id, self.encap, 
+        return "[%.3f] %s node:0x%04x pod:%d, pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
+                self.ts, self.status, self.node, self.pod, self.pctag, self.intf_id, self.encap, 
                 self.rw_bd, self.rw_mac
             )
 
@@ -338,6 +392,7 @@ class eptEndpointEvent(object):
         """ convert object to dict for insertion into eptEndpoint events list """
         return {
             "node": self.node,
+            "pod": self.pod,
             "status": self.status,
             "ts": self.ts,
             "pctag": self.pctag,
@@ -360,6 +415,9 @@ class eptEndpointEvent(object):
         """ create eptEndpointEvent from eptHistoryEvent """
         event = eptEndpointEvent()
         event.node = node
+        # pod needs to be calculated based on node but this operation is not always required so
+        # will let caller manually set pod id if needed
+        #event.pod = 0
         # intentionally ignore status from history event, will set directly to created/deleted 
         # before updating eptEndpoint entry
         #event.status = h.status       

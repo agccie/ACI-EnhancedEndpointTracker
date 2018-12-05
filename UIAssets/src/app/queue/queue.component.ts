@@ -1,9 +1,8 @@
-import {Component, OnInit, ViewChild, TemplateRef} from "@angular/core";
+import {Component, OnInit, TemplateRef, ViewChild} from "@angular/core";
 import {BackendService} from "../_service/backend.service";
 import {PreferencesService} from "../_service/preferences.service";
-import {BsModalService} from "ngx-bootstrap";
 import {QueueList} from "../_model/queue";
-import { ModalService } from "../_service/modal.service";
+import {ModalService} from "../_service/modal.service";
 
 @Component({
     templateUrl: './queue.component.html',
@@ -18,7 +17,7 @@ export class QueueComponent implements OnInit {
     pageSize: number;
     count: number;
     sorts = [{prop: 'dn', dir: 'asc'}];
-    @ViewChild('errorMsg') msgModal : TemplateRef<any>;
+    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(private backendService: BackendService, private prefs: PreferencesService, private modalService: ModalService) {
         this.rows = [];
@@ -45,8 +44,8 @@ export class QueueComponent implements OnInit {
             this.loading = false;
         }, (err) => {
             this.loading = false;
-            const msg = 'Failed to load queues! ' + err['error']['error'] ;
-            this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
+            const msg = 'Failed to load queues! ' + err['error']['error'];
+            this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
         });
     }
 

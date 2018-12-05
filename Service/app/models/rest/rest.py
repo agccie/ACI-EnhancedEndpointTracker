@@ -7,6 +7,7 @@ from .role import Role
 from bson.objectid import ObjectId, InvalidId
 from flask import abort, g, jsonify
 from pymongo.errors import (DuplicateKeyError, PyMongoError, BulkWriteError, NetworkTimeout)
+from pymongo.errors import OperationFailure
 from pymongo import (ASCENDING, DESCENDING, InsertOne, UpdateOne, UpdateMany)
 from werkzeug.exceptions import (NotFound, BadRequest, Forbidden, InternalServerError)
 
@@ -865,7 +866,15 @@ class Rest(object):
         cls.rbac(role=cls._access["read_role"])
         _params = get_user_params()
         kwargs["_api"] = True
-        return jsonify(cls.read(_params=_params, **kwargs))
+        try:
+            return jsonify(cls.read(_params=_params, **kwargs))
+        except OperationFailure as e:
+            cls.logger.debug("api read failed: %s", e.details)
+            if e.code == 96:
+                abort(500, "database error, sort operation exceeded memory limit")
+            else:
+                abort(500, "database error on read")
+        # allow other exceptions to be raised (like 404/403/etc...
 
     @classmethod
     def api_update(cls, **kwargs):
@@ -1826,26 +1835,13 @@ class Rest(object):
 
     @classmethod
     def _mongo(cls, func, *args, **kwargs):
-        """ perform mongo operation with retry """
-        max_retries = 3
-        retry_time = 0.25
-        for i in xrange(0, max_retries):
-            try:
-                ts = time.time()
-                return func(*args, **kwargs)
-            except NetworkTimeout as e:
-                cls.logger.debug("traceback: %s", traceback.format_exc())
-                cls.logger.warn("database error: %s", e)
-                # some weird timeout bug on mongo connections - perform retry
-                # if timeout in less than a few seconds (since this wasn't 
-                # really a mongo timeout)
-                if time.time() - ts < 3:
-                    cls.logger.debug("retrying operation in %s sec", retry_time)
-                    time.sleep(retry_time)
-                    continue
+        """ perform mongo operation and capture traceback if error occurs, raise error """
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            cls.logger.debug("traceback: %s", traceback.format_exc())
+            cls.logger.warn("database error: %s", e)
             raise e
-        cls.logger.warn("out of retries")
-        raise e
 
 def raise_error(classname, attr, val, e=""):
     """ raise attribute validate error in with standard format """

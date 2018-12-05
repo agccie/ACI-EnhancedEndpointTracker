@@ -128,29 +128,33 @@ class DependencyNode(object):
                         # mo_attribute in one of the following formats:
                         #   attribute               - indicating string name of mo attribute
                         #   classname.attribute     - indicating parent class and parent attribute
+                        #   moAttrHandler           - moAttrHandler for custom handler
                         #   list[ ... ]             - list of options
                         val = None
-                        if type(mo_attr) is not list: mo_attr = [mo_attr]
-                        for mo_a in mo_attr:
-                            mo_a_split = mo_a.split(".")
-                            if len(mo_a_split) == 1:
-                                if hasattr(mo, mo_a_split[0]):
-                                    val = getattr(mo, mo_a_split[0])
-                                else:
-                                    logger.warn("cannot map mo attr: %s, %s", mo._classname, mo_a)
-                                break
-                            elif len(mo_a_split) == 2:
-                                pclass = mo_a_split[0]
-                                pattr = mo_a_split[1]
-                                if pclass in mo_parents:
-                                    parent = mo_parents[pclass]
-                                    if hasattr(parent, mo_a_split[1]):
-                                        val = getattr(parent, mo_a_split[1])
+                        if isinstance(mo_attr, moAttrHandler):
+                            val = mo_attr.get_value(a, mo, mo_parents)
+                        else:
+                            if type(mo_attr) is not list: mo_attr = [mo_attr]
+                            for mo_a in mo_attr:
+                                mo_a_split = mo_a.split(".")
+                                if len(mo_a_split) == 1:
+                                    if hasattr(mo, mo_a_split[0]):
+                                        val = getattr(mo, mo_a_split[0])
                                     else:
-                                        logger.warn("cannot map parent mo attr: %s", mo_a)
+                                        logger.warn("cannot map mo attr: %s, %s",mo._classname,mo_a)
                                     break
-                            else:
-                                logger.error("unexpected/unsupported mo attribute: %s", mo_a)
+                                elif len(mo_a_split) == 2:
+                                    pclass = mo_a_split[0]
+                                    pattr = mo_a_split[1]
+                                    if pclass in mo_parents:
+                                        parent = mo_parents[pclass]
+                                        if hasattr(parent, mo_a_split[1]):
+                                            val = getattr(parent, mo_a_split[1])
+                                        else:
+                                            logger.warn("cannot map parent mo attr: %s", mo_a)
+                                        break
+                                else:
+                                    logger.error("unexpected/unsupported mo attribute: %s", mo_a)
                         if val is not None:
                             if a in self.ept_regex_map:
                                 r1 = re.search(self.ept_regex_map[a], val)
@@ -349,5 +353,19 @@ class DependencyNode(object):
         return ret
 
 
-        
+       
+class moAttrHandler(object):
+    """ custom attribute handler that supports a get_value function with attribute name, mo object,
+        and mo_parents list and returns value for the attribute
+    """
+    def __init__(self): 
+        pass
+    def get_value(self, a, mo, mo_parents):
+        return None
 
+class StaticMoAttrHandler(moAttrHandler):
+    """ moAttrHandler that returns a static value """
+    def __init__(self, static_value):
+        self.static_value = static_value
+    def get_value(self, a, mo, mo_parents):
+        return self.static_value

@@ -424,7 +424,7 @@ class CallbackHandler(object):
 
     def resume(self):
         # trigger all callbacks before setting pause to false
-        logger.debug("resume %s with queue-size %s", self.url, self.event_q.qsize())
+        logger.debug("resume (queue-size %s) url %s", self.event_q.qsize(), self.url)
         while not self.event_q.empty():
             event = self.event_q.get()
             try:
@@ -572,7 +572,7 @@ class Subscriber(threading.Thread):
             self._subscription_ids.pop(_id, None)
             unsubscribe_url = re.sub("subscription=yes", "subscription=no", url)
             try:
-                resp = self._session.get(unsubscribe_url)
+                resp = self._session.get(unsubscribe_url, timeout=5)
                 logger.debug("unsubscribe success: %r, url %s", resp.ok, unsubscribe_url)
             except Exception as e:
                 #logger.debug("Traceback:\n%s", traceback.format_exc())
@@ -619,8 +619,10 @@ class Subscriber(threading.Thread):
             else:
                 logger.warn('unable to open websocket connection')
         except WebSocketException:
+            logger.debug("Traceback:\n%s", traceback.format_exc())
             logger.error('unable to open websocket connection due to WebSocketException')
         except socket.error:
+            logger.debug("Traceback:\n%s", traceback.format_exc())
             logger.error('unable to open websocket connection due to Socket Error')
         return False
 

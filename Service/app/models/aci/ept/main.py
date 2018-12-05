@@ -8,6 +8,7 @@ from multiprocessing import Process
 
 import argparse
 import logging
+import re
 import time
 import traceback
 import sys
@@ -15,11 +16,10 @@ import sys
 # module level logging
 logger = logging.getLogger(__name__)
 
-def execute_all_in_one(worker_count, unique_log=True, debug_modules=[]):
-    # create three parallel process, 1 manager, n worker, and 1 watcher. If any fail restart all
-    # subprocesses.  set unique_log to true create custom logfile for each subprocess, else default
-    # logging will be used
-    
+def execute(role="aio", count=1, worker_id=None, restart=False, unique_log=True, debug_modules=[]):
+    # execute a manager/worker/watcher or within all-in-one mode with process monitor capability 
+    # to restart on failure.
+  
     def wrapper(wid, role):
         # wrapper to start a manager/worker sub process with separate logfile if enabled
         if unique_log:
@@ -33,61 +33,59 @@ def execute_all_in_one(worker_count, unique_log=True, debug_modules=[]):
             ept = eptWorker(wid, role=role)
         ept.run()
 
-    def get_processes(worker_count):
-        # get AIO processes to execute
-        return {
-            "manager": Process(target=wrapper, args=("m1","manager",)),
-            "watcher": Process(target=wrapper, args=("w0", "watcher",)),
-            "workers": [
-                Process(target=wrapper, args=("w%s"%(w+1), "worker",)) \
-                for w in xrange(0, worker_count)
-            ]
-        }
+    def get_processes():
+        if role == "aio":
+            # get AIO processes to execute
+            return [
+                    Process(target=wrapper, args=("m1","manager",)),
+                    Process(target=wrapper, args=("x0", "watcher",))
+                ] + [
+                    Process(target=wrapper, args=("w%s" % w, "worker",)) \
+                    for w in xrange(0, count)
+                ]
+        elif role == "manager":
+            return [ Process(target=wrapper, args=("m%s" % worker_id,"manager",)) ]
+        else:
+            base = "x" if role == "watcher" else "w"
+            base_id = worker_id
+            return [
+                    Process(target=wrapper, args=("%s%s"%(base, base_id+w), role,)) \
+                    for w in xrange(0, count)
+                ]
 
     def start_processes(processes):
         # start each process and record PID
-        processes["manager"].start()
-        logger.info("started process 'manager' with pid: %s", processes["manager"].pid)
-        processes["watcher"].start()
-        logger.info("started process 'watcher' with pid: %s", processes["watcher"].pid)
-        for i, p in enumerate(processes["workers"]): 
+        for i, p in enumerate(processes):
             p.start()
-            logger.info("started 'worker(%s)' with pid: %s", i+1, p.pid)
-    
-    processes = get_processes(worker_count)
+            logger.info("started process %s with pid: %s", i, p.pid)
+
+
+    processes = get_processes()
     try:
         start_processes(processes)
         # continually stop/start all processes
         while True:
             time.sleep(60)
             all_alive = True
-            if not processes["manager"].is_alive():
-                logger.error("manager no longer alive")
-                all_alive = False
-            if not processes["watcher"].is_alive():
-                logger.error("watcher no longer alive")
-                all_alive = False
-            for p in processes["workers"]:
+            for i, p in enumerate(processes):
                 if not p.is_alive():
-                    logger.error("one or more workers no longer alive")
+                    logger.error("process %s, pid(%s) not longer alive", i, p.pid)
                     all_alive = False
             if not all_alive:
-                logger.debug("one or more processes are no longer alive, restarting...")
-                terminate_process(processes["manager"])
-                terminate_process(processes["watcher"])
-                for p in processes["workers"]: terminate_process(p)
-
+                for p in processes: 
+                    terminate_process(p)
                 # get new process objects and start them
-                processes = get_processes(worker_count)
-                start_processes(processes)
+                if restart:
+                    processes = get_processes()
+                    start_processes(processes)
+                else:
+                    return
 
     except (Exception, SystemExit, KeyboardInterrupt) as e:
         logger.error("Traceback:\n%s", traceback.format_exc())
     finally:
         logger.debug("main exited, killing subprocesses")
-        terminate_process(processes["manager"])
-        terminate_process(processes["watcher"])
-        for p in processes["workers"]: terminate_process(p)
+        for p in processes: terminate_process(p)
 
 if __name__ == "__main__":
 
@@ -97,11 +95,13 @@ if __name__ == "__main__":
         )
     parser.add_argument("--all-in-one", dest="aio", action="store_true", 
             help="run AIO(all-in-one) mode")
-    parser.add_argument("--worker-count", dest="worker_count", type=int, default=3,
-            help="worker count in AIO mode (default 3)")
-    parser.add_argument("--id", dest="worker_id", help="unique id for this worker")
+    parser.add_argument("--count", dest="count", type=int, default=1,
+            help="worker count in AIO or role 'worker' where multiple workers per container")
+    parser.add_argument("--id", dest="worker_id", type=int, help="unique id for this worker")
     parser.add_argument("--role", dest="role", help="worker role", default="worker",
         choices=["manager", "watcher", "worker"])
+    parser.add_argument("--restart", dest="restart", type=bool, default=None,
+            help="auto restart on failure")
     parser.add_argument("--stdout", dest="stdout", action="store_true", help="send logs to stdout")
     args = parser.parse_args()
 
@@ -111,8 +111,12 @@ if __name__ == "__main__":
     stdout = args.stdout
     if args.aio:
         fname = "allInOne.log"
+    elif args.role == "manager":
+        fname="%s_m%s.log" % (args.role, args.worker_id)
+    elif args.role == "watcher":
+        fname="%s_x%s.log" % (args.role, args.worker_id)
     else:
-        fname="%s_%s.log" % (args.role, args.worker_id)
+        fname="%s_w%s.log" % (args.role, args.worker_id)
     debug_modules = [
         "app.models.aci"
     ]
@@ -120,15 +124,25 @@ if __name__ == "__main__":
     for l in debug_modules:
         setup_logger(logging.getLogger(l), fname=fname, stdout=stdout, thread=True)
 
+    # validate arguments
+    role = None
+    restart = False if args.restart is None else args.restart
     if args.aio:
-        execute_all_in_one(args.worker_count, unique_log=(not stdout), debug_modules=debug_modules)
+        role = "aio"
+        if args.restart is None:
+            restart = True
     else:
+        role = args.role
         if args.worker_id is None:
-            logger.error("worker_id is required")
+            print "worker id is required for provided role"
             sys.exit(1)
-        if args.role == "manager": 
-            w = eptManager(args.worker_id)
-        else:
-            w = eptWorker(args.worker_id, role=args.role)
-        w.run()
-        logger.error("worker %s unexpected ended", w.worker_id)
+
+    execute(
+        role = role,
+        count = args.count,
+        worker_id = args.worker_id,
+        restart = restart, 
+        unique_log = (not stdout),
+        debug_modules = debug_modules,
+    )
+

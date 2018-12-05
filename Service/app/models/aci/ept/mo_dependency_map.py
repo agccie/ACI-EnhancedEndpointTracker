@@ -3,6 +3,7 @@ maintain dependency mapping to ease subscription events for APIC MOs
 """
 
 from . mo_dependency import DependencyNode
+from . mo_dependency import StaticMoAttrHandler
 from . ept_epg import eptEpg
 from . ept_pc import eptPc
 from . ept_subnet import eptSubnet
@@ -129,6 +130,7 @@ ept_map = {
             "encap": "encap",
             "vnid": "extEncap",
             "vrf": "fvCtx.scope",
+            "external": StaticMoAttrHandler(True),
         },
         "regex_map": {
             "vnid": "vxlan-(?P<value>[0-9]+)",

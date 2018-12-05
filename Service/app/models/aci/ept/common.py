@@ -31,8 +31,14 @@ SUBSCRIBER_CTRL_CHANNEL             = "sctrl"
 WORKER_CTRL_CHANNEL                 = "wctrl"
 WORKER_UPDATE_INTERVAL              = 15.0
 RAPID_CALCULATE_INTERVAL            = 15.0
+MAX_SEND_MSG_LENGTH                 = 10240
 
 # transitory timers:
+#   uptime          amount of time added to all transitory events when fabric is first started. For
+#                   example, if the uptime of the fabric subscription is 100 seconds and transitory
+#                   uptime is 300, then an additional 200 seconds needs to be added to any transitory
+#                   event before they are triggered.  This allows additionally buffer during start
+#                   up for large scale.
 #   delete          amount of time between delete and create events to treat as a change/move
 #   offsubnet       amount of time to wait before declaring endpoint is learned offsubnet
 #   stale           amount of time to wait for new events before declaring endpoint is stale
@@ -49,14 +55,95 @@ RAPID_CALCULATE_INTERVAL            = 15.0
 #   watch_offsubnet amount of time to suppress new watch_offsubnet events for single node/ep
 #   watch_stale     amount of time to suppress new watch_stale events for single node/ep
 #   fabric_restart  amount of time to suppress new fabric monitor restart events
+TRANSITORY_UPTIME                   = 300.0 
 TRANSITORY_DELETE                   = 60.0
 TRANSITORY_OFFSUBNET                = 10.0
-TRANSITORY_STALE                    = 30.0
-TRANSITORY_STALE_NO_LOCAL           = 300.0
+TRANSITORY_STALE                    = 45.0
+TRANSITORY_STALE_NO_LOCAL           = 315.0
 TRANSITORY_RAPID                    = 35.0
 SUPPRESS_WATCH_OFFSUBNET            = 8.0
 SUPPRESS_WATCH_STALE                = 25.0
 SUPPRESS_FABRIC_RESTART             = 60.0
+
+###############################################################################
+#
+# common attribute names for ept event objects
+#
+###############################################################################
+
+common_event_attribute = {
+    "classname": {
+        "type": str,
+        "description": "epm classname that triggered the event"
+    },
+    "ts": {
+        "type": float,
+        "description": "epoch timestamp the event was detected",
+    },
+    "status": {
+        "type": str,
+        "description": "current status of the endpoint (created, modified, deleted)",
+        "values": ["created", "modified", "deleted"],
+    },
+    "remote": {
+        "type": int,
+        "description": """
+        resolved tunnel to node id for remote learns. Note, this may be an emulated
+        node-id representing a vpc pair.  See eptNode object for more details
+        """
+    },
+    "pctag": {
+        "type": int,
+        "description": """
+        policy control tag representing epg.  For epgs with pctag of 'any', this is
+        programmed with a value of 0
+        """,
+    },
+    "flags": {
+        "type": list,
+        "subtype": str,
+        "description": "epm flags for endpoint event",
+    },
+    "tunnel_flags": {
+        "type": str,
+        "description": """ interface flags if intf_id is a tunnel """,
+    },
+    "encap": {
+        "type": str,
+        "description": "vlan or vxlan encap for local learn",
+    },
+    "intf_id": {
+        "type": str,
+        "description": "interface id where endpoint was learned",
+    },
+    "intf_name": {
+        "type": str,
+        "description": """
+        interface name. This is only relevant for port-channels, all interface types
+        should have identical intf_id and intf_name
+        """,
+    },
+    "rw_mac": {
+        "type": str,
+        "description": """
+        rewrite mac address for local ipv4/ipv6 endpoints.
+        """,
+    },
+    "rw_bd": {
+        "type": int,
+        "description": """
+        BD VNID for mac of local ipv4/ipv6 endpoints.  This is 0 if not known.
+        """,
+    },
+    "epg_name": {
+        "type": str,
+        "description": "epg name based on vrf and pctag at the time of this event",
+    },
+    "vnid_name": {
+        "type": str,
+        "description": "vnid name based on at the time of this event",
+    }
+}
 
 
 ###############################################################################
@@ -170,18 +257,22 @@ def subscriber_op(fabric, msg_type, data=None, qnum=1):
 
     if data is None: data = {}
     if Fabric(fabric=fabric).get_fabric_status(api=False):
+        r = None
         try:
             # fabric and qnum are always in data, add if not present
             data["fabric"] = fabric
             data["qnum"] = qnum
-            r = get_redis()
             msg = eptMsgSubOp(msg_type, data = data)
+            r = get_redis()
             r.publish(SUBSCRIBER_CTRL_CHANNEL, msg.jsonify())
             # no error sending message so assume success
             return (True, "")
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
             return (False, "failed to publish message on redis channel")
+        finally:
+            if r is not None and hasattr(r, "connection_pool"):
+                r.connection_pool.disconnect()
     else:
         return (False, "Fabric '%s' is not running" % fabric)
 

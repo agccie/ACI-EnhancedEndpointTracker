@@ -1,7 +1,7 @@
 from ...rest import Rest
 from ...rest import api_register
 from . common import get_vpc_domain_name
-from . ept_history import eptHistory
+from . common import common_event_attribute
 import logging
 
 # module level logging
@@ -22,9 +22,9 @@ move_event = {
         },
     }
 }
-# pull common attributes from eptHistory 
+# pull interesting common attributes
 for a in common_attr:
-    move_event["meta"][a] = eptHistory.META["events"]["meta"][a]
+    move_event["meta"][a] = common_event_attribute[a]
 
 @api_register(parent="fabric", path="ept/move")
 class eptMove(Rest):

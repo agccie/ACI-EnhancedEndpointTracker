@@ -287,12 +287,12 @@ export class BackendService {
         return this.http.get<EndpointList>(this.baseUrl + `/ept/remediate?filter=and(eq("fabric","${fabricName}"),eq("vnid",${vnid}),eq("addr","${address}"))`)
     }
 
-    getAllOffsubnetStaleEndpoints(fabric:String,vnid:String,address:String,table:String):Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + `/ept/${table}?filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`) ;
+    getAllOffsubnetStaleEndpoints(fabric: String, vnid: String, address: String, table: String): Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + `/ept/${table}?filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
     }
 
-    clearNodes(fabric:String,vnid:String,addr:String,nodeList:Array<Number>) {
-        return this.http.post(this.baseUrl + `/uni/fb-${fabric}/endpoint/vnid-${vnid}/addr-${addr}/clear`,nodeList)
+    clearNodes(fabric: String, vnid: String, addr: String, nodeList: Array<Number>) {
+        return this.http.post(this.baseUrl + `/uni/fb-${fabric}/endpoint/vnid-${vnid}/addr-${addr}/clear`, nodeList)
     }
 
 

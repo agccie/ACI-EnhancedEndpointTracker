@@ -99,87 +99,83 @@
             <router-outlet></router-outlet>
         </div>
     </div>
-
-
-       <ng-template #clearMsg>
-            <div class="modal__header">
-                <h2>Clear Endpoint</h2>
+</div>
+<ng-template #clearMsg>
+    <div class="modal__header">
+        <h2>Clear Endpoint</h2>
+    </div>
+    <div class="modal__body">
+        <div class="form-group">
+            <label for="endpoints">Nodes</label>
+            <ng-select
+                    class="text-left"
+                    id="endpoints"
+                    name="endpoints"
+                    bindLabel="label"
+                    bindValue="value"
+                    placeholder="Enter range or comma seperated nodes to be cleared here (e.g. 100-150, 101,102,105)"
+                    [isOpen]="false"
+                    [multiple]="true"
+                    [hideSelected]="true"
+                    [addTag]="addNodes"
+                    [(ngModel)]="clearNodes"
+                    [items]="clearEndpointOptions">
+            </ng-select>
+        </div>
+        <div align="left" style="margin-top:2%">
+            <span style="vertical-align:top">Presets&nbsp;&nbsp;</span>
+            <div class="form-group form-group--inline form-group--loose">
+                <label class="checkbox" [ngClass]="{'disabled':!endpoint?.is_offsubnet}">
+                    <input type="checkbox" [disabled]="!endpoint?.is_offsubnet">
+                    <span class="checkbox__input"></span>
+                    <span class="checkbox__label">Offsubnet Nodes</span>
+                </label>
             </div>
-            <div class="modal__body">
-                <div class="form-group">
-                        <label for="endpoints">Nodes</label>
-                    <ng-select
-                            class="text-left"
-                            id="endpoints"
-                            name="endpoints"
-                            bindLabel="label"
-                            bindValue="value"
-                            placeholder="Enter range or comma seperated nodes to be cleared here (e.g. 100-150, 101,102,105)"
-                            [isOpen]="false"
-                            [multiple]="true"
-                            [hideSelected]="true"
-                            [addTag]="addNodes"
-                            [(ngModel)]="clearNodes"
-                            [items]="clearEndpointOptions">
-                    </ng-select>
-                </div>
-                <div align="left" style="margin-top:2%">
-                        <span style="vertical-align:top">Presets&nbsp;&nbsp;</span>
-                             <div class="form-group form-group--inline form-group--loose">
-                                 <label class="checkbox" [ngClass]="{'disabled':!endpoint?.is_offsubnet}">
-                                     <input type="checkbox" [disabled]="!endpoint?.is_offsubnet">
-                                     <span class="checkbox__input"></span>
-                                     <span class="checkbox__label">Offsubnet Nodes</span>
-                                 </label>
-                             </div>
-                             <div class="form-group form-group--inline form-group--loose">
-                                 <label class="checkbox" [ngClass]="{'disabled':!endpoint?.is_stale}">
-                                     <input type="checkbox">
-                                     <span class="checkbox__input"></span>
-                                     <span class="checkbox__label">Stale Nodes</span>
-                                 </label>
-                             </div>
-                    </div>
-                    <div class="modal__footer">
-                            <button class="btn btn--primary" (click)="modalService.hideModal()">Cancel</button>
-                            <button class="btn btn--secondary" (click)="clearEndpoints()">Proceed</button>
-                    </div>
+            <div class="form-group form-group--inline form-group--loose">
+                <label class="checkbox" [ngClass]="{'disabled':!endpoint?.is_stale}">
+                    <input type="checkbox">
+                    <span class="checkbox__input"></span>
+                    <span class="checkbox__label">Stale Nodes</span>
+                </label>
             </div>
-           
-        </ng-template>
-
+        </div>
+        <div class="modal__footer">
+            <button class="btn btn--primary" (click)="modalService.hideModal()">Cancel</button>
+            <button class="btn btn--secondary" (click)="clearEndpoints()">Proceed</button>
+        </div>
+    </div>
+</ng-template>
 <ng-template #errorMsg>
-        <div class="modal__body">
-                <div class="col-xl-12">
-                        <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
-                            <div class="alert__icon icon-check-outline"></div>
-                            <div class="alert__message text-left">
-                                <h4>{{modalService.modalTitle}}</h4>
-                                <div>{{modalService.modalBody}}</div>
-                            </div>
-                        </div>
+    <div class="modal__body">
+        <div class="col-xl-12">
+            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
+                <div class="alert__icon icon-check-outline"></div>
+                <div class="alert__message text-left">
+                    <h4>{{ modalService.modalTitle }}</h4>
+                    <div>{{ modalService.modalBody }}</div>
                 </div>
-                <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
-                        <div class="alert__icon icon-error-outline"></div>
-                        <div class="alert__message text-left">
-                            <h4>{{modalService.modalTitle}}</h4>
-                            <div>{{modalService.modalBody}}</div>
-                        </div>
-                </div>
-                <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
-                        <div class="alert__icon icon-info-outline"></div>
-                        <div class="alert__message text-left">
-                            <h4>{{modalService.modalTitle}}</h4>
-                            <div>{{modalService.modalBody}}</div>
-                        </div>
-                </div>
-                
+            </div>
+        </div>
+        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
+            <div class="alert__icon icon-error-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
         <div class="modal__footer" *ngIf="!modalService.decisionBox">
-                <button class="btn" (click)="modalService.hideModal()">Ok</button>
+            <button class="btn" (click)="modalService.hideModal()">Ok</button>
         </div>
         <div class="modal__footer" *ngIf="modalService.decisionBox">
-                <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
-                <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
+            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
+            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
         </div>
     </div>
 </ng-template>

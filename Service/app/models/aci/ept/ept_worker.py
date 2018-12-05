@@ -356,7 +356,7 @@ class eptWorker(object):
             events = []
             for event in h["events"]:
                 events.append(eptHistoryEvent.from_dict(event))
-            # embed watch_ts into events.0
+            # embed watch info into events.0
             if len(events) > 0:
                 events[0].watch_stale_ts = h["watch_stale_ts"]
                 events[0].watch_stale_event = eptStaleEvent.from_dict(h["watch_stale_event"])
@@ -636,6 +636,7 @@ class eptWorker(object):
             "fabric": 1,
             "vnid": 1,
             "addr": 1,
+            "learn_type": 1,
             "is_stale": 1,
             "is_offsubnet": 1,
             "events": {"$slice": 2},
@@ -679,16 +680,25 @@ class eptWorker(object):
         else:
             # always create an eptEndpoint object for the endpoint even if no local events are 
             # ever created for it. Without eptEndpoint object then eptHistory total endpoints will
-            # be out of sync. This is common scenario for vip/cache/svi/loopback endpoints that may
+            # be out of sync. This is common scenario for vip/cache/psvi/loopback endpoints that may
             # never have rw info and thus never 'complete local'
             # there is one exception, if endpoint is None and event is a delete, then ignore it
             if msg.status == "deleted" or msg.status == "modified":
                 logger.debug("ignorning deleted/modified event for non-existing eptEndpoint")
                 return None
             endpoint_type = get_addr_type(msg.addr, msg.type)
+            # set learn_type only on initial creation. learn_type is determined based on vnid OR 
+            # history flags for loopback or psvi. we assume here that loopback/psvi flag is always
+            # present on first learn. We can revisit this later if needed (perhaps some scenario 
+            # where offsubnet/stale event using psvi address is seen BEFORE the psvi endpoint).
+            learn_type_flags = []
+            if msg.node in per_node_history_event:
+                learn_type_flags = per_node_history_event[msg.node][0].flags
+            learn_type = msg.wf.get_learn_type(msg.vnid, flags=learn_type_flags)
+            logger.debug("learn type set to %s", learn_type)
             dummy_event = eptEndpointEvent.from_dict({"vnid_name":msg.vnid_name}).to_dict()
             eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr,type=endpoint_type,
-                    first_learn = dummy_event).save()
+                    first_learn=dummy_event, learn_type=learn_type).save()
 
         # determine current complete local event
         local_event = None
@@ -722,9 +732,12 @@ class eptWorker(object):
             else:
                 logger.debug("ignoring local delete event for XR/deleted/non-existing endpoint")
         else:
-            # flags is eptHistory event but not eptNode event.  Need to maintain flags before casting
+            # flags is in eptHistory event but not eptNode event. Need to maintain flags before 
+            # casting eptHistoryEvent local_event to eptEndpointEvent
             local_event_flags = local_event.flags
             local_event = eptEndpointEvent.from_history_event(local_node, local_event)
+            # set pod-id for local event (this is before vpc remap so node is actual fabric node)
+            local_event.pod = msg.wf.cache.get_pod_id(local_event.node)
             logger.debug("best local set to: %s", local_event)
             # map local_node to vpc value if this is a vpc
             if "vpc-attached" in local_event_flags:
@@ -790,7 +803,7 @@ class eptWorker(object):
                         # push new event to eptEndpoint events  
                         else:
                             logger.debug("adding event to eptEndpoint: %s", local_event)
-                            msg.wf.push_event(eptEndpoint._classname, flt, db_event,per_node=False)
+                            msg.wf.push_event(eptEndpoint._classname, flt, db_event, per_node=False)
                             ret.local_events.insert(0, local_event)
                             ret.analyze_move = True
                     else:
@@ -1077,6 +1090,7 @@ class eptWorker(object):
             event = eptStaleEvent.from_history_event(local_node, h_event)
             # only perform analysis on non-deleted entries
             if h_event.status != "deleted":
+                # TODO - add check for interface that proxy-acast-X if bounce-to-proxy is set
                 if "bounce-to-proxy" in h_event.flags or \
                     "loopback" in h_event.flags or \
                     "vtep" in h_event.flags or \

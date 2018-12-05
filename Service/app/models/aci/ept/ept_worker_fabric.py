@@ -55,6 +55,24 @@ class eptWorkerFabric(object):
         else:
             return push_event(self.db[table], key, event, rotate=self.settings.max_endpoint_events)
 
+    def get_learn_type(self, vnid, flags=[]):
+        # based on provide vnid and flags return learn type for endpoint:
+        #   loopback - if loopback in flags
+        #   psvi - if psvi in flags
+        #   overlay if vnid is overlay vnid
+        #   external if vnid is in eptVnid table with external set to true
+        #   else returns 'epg' (default learn type)
+        if "loopback" in flags: 
+            return "loopback"
+        elif "psvi" in flags:
+            return "psvi"
+        elif vnid == self.settings.overlay_vnid:
+            return "overlay"
+        ept_vnid = self.cache.get_vnid_name(vnid, return_object=True)
+        if ept_vnid is not None and ept_vnid.external:
+            return "external"
+        return "epg"
+
     def notification_enabled(self, notify_type):
         # return dict with email address, syslog server, syslog port for notify type. If not enabled,
         # then return None for each field. Set notify_type to 'any_email' or 'any_syslog' to force

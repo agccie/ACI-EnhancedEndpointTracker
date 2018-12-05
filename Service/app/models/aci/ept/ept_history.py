@@ -183,8 +183,3 @@ class eptHistoryEvent(object):
             event.vnid_name = msg.vnid_name
         return event
 
-
-
-
-
-

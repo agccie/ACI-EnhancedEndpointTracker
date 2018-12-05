@@ -145,13 +145,15 @@ def get_dn(session, dn, timeout=None, **kwargs):
     opts = build_query_filters(**kwargs)
     url = "/api/mo/%s.json%s" % (dn,opts)
     ret = []
-    error = False
     for obj in _get(session, url, timeout=timeout):
-        if obj is None: error = True
-        elif not error: ret.append(obj)
-    if error: return None
-    elif len(ret)>0: return ret[0]
-    else: return {} # empty non-None object implies valid empty response
+        if obj is None: 
+            return None
+        ret.append(obj)
+    if len(ret)>0: 
+        return ret[0]
+    else: 
+        # empty non-None object implies valid empty response
+        return {} 
     
 def get_class(session, classname, timeout=None, limit=None, stream=False, **kwargs):
     # perform class query.  If stream is set to true then this will act as an iterator yielding the
@@ -161,11 +163,10 @@ def get_class(session, classname, timeout=None, limit=None, stream=False, **kwar
     if stream:
         return _get(session, url, timeout=timeout, limit=limit) 
     ret = []
-    error = False
     for obj in _get(session, url, timeout=timeout, limit=limit):
-        if obj is None: error = True
-        elif not error: ret.append(obj)
-    if error: return None
+        if obj is None:
+            return None
+        ret.append(obj)
     return ret
 
 def get_parent_dn(dn):

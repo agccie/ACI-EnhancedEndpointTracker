@@ -927,7 +927,7 @@ function common_viewModel() {
             if(data.objects.length>0 && "ept.endpoint" in data.objects[0]){
                 self.current_endpoint_not_found(false)
                 self.current_endpoint.fromJS(data.objects[0]["ept.endpoint"])
-                var inflight = 6
+                var inflight = 7
                 var check_all_complete = function(){
                     inflight--
                     if(inflight==0){
@@ -1002,6 +1002,27 @@ function common_viewModel() {
                         if("ept.rapid" in obj){count+= obj["ept.rapid"].count}
                     })
                     self.current_endpoint.count_rapid(count)
+                    check_all_complete()
+                })
+                // set active XR count along with ctrl_local_node 
+                var url7="/api/ept/history?include=events,node&filter=and("+flt.join(",")+")"
+                json_get(url7, function(data){
+                    var xr_nodes = []
+                    var local_nodes = []
+                    data.objects.forEach(function(elem){
+                        elem["ept.history"]["events"]= elem["ept.history"]["events"].splice(0,1)
+                        h = new eptHistory(elem["ept.history"])
+                        h.fromJS(elem["ept.history"])
+                        if(h.events().length>0 && !h.events()[0].is_deleted()){
+                            if(h.events()[0].flags().includes("local")){
+                                local_nodes.push(h.node())
+                            } else { 
+                                xr_nodes.push(h.node())
+                            }
+                        }
+                    })
+                    self.current_endpoint.xr_nodes(xr_nodes)
+                    self.current_endpoint.ctrl_local_nodes(local_nodes)
                     check_all_complete()
                 })
             } else {
@@ -1211,6 +1232,12 @@ function common_viewModel() {
             escapeMarkup: function (markup) { return markup; }, // let our custom formatter work
             minimumInputLength: 4,
             templateResult: function(data) {
+                //display loading text
+                if ("loading" in data && data.loading){
+                    return '<div class="loading-dots loading-dots--info" >' + 
+                                '<span></span><span></span><span></span> ' +
+                            '</div>'
+                }
                 // displaying decode objects and we just want to create html with case and filename
                 if ("fabric" in data && "vnid" in data && "addr" in data && "type" in data){
                     type_label = get_endpoint_type_label(data.type)
@@ -1348,7 +1375,6 @@ $().ready(function(){
     // set app version info
     json_get("/api/app-status/version", function(data){
         self.version.fromJS(data)
-        console.log(self.version.toJS())
     }, function(){
         console.log("app-status/version failed, silently ignoring...")
     })

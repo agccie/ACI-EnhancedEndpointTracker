@@ -182,6 +182,7 @@ function generalEvent(){
     self.epg_name = ko.observable("")
     self.vnid_name = ko.observable("")
     self.node = ko.observable(0)
+    self.pod = ko.observable(0)
     self.remote = ko.observable(0)
     self.expected_remote = ko.observable(0)
     self.classname = ko.observable("")
@@ -222,6 +223,10 @@ function generalEvent(){
         if(self.epg_name().length==0){ return "-" }
         return self.epg_name()
     })
+    self.intf_str = ko.computed(function(){
+        if(self.intf_name().length==0){ return "-" }
+        return self.intf_name()
+    })
     self.is_deleted = ko.computed(function(){
         return self.status()=="deleted"
     })
@@ -248,6 +253,7 @@ function eptEndpoint(){
     self.vnid = ko.observable(0)
     self.addr = ko.observable("")
     self.type = ko.observable("")
+    self.learn_type = ko.observable("")
     self.is_stale = ko.observable(false)
     self.is_offsubnet = ko.observable(false)
     self.is_rapid = ko.observable(false)
@@ -257,6 +263,10 @@ function eptEndpoint(){
     // pulled from eptHistory, list of nodes currently offsubnet or stale
     self.stale_nodes = ko.observableArray([])
     self.offsubnet_nodes = ko.observableArray([])
+    // set when pulling eptHistory but only used if learn_type is psvi or loopback
+    self.ctrl_local_nodes = ko.observableArray([])
+    // active xr nodes
+    self.xr_nodes = ko.observableArray([])
     // overall counts pulled from various tables
     self.count_nodes = ko.observable(0)
     self.count_moves = ko.observable(0)
@@ -277,13 +287,14 @@ function eptEndpoint(){
         self.count(0)
         self.stale_nodes([])
         self.offsubnet_nodes([])
+        self.ctrl_local_nodes([])
+        self.xr_nodes([])
         self.count_nodes(0)
         self.count_moves(0)
         self.count_offsubnet(0)
         self.count_stale(0)
         self.count_rapid(0)
     }
-
 
     //determine if endpoint is deleted from fabric
     self.is_deleted = ko.computed(function(){
@@ -331,10 +342,15 @@ function eptEndpoint(){
         else if(attr == "state"){
             // need to have labels for active/deleted/offsubnet/stale/rapid
             var state=""
-            if(self.is_deleted()){
+            if(self.learn_type() == "loopback" || self.learn_type() == "psvi"){
+                state+='<span class="label label-default">'+self.learn_type()+'</span>'
+            } else if(self.is_deleted()){
                 state+='<span class="'+get_status_label("deleted")+'">inactive</span>'
             } else {
                 state+='<span class="'+get_status_label("created")+'">active</span>'
+            }
+            if(self.learn_type() == "overlay" || self.learn_type()=="external"){
+                state+='<span class="label label-default">'+self.learn_type()+'</span>'
             }
             if(self.is_offsubnet()){
                 state+='<span class="label label--danger">offsubnet</span>'
@@ -393,6 +409,12 @@ function eptEndpoint(){
         }
         return "#/fb-"+self.fabric()+"/vnid-"+self.events()[0].rw_bd()+"/addr-"+self.events()[0].rw_mac()
     })
+    self.learn_type_ctrl = ko.computed(function(){
+        if(self.learn_type()=="psvi" || self.learn_type()=="loopback"){
+            return true
+        }
+        return false
+    })
 }
 
 //return html for src/dst cell within move table
@@ -420,10 +442,10 @@ function moveEvent(){
         return moveWrapper(vpc_node_string(self.src.node()), vpc_node_string(self.dst.node())) 
     })
     self.intf_name = ko.computed(function(){
-        return moveWrapper(self.src.intf_name(), self.dst.intf_name())
+        return moveWrapper(self.src.intf_str(), self.dst.intf_str())
     })
     self.encap = ko.computed(function(){
-        return moveWrapper(self.src.encap(), self.dst.encap())
+        return moveWrapper(self.src.encap_str(), self.dst.encap_str())
     })
     self.epg_name = ko.computed(function(){
         return moveWrapper(self.src.epg_name_str(), self.dst.epg_name_str())

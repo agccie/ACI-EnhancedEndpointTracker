@@ -202,6 +202,9 @@
                             <blockquote data-bind="visible: !current_endpoint_not_found(), css: current_endpoint.blockquote_css">
                                 <h3>
                                     <span class="label--large" data-bind="css: current_endpoint.type_css, text:current_endpoint.type"></span>
+                                    <span class="label label--large" data-bind="visible: current_endpoint.learn_type()!='epg', 
+                                        text:current_endpoint.learn_type()">
+                                    </span>
                                     <span data-bind="css: current_endpoint.addr_css, text:current_endpoint.addr"></span>
                                 </h3>
                                 <div class="qtr-margin-top" data-bind="visible: current_endpoint.is_offsubnet">
@@ -226,10 +229,14 @@
                                     Fabric <span class="text-bold" data-bind="text:current_endpoint.fabric"></span>
                                     <span data-bind="text:current_endpoint.vnid_identifier"></span>
                                     <span class="text-bold" data-bind="text:current_endpoint.vnid_value"></span>
-                                    EPG <span class="text-bold" data-bind="text:current_endpoint.epg_name"></span>
+                                    <span data-bind="visible: !current_endpoint.learn_type_ctrl()">
+                                        EPG <span class="text-bold" data-bind="text:current_endpoint.epg_name"></span>
+                                    </span>
                                 </div>
                                 <div class="qtr-margin-top" data-bind="visible: current_endpoint.is_deleted()">
-                                    <span class="label label--dkgray">Not local on any node</span>
+                                    <span class="label label--dkgray" data-bind="visible: !current_endpoint.learn_type_ctrl()">
+                                        Not local on any node
+                                    </span>
                                 </div>
                                 <div class="qtr-margin-top" data-bind="visible: !current_endpoint.is_deleted()">
                                     Local on node <span class="text-bold" data-bind="text:current_endpoint.local_node"></span>
@@ -242,12 +249,12 @@
                                         </a>
                                     </span>
                                 </div>
-                                <div class="qtr-margin-top" data-bind="!current_endpoint.is_deleted()">
+                                <div class="qtr-margin-top" data-bind="visible: !current_endpoint.learn_type_ctrl()">
                                     <span class="label" data-bind="text:current_endpoint.count_moves"></span> moves,
                                     <span class="label" data-bind="text:current_endpoint.count_offsubnet"></span> offsubnet events,
                                     <span class="label" data-bind="text:current_endpoint.count_stale"></span> stale events,
                                     <span class="label" data-bind="text:current_endpoint.count_rapid"></span> rapid events,
-                                    <span class="label" data-bind="text:current_endpoint.count_nodes"></span> nodes
+                                    <span class="label" data-bind="text:current_endpoint.xr_nodes().length"></span> XR nodes
                                 </div>
                                 <!-- endpoint control -->
                                 <div class="half-margin-top">

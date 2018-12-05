@@ -82,22 +82,22 @@ def build_query_filters(**kwargs):
     if len(opts)>0: opts = "?%s" % opts.strip("&")
     return opts
                 
-def get(session, url, **kwargs):
-    # handle session request and perform basic data validation.  Return
-    # None on error
+def _get(session, url, timeout=None, limit=None, page_size=75000):
+    # handle session request and perform basic data validation.  
+    # this module always returns a generator of the results. If there is an error the first item
+    # in the iterator (or on the received page) will be None.
 
-    # default page size handler and timeouts
-    page_size = kwargs.get("page_size", 75000)
-    timeout = kwargs.get("timeout", SESSION_MAX_TIMEOUT)
-    limit = kwargs.get("limit", None)       # max number of returned objects
     page = 0
+    if timeout is None:
+        timeout = SESSION_MAX_TIMEOUT
 
     url_delim = "?"
     if "?" in url: url_delim="&"
     
-    results = []
+    count_received = 0
+    count_yield = 0
     # walk through pages until return count is less than page_size 
-    while 1:
+    while True:
         turl = "%s%spage-size=%s&page=%s" % (url, url_delim, page_size, page)
         logger.debug("host:%s, timeout:%s, get:%s", session.hostname, timeout, turl)
         tstart = time.time()
@@ -105,50 +105,72 @@ def get(session, url, **kwargs):
             resp = session.get(turl, timeout=timeout)
         except Exception as e:
             logger.warn("exception occurred in get request: %s", e)
-            return None
+            yield None
+            return
         if resp is None or not resp.ok:
             logger.warn("failed to get data: %s", url)
-            return None
+            yield None
+            return
         try:
             js = resp.json()
             if "imdata" not in js or "totalCount" not in js:
                 logger.warn("failed to parse js reply: %s", pretty_print(js))
-                return None
-            results+=js["imdata"]
-            logger.debug("time: %0.3f, results count: %s/%s", time.time() - tstart, len(results), 
+                yield None
+                return
+            count_received+= len(js["imdata"])
+            logger.debug("time: %0.3f, results count: %s/%s", time.time() - tstart, count_received,
                     js["totalCount"])
-            if len(js["imdata"])<page_size or \
-                len(results)>=int(js["totalCount"]):
+                
+            for obj in js["imdata"]:
+                count_yield+=1
+                if (limit is not None and count_yield >= limit):
+                    logger.debug("limit(%s) hit or exceeded", limit)
+                    return
+                yield obj
+
+            if len(js["imdata"])<page_size or count_received >= int(js["totalCount"]):
                 #logger.debug("all pages received")
-                return results
-            elif (limit is not None and len(js["imdata"]) >= limit):
-                logger.debug("limit(%s) hit or exceeded", limit)
-                return results[0:limit]
+                return
             page+= 1
         except ValueError as e:
             logger.warn("failed to decode resp: %s", resp.text)
-            return None
-    return None
+            yield None
+            return
+    yield None
+    return
 
-def get_dn(session, dn, **kwargs):
+def get_dn(session, dn, timeout=None, **kwargs):
     # get a single dn.  Note, with advanced queries this may be list as well
     # for now, always return single value
     opts = build_query_filters(**kwargs)
     url = "/api/mo/%s.json%s" % (dn,opts)
-    results = get(session, url, **kwargs)
-    if results is not None:
-        if len(results)>0: return results[0]
-        else: return {} # empty non-None object implies valid empty response
-    return None
+    ret = []
+    error = False
+    for obj in _get(session, url, timeout=timeout):
+        if obj is None: error = True
+        elif not error: ret.append(obj)
+    if error: return None
+    elif len(ret)>0: return ret[0]
+    else: return {} # empty non-None object implies valid empty response
     
-def get_class(session, classname, **kwargs):
-    # perform class query
+def get_class(session, classname, timeout=None, limit=None, stream=False, **kwargs):
+    # perform class query.  If stream is set to true then this will act as an iterator yielding the
+    # next result. If the query failed then the first (and only) result of the iterator will be None
     opts = build_query_filters(**kwargs)
     url = "/api/class/%s.json%s" % (classname, opts)
-    return get(session, url, **kwargs)
-    
+    if stream:
+        return _get(session, url, timeout=timeout, limit=limit) 
+    ret = []
+    error = False
+    for obj in _get(session, url, timeout=timeout, limit=limit):
+        if obj is None: error = True
+        elif not error: ret.append(obj)
+    if error: return None
+    return ret
+
 def get_parent_dn(dn):
     # return parent dn for provided dn
+    # note this is not currently aware of complex dn including prefixes or sub dn...
     t = dn.split("/")
     t.pop()
     return "/".join(t)

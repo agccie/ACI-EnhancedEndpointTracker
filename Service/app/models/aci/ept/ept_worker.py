@@ -451,11 +451,19 @@ class eptWorker(object):
                 remote = tunnel.remote
 
         # add names to msg object and remote value to msg object
-        setattr(msg, "vnid_name", cache.get_vnid_name(msg.vnid))
         setattr(msg, "epg_name", cache.get_epg_name(msg.vrf, msg.pcTag) if msg.pcTag>0 else "")
         setattr(msg, "remote", remote)
         setattr(msg, "ifId_name", ifId_name)
         setattr(msg, "tunnel_flags", tunnel_flags)
+        # get eptVnid object for vnid. Use it to set the vnid name and if external, override the
+        # msg.encap with the bd encap
+        ept_vnid = cache.get_vnid_name(msg.vnid, return_object=True)
+        if ept_vnid is not None:
+            setattr(msg, "vnid_name", ept_vnid.name)
+            if ept_vnid.external:
+                msg.encap = ept_vnid.encap
+        else:
+            setattr(msg, "vnid_name", "")
 
         # eptHistoryEvent representing current received event
         event = eptHistoryEvent.from_msg(msg)

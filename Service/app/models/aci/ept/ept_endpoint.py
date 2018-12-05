@@ -38,6 +38,11 @@ local_event = {
         a vpc domain.
         """,
     },
+    "pod": {
+        "type": int,
+        "description": "pod-id where this endpoint is currently learned",
+        "default": 0,
+    },
 }
 # pull interesting common attributes
 for a in common_attr:
@@ -102,6 +107,14 @@ class eptEndpoint(Rest):
             "default": "mac",
             "values": ["mac", "ipv4", "ipv6"],
         },
+        "learn_type": {
+            "type": str,
+            "default": "epg",
+            "values": ["epg", "external", "overlay", "psvi", "loopback"],
+            "description": """ control flag to distinguish between endpoints learned on an 
+            application epg, an external l3out, the infra overlay, loopback, or pervasive svi
+            """,
+        }, 
         "is_stale": {
             "type": bool,
             "default": False,
@@ -358,6 +371,7 @@ class eptEndpointEvent(object):
     def __init__(self, **kwargs):
         self.ts = kwargs.get("ts", 0)
         self.node = kwargs.get("node", 0)
+        self.pod = kwargs.get("pod", 0)
         self.status = kwargs.get("status", "created")
         self.intf_id = kwargs.get("intf_id", "")
         self.intf_name = kwargs.get("intf_name", "")
@@ -369,8 +383,8 @@ class eptEndpointEvent(object):
         self.vnid_name = kwargs.get("vnid_name", "")
 
     def __repr__(self):
-        return "%s node:0x%04x %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
-                self.status, self.node, self.ts, self.pctag, self.intf_id, self.encap, 
+        return "[%.3f] %s node:0x%04x pod:%d, pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
+                self.ts, self.status, self.node, self.pod, self.pctag, self.intf_id, self.encap, 
                 self.rw_bd, self.rw_mac
             )
 
@@ -378,6 +392,7 @@ class eptEndpointEvent(object):
         """ convert object to dict for insertion into eptEndpoint events list """
         return {
             "node": self.node,
+            "pod": self.pod,
             "status": self.status,
             "ts": self.ts,
             "pctag": self.pctag,
@@ -400,6 +415,9 @@ class eptEndpointEvent(object):
         """ create eptEndpointEvent from eptHistoryEvent """
         event = eptEndpointEvent()
         event.node = node
+        # pod needs to be calculated based on node but this operation is not always required so
+        # will let caller manually set pod id if needed
+        #event.pod = 0
         # intentionally ignore status from history event, will set directly to created/deleted 
         # before updating eptEndpoint entry
         #event.status = h.status       

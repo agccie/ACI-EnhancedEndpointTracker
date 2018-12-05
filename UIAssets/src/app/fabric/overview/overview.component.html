@@ -18,11 +18,12 @@
         </div>
     </div>
     <div class="col-md-3">
-            <div class="card">
-                <div class="card__header text-huge text-center text--success">{{ fabric?.uptime  | amDuration:'seconds'}}</div>
-                <div class="card__body text-large text-center">Uptime</div>
-            </div>
+        <div class="card">
+            <div class="card__header text-huge text-center text--success">
+                {{ fabric?.uptime  | amDuration:'seconds'}}</div>
+            <div class="card__body text-large text-center">Uptime</div>
         </div>
+    </div>
 </div>
 <div class="row">
     &nbsp;
@@ -104,7 +105,6 @@
                 <div>{{ modalService.modalBody }}</div>
             </div>
         </div>
-
         <div class="modal__footer" *ngIf="!modalService.decisionBox">
             <button class="btn" (click)="modalService.hideModal()">Ok</button>
         </div>
@@ -112,6 +112,5 @@
             <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
             <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
         </div>
-
     </div>
 </ng-template>

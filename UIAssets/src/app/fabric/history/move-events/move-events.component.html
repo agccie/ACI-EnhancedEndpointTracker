@@ -32,7 +32,7 @@
     <ngx-datatable-column name="Node" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>{{ row.src.node | localNode }}</div>
-            <div>{{ row.dst.node | localNode}}</div>
+            <div>{{ row.dst.node | localNode }}</div>
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column name="EPG" [sortable]="true" [flexGrow]='0.15'>
@@ -99,7 +99,6 @@
                 <div>{{ modalService.modalBody }}</div>
             </div>
         </div>
-
         <div class="modal__footer" *ngIf="!modalService.decisionBox">
             <button class="btn" (click)="modalService.hideModal()">Ok</button>
         </div>
@@ -107,6 +106,5 @@
             <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
             <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
         </div>
-
     </div>
 </ng-template>

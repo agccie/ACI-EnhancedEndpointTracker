@@ -16,12 +16,4 @@ export class PagingService {
         this.pageOffset = 0;
         this.sorts = {};
     }
-
-    setPageOffset(offset) {
-        this.pageOffset = offset;
-    }
-
-    setSorts(sorts) {
-        this.sorts = sorts;
-    }
 }

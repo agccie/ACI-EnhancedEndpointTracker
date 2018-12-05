@@ -54,7 +54,7 @@
     </ngx-datatable-column>
     <ngx-datatable-column prop="remote" name="Remote" [sortable]="true" [flexGrow]='0.07'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value | localNode}}
+            {{ value | localNode }}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
@@ -96,7 +96,6 @@
                 <div>{{ modalService.modalBody }}</div>
             </div>
         </div>
-
         <div class="modal__footer" *ngIf="!decisionBox">
             <button class="btn" (click)="modalService.hideModal()">Ok</button>
         </div>

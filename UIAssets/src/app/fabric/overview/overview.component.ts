@@ -44,7 +44,7 @@ export class OverviewComponent implements OnInit {
                     const ipv6Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv6');
                     forkJoin([fabricStatusObservable, macObservable, ipv4Observable, ipv6Observable]).subscribe(results => {
                         this.fabric.status = results[0]['status'];
-                        this.fabric.uptime = results[0]['uptime'] ;
+                        this.fabric.uptime = results[0]['uptime'];
                         this.fabric.mac = results[1]['count'];
                         this.fabric.ipv4 = results[2]['count'];
                         this.fabric.ipv6 = results[3]['count'];

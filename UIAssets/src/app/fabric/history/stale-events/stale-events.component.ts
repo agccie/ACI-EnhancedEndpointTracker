@@ -20,14 +20,13 @@ export class StaleEventsComponent implements OnInit {
         this.rows = [];
         this.pageSize = this.prefs.pageSize;
         this.endpoint = this.prefs.selectedEndpoint;
-        this.getNodesForStaleEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr);
+        this.getNodesForStaleEndpoints();
     }
 
     ngOnInit() {
     }
 
-    getNodesForStaleEndpoints(fabric, vnid, address) {
-        this.loading = true;
+    getNodesForStaleEndpoints() {
         this.loading = true;
         this.backendService.getAllOffsubnetStaleEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, 'stale').subscribe(
             (data) => {
@@ -38,7 +37,6 @@ export class StaleEventsComponent implements OnInit {
                         event.node = endpoint['node'];
                         this.rows.push(event);
                     }
-
                 }
                 this.loading = false;
             },

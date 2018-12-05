@@ -20,13 +20,13 @@ export class OffSubnetEventsComponent implements OnInit {
         this.rows = [];
         this.pageSize = this.prefs.pageSize;
         this.endpoint = this.prefs.selectedEndpoint;
-        this.getNodesForOffsubnetEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr);
+        this.getNodesForOffsubnetEndpoints();
     }
 
     ngOnInit() {
     }
 
-    getNodesForOffsubnetEndpoints(fabricName, vnid, address) {
+    getNodesForOffsubnetEndpoints() {
         this.loading = true;
         this.backendService.getAllOffsubnetStaleEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, 'offsubnet').subscribe(
             (data) => {
@@ -37,7 +37,6 @@ export class OffSubnetEventsComponent implements OnInit {
                         event.node = endpoint['node'];
                         this.rows.push(event);
                     }
-
                 }
                 this.loading = false;
             },

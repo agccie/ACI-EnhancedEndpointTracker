@@ -94,7 +94,6 @@
                 <div>{{ modalService.modalBody }}</div>
             </div>
         </div>
-
         <div class="modal__footer" *ngIf="!modalService.decisionBox">
             <button class="btn" (click)="modalService.hideModal()">Ok</button>
         </div>
@@ -102,7 +101,6 @@
             <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
             <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
         </div>
-
     </div>
 </ng-template>
   

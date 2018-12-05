@@ -60,7 +60,7 @@ export class WelcomeComponent implements OnInit {
                     const ipv6Observable = this.backendService.getActiveMacAndIps(fabric, 'ipv6');
                     forkJoin([fabricStatusObservable, macObservable, ipv4Observable, ipv6Observable]).subscribe(results => {
                         fabric.status = results[0]['status'];
-                        fabric.uptime = results[0]['uptime'] ;
+                        fabric.uptime = results[0]['uptime'];
                         fabric.mac = results[1]['count'];
                         fabric.ipv4 = results[2]['count'];
                         fabric.ipv6 = results[3]['count'];

@@ -174,7 +174,7 @@ class SubscriptionCtrl(object):
                                 false then subscription is handled in background
 
             Note, when blocking=False, the main thread will still wait until
-            subscription has successfully started (or failed) before returning
+            subscription has successfully started (or failed) before returning bool success
         """
         logger.info("start subscribe (blocking:%r)", blocking)
 
@@ -196,13 +196,14 @@ class SubscriptionCtrl(object):
             ts = time.time()
             while not self.alive:
                 if time.time() - ts  > self.subscribe_timeout:
-                    logger.debug("failed to start subscription within timeout: %.3f", 
+                    logger.warning("failed to start subscription within timeout: %.3f", 
                             self.subscribe_timeout)
                     self.unsubscribe()
-                    return
+                    return False
                 #logger.debug("waiting for subscription to start")
                 time.sleep(1) 
             logger.debug("subscription successfully started")
+            return True
 
     def _subscribe_wrapper(self):
         """ handle _subscribe with wrapper for ctrl restart signals """

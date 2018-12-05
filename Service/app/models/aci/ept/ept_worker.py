@@ -6,6 +6,7 @@ from . common import CACHE_STATS_INTERVAL
 from . common import HELLO_INTERVAL
 from . common import MANAGER_WORK_QUEUE
 from . common import RAPID_CALCULATE_INTERVAL
+from . common import TRANSITORY_UPTIME
 from . common import TRANSITORY_DELETE
 from . common import TRANSITORY_OFFSUBNET
 from . common import TRANSITORY_RAPID
@@ -65,6 +66,7 @@ class eptWorker(object):
     """
 
     def __init__(self, worker_id, role):
+        logger.debug("init role %s id %s", role, worker_id)
         self.worker_id = "%s" % worker_id
         self.role = role
         self.db = get_db(uniq=True, overwrite_global=True)
@@ -179,8 +181,10 @@ class eptWorker(object):
                         self.work_type_handlers[msg.wt](msg)
                     else:
                         logger.warn("unsupported work type: %s", msg.wt)
-                elif msg.msg_type == MSG_TYPE.FLUSH_FABRIC:
-                    self.flush_fabric(fabric=msg.data["fabric"])
+                elif msg.msg_type == MSG_TYPE.FABRIC_START:
+                    self.fabric_start(fabric=msg.data["fabric"])
+                elif msg.msg_type == MSG_TYPE.FABRIC_STOP:
+                    self.fabric_stop(fabric=msg.data["fabric"])
                 else:
                     logger.warn("unsupported worker msg type: %s", msg.msg_type)
 
@@ -247,12 +251,20 @@ class eptWorker(object):
         self.hello_thread.daemon = True
         self.hello_thread.start()
 
-    def flush_fabric(self, fabric):
-        """ flush only requires removing fabric from local fabrics, manager will handle removing any
-            pending work from queue.  If this is a watcher, then also need to purge any watch events
+    def fabric_start(self, fabric):
+        """ start fabric to init cache and for watcher process, to set a start timestamp for the 
+            fabric for extending transitory timers
+        """
+        logger.debug("[%s] start fabric: %s", self, fabric)
+        self.fabrics.pop(fabric, None)
+        self.fabrics[fabric] = eptWorkerFabric(fabric)
+
+    def fabric_stop(self, fabric):
+        """ stop only requires removing fabric from local fabrics, manager will handle removing any
+            pending work from queue. If this is a watcher, then also need to purge any watch events
             for this fabric.
         """
-        logger.debug("[%s] flush fabric: %s", self, fabric)
+        logger.debug("[%s] stop fabric: %s", self, fabric)
         self.fabrics.pop(fabric, None)
         if self.role == "watcher":
             watches = [
@@ -268,7 +280,7 @@ class eptWorker(object):
                             pop.append(key)
                     for k in pop: 
                         d.pop(k, None)
-                logger.debug("[%s] % events removed from watch_%s", self, len(pop), name)
+                logger.debug("[%s] %s events removed from watch_%s", self, len(pop), name)
 
     def flush_cache(self, msg):
         """ receive flush cache work containing cache and optional object name """
@@ -316,7 +328,7 @@ class eptWorker(object):
 
         # get cached rapid eptWorkerRapidEndpoint object and ensure not currently is_rapid
         cached_rapid = None
-        if msg.wf.settings.analyze_rapid:
+        if msg.wf.settings.analyze_rapid and not msg.force:
             cached_rapid = msg.wf.cache.get_rapid_endpoint(msg.vnid, addr, msg.type)
             if cached_rapid.rapid_count == 0:
                 # if entry was not in cache then cached_rapid.type is invalid, let's fix it here
@@ -335,6 +347,7 @@ class eptWorker(object):
         projection = {
             "node": 1,
             "watch_stale_ts":1,         # will embed value into events.0
+            "watch_stale_event":1,      # will embed value into events.0
             "watch_offsubnet_ts": 1,    # will embed value into events.0
             "events": {"$slice": 1}     # pull only events.0
         }
@@ -343,9 +356,10 @@ class eptWorker(object):
             events = []
             for event in h["events"]:
                 events.append(eptHistoryEvent.from_dict(event))
-            # embed watch_ts into events.0
+            # embed watch info into events.0
             if len(events) > 0:
                 events[0].watch_stale_ts = h["watch_stale_ts"]
+                events[0].watch_stale_event = eptStaleEvent.from_dict(h["watch_stale_event"])
                 events[0].watch_offsubnet_ts = h["watch_offsubnet_ts"]
                 per_node_history_events[h["node"]] = events
 
@@ -365,7 +379,7 @@ class eptWorker(object):
         update_local_result = self.update_local(msg, per_node_history_events, cached_rapid) 
 
         # perform move/offsubnet/stale analysis
-        if analysis_required and update_local_result is not None:
+        if (analysis_required or msg.force) and update_local_result is not None:
             if msg.wf.settings.analyze_move:
                 if update_local_result.analyze_move:
                     self.analyze_move(msg, update_local_result.local_events)
@@ -437,11 +451,19 @@ class eptWorker(object):
                 remote = tunnel.remote
 
         # add names to msg object and remote value to msg object
-        setattr(msg, "vnid_name", cache.get_vnid_name(msg.vnid))
         setattr(msg, "epg_name", cache.get_epg_name(msg.vrf, msg.pcTag) if msg.pcTag>0 else "")
         setattr(msg, "remote", remote)
         setattr(msg, "ifId_name", ifId_name)
         setattr(msg, "tunnel_flags", tunnel_flags)
+        # get eptVnid object for vnid. Use it to set the vnid name and if external, override the
+        # msg.encap with the bd encap
+        ept_vnid = cache.get_vnid_name(msg.vnid, return_object=True)
+        if ept_vnid is not None:
+            setattr(msg, "vnid_name", ept_vnid.name)
+            if ept_vnid.external:
+                msg.encap = ept_vnid.encap
+        else:
+            setattr(msg, "vnid_name", "")
 
         # eptHistoryEvent representing current received event
         event = eptHistoryEvent.from_msg(msg)
@@ -489,6 +511,7 @@ class eptWorker(object):
             # function but used by suppression in later analysis
             last_event = last_event[0]
             event.watch_stale_ts = last_event.watch_stale_ts
+            event.watch_stale_event = last_event.watch_stale_event
             event.watch_offsubnet_ts = last_event.watch_offsubnet_ts
 
         # a few more events that can be ignored
@@ -621,6 +644,7 @@ class eptWorker(object):
             "fabric": 1,
             "vnid": 1,
             "addr": 1,
+            "learn_type": 1,
             "is_stale": 1,
             "is_offsubnet": 1,
             "events": {"$slice": 2},
@@ -653,27 +677,36 @@ class eptWorker(object):
                 # entry actual came from cache, analysis already performed, only need to update count
                 cached_rapid.rapid_count+= 1
 
-        if endpoint is not None and len(endpoint["events"])>0:
-            ret.exists = True
+        last_event = None
+        if endpoint is not None:
             ret.is_offsubnet = endpoint["is_offsubnet"]
             ret.is_stale = endpoint["is_stale"]
-            ret.local_events = [eptEndpointEvent.from_dict(e) for e in endpoint["events"]]
-            last_event = ret.local_events[0]
+            if len(endpoint["events"])>0:
+                ret.exists = True
+                ret.local_events = [eptEndpointEvent.from_dict(e) for e in endpoint["events"]]
+                last_event = ret.local_events[0]
         else:
             # always create an eptEndpoint object for the endpoint even if no local events are 
             # ever created for it. Without eptEndpoint object then eptHistory total endpoints will
-            # be out of sync. This is common scenario for vip/cache/svi/loopback endpoints that may
+            # be out of sync. This is common scenario for vip/cache/psvi/loopback endpoints that may
             # never have rw info and thus never 'complete local'
-            if endpoint is None:
-                # there is on exception, if endpoint is None and event is a delete, then ignore it
-                if msg.status == "deleted" or msg.status == "modified":
-                    logger.debug("ignorning deleted/modified event for non-existing eptEndpoint")
-                    return None
-                endpoint_type = get_addr_type(msg.addr, msg.type)
-                dummy_event = eptEndpointEvent.from_dict({"vnid_name":msg.vnid_name}).to_dict()
-                eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr,type=endpoint_type,
-                    first_learn = dummy_event).save()
-            last_event = None
+            # there is one exception, if endpoint is None and event is a delete, then ignore it
+            if msg.status == "deleted" or msg.status == "modified":
+                logger.debug("ignorning deleted/modified event for non-existing eptEndpoint")
+                return None
+            endpoint_type = get_addr_type(msg.addr, msg.type)
+            # set learn_type only on initial creation. learn_type is determined based on vnid OR 
+            # history flags for loopback or psvi. we assume here that loopback/psvi flag is always
+            # present on first learn. We can revisit this later if needed (perhaps some scenario 
+            # where offsubnet/stale event using psvi address is seen BEFORE the psvi endpoint).
+            learn_type_flags = []
+            if msg.node in per_node_history_event:
+                learn_type_flags = per_node_history_event[msg.node][0].flags
+            learn_type = msg.wf.get_learn_type(msg.vnid, flags=learn_type_flags)
+            logger.debug("learn type set to %s", learn_type)
+            dummy_event = eptEndpointEvent.from_dict({"vnid_name":msg.vnid_name}).to_dict()
+            eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr,type=endpoint_type,
+                    first_learn=dummy_event, learn_type=learn_type).save()
 
         # determine current complete local event
         local_event = None
@@ -697,18 +730,22 @@ class eptWorker(object):
                 local_event = eptEndpointEvent.from_dict({
                     "ts":msg.ts, 
                     "status":"deleted",
-                    "vnid_name": last_event.vnid_name       # maintain vnid_name even on delete
+                    # maintain vnid_name and epg_name even on delete
+                    "vnid_name": last_event.vnid_name,
+                    "epg_name": last_event.epg_name,
                 })
                 logger.debug("adding delete event to endpoint table: %s", local_event)
                 msg.wf.push_event(eptEndpoint._classname,flt,local_event.to_dict(),per_node=False)
                 ret.local_events.insert(0, local_event)
-                ret.analyze_move = True
             else:
                 logger.debug("ignoring local delete event for XR/deleted/non-existing endpoint")
         else:
-            # flags is eptHistory event but not eptNode event.  Need to maintain flags before casting
+            # flags is in eptHistory event but not eptNode event. Need to maintain flags before 
+            # casting eptHistoryEvent local_event to eptEndpointEvent
             local_event_flags = local_event.flags
             local_event = eptEndpointEvent.from_history_event(local_node, local_event)
+            # set pod-id for local event (this is before vpc remap so node is actual fabric node)
+            local_event.pod = msg.wf.cache.get_pod_id(local_event.node)
             logger.debug("best local set to: %s", local_event)
             # map local_node to vpc value if this is a vpc
             if "vpc-attached" in local_event_flags:
@@ -735,36 +772,55 @@ class eptWorker(object):
                 updated = False
                 ts_delta = local_event.ts - last_event.ts
                 if ts_delta < 0:
-                    logger.debug("current event is less recent than eptEndpoint event (%.3f < %.3f)",
+                    logger.debug("local_event is less recent than eptEndpoint last_event(%.3f<%.3f)",
                         local_event.ts, last_event.ts)
+                    # this should only happen if events are received out of order (perhaps a refresh
+                    # from user or resume from rapid while other events are queued or during start
+                    # up where new events were received on subscription before build completed).
+                    # the last_event must no longer be valid else it would have been choosen as the 
+                    # best local_event. therefore, we need to treat this as a delete of last local
+                    de = eptEndpointEvent.from_dict({
+                        "ts":msg.ts, 
+                        "status":"deleted",
+                        # maintain vnid_name and epg_name even on delete
+                        "vnid_name": last_event.vnid_name,
+                        "epg_name": last_event.epg_name,
+                    })
+                    logger.debug("adding delete event to endpoint table: %s", de)
+                    msg.wf.push_event(eptEndpoint._classname,flt,de.to_dict(),per_node=False)
+                    ret.local_events.insert(0, de)
                 else:
                     for a in ["node", "pctag", "encap", "intf_id", "rw_mac", "rw_bd"]:
                         if getattr(last_event, a) != getattr(local_event, a):
                             logger.debug("%s changed from '%s' to '%s'", a, getattr(last_event,a),
                                     getattr(local_event,a))
                             updated = True
-                            #break  (can add a break later as only one attribute needs to change)
-                if updated:
-                    # if the previous entry was a delete and the current entry is not a delete, 
-                    # then check for possible merge.
-                    if last_event.node==0 and local_event.node>0 and ts_delta<=TRANSITORY_DELETE:
-                        logger.debug("overwritting eptEndpoint [ts delta(%.3f) < %.3f] with: %s",
-                            ts_delta, TRANSITORY_DELETE, local_event)
-                        self.db[eptEndpoint._classname].update(flt, {"$set":{"events.0": db_event}})
-                        ret.local_events[0] = local_event
-                        ret.analyze_move = True
-                    # push new event to eptEndpoint events  
+                            # only one update required to trigger updated logic...
+                            break
+                    if updated:
+                        # if the previous entry was a delete and the current entry is not a delete, 
+                        # then check for possible merge.
+                        if last_event.node==0 and local_event.node>0 and ts_delta<=TRANSITORY_DELETE:
+                            logger.debug("overwritting eptEndpoint [ts delta(%.3f) < %.3f] with: %s",
+                                ts_delta, TRANSITORY_DELETE, local_event)
+                            self.db[eptEndpoint._classname].update(flt, 
+                                    {"$set":{"events.0": db_event}}
+                                )
+                            ret.local_events[0] = local_event
+                            ret.analyze_move = True
+                        # push new event to eptEndpoint events  
+                        else:
+                            logger.debug("adding event to eptEndpoint: %s", local_event)
+                            msg.wf.push_event(eptEndpoint._classname, flt, db_event, per_node=False)
+                            ret.local_events.insert(0, local_event)
+                            ret.analyze_move = True
                     else:
-                        logger.debug("adding event to eptEndpoint: %s", local_event)
-                        msg.wf.push_event(eptEndpoint._classname, flt, db_event,per_node=False)
-                        ret.local_events.insert(0, local_event)
-                        ret.analyze_move = True
-                else:
-                    logger.debug("no update detected for eptEndpoint")
+                        logger.debug("no update detected for eptEndpoint")
 
-        #logger.debug("eptEndpoint most recent local events(%s)", len(ret.local_events))
-        #for i, l in enumerate(ret.local_events):
-        #    logger.debug("event(%s): %s", i, l)
+        if len(ret.local_events)>0:
+            logger.debug("final local result: %s", ret.local_events[0])
+        else:
+            logger.debug("final local result: empty")
         # return last local endpoint events
         return ret
 
@@ -957,7 +1013,7 @@ class eptWorker(object):
         if len(offsubnet_nodes)>0:
             suppress_nodes = []
             # need to suppress rapid events if recent watch job created
-            # last watch ts is embedded in per_node_history_events
+            # last watch_offsubnet_ts is embedded/hacked in per_node_history_events
             for node in offsubnet_nodes:
                 if node in per_node_history_events:
                     delta = msg.ts - per_node_history_events[node][0].watch_offsubnet_ts
@@ -1036,12 +1092,13 @@ class eptWorker(object):
             if vpc_nodes[0] == 0:
                 vpc_nodes.remove(0)
 
-        stale_nodes = {}    # indexed by node with stale eptHistory event
+        stale_nodes = {}    # indexed by node with eptStaleEvent
         for node in per_node_history_events:
             h_event = per_node_history_events[node][0]
             event = eptStaleEvent.from_history_event(local_node, h_event)
             # only perform analysis on non-deleted entries
             if h_event.status != "deleted":
+                # TODO - add check for interface that proxy-acast-X if bounce-to-proxy is set
                 if "bounce-to-proxy" in h_event.flags or \
                     "loopback" in h_event.flags or \
                     "vtep" in h_event.flags or \
@@ -1071,7 +1128,7 @@ class eptWorker(object):
                             if msg.wf.settings.stale_multiple_local:
                                 stale_nodes[node] = event
                             else:
-                                logger.debug("ignroing stale_multiple_local")
+                                logger.debug("igorning stale_multiple_local")
                     else:
                         # ensure that this node has correct remote pointer or is pointing to a node
                         # with bounce and correct node pointer.  Need to come back and validate if
@@ -1095,8 +1152,18 @@ class eptWorker(object):
                 else:
                     # non-deleted event when endpoint is not currently learned within the fabric
                     if msg.wf.settings.stale_no_local:
-                        logger.debug("stale on %s to %s (no local)", node, h_event.remote)
-                        stale_nodes[node] = event
+                        # if there is no local set and this node has 'local' flag, then it must be
+                        # a transient event and we're waiting on rewrite info OR it is an old event
+                        # where we are waiting for the delete. we will consider this a type of 
+                        # stale_multiple_local
+                        if "local" in h_event.flags:
+                            logger.debug("node %s claiming local with incomplete local_node", node)
+                            if msg.wf.settings.stale_multiple_local:
+                                logger.debug("stale on %s to %s (no local)", node, h_event.remote)
+                                stale_nodes[node] = event
+                        else:
+                            logger.debug("stale on %s to %s (no local)", node, h_event.remote)
+                            stale_nodes[node] = event
                     else:
                         logger.debug("ignoring stale_no_local")
 
@@ -1126,14 +1193,19 @@ class eptWorker(object):
             suppress_nodes = []
 
             # need to suppress rapid events if recent watch job created
-            # last watch ts is embedded in per_node_history_events
+            # last watch_stale_ts and watch_stale_event is embedded/hacked in per_node_history_events
             for node in stale_nodes:
                 if node in per_node_history_events:
-                    delta = msg.ts - per_node_history_events[node][0].watch_stale_ts
+                    last_node_event = per_node_history_events[node][0]
+                    delta = msg.ts - last_node_event.watch_stale_ts
                     if delta != 0 and delta < SUPPRESS_WATCH_STALE:
-                        logger.debug("suppress watch_stale for node 0x%04x (delta %.03f<%.03f)", 
+                        # if this stale event is non-duplicate of previous event, then we need to 
+                        # skip suppression and send updated stale event to watcher.
+                        stale_event = stale_nodes[node]
+                        if stale_event.is_duplicate(last_node_event.watch_stale_event):
+                            logger.debug("suppress watch_stale for node 0x%04x (delta %.03f<%.03f)", 
                                 node, delta, SUPPRESS_WATCH_STALE)
-                        suppress_nodes.append(node)
+                            suppress_nodes.append(node)
 
             # remove suppress_nodes from offsubnet_nodes list
             for node in suppress_nodes:
@@ -1156,7 +1228,8 @@ class eptWorker(object):
                     # mark watch ts for suppression of future events
                     flt["node"] = node
                     self.db[eptHistory._classname].update_one(flt, {"$set":{
-                        "watch_stale_ts":msg.ts
+                        "watch_stale_ts": msg.ts,
+                        "watch_stale_event": stale_nodes[node].to_dict()
                     }})
                 logger.debug("sending %s stale events to watcher", len(msgs))
                 self.send_msg(msgs)
@@ -1234,10 +1307,11 @@ class eptWorker(object):
         msg.wf.send_notification("rapid", subject, txt)
         if msg.wf.settings.refresh_rapid:
             key = "%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr)
-            msg.xts = msg.ts + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID
+            uptime_delta = msg.wf.get_uptime_delta_offset(TRANSITORY_UPTIME)
+            msg.xts = msg.now + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID + uptime_delta
             with self.watch_rapid_lock:
                 self.watch_rapid[key] = msg
-            logger.debug("watch rapid added with xts: %.03f", msg.xts)
+            logger.debug("watch rapid added with xts: %.03f, delta: %.03f", msg.xts, msg.xts-msg.now)
 
     def handle_watch_offsubnet(self, msg):
         """ recieves an eptMsgWorkWatchOffSubnet message and adds object to watch_offsubnet dict with 
@@ -1245,10 +1319,11 @@ class eptWorker(object):
             exists it is overwritten with the new watch event.
         """
         key = "%s,%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr, msg.node)
-        msg.xts = msg.ts + TRANSITORY_OFFSUBNET
+        uptime_delta = msg.wf.get_uptime_delta_offset(TRANSITORY_UPTIME)
+        msg.xts = msg.now + TRANSITORY_OFFSUBNET + uptime_delta
         with self.watch_offsubnet_lock:
             self.watch_offsubnet[key] = msg
-        logger.debug("watch offsubnet added with xts: %.03f", msg.xts)
+        logger.debug("watch offsubnet added with xts: %.03f, delta: %.03f", msg.xts, msg.xts-msg.now)
 
     def handle_watch_stale(self, msg):
         """ recevie an eptMsgWorkWatchStale message and adds object to watch_stale dict with execute
@@ -1256,13 +1331,14 @@ class eptWorker(object):
             If object already exists it is overwritten with the new watch event.
         """
         key = "%s,%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr, msg.node)
+        uptime_delta = msg.wf.get_uptime_delta_offset(TRANSITORY_UPTIME)
         if msg.event["expected_remote"] == 0:
-            msg.xts = msg.ts + TRANSITORY_STALE_NO_LOCAL
+            msg.xts = msg.now + TRANSITORY_STALE_NO_LOCAL + uptime_delta
         else:
-            msg.xts = msg.ts + TRANSITORY_STALE
+            msg.xts = msg.now + TRANSITORY_STALE + uptime_delta
         with self.watch_stale_lock:
             self.watch_stale[key] = msg
-        logger.debug("watch stale added with xts: %.03f", msg.xts)
+        logger.debug("watch stale added with xts: %.03f, delta: %.03f", msg.xts, msg.xts-msg.now)
 
     def execute_watch(self):
         """ check for watch events with execute ts ready and perform corresponding actions
@@ -1451,6 +1527,7 @@ class eptWorker(object):
                         reason = "stale" if ept_db_attr == "is_stale" else "offsubnet"
                         msg.wf.push_event(eptRemediate._classname, key, {
                             "ts": ts,
+                            "vnid_name": event.vnid_name,
                             "action": "clear",
                             "reason": reason,
                         })

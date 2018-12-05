@@ -31,6 +31,11 @@ tenant ag, vrf v1, bd bd1/bd2/bd3, app a1, epg e1/e2/e3
             vnid: 0x2c8000
             pctag: 20001
 
+    bd0 - uni/tn-ag/out-out1/encap-[vlan-1001]"
+            vnid: 0xe4ffd0
+            pctag: 20010
+                vlan-encap: 1001
+
     bd1 - uni/tn-ag/bd-bd1
             vnid: 0xe4ffd1
             pctag: 20011
@@ -69,6 +74,7 @@ import pytest
 import time
 
 from app.models.aci.fabric import Fabric
+from app.models.aci.ept.common import MANAGER_WORK_QUEUE
 from app.models.aci.ept.ept_msg import *
 from app.models.aci.ept.ept_worker import eptWorker
 from app.models.aci.ept.ept_queue_stats import eptQueueStats
@@ -89,6 +95,7 @@ from app.models.aci.ept.ept_endpoint import eptEndpoint
 from app.models.aci.ept.ept_endpoint import eptEndpointEvent
 from app.models.aci.ept.ept_rapid import eptRapid
 from app.models.aci.ept.ept_remediate import eptRemediate
+from app.models.aci.ept.ept_settings import eptSettings
 
 from app.models.rest.db import db_setup
 from app.models.utils import get_db
@@ -101,9 +108,14 @@ logger = logging.getLogger(__name__)
 redis = get_redis()
 tfabric = "fab1"
 overlay_vnid = 0xffffef
+overlay_pctag = 49153
 vrf_vnid = 0x2c8000
 vrf_pctag = 20001
 vrf_name = "uni/tn-ag/ctx-v1"
+bd0_vnid = 0xe4ffd0
+bd0_name = "uni/tn-ag/out-out1/encap-[vlan-1001]"
+bd0_pctag = 20010
+bd0_encap = "vlan-1001"
 bd1_vnid = 0xe4ffd1
 bd1_pctag = 20011
 bd1_name = "uni/tn-ag/bd-bd1"
@@ -179,6 +191,7 @@ def create_test_environment():
     #
     logger.debug("%s create_environment setup", "."*80)
     assert Fabric.load(fabric=tfabric).save()
+    eptSettings.load(fabric=tfabric, settings="default", overlay_vnid=overlay_vnid).save()
 
     def create_node(node,name=None,addr=None,role="leaf",peer=0,nodes=[]):
         if name is None: name="leaf-%s" % node
@@ -238,6 +251,10 @@ def create_test_environment():
     assert eptVpc.load(fabric=tfabric,node=102,intf="po9",vpc=385,name="topology/pod-1/node-102/sys/vpc/inst/dom-1/if-385/rsvpcConf").save()
 
     # create vnids for vrfs and bds
+    assert eptVnid.load(fabric=tfabric,name="uni/tn-infra/ctx-overlay-1",vrf=overlay_vnid,
+            vnid=overlay_vnid,pctag=overlay_pctag).save()
+    assert eptVnid.load(fabric=tfabric,name=bd0_name,vrf=vrf_vnid,vnid=bd0_vnid,pctag=bd0_pctag,
+            external=True,encap=bd0_encap).save()
     assert eptVnid.load(fabric=tfabric,name=vrf_name,vrf=vrf_vnid,vnid=vrf_vnid,pctag=vrf_pctag).save()
     assert eptVnid.load(fabric=tfabric,name=bd1_name,vrf=vrf_vnid,vnid=bd1_vnid,pctag=bd1_pctag).save()
     assert eptVnid.load(fabric=tfabric,name=bd2_name,vrf=vrf_vnid,vnid=bd2_vnid,pctag=bd2_pctag).save()
@@ -341,6 +358,8 @@ def get_epg_encap_pctag_vnid(val):
         return (epg2_encap, epg2_pctag, bd2_vnid)
     elif val == 3:
         return (epg3_encap, epg3_pctag, bd3_vnid)
+    elif val == 0:
+        return (bd0_encap, bd0_pctag, bd0_vnid)
     else:
         raise Exception("unknown epg/bd val %s" % val)
 
@@ -452,6 +471,18 @@ def get_worker(role="worker"):
     dut.db = get_db()
     dut.redis = get_redis()
     return dut
+
+def get_queue_msgs(queue=None, pop=False):
+    # return list of all msgs on queue.  If pop is true then messages are removed from queue else
+    # just a read is performed.  Defaults to queue MANAGER_WORK_QUEUE
+    if queue is None:
+        queue = MANAGER_WORK_QUEUE  
+    msgs = []
+    for data in redis.lrange(queue, 0, -1):
+        msgs.append(eptMsg.parse(data))
+    if pop:
+        redis.delete(queue)
+    return msgs
 
 def test_handle_endpoint_event_new_local_mac(app, func_prep):
     # create event for new mac and ensure entry is added to eptHistory and eptEndpoint tables
@@ -1797,4 +1828,219 @@ def test_handle_endpoint_event_stale_scenario_1(app, func_prep):
     h = h[0]
     logger.debug(pretty_print(h.to_json()))
     assert h.is_stale
+
+def test_handle_endpoint_invalid_old_last_local(app, func_prep):
+    # this test we want to create two valid local entries.  First, on node-101 and then on node-102.
+    # Next, we invalidate the local entry on node-102 without an update on node-101. We need to 
+    # ensure that we don't reuse node-101 as best local and instead return a delete as the last 
+    # local.
+    
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # initial local learn
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=2.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(102, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=2.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # at this point eptEndpoint should have 102 as current local
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    assert len(e[0].events)==2
+    e0 = eptEndpointEvent.from_dict(e[0].events[0])
+    assert e0.node == 102
+
+    # now we invalidate leaf-102 as the local and eptEndpoint should have last local as deleted,
+    # not leaf-101
+    msg = get_epm_event(102, ip, status="deleted", ts=3.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # at this point eptEndpoint should have 102 as current local
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    assert len(e[0].events)==3
+    e0 = eptEndpointEvent.from_dict(e[0].events[0])
+    assert e0.node == 0
+    assert e0.status == "deleted"
+
+def test_handle_endpoint_suppress_stale_event(app, func_prep):
+    # suppress stale is a mechanism to suppress events sent to watcher on a per-node/per-endpoint
+    # basis. The assumption is, once the endpoint is stale, redundant watch events do not need to 
+    # be sent to watcher as this will increase the watch time. This verifies that the stale event
+    # is suppressed for duplicate event.
+
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # initial local learn on node-101
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # stale learn on node-103 pointing to node-104
+    msg = get_epm_event(103, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=104, ts=1000000001.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    # correct learn on node-102 pointing to node-101, this triggers stale analysis for node-103
+    # but that event should be suppressed
+    msg = get_epm_event(102, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=101, ts=1000000002.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # validate that one stale events sent on redis queue
+    msgs = get_queue_msgs() 
+    assert len(msgs) == 1
+    assert msgs[0].event["remote"] == 104
+    assert msgs[0].event["expected_remote"] == 101
+
+def test_handle_endpoint_ignore_suppress_for_new_stale_event(app, func_prep):
+    # this test verifies that stale event is NOT suppressed if the stale event is different from 
+    # the previous event.
+    # For this test, create a stale event for node-101 pointing to node-103.  Then create another
+    # stale event where remote has changed to node-104 and verify an updated stale event sent to 
+    # watcher (which will be waiting on mq to dispatch to a watcher). 
+
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # initial learn on node-101 toward node-103 (stale since local does not exists)
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=103, ts=1000000001.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # second learn pointing to node-104 (still stale as no local exists)
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, remote_node=104, ts=1000000002.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # validate that two stale events sent on redis queue
+    msgs = get_queue_msgs() 
+    assert len(msgs) == 2
+    assert msgs[0].event["remote"] == 103
+    assert msgs[0].event["expected_remote"] == 0
+    assert msgs[1].event["remote"] == 104
+    assert msgs[1].event["expected_remote"] == 0
+
+
+def test_handle_endpoint_set_pod_id(app, func_prep):
+    # ensure create and update event for eptEndpoint includes pod-id.  for this case we will create
+    # and ip endpoint on node-101 and then trigger a move to new intf and ensure pod-id is maintained
+    # within eptEndpoint events
+
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+
+    # initial local learn
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # ensure eptEndpoint last event has pod set.
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    assert len(e[0].events)==1
+    e0 = eptEndpointEvent.from_dict(e[0].events[0])
+    assert e0.pod == 1
+
+    # move to new epg (can skip the delete)
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/2", ts=2.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # ensure eptEndpoint last event has pod set.
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    assert len(e[0].events)==2
+    e0 = eptEndpointEvent.from_dict(e[0].events[0])
+    assert e0.pod == 1
+
+def test_handle_endpoint_set_learn_type(app, func_prep):
+    # ensure endpoints created for loopback, psvi, external, overlay-1 vnid, and normal epg have
+    # correct learn_type set.
+
+    dut = get_worker()
+
+    # normal epg
+    ip = "10.1.1.101"
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT,intf="eth1/1",epg=1)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    assert e[0].learn_type == "epg"
+
+    # psvi
+    ip = "10.1.1.1"
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT,intf="vlan1",flags=["ip","local","psvi"])
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    assert e[0].learn_type == "psvi"
+
+    # loopback
+    # need to create custom objects since get_epm_event doesn't support overlay objects
+    ip = "10.0.0.101"
+    msg = parser.parse("epmIpEp", {
+        "addr": ip,
+        "dn": "topology/pod-1/node-101/sys/inst-overlay-1/db-ep/ip-[%s]" % ip,
+        "flags": "ip,local,loopback",
+        "ifId": "lo0",
+        "pcTag": "any",
+        "status": "created",
+        }, 1.0)
+    logger.debug("[w1] %s" % msg)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    assert e[0].learn_type == "loopback"
+
+    # overlay-1 endpoint
+    # need to create custom objects since get_epm_event doesn't support overlay objects
+    mac = "00:00:01:02:03:04"
+    msg = parser.parse("epmMacEp", {
+        "addr": mac,
+        "dn": "topology/pod-1/node-101/sys/inst-overlay-1/bd-[vxlan-%s]/db-ep/mac-%s" % (
+                    overlay_vnid,mac),
+        "flags": "mac,local",
+        "ifId": "eth1/1",
+        "pcTag": "any",
+        "status": "created",
+        }, 1.0)
+    logger.debug("[w1] %s" % msg)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    e = eptEndpoint.find(fabric=tfabric, addr=mac)
+    assert len(e)==1
+    assert e[0].learn_type == "overlay"
+
+    # external BD that should have external set
+    mac = "00:00:00:01:02:03"
+    msg = get_epm_event(101, mac, wt=WORK_TYPE.EPM_MAC_EVENT, intf="et1/1", bd=0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    e = eptEndpoint.find(fabric=tfabric, addr=mac)
+    assert len(e)==1
+    assert e[0].learn_type == "external"
 

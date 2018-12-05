@@ -1,9 +1,9 @@
 import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
-import {forkJoin} from '../../../../../node_modules/rxjs';
+import {forkJoin} from 'rxjs';
 import {ModalService} from '../../../_service/modal.service';
-import { ActivatedRoute } from '../../../../../node_modules/@angular/router';
+import {ActivatedRoute} from '@angular/router';
 
 @Component({
     selector: 'app-per-node-history',
@@ -17,16 +17,18 @@ export class PerNodeHistoryComponent implements OnInit {
     pageSize: number;
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService: ModalService,private activatedRoute:ActivatedRoute) {
+    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService: ModalService, private activatedRoute: ActivatedRoute) {
         this.endpoint = this.prefs.selectedEndpoint;
         this.pageSize = this.prefs.pageSize;
         this.rows = [];
     }
 
     ngOnInit() {
-        if(!this.endpoint) {
-            this.prefs.getEndpointParams(this,'getNodesForEndpoint') ;
-        }else{
+        if (!this.endpoint) {
+            this.prefs.getEndpointParams(this, () => {
+                this.getNodesForEndpoint();
+            });
+        } else {
             this.getNodesForEndpoint();
         }
     }
@@ -61,20 +63,5 @@ export class PerNodeHistoryComponent implements OnInit {
                 this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
             }
         );
-
     }
-
-    getPerNodeHistory(fabric, node, vnid, address, obj = []) {
-        this.backendService.getPerNodeHistory(fabric, node, vnid, address).subscribe(
-            (data) => {
-                obj = obj.concat(data['objects'][0]['ept.history']['events']);
-            },
-            (error) => {
-                const msg = 'Could not fetch history for node ' + node + ' ! ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
-            }
-        )
-    }
-
-
 }

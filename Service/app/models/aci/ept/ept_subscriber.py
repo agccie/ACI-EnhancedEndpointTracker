@@ -13,6 +13,7 @@ from .. subscription_ctrl import SubscriptionCtrl
 
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_WORK_QUEUE
+from . common import MAX_SEND_MSG_LENGTH
 from . common import MINIMUM_SUPPORTED_VERSION
 from . common import MO_BASE
 from . common import SUBSCRIBER_CTRL_CHANNEL
@@ -69,31 +70,35 @@ class eptSubscriber(object):
         self.subscription_check_interval = 5.0   # interval to check subscription health
 
         # classes that have corresponding mo Rest object and handled by handle_std_mo_event
-        mo_classes = [
-            "fvAEPg",
+        # the order shouldn't matter during build but just to be safe we'll control the order...
+        self.ordered_mo_classes = [
+            # ordered l3out dependencies
             "fvCtx",
-            "fvBD",
-            "fvRsBd",
-            "fvSvcBD",
-            "fvSubnet",
-            "fvIpAttr",
+            "l3extRsEctx",
+            "l3extOut",
             "l3extExtEncapAllocator",
             "l3extInstP",
-            "l3extOut",
-            "l3extRsEctx",
-            "mgmtInB",
+            # ordered BD/EPG/subnet dependencies
+            "fvBD",
+            "fvSvcBD",
+            "fvRsBd",
+            "vnsRsEPpInfoToBD",
+            "vnsRsLIfCtxToBD",
+            "vnsLIfCtx",
             "mgmtRsMgmtBD",
+            "mgmtInB",
+            "fvAEPg",
+            "vnsEPpInfo",
+            "fvSubnet",
+            "fvIpAttr",
+            # no dependencies
             "pcAggrIf",
             "tunnelIf",
-            "vnsEPpInfo",
-            "vnsLIfCtx",
-            "vnsRsLIfCtxToBD",
-            "vnsRsEPpInfoToBD",
             "vpcRsVpcConf",
         ]
         # dict of classname to import mo object
         self.mo_classes = {}
-        for mo in mo_classes:
+        for mo in self.ordered_mo_classes:
             self.mo_classes[mo] = getattr(import_module(".%s" % mo, MO_BASE), mo)
 
         # static/special handlers for a subset of 'slow' subscriptions
@@ -113,10 +118,14 @@ class eptSubscriber(object):
         }
 
         # epm subscriptions expect a high volume of events
+        # note the order of the subscription classes is also the order in which analysis is performed
+        #rs-ip-events before  epmIpEp so that each local epmIpEp will already have corresponding mac 
+        # rewrite info ready. Ideally, all epmIpEp analysis completes in under 
+        # TRANSITORY_STALE_NO_LOCAL time (300 seconds) so no false stale is triggered. 
         self.epm_subscription_classes = [
-            "epmMacEp",
-            "epmIpEp",
             "epmRsMacEpToIpEpAtt",
+            "epmIpEp",
+            "epmMacEp",
         ]
 
         all_interests = {}
@@ -129,6 +138,7 @@ class eptSubscriber(object):
             self.fabric,
             all_interests,
             heartbeat=300,
+            subscribe_timeout=30,
         )
 
     def __repr__(self):
@@ -275,8 +285,10 @@ class eptSubscriber(object):
        
         # setup slow subscriptions to catch events occurring during build 
         if self.settings.queue_init_events:
-            self.subscriber.pause(self.subscription_classes + self.mo_classes.keys())
-        self.subscriber.subscribe(blocking=False)
+            self.subscriber.pause(self.subscription_classes + self.ordered_mo_classes)
+        if not self.subscriber.subscribe(blocking=False):
+            self.fabric.add_fabric_event("failed", "failed to start one or more subscriptions")
+            return
 
         # build mo db first as other objects rely on it
         self.fabric.add_fabric_event(init_str, "collecting base managed objects")
@@ -320,7 +332,7 @@ class eptSubscriber(object):
         # slow objects (including std mo objects) initialization completed
         self.initializing = False
         # safe to call resume even if never paused
-        self.subscriber.resume(self.subscription_classes + self.mo_classes.keys())
+        self.subscriber.resume(self.subscription_classes + self.ordered_mo_classes)
 
         # build current epm state, start subscriptions for epm objects after query completes
         self.ept_epm_parser = eptEpmEventParser(self.fabric.fabric, self.settings.overlay_vnid)
@@ -392,7 +404,7 @@ class eptSubscriber(object):
         init_str = "re-initializing"
         # remove slow interests from subscriber
         self.initializing = True
-        self.subscriber.remove_interest(self.subscription_classes + self.mo_classes.keys())
+        self.subscriber.remove_interest(self.subscription_classes + self.ordered_mo_classes)
         for c in self.subscription_classes:
             self.subscriber.add_interest(c, self.handle_event, paused=True)
         for c in self.mo_classes:
@@ -424,21 +436,22 @@ class eptSubscriber(object):
 
         self.fabric.add_fabric_event("running")
         self.initializing = False
-        self.subscriber.resume(self.subscription_classes + self.mo_classes.keys())
+        self.subscriber.resume(self.subscription_classes + self.ordered_mo_classes)
 
     def send_msg(self, msg):
-        """ send one or more eptMsgWork objects to worker via manager work queue """
+        """ send one or more eptMsgWork objects to worker via manager work queue 
+            limit the number of messages sent at a time to MAX_SEND_MSG_LENGTH
+        """
         if isinstance(msg, list):
-            work = []
             for sub_msg in msg:
                 # validate that 'fabric' is ALWAYS set on any work
                 sub_msg.fabric = self.fabric.fabric
-                work.append(sub_msg.jsonify())
-            if len(work) == 0:
-                # rpush requires at least one event, if msg is empty list then just return
-                return
-            with self.manager_work_queue_lock:
-                self.redis.rpush(MANAGER_WORK_QUEUE, *work)
+            # break up msg into multiple blocks 
+            for i in range(0, len(msg), MAX_SEND_MSG_LENGTH):
+                work = [m.jsonify() for m in msg[i:i+MAX_SEND_MSG_LENGTH]]
+                if len(work)>0:
+                    with self.manager_work_queue_lock:
+                        self.redis.rpush(MANAGER_WORK_QUEUE, *work)
         else:
             # validate that 'fabric' is ALWAYS set on any work
             msg.fabric = self.fabric.fabric
@@ -566,8 +579,9 @@ class eptSubscriber(object):
 
     def build_mo(self):
         """ build managed objects for defined classes """
-        for mo in sorted(self.mo_classes):
-            self.mo_classes[mo].rebuild(self.fabric, session=self.session)
+        for mo in self.ordered_mo_classes:
+            if not self.mo_classes[mo].rebuild(self.fabric, session=self.session):
+                return False
         return True
 
     def initialize_ept_collection(self, eptObject, mo_classname, attribute_map=None, 
@@ -866,6 +880,7 @@ class eptSubscriber(object):
                 vnid = int(re.sub("vxlan-","", obj.extEncap)),
                 name = obj.dn,
                 encap = obj.encap,
+                external = True,
                 ts = ts
             )
             if obj.parent in l3ctx:
@@ -1060,81 +1075,49 @@ class eptSubscriber(object):
             Return boolean success
         """
         logger.debug("initialize endpoint db")
-
         start_time = time.time()
-        data = get_class(self.session, "epmDb", queryTarget="subtree",
-                targetSubtreeClass="epmMacEp,epmIpEp,epmRsMacEpToIpEpAtt")
 
+        # 3-level dict to track endpoints returned from class query endpoints[node][vnid][addr] = 1
+        endpoints = {}
         # we will start epm subscription AFTER get_class (which can take a long time) but before 
         # processing endpoints.  This minimizes amount of time we lose data without having to buffer
         # all events that are recieved during get requests.
         paused = self.settings.queue_init_epm_events
-        for c in self.epm_subscription_classes:
-            self.subscriber.add_interest(c, self.handle_epm_event, paused=paused)
-
-        ts = time.time()
-        if data is None:
-            logger.warn("failed to get data for epmDb")
-            return
-        # 3-level dict to track endpoints returned from class query endpoints[node][vnid][addr] = 1
-        endpoints = {}
-        # queue all the events to send at one time...
-        create_msgs = []
-        delete_msgs = []
-        for (classname, attr) in self.parse_event(data, verify_ts=False):
-            msg = self.ept_epm_parser.parse(classname, attr, ts)
-            if msg is not None:
-                create_msgs.append(msg)
-                if msg.node not in endpoints: endpoints[msg.node] = {}
-                if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
-                endpoints[msg.node][msg.vnid][msg.addr] = 1
-
-        # free classquery data list
         data = []
-
-        # get entries in db and create delete events for those not deleted and not in class query.
-        # we need to iterate through the results and do so as fast as possible and current rest
-        # class does not support an iterator.  Therefore, using direct db call...
-        flt = {
-            "fabric": self.fabric.fabric,
-            "events.0.status": {"$ne": "deleted"},
-        }
-        projection = {
-            "node": 1,
-            "vnid": 1,
-            "addr": 1,
-            "type": 1,
-        }
-        for obj in self.db[eptHistory._classname].find(flt, projection):
-            # if in endpoints dict, then stil exists in the fabric so do not create a delete event
-            if obj["node"] in endpoints and obj["vnid"] in endpoints[obj["node"]] and \
-                obj["addr"] in endpoints[obj["node"]][obj["vnid"]]:
-                continue
-            if obj["type"] == "mac":
-                msg = self.ept_epm_parser.get_delete_event("epmMacEp", obj["node"], 
-                    obj["vnid"], obj["addr"], ts)
-                if msg is not None:
-                    delete_msgs.append(msg)
+        for c in self.epm_subscription_classes:
+            if c == "epmRsMacEpToIpEpAtt":
+                gen = get_class(self.session, c, stream=True, orderBy="%s.dn" % c)
             else:
-                # create an epmRsMacEpToIpEpAtt and epmIpEp delete event
-                msg = self.ept_epm_parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"], 
-                    obj["vnid"], obj["addr"], ts)
-                if msg is not None:
-                    delete_msgs.append(msg)
-                msg = self.ept_epm_parser.get_delete_event("epmIpEp", obj["node"], 
-                    obj["vnid"], obj["addr"], ts)
-                if msg is not None:
-                    delete_msgs.append(msg)
+                gen = get_class(self.session, c, stream=True, orderBy="%s.addr" % c)
+            ts = time.time()
+            create_msgs = []
+            if not self.subscriber.add_interest(c, self.handle_epm_event, paused=paused):
+                logger.warn("failed to add interest %s to subscriber", c)
+                return False
+            for obj in gen:
+                if obj is None:
+                    logger.error("failed to get epm data for class %s", c)
+                    return False
+                # process the data now as we can't afford buffer all msgs in memory on scale setups
+                if c in obj and "attributes" in obj[c]:
+                    msg = self.ept_epm_parser.parse(c, obj[c]["attributes"], ts)
+                    if msg is not None:
+                        create_msgs.append(msg)
+                        if msg.node not in endpoints: endpoints[msg.node] = {}
+                        if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
+                        endpoints[msg.node][msg.vnid][msg.addr] = 1
+                else:
+                    logger.warn("invalid %s object: %s", c, obj)
+            # send all create and delete messages to workers (delete first just because...)
+            logger.debug("build_endpoint_db sending %s create for %s", len(create_msgs),c)
+            self.send_msg(create_msgs)
+            create_msgs = []
 
-        # send all create and delete messages to workers (delete first just because...)
-        logger.debug("build_endoint_db sending %s delete and %s create messages", len(delete_msgs),
-                len(create_msgs))
-        ts2 = time.time()
+        # get delete jobs
+        delete_msgs = self.get_epm_delete_msgs(endpoints)
+        logger.debug("build_endpoint_db sending %s delete jobs", len(delete_msgs))
         self.send_msg(delete_msgs)
-        self.send_msg(create_msgs)
-        ts3 = time.time()
-        logger.debug("build_endpoint_db query: %.3f, build: %.3f, send_msg: %.3f, total: %.3f", 
-            ts-start_time, ts2-ts, ts3 - ts2, ts3 - start_time) 
+        logger.debug("build_endpoint_db total time: %.3f", time.time()-start_time)
         return True
 
     def refresh_endpoint(self, vnid, addr, addr_type, qnum=1):
@@ -1158,9 +1141,13 @@ class eptSubscriber(object):
                 "targetSubtreeClass": "epmIpEp,epmRsMacEpToIpEpAtt",
                 "queryTargetFilter": f
             }
-        work = []
         objects = get_class(self.session, classname, **kwargs)
         ts = time.time()
+        # 3-level dict to track endpoints returned from class query endpoints[node][vnid][addr] = 1
+        endpoints = {}
+        # queue all the events to send at one time...
+        create_msgs = []
+        # queue all the events to send at one time...
         if objects is not None:
             for obj in objects:
                 classname = obj.keys()[0]
@@ -1169,17 +1156,69 @@ class eptSubscriber(object):
                     attr["_ts"] = ts
                     msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
                     if msg is not None:
-                        if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
-                            if msg.ip == addr and msg.vrf == vnid:
-                                work.append(eptMsgWorkRaw(addr,"worker",{classname:attr},
-                                                                    WORK_TYPE.RAW,qnum=qnum))
-                        elif msg.addr == addr and msg.vnid == vnid:
-                            work.append(eptMsgWorkRaw(addr,"worker",{classname:attr},
-                                                                WORK_TYPE.RAW,qnum=qnum))
+                        create_msgs.append(msg)
+                        if msg.node not in endpoints: endpoints[msg.node] = {}
+                        if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
+                        endpoints[msg.node][msg.vnid][msg.addr] = 1
                 else:
                     logger.debug("ignoring invalid epm object %s", obj)
+            # get delete jobs
+            delete_msgs = self.get_epm_delete_msgs(endpoints, addr=addr, vnid=vnid)
+            logger.debug("sending %s create and %s delete msgs from refresh", len(create_msgs),
+                    len(delete_msgs))
+            # set force flag and qnum on each msg to trigger analysis update
+            for msg in create_msgs+delete_msgs:
+                msg.qnum = qnum
+                msg.force = True
+
+            self.send_msg(create_msgs)
+            self.send_msg(delete_msgs)
         else:
             logger.debug("failed to get epm objects")
-        logger.debug("sending %s work events from refresh", len(work))
-        self.send_msg(work)
+
+    def get_epm_delete_msgs(self, endpoints, addr=None, vnid=None):
+        """ from provided create endpoint dict and flt, return list of delete msgs 
+            endpoints must be 3-level dict in the form endpoints[node][vnid][addr]
+        """
+
+        # get entries in db and create delete events for those not deleted and not in class query.
+        # we need to iterate through the results and do so as fast as possible and current rest
+        # class does not support an iterator.  Therefore, using direct db call...
+        projection = {
+            "node": 1,
+            "vnid": 1,
+            "addr": 1,
+            "type": 1,
+        }
+        flt = {
+            "fabric": self.fabric.fabric,
+            "events.0.status": {"$ne": "deleted"},
+        }
+        if addr is not None and vnid is not None:
+            flt["addr"] = addr
+            flt["vnid"] = vnid
+
+        ts = time.time()
+        delete_msgs = []
+        for obj in self.db[eptHistory._classname].find(flt, projection):
+            # if in endpoints dict, then stil exists in the fabric so do not create a delete event
+            if obj["node"] in endpoints and obj["vnid"] in endpoints[obj["node"]] and \
+                obj["addr"] in endpoints[obj["node"]][obj["vnid"]]:
+                continue
+            if obj["type"] == "mac":
+                msg = self.ept_epm_parser.get_delete_event("epmMacEp", obj["node"], 
+                    obj["vnid"], obj["addr"], ts)
+                if msg is not None:
+                    delete_msgs.append(msg)
+            else:
+                # create an epmRsMacEpToIpEpAtt and epmIpEp delete event
+                msg = self.ept_epm_parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"], 
+                    obj["vnid"], obj["addr"], ts)
+                if msg is not None:
+                    delete_msgs.append(msg)
+                msg = self.ept_epm_parser.get_delete_event("epmIpEp", obj["node"], 
+                    obj["vnid"], obj["addr"], ts)
+                if msg is not None:
+                    delete_msgs.append(msg)
+        return delete_msgs
 

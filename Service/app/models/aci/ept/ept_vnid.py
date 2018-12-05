@@ -39,6 +39,11 @@ class eptVnid(Rest):
             "type": int,
             "description": "for bd vnids this is corresponding vrf vnid, else this is same as vnid",
         },
+        "external": {
+            "type": bool,
+            "default": False,
+            "description": "true if vnid is from external BD",
+        },
         "pctag": {
             "type": int,
             "description": """ 

@@ -35,7 +35,7 @@
     </ngx-datatable-column>
     <ngx-datatable-column prop="node" name="Local Node" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-          {{ value !== '' ? (value | localNode) : '&mdash;' }}
+            {{ value !== '' ? (value | localNode) : '&mdash;' }}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.15'>

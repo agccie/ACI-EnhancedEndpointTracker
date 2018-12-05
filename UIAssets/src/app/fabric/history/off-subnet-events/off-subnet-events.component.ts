@@ -1,7 +1,7 @@
-import {Component, OnInit, ViewChild, TemplateRef} from '@angular/core';
+import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
-import { ModalService } from '../../../_service/modal.service';
+import {ModalService} from '../../../_service/modal.service';
 
 @Component({
     selector: 'app-off-subnet-events',
@@ -14,20 +14,21 @@ export class OffSubnetEventsComponent implements OnInit {
     loading = false;
     sorts = [{prop: 'ts', dir: 'desc'}];
     pageSize: number;
-    @ViewChild('errorMsg') msgModal:TemplateRef<any> ;
-    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService:ModalService) {
+    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
+
+    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService: ModalService) {
         this.rows = [];
         this.pageSize = this.prefs.pageSize;
         this.endpoint = this.prefs.selectedEndpoint;
-        this.getNodesForOffsubnetEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr);
+        this.getNodesForOffsubnetEndpoints();
     }
 
     ngOnInit() {
     }
 
-    getNodesForOffsubnetEndpoints(fabricName, vnid, address) {
+    getNodesForOffsubnetEndpoints() {
         this.loading = true;
-        this.backendService.getAllOffsubnetStaleEndpoints(this.endpoint.fabric,this.endpoint.vnid,this.endpoint.addr,'offsubnet').subscribe(
+        this.backendService.getAllOffsubnetStaleEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, 'offsubnet').subscribe(
             (data) => {
                 this.rows = [];
                 for (let object of data.objects) {
@@ -36,14 +37,13 @@ export class OffSubnetEventsComponent implements OnInit {
                         event.node = endpoint['node'];
                         this.rows.push(event);
                     }
-
                 }
                 this.loading = false;
             },
             (error) => {
                 this.loading = false;
-                const msg = 'Failed to load offsubnet endpoints! ' + error['error']['error'] ;
-                this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
+                const msg = 'Failed to load offsubnet endpoints! ' + error['error']['error'];
+                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         )
     }

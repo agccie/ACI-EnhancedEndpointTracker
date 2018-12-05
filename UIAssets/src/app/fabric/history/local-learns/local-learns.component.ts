@@ -1,14 +1,13 @@
 import {Component, OnInit} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
-import { Endpoint } from '../../../_model/endpoint';
-import { ModalService } from '../../../_service/modal.service';
-import { ActivatedRoute } from '../../../../../node_modules/@angular/router';
+import {ActivatedRoute} from '@angular/router';
 
 @Component({
     selector: 'app-local-learns',
     templateUrl: './local-learns.component.html',
 })
+
 export class LocalLearnsComponent implements OnInit {
     rows: any;
     endpoint: any;
@@ -18,17 +17,12 @@ export class LocalLearnsComponent implements OnInit {
     rw_bd = '';
     rw_mac = '';
 
-    constructor(private backendService: BackendService, private prefs: PreferencesService, private activatedRoute : ActivatedRoute ) {
+    constructor(private backendService: BackendService, private prefs: PreferencesService, private activatedRoute: ActivatedRoute) {
         this.pageSize = this.prefs.pageSize;
-        this.endpoint = this.prefs.selectedEndpoint ;
+        this.endpoint = this.prefs.selectedEndpoint;
     }
 
     ngOnInit() {
-            this.prefs.getEndpointParams(this,undefined,true) ;
+        this.prefs.getEndpointParams(this, undefined);
     }
-
-
-    
-
-
 }

@@ -126,10 +126,7 @@ class Fabric(Rest):
         "restart_ts": {
             "type": float,
             "write": False,
-            "read": False,
-            "description": """
-            last timestamp fabric monitor was started used to throttle rapid restarts
-            """,
+            "description": """ epoch timestamp fabric in which monitor was started """,
         },
         # reference attributes only
         "status": {
@@ -138,6 +135,11 @@ class Fabric(Rest):
             "values": ["running", "stopped"],
             "description": "current monitor operational status for provided fabric",
             "default": "unknown",
+        },
+        "uptime": {
+            "reference": True,
+            "type": float,
+            "description": "uptime in seconds measuring how long monitor has been running"
         },
         "reason": {
             "reference": True,
@@ -160,20 +162,28 @@ class Fabric(Rest):
         f.stop_fabric_monitor()
         return filters
 
-    @api_route(path="status", methods=["GET"], swag_ret=["status"], role=Role.USER)
+    @api_route(path="status", methods=["GET"], swag_ret=["status", "uptime"], role=Role.USER)
     def get_fabric_status(self, api=True):
-        """ get current fabric status (running/stopped) """
+        """ get current fabric status (running/stopped) along with uptime. """
+        # if api is False, is_running bool is returned
         try:
             is_running = False
             manager_status = AppStatus.check_manager_status()
+            # fabric not found within manager status implies it is not running
             for fab in manager_status["fabrics"]:
                 if fab["fabric"] == self.fabric:
                     if fab["alive"]:
                         is_running = True
                     break
-            # fabric not found within manager status implies it is not running
+            uptime = 0
+            if is_running:
+                uptime = time.time() - self.restart_ts
+                if uptime<0: uptime = 0
             if api:
-                return jsonify({"status": "running" if is_running else "stopped"})
+                return jsonify({
+                    "status": "running" if is_running else "stopped",
+                    "uptime": uptime
+                })
             else:
                 return is_running
         except Exception as e:

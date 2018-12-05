@@ -44,8 +44,8 @@ import {RapidEptComponent} from './fabric/rapid-ept/rapid-ept.component';
 import {ClearedEptComponent} from './fabric/cleared-ept/cleared-ept.component';
 import {RapidComponent} from './fabric/history/rapid/rapid.component';
 import {ClearedComponent} from './fabric/history/cleared/cleared.component';
-import { UptimeDaysPipe } from './_pipes/uptime-days.pipe';
-import { LocalNodePipe } from './_pipes/local-node.pipe';
+import {UptimeDaysPipe} from './_pipes/uptime-days.pipe';
+import {LocalNodePipe} from './_pipes/local-node.pipe';
 
 const appRoutes: Routes = [
     {

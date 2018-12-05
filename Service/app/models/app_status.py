@@ -204,8 +204,11 @@ class AppStatus(Rest):
     @api_route(path="/version", methods=["GET"], authenticated=False, swag_ret=["version"])
     def get_version():
         """ get app version and build info """
+        version = current_app.config.get("APP_FULL_VERSION", "")
+        if len(version) == 0: 
+            version = current_app.config.get("APP_VERSION", "")
         return jsonify({
-            "version": current_app.config.get("APP_VERSION", "-"),
+            "version": version,
             "commit": current_app.config.get("APP_COMMIT", ""),
             "date": current_app.config.get("APP_COMMIT_DATE", ""),
             "timestamp": current_app.config.get("APP_COMMIT_DATE_EPOCH", 0),
@@ -245,19 +248,26 @@ class AppStatus(Rest):
         p.subscribe(MANAGER_CTRL_CHANNEL)
         redis.publish(MANAGER_CTRL_CHANNEL, eptMsg(MSG_TYPE.GET_MANAGER_STATUS).jsonify())
         start_ts = time.time()
-        while start_ts + AppStatus.MANAGER_STATUS_TIMEOUT > time.time():
-            data = p.get_message(timeout=1)
-            if data is not None:
-                logger.debug("msg -> %s", data)
-                channel = data["channel"]
-                if channel == MANAGER_CTRL_CHANNEL:
-                    msg = eptMsg.parse(data["data"]) 
-                    if msg.msg_type == MSG_TYPE.MANAGER_STATUS:
-                        ret["manager"] = msg.data["manager"]
-                        ret["manager"]["status"] = "running"
-                        ret["workers"] = msg.data["workers"]
-                        ret["fabrics"] = msg.data["fabrics"]
-                        return ret
+        try:
+            while start_ts + AppStatus.MANAGER_STATUS_TIMEOUT > time.time():
+                data = p.get_message(timeout=1)
+                if data is not None:
+                    channel = data["channel"]
+                    if channel == MANAGER_CTRL_CHANNEL:
+                        msg = eptMsg.parse(data["data"]) 
+                        if msg.msg_type == MSG_TYPE.MANAGER_STATUS:
+                            ret["manager"] = msg.data["manager"]
+                            ret["manager"]["status"] = "running"
+                            ret["workers"] = msg.data["workers"]
+                            ret["fabrics"] = msg.data["fabrics"]
+                            return ret
+        except Exception as e:
+            logger.debug("Traceback:\n%s", traceback.format_exc())
+            logger.debug("error: %s", e)
+        finally:
+            if redis is not None and hasattr(redis, "connection_pool"):
+                redis.connection_pool.disconnect()
+
         logger.warn("no manager response within timeout(%s sec)", AppStatus.MANAGER_STATUS_TIMEOUT)
         return ret
 

@@ -31,6 +31,7 @@ SUBSCRIBER_CTRL_CHANNEL             = "sctrl"
 WORKER_CTRL_CHANNEL                 = "wctrl"
 WORKER_UPDATE_INTERVAL              = 15.0
 RAPID_CALCULATE_INTERVAL            = 15.0
+MAX_SEND_MSG_LENGTH                 = 10240
 
 # transitory timers:
 #   uptime          amount of time added to all transitory events when fabric is first started. For

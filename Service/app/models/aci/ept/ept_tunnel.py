@@ -103,5 +103,5 @@ class eptTunnel(Rest):
             logger.debug("failed to map tunnel to remote node (expected, flags: %s)", tunnel.flags)
             pass
         else:
-            logger.warn("failed to tunnel to remote node")
+            logger.warn("failed to map tunnel to remote node")
 

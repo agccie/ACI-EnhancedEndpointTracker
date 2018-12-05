@@ -572,7 +572,7 @@ class Subscriber(threading.Thread):
             self._subscription_ids.pop(_id, None)
             unsubscribe_url = re.sub("subscription=yes", "subscription=no", url)
             try:
-                resp = self._session.get(unsubscribe_url)
+                resp = self._session.get(unsubscribe_url, timeout=5)
                 logger.debug("unsubscribe success: %r, url %s", resp.ok, unsubscribe_url)
             except Exception as e:
                 #logger.debug("Traceback:\n%s", traceback.format_exc())

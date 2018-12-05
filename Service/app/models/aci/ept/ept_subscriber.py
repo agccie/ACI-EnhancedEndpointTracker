@@ -13,6 +13,7 @@ from .. subscription_ctrl import SubscriptionCtrl
 
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_WORK_QUEUE
+from . common import MAX_SEND_MSG_LENGTH
 from . common import MINIMUM_SUPPORTED_VERSION
 from . common import MO_BASE
 from . common import SUBSCRIBER_CTRL_CHANNEL
@@ -438,18 +439,19 @@ class eptSubscriber(object):
         self.subscriber.resume(self.subscription_classes + self.ordered_mo_classes)
 
     def send_msg(self, msg):
-        """ send one or more eptMsgWork objects to worker via manager work queue """
+        """ send one or more eptMsgWork objects to worker via manager work queue 
+            limit the number of messages sent at a time to MAX_SEND_MSG_LENGTH
+        """
         if isinstance(msg, list):
-            work = []
             for sub_msg in msg:
                 # validate that 'fabric' is ALWAYS set on any work
                 sub_msg.fabric = self.fabric.fabric
-                work.append(sub_msg.jsonify())
-            if len(work) == 0:
-                # rpush requires at least one event, if msg is empty list then just return
-                return
-            with self.manager_work_queue_lock:
-                self.redis.rpush(MANAGER_WORK_QUEUE, *work)
+            # break up msg into multiple blocks 
+            for i in range(0, len(msg), MAX_SEND_MSG_LENGTH):
+                work = [m.jsonify() for m in msg[i:i+MAX_SEND_MSG_LENGTH]]
+                if len(work)>0:
+                    with self.manager_work_queue_lock:
+                        self.redis.rpush(MANAGER_WORK_QUEUE, *work)
         else:
             # validate that 'fabric' is ALWAYS set on any work
             msg.fabric = self.fabric.fabric
@@ -1082,34 +1084,35 @@ class eptSubscriber(object):
         # all events that are recieved during get requests.
         paused = self.settings.queue_init_epm_events
         data = []
-        create_msgs = []
         for c in self.epm_subscription_classes:
             if c == "epmRsMacEpToIpEpAtt":
-                data = get_class(self.session, c, orderBy="%s.dn" % c)
+                gen = get_class(self.session, c, stream=True, orderBy="%s.dn" % c)
             else:
-                data = get_class(self.session, c, orderBy="%s.addr" % c)
-            if data is None:
-                logger.error("failed to get epm data for class %s", c)
-                return False
+                gen = get_class(self.session, c, stream=True, orderBy="%s.addr" % c)
+            ts = time.time()
+            create_msgs = []
             if not self.subscriber.add_interest(c, self.handle_epm_event, paused=paused):
                 logger.warn("failed to add interest %s to subscriber", c)
                 return False
-            # process the data now as we can't afford buffer all msgs in memory on scale setups
-            create_msgs = []
-            ts = time.time()
-            for (classname, attr) in self.parse_event(data, verify_ts=False):
-                msg = self.ept_epm_parser.parse(classname, attr, ts)
-                if msg is not None:
-                    create_msgs.append(msg)
-                    if msg.node not in endpoints: endpoints[msg.node] = {}
-                    if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
-                    endpoints[msg.node][msg.vnid][msg.addr] = 1
+            for obj in gen:
+                if obj is None:
+                    logger.error("failed to get epm data for class %s", c)
+                    return False
+                # process the data now as we can't afford buffer all msgs in memory on scale setups
+                if c in obj and "attributes" in obj[c]:
+                    msg = self.ept_epm_parser.parse(c, obj[c]["attributes"], ts)
+                    if msg is not None:
+                        create_msgs.append(msg)
+                        if msg.node not in endpoints: endpoints[msg.node] = {}
+                        if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
+                        endpoints[msg.node][msg.vnid][msg.addr] = 1
+                else:
+                    logger.warn("invalid %s object: %s", c, obj)
             # send all create and delete messages to workers (delete first just because...)
             logger.debug("build_endpoint_db sending %s create for %s", len(create_msgs),c)
             self.send_msg(create_msgs)
-        # free classquery data list
-        data = []
-        create_msgs = []
+            create_msgs = []
+
         # get delete jobs
         delete_msgs = self.get_epm_delete_msgs(endpoints)
         logger.debug("build_endpoint_db sending %s delete jobs", len(delete_msgs))

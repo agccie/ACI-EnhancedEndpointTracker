@@ -1,9 +1,10 @@
-import {Component, OnInit} from "@angular/core";
+import {Component, OnInit, ViewChild, TemplateRef} from "@angular/core";
 import {BackendService} from "../_service/backend.service";
 import {PreferencesService} from "../_service/preferences.service";
 import {Queue, QueueList} from "../_model/queue";
 import {ActivatedRoute, Router} from "@angular/router";
 import * as Highcharts from 'highcharts/highstock';
+import { ModalService } from "../_service/modal.service";
 
 @Component({
     templateUrl: './queue-detail.component.html',
@@ -69,8 +70,9 @@ export class QueueDetailComponent implements OnInit {
     currentGraph: string;
     dropDownValue: string;
     statsTypes: Map<string, {}>;
-
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private activatedRoute: ActivatedRoute) {
+    @ViewChild('errorMsg') msgModal:TemplateRef<any> ;
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private activatedRoute: ActivatedRoute,
+    public modalService:ModalService) {
         this.rows = [];
         this.queues = [];
         this.pageSize = this.prefs.pageSize;
@@ -95,6 +97,8 @@ export class QueueDetailComponent implements OnInit {
                     this.loading = false;
                 }, (err) => {
                     this.loading = false;
+                    const msg = 'Failed to load queue! ' + err['error']['error'] ;
+                    this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
                 });
             }
         });

@@ -1,6 +1,7 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ViewChild, TemplateRef} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
+import { ModalService } from '../../../_service/modal.service';
 
 @Component({
     selector: 'app-stale-events',
@@ -13,8 +14,8 @@ export class StaleEventsComponent implements OnInit {
     loading = false;
     sorts = [{prop: 'ts', dir: 'desc'}];
     pageSize: number;
-
-    constructor(private backendService: BackendService, private prefs: PreferencesService) {
+    @ViewChild('errorMsg') msgModal : TemplateRef<any> ;
+    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService:ModalService) {
         this.rows = [];
         this.pageSize = this.prefs.pageSize;
         this.endpoint = this.prefs.selectedEndpoint;
@@ -26,16 +27,25 @@ export class StaleEventsComponent implements OnInit {
 
     getNodesForStaleEndpoints(fabric, vnid, address) {
         this.loading = true;
-        this.backendService.getNodesForOffsubnetEndpoints(fabric, vnid, address, 'stale').subscribe(
+        this.loading = true;
+        this.backendService.getAllOffsubnetStaleEndpoints(this.endpoint.fabric,this.endpoint.vnid,this.endpoint.addr,'stale').subscribe(
             (data) => {
-                for (let i of data['objects']) {
-                    this.nodes.push(i['ept.stale']['node']);
+                this.rows = [];
+                for (let object of data.objects) {
+                    const endpoint = object["ept.stale"];
+                    for(let event of endpoint.events) {
+                        event.node = endpoint['node'] ;
+                        this.rows.push(event);
+                    }
+                    
                 }
                 this.loading = false;
             },
             (error) => {
                 this.loading = false;
+                const msg = 'Failed to load offsubnet endpoints! ' + error['error']['error'] ;
+                this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
             }
-        );
+        )
     }
 }

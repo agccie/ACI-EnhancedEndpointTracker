@@ -137,6 +137,7 @@ class eptSubscriber(object):
             self.fabric,
             all_interests,
             heartbeat=300,
+            subscribe_timeout=30,
         )
 
     def __repr__(self):
@@ -877,6 +878,7 @@ class eptSubscriber(object):
                 vnid = int(re.sub("vxlan-","", obj.extEncap)),
                 name = obj.dn,
                 encap = obj.encap,
+                external = True,
                 ts = ts
             )
             if obj.parent in l3ctx:

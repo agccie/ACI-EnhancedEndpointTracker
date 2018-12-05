@@ -2,12 +2,13 @@ import { Component, OnInit, ViewChild, TemplateRef } from '@angular/core';
 import { BackendService } from '../../../_service/backend.service';
 import { PreferencesService } from '../../../_service/preferences.service';
 import { ModalService } from '../../../_service/modal.service';
+import { ActivatedRoute } from '../../../../../node_modules/@angular/router';
 
 @Component({
   selector: 'app-rapid',
   templateUrl: './rapid.component.html',
 })
-export class RapidComponent {
+export class RapidComponent implements OnInit{
   endpoint:any ;
   rows:any ;
   loading=true;
@@ -15,15 +16,23 @@ export class RapidComponent {
   sorts = [{ prop:'events[0].ts' , dir:'desc'}] ;
   @ViewChild('errorMsg') msgModal : TemplateRef<any> ;
 
-  constructor(private backendService:BackendService, private prefs: PreferencesService, public modalService:ModalService) { 
+  constructor(private backendService:BackendService, private prefs: PreferencesService, public modalService:ModalService, private activatedRouter:ActivatedRoute) { 
     this.endpoint = this.prefs.selectedEndpoint ;
     this.rows = [] ;
     
   }
 
-  getRapidEndpoints(fabricName,vnid,address) {
+  ngOnInit() {
+    if(this.endpoint === undefined) {
+      this.prefs.getEndpointParams(this,'getRapidEndpoints') ;
+    }else{
+      this.getRapidEndpoints() ;
+    }
+  }
+
+  getRapidEndpoints() {
     this.loading = true ;
-    this.backendService.getRapidEndpoints(fabricName,vnid,address).subscribe(
+    this.backendService.getRapidEndpoints(this.endpoint.fabricName,this.endpoint.vnid,this.endpoint.addr).subscribe(
       (data) => {
           this.rows = [];
           for (let object of data.objects) {

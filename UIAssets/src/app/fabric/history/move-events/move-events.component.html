@@ -31,8 +31,8 @@
     </ngx-datatable-column>
     <ngx-datatable-column name="Node" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-            <div>{{ row.src.node }}</div>
-            <div>{{ row.dst.node }}</div>
+            <div>{{ row.src.node | localNode }}</div>
+            <div>{{ row.dst.node | localNode}}</div>
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column name="EPG" [sortable]="true" [flexGrow]='0.15'>

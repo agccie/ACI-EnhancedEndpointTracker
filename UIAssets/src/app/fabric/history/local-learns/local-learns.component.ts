@@ -1,8 +1,7 @@
 import {Component, OnInit} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
-import { Endpoint } from '../../../_model/endpoint';
-import { ModalService } from '../../../_service/modal.service';
+import {Endpoint} from '../../../_model/endpoint';
 
 @Component({
     selector: 'app-local-learns',

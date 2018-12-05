@@ -1,10 +1,10 @@
-import {Component, OnInit, ViewChild, TemplateRef} from '@angular/core';
+import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Fabric, FabricList} from "../../_model/fabric";
 import {forkJoin} from "rxjs";
-import { ModalService } from '../../_service/modal.service';
+import {ModalService} from '../../_service/modal.service';
 
 @Component({
     selector: 'app-overview',
@@ -18,10 +18,10 @@ export class OverviewComponent implements OnInit {
     sorts = [{prop: 'timestamp', dir: 'desc'}];
     loading = true;
     fabric: Fabric;
-    @ViewChild('errorMsg') msgModal : TemplateRef<any> ;
+    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, 
-        private activatedRoute: ActivatedRoute, public modalService:ModalService) {
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
+                private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.pageSize = this.prefs.pageSize;
         this.rows = [];
     }
@@ -51,8 +51,8 @@ export class OverviewComponent implements OnInit {
                     this.loading = false;
                 }, (err) => {
                     this.loading = false;
-                    const msg = 'Failed to load fabrics! ' + err['error']['error'] ;
-                    this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
+                    const msg = 'Failed to load fabrics! ' + err['error']['error'];
+                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                 });
             }
         });

@@ -1,10 +1,10 @@
-import {Component, OnInit, ViewChild, TemplateRef} from '@angular/core';
+import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Endpoint} from "../../_model/endpoint";
 import {PagingService} from '../../_service/paging.service';
-import { ModalService } from '../../_service/modal.service';
+import {ModalService} from '../../_service/modal.service';
 
 @Component({
     selector: 'app-endpoints',
@@ -24,10 +24,10 @@ export class EndpointsComponent implements OnInit {
     sorts = [];
     loading = true;
     fabricName: string;
-    @ViewChild('errorMsg') msgModal : TemplateRef<any> ;
+    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, 
-        private activatedRoute: ActivatedRoute, public pagingService: PagingService, public modalService:ModalService) {
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
+                private activatedRoute: ActivatedRoute, public pagingService: PagingService, public modalService: ModalService) {
         this.rows = [];
         this.endpoints = [];
         this.pageSize = this.prefs.pageSize;
@@ -60,8 +60,8 @@ export class EndpointsComponent implements OnInit {
                         this.loading = false;
                     }, (error) => {
                         this.loading = false;
-                        const msg = 'Could not fetch endpoints! ' + error['error']['error'] ;
-                        this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
+                        const msg = 'Could not fetch endpoints! ' + error['error']['error'];
+                        this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                     }
                 );
             }
@@ -83,8 +83,8 @@ export class EndpointsComponent implements OnInit {
             },
             (error) => {
                 this.loading = false;
-                const msg = 'Could not fetch filtered endpoints! ' + error['error']['error'] ;
-                this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
+                const msg = 'Could not fetch filtered endpoints! ' + error['error']['error'];
+                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         )
     }

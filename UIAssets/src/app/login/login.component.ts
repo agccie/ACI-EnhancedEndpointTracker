@@ -1,9 +1,9 @@
-import {Component, OnInit, ViewChild, TemplateRef} from '@angular/core';
+import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {Router} from '@angular/router';
 import {BackendService} from '../_service/backend.service';
 import {PreferencesService} from '../_service/preferences.service';
 import {environment} from "../../environments/environment";
-import { ModalService } from '../_service/modal.service';
+import {ModalService} from '../_service/modal.service';
 
 @Component({
     selector: 'app-login',
@@ -20,8 +20,9 @@ export class LoginComponent implements OnInit {
     version = 'Not Available';
     loading = false;
     ls: Storage;
-    @ViewChild('errorMsg') msgModal : TemplateRef<any> ;
-    constructor(private router: Router, private bs: BackendService, private prefs: PreferencesService, public modalService:ModalService) {
+    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
+
+    constructor(private router: Router, private bs: BackendService, private prefs: PreferencesService, public modalService: ModalService) {
         this.title = 'Endpoint Tracker';
         this.ls = localStorage;
         if (environment.app_mode) {
@@ -39,8 +40,8 @@ export class LoginComponent implements OnInit {
                     this.version = data['version'];
                 },
                 (error) => {
-                    const msg = 'Failed to fetch app version! ' + error['error']['error'] ;
-                    this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ; 
+                    const msg = 'Failed to fetch app version! ' + error['error']['error'];
+                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                 }
             )
         }
@@ -61,8 +62,8 @@ export class LoginComponent implements OnInit {
                 }
             },
             (error) => {
-                const msg = 'Failed to login! ' + error['error']['error'] ;
-                    this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ; 
+                const msg = 'Failed to login! ' + error['error']['error'];
+                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         )
     }

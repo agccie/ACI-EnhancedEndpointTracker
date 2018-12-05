@@ -1,8 +1,8 @@
-import {Component, OnInit, ViewChild,TemplateRef} from '@angular/core';
+import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
-import { ModalService } from '../../_service/modal.service';
+import {ModalService} from '../../_service/modal.service';
 
 @Component({
     selector: 'app-moves',
@@ -16,9 +16,10 @@ export class MovesComponent implements OnInit {
     pageNumber = 0;
     sorts = [{prop: 'events.0.dst.ts', dir: 'desc'}];
     loading = true;
-    @ViewChild('errorMsg') msgModal : TemplateRef<any> ;
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, 
-        private activatedRoute: ActivatedRoute, public modalService:ModalService) {
+    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
+
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
+                private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.pageSize = this.prefs.pageSize;
     }
 
@@ -39,7 +40,7 @@ export class MovesComponent implements OnInit {
                     }, (error) => {
                         this.loading = false;
                         const msg = 'Could not fetch moves! ' + error['error']['error'];
-                        this.modalService.setAndOpenModal('error','Error',msg,this.msgModal) ;
+                        this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                     }
                 );
             }

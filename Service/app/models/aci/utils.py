@@ -266,6 +266,7 @@ def get_apic_session(fabric, resubscribe=False):
     for h in hostnames:
         # ensure apic_hostname is in url form.  If not, assuming https
         if not re.search("^http", h.lower()): h = "https://%s" % h
+        h = re.sub("[/]+$","", h)
 
         # create session object
         logger.debug("creating session on %s@%s",aci.apic_username,h)
@@ -400,7 +401,7 @@ def parse_apic_version(version):
     #   patch: f
     # return None if unable to parse version string
 
-    reg ="(?P<M>[0-9]+)[\-\.](?P<m>[0-9]+)[\.\-\(](?P<p>[0-9\.]+)(?P<pp>[a-z]+)\)?"
+    reg ="(?P<M>[0-9]+)[\-\.](?P<m>[0-9]+)[\.\-\(](?P<p>[0-9]+)\.?(?P<pp>[a-z0-9]+)\)?"
     r1 = re.search(reg, version)
     if r1 is None: return None
     return {

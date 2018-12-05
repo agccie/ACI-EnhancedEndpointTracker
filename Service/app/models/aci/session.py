@@ -619,8 +619,10 @@ class Subscriber(threading.Thread):
             else:
                 logger.warn('unable to open websocket connection')
         except WebSocketException:
+            logger.debug("Traceback:\n%s", traceback.format_exc())
             logger.error('unable to open websocket connection due to WebSocketException')
         except socket.error:
+            logger.debug("Traceback:\n%s", traceback.format_exc())
             logger.error('unable to open websocket connection due to Socket Error')
         return False
 

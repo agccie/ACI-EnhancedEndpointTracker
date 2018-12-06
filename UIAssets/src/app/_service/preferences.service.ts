@@ -35,14 +35,14 @@ export class PreferencesService {
         });
     }
 
-    getEndpoint(fabric, vnid, address, context, callback = undefined) {
+    getEndpoint(fabric, vnid, address, context, callback?) {
         context.loading = true;
         context.backendService.getEndpoint(fabric, vnid, address).subscribe(
             (data) => {
                 this.selectedEndpoint = data.objects[0]['ept.endpoint'];
                 context.endpoint = this.selectedEndpoint;
                 if (callback !== undefined) {
-                    context[callback]();
+                    callback();
                 }
                 context.loading = false;
             },

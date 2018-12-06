@@ -55,7 +55,7 @@ MAX_SEND_MSG_LENGTH                 = 10240
 #   watch_offsubnet amount of time to suppress new watch_offsubnet events for single node/ep
 #   watch_stale     amount of time to suppress new watch_stale events for single node/ep
 #   fabric_restart  amount of time to suppress new fabric monitor restart events
-TRANSITORY_UPTIME                   = 300.0 
+TRANSITORY_UPTIME                   = 900.0 
 TRANSITORY_DELETE                   = 60.0
 TRANSITORY_OFFSUBNET                = 10.0
 TRANSITORY_STALE                    = 45.0

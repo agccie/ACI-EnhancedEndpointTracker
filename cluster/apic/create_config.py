@@ -107,7 +107,6 @@ class KronConfig(object):
         for sh in sorted(shard_rs):
             shared_environment["DB_RS_SHARD_%s" % sh] = "sh%s/%s" % (sh, ",".join(shard_rs[sh]))
 
-
         # ensure all environment variables are casted to strings
         for a in shared_environment:
             shared_environment[a] = "%s" % shared_environment[a]
@@ -203,7 +202,7 @@ class KronConfig(object):
                 worker_name,
                 srv_args=["-r", "worker", "-i", "%s"%wid, "-c", "%s"%self.workers_per_container],
                 memory="small",
-                cpu="medium",
+                cpu="large",
                 container_only=True,
             )
         

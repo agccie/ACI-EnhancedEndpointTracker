@@ -74,6 +74,14 @@
                 </div>
             </div>
         </div>
+        <div class="row">
+            <div class="col-md-12">
+                <span *ngFor='let c of counts'>
+                <span class="label label--ltgray">{{c['ct']}}</span>
+                <span style="vertical-align: middle; margin-left:0.5% ; margin-right:0.5%"> {{c['prop']}} </span>
+            </span>
+            </div>
+        </div>
     </div>
 </div>
 <br>

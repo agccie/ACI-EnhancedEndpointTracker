@@ -2,7 +2,7 @@ import {Component, OnDestroy, OnInit} from '@angular/core';
 import {ActivatedRoute, NavigationEnd, Router} from '@angular/router';
 import {BackendService} from './_service/backend.service';
 import {PreferencesService} from './_service/preferences.service';
-import {environment} from '../environments/environment.app';
+import {environment} from '../environments/environment';
 import {filter} from "rxjs/operators";
 
 @Component({
@@ -12,7 +12,7 @@ import {filter} from "rxjs/operators";
 
 export class AppComponent implements OnInit, OnDestroy {
     ls = localStorage;
-    app_mode = environment.app_mode;
+    app_mode : boolean ;
     konami: boolean;
     login_required: boolean;
     menuVisible: boolean;
@@ -22,10 +22,11 @@ export class AppComponent implements OnInit, OnDestroy {
     sidebarCollapsed: boolean;
     private stopListening: () => void;
 
-    constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService, private activatedRoute: ActivatedRoute,) {
+    constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService, private activatedRoute: ActivatedRoute) {
         this.endpointExpanded = false;
         this.configurationExpanded = false;
         this.sidebarCollapsed = true;
+        this.app_mode = environment.app_mode ;
     }
 
     ngOnInit() {

@@ -1,0 +1,112 @@
+<div class="row">
+    <div class="col-md-12">
+        <div class="alert">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message">This is historic data. The endpoints shown may not be stale anymore.</div>
+        </div>
+    </div>
+    <div class="col-md-12">
+        &nbsp;
+    </div>
+    <div class="col-md-12">
+        <div class="panel panel--raised">
+            <h4>Stale Endpoints
+                <button class="btn btn--icon btn--small btn--primary" (click)='getStaleEndpoints()'>
+                    <span class="icon-refresh"></span>
+                </button>
+            </h4>
+            <ngx-datatable
+                    [columnMode]="'flex'"
+                    [headerHeight]="25"
+                    [footerHeight]="50"
+                    [rowHeight]="'auto'"
+                    [externalSorting]="true"
+                    [count]="count"
+                    [offset]="pageNumber"
+                    [limit]="pageSize"
+                    (page)="setPage($event)"
+                    (sort)="onSort($event)"
+                    [sorts]="sorts"
+                    [loadingIndicator]="loading"
+                    [rows]="rows"
+                    [cssClasses]="{
+                    sortAscending: 'icon-chevron-down',
+                    sortDescending: 'icon-chevron-up',
+                    pagerLeftArrow: 'icon-step-prev',
+                    pagerRightArrow: 'icon-step-next',
+                    pagerPrevious: 'icon-step-backward',
+                    pagerNext: 'icon-step-forward'
+                    }">
+                <ngx-datatable-column prop="events.0.ts" name="Time" [sortable]="true" [flexGrow]="0.2">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ (row.events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.2">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                            <span class="label label--raised" [ngClass]="{'label--success':value==='ipv4','label--warning':value==='mac','label--info':value==='ipv6'}">
+                                {{value.toUpperCase()}}
+                            </span>
+                        </ng-template>
+                    </ngx-datatable-column>
+                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <a [routerLink]="['../history', row.vnid, row.addr]">
+                            {{ value }}
+                        </a>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]="0.1">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ value }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="event_count" name="Node" [sortable]="true" [flexGrow]="0.1">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row.events.length }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.4">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row.events[0].vnid_name}}
+                    </ng-template>
+                </ngx-datatable-column>
+            </ngx-datatable>
+        </div>
+    </div>
+</div>
+<ng-template #errorMsg>
+    <div class="modal__body">
+        <div class="col-xl-12">
+            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
+                <div class="alert__icon icon-check-outline"></div>
+                <div class="alert__message text-left">
+                    <h4>{{ modalService.modalTitle }}</h4>
+                    <div>{{ modalService.modalBody }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
+            <div class="alert__icon icon-error-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="modal__footer" *ngIf="!modalService.decisionBox">
+            <button class="btn" (click)="modalService.hideModal()">Ok</button>
+        </div>
+        <div class="modal__footer" *ngIf="modalService.decisionBox">
+            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
+            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
+        </div>
+    </div>
+</ng-template>
+  

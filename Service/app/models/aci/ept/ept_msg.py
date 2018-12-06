@@ -458,7 +458,7 @@ epm_reg = re.compile(epm_reg)
 class eptEpmEventParser(object):
     """ shim for creating/parsing epmEvents """
     def __init__(self, fabric, overlay_vnid):
-        logger.debug("init parser for fab %s with overlay-vnid: %s", fabric, overlay_vnid)
+        logger.debug("init parser for fabric %s with overlay-vnid: %s", fabric, overlay_vnid)
         self.fabric = fabric
         self.overlay_vnid = int(overlay_vnid)
 

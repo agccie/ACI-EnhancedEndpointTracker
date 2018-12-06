@@ -1,6 +1,10 @@
+export class UserObject {
+    user: User;
+}
+
 export class UserList {
     count: number;
-    objects: User[];
+    objects: UserObject[];
 
     public constructor() {
         this.count = 0;

@@ -1,0 +1,110 @@
+<ngx-datatable
+        #myTable
+        class="fullscreen"
+        [columnMode]="'flex'"
+        [headerHeight]="25"
+        [footerHeight]="50"
+        [rowHeight]="'auto'"
+        [limit]="pageSize"
+        [loadingIndicator]="loading"
+        [rows]="rows"
+        [sorts]="sorts"
+        [cssClasses]="{
+            sortAscending: 'icon-chevron-down',
+            sortDescending: 'icon-chevron-up',
+            pagerLeftArrow: 'icon-step-prev',
+            pagerRightArrow: 'icon-step-next',
+            pagerPrevious: 'icon-step-backward',
+            pagerNext: 'icon-step-forward'
+          }"
+>
+    <ngx-datatable-column prop="ts" name="Timestamp" [sortable]="true" [flexGrow]='0.2'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ (row.src.ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="Direction" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template ngx-datatable-cell-template>
+            <div>Source</div>
+            <div>Destination</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="Node" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ row.src.node | localNode }}</div>
+            <div>{{ row.dst.node | localNode }}</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="EPG" [sortable]="true" [flexGrow]='0.15'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ row.src.epg_name !== '' ? row.src.epg_name : '&mdash;'}}</div>
+            <div>{{ row.dst.epg_name !== '' ? row.dst.epg_name : '&mdash;'}}</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="Interface" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ row.src.intf_name !== '' ? row.src.intf_name : '&mdash;'}}</div>
+            <div>{{ row.dst.intf_name !== '' ? row.dst.intf_name : '&mdash;'}}</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="Encap" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ row.src.encap !== '' ? row.src.encap : '&mdash;'}}</div>
+            <div>{{ row.dst.encap !== '' ? row.dst.encap : '&mdash;'}}</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="PCTAG" [sortable]="true" [flexGrow]='0.05'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ row.src.pctag !== '' ? row.src.pctag : '&mdash;'}}</div>
+            <div>{{ row.dst.pctag !== '' ? row.dst.pctag : '&mdash;'}}</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.2'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>
+                <a *ngIf="value !== ''"
+                   [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value }}</a>
+                <span *ngIf="value === ''">&mdash;</span>
+            </div>
+            <div>
+                <a *ngIf="value !== ''"
+                   [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value }}</a>
+                <span *ngIf="value === ''">&mdash;</span>
+            </div>
+        </ng-template>
+    </ngx-datatable-column>
+</ngx-datatable>
+<ng-template #errorMsg>
+    <div class="modal__body">
+        <div class="col-xl-12">
+            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
+                <div class="alert__icon icon-check-outline"></div>
+                <div class="alert__message text-left">
+                    <h4>{{ modalService.modalTitle }}</h4>
+                    <div>{{ modalService.modalBody }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
+            <div class="alert__icon icon-error-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="modal__footer" *ngIf="!modalService.decisionBox">
+            <button class="btn" (click)="modalService.hideModal()">Ok</button>
+        </div>
+        <div class="modal__footer" *ngIf="modalService.decisionBox">
+            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
+            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
+        </div>
+    </div>
+</ng-template>

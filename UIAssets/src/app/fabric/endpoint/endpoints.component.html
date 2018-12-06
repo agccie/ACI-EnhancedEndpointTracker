@@ -1,0 +1,136 @@
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel panel--raised">
+            <h4>All Endpoints
+                <button class="btn btn--icon btn--small btn--primary" (click)='getEndpoints()'>
+                    <span class="icon-refresh"></span>
+                </button>
+            </h4>
+            <br>
+            <div class="form-group form-group--inline">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="activeFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Active</span>
+                </label>
+            </div>
+            <div class="form-group form-group--inline">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="osFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Offsubnet Endpoints</span>
+                </label>
+            </div>
+            <div class="form-group form-group--inline">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="stFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Stale Endpoints</span>
+                </label>
+            </div>
+            <div class="form-group form-group--inline">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="rapidFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Rapid</span>
+                </label>
+            </div>
+            <ngx-datatable
+                    [columnMode]="'flex'"
+                    [headerHeight]="25"
+                    [footerHeight]="50"
+                    [rowHeight]="'auto'"
+                    [loadingIndicator]="loading"
+                    [rows]="rows"
+                    [externalPaging]="true"
+                    [externalSorting]="true"
+                    [count]="pagingService.count"
+                    [offset]="pagingService.pageOffset"
+                    [limit]="pagingService.pageSize"
+                    (page)="setPage($event)"
+                    (sort)="onSort($event)"
+                    [cssClasses]="{
+                  sortAscending: 'icon-chevron-down',
+                  sortDescending: 'icon-chevron-up',
+                  pagerLeftArrow: 'icon-step-prev',
+                  pagerRightArrow: 'icon-step-next',
+                  pagerPrevious: 'icon-step-backward',
+                  pagerNext: 'icon-step-forward'
+                  }">
+                <ngx-datatable-column prop="events[0].status" name="State" [sortable]="true" [flexGrow]="0.35">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <span *ngIf="(row.events.length > 0) && (row.events[0].status === 'created' || row.events[0].status === 'modified')"
+                              class="label label--vibblue">
+                                active
+                        </span>
+                        <span class="label label--dkgray"
+                              *ngIf="row.events.length === 0 || row.events[0].status === 'deleted'">
+                            inactive
+                        </span>
+                        <span class="label label--danger" *ngIf="row.is_offsubnet">offsubnet</span>
+                        <span class="label label--danger" *ngIf="row.is_stale">stale</span>
+                        <span class="label label--danger" *ngIf="row.is_rapid">rapid</span>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.2">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                            <span class="label label--raised" [ngClass]="{'label--success':value==='ipv4','label--warning':value==='mac','label--info':value==='ipv6'}">
+                                {{value.toUpperCase()}}
+                            </span>
+                        </ng-template>
+                    </ngx-datatable-column>
+                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <a [routerLink]="['../history', row.vnid, row.addr]">
+                            {{ value }}
+                        </a>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="first_learn.vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.35">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row.events.length > 0 ? row.events[0].vnid_name : row.first_learn.vnid_name }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="events.0.epg_name" name="EPG" [sortable]="true" [flexGrow]="0.35">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row.events.length > 0 ? (row.events[0].epg_name !== '' ? row.events[0].epg_name : '&mdash;') : (row.first_learn.epg_name !== '' ?  row.first_learn.epg_name : '&mdash;') }}
+                    </ng-template>
+                </ngx-datatable-column>
+            </ngx-datatable>
+        </div>
+    </div>
+</div>
+<ng-template #errorMsg>
+    <div class="modal__body">
+        <div class="col-xl-12">
+            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
+                <div class="alert__icon icon-check-outline"></div>
+                <div class="alert__message text-left">
+                    <h4>{{ modalService.modalTitle }}</h4>
+                    <div>{{ modalService.modalBody }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
+            <div class="alert__icon icon-error-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="modal__footer" *ngIf="!modalService.decisionBox">
+            <button class="btn" (click)="modalService.hideModal()">Ok</button>
+        </div>
+        <div class="modal__footer" *ngIf="modalService.decisionBox">
+            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
+            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
+        </div>
+    </div>
+</ng-template>

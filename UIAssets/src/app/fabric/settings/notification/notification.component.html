@@ -1,0 +1,138 @@
+<h3>Notification</h3><br>
+<div class="row half-margin-bottom">
+    <div class="col-md-5">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="text" [(ngModel)]="prefs['fabricSettings']['syslog_server']">
+                <label>Syslog Server</label>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-5">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" [(ngModel)]="prefs['fabricSettings']['syslog_port']">
+                <label>Syslog Port</label>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 base-margin-top">
+        <button class="btn btn--small btn--secondary"
+                (click)="testEmailNotifications('syslog',prefs['fabric']['fabric'])">
+            <span class="icon-check"></span> Send test syslog
+        </button>
+    </div>
+</div>
+<div class="row half-margin-bottom">
+    <div class="col-md-10">
+        <div class="form-group input--icon">
+            <div class="form-group__text">
+                <input type="text" [(ngModel)]="prefs['fabricSettings']['email_address']">
+                <label>Email Address </label>
+                <button type="button" class="link">
+                    <span class="icon-email"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 base-margin-top">
+        <button class="btn btn--small btn--secondary"
+                (click)="testEmailNotifications('email',prefs['fabric']['fabric'])">
+            <span class="icon-check"></span> Send test email
+        </button>
+    </div>
+</div>
+<div class="row half-margin-bottom base-margin-top">
+    <div class="col-md-2">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['notify_move_syslog']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Move Syslog</span>
+            </label>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['notify_offsubnet_syslog']">
+                <span class="switch__input"></span>
+                <span class="switch__label">OffSubnet Syslog</span>
+            </label>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['notify_stale_syslog']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Stale Syslog</span>
+            </label>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['notify_rapid_syslog']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Rapid Syslog</span>
+            </label>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['notify_clear_syslog']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Remediate Syslog</span>
+            </label>
+        </div>
+    </div>
+</div>
+<div class="row half-margin-bottom base-margin-top">
+    <div class="col-md-2">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['notify_move_email']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Move Email</span>
+            </label>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['notify_offsubnet_email']">
+                <span class="switch__input"></span>
+                <span class="switch__label">OffSubnet Email</span>
+            </label>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['notify_stale_email']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Stale Email</span>
+            </label>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['notify_rapid_email']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Rapid Email</span>
+            </label>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="form-group">
+            <label class="switch">
+                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['notify_clear_email']">
+                <span class="switch__input"></span>
+                <span class="switch__label">Remediate Email</span>
+            </label>
+        </div>
+    </div>
+</div>

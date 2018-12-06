@@ -1,0 +1,76 @@
+<ngx-datatable
+        #myTable
+        class="fullscreen"
+        [columnMode]="'flex'"
+        [headerHeight]="25"
+        [footerHeight]="50"
+        [rowHeight]="'auto'"
+        [limit]="pageSize"
+        [loadingIndicator]="loading"
+        [rows]="rows"
+        [sorts]="sorts"
+        [cssClasses]="{
+            sortAscending: 'icon-chevron-down',
+            sortDescending: 'icon-chevron-up',
+            pagerLeftArrow: 'icon-step-prev',
+            pagerRightArrow: 'icon-step-next',
+            pagerPrevious: 'icon-step-backward',
+            pagerNext: 'icon-step-forward'
+          }"
+>
+    <ngx-datatable-column prop="events[0].ts" name="Timestamp" [sortable]="true" [flexGrow]='0.25'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            {{ (row.events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]='0.25'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="action" name="Action" [sortable]="true" [flexGrow]='0.25'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            {{ value }}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="reason" name="Reason" [sortable]="true" [flexGrow]='0.25'>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            {{ value }}
+        </ng-template>
+    </ngx-datatable-column>
+</ngx-datatable>
+<ng-template #errorMsg>
+    <div class="modal__body">
+        <div class="col-xl-12">
+            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
+                <div class="alert__icon icon-check-outline"></div>
+                <div class="alert__message text-left">
+                    <h4>{{ modalService.modalTitle }}</h4>
+                    <div>{{ modalService.modalBody }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
+            <div class="alert__icon icon-error-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="modal__footer" *ngIf="!modalService.decisionBox">
+            <button class="btn" (click)="modalService.hideModal()">Ok</button>
+        </div>
+        <div class="modal__footer" *ngIf="modalService.decisionBox">
+            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
+            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
+        </div>
+    </div>
+</ng-template>
+

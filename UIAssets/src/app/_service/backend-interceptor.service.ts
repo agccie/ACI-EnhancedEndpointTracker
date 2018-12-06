@@ -12,6 +12,8 @@ import {Observable, throwError} from 'rxjs';
 import {catchError, map} from 'rxjs/operators';
 import {environment} from '../../environments/environment';
 import {CookieService} from 'ngx-cookie-service';
+import {Router} from "@angular/router";
+import {BackendService} from "./backend.service";
 
 @Injectable({
     providedIn: 'root'
@@ -21,7 +23,7 @@ export class BackendInterceptorService implements HttpInterceptor {
     app_mode: boolean;
     req: any;
 
-    constructor(private cookieService: CookieService) {
+    constructor(public router: Router, private cookieService: CookieService, private backendService: BackendService) {
         this.app_mode = environment.app_mode;
     }
 
@@ -56,7 +58,10 @@ export class BackendInterceptorService implements HttpInterceptor {
             }
         }), catchError(err => {
             if (err instanceof HttpErrorResponse && err.status === 401 && localStorage.getItem('isLoggedIn') === 'true') {
-
+                localStorage.removeItem('isLoggedIn');
+                if (!environment.app_mode) {
+                    this.router.navigate(['login']);
+                }
             }
             return throwError(err);
         }),);

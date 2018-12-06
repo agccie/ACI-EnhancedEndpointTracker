@@ -1,0 +1,96 @@
+<div class="col-md-12" *ngIf="!loading">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card__header text-huge text-center text--success">
+                    {{ (queue.start_timestamp | amFromUnix) | amTimeAgo }}</div>
+                <div class="card__body text-large text-center">Last restart</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card__header text-huge text-center text--success">{{ queue.total_rx_msg | number }}</div>
+                <div class="card__body text-large text-center"># RX msgs</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card__header text-huge text-center text--success">{{ queue.total_tx_msg | number }}</div>
+                <div class="card__body text-large text-center"># TX msgs</div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        &nbsp;
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="form-group dropdown" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
+                <div class="form-group__text select">
+                    <input id="select-size-default" [value]="dropDownValue">
+                    <label for="select-size-default">Time resolution</label>
+                </div>
+                <div class="dropdown__menu">
+                    <a *ngFor="let statsType of statsTypes | keyvalue"
+                       (click)="makeCharts(statsType.key)"
+                       [class.selected]="currentGraph == statsType.key"
+                    >
+                        {{ statsType.value.value }}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            &nbsp;
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <highcharts-chart
+                    [Highcharts]="highcharts"
+                    [options]="chartOptions"
+                    [constructorType]="chartConstructor"
+                    (chartInstance)="onChartInstance($event)"
+                    style="width: 100%; height: 500px; display: block;"
+            ></highcharts-chart>
+        </div>
+    </div>
+</div>
+<ng-template #errorMsg>
+    <div class="modal__body">
+        <div class="col-xl-12">
+            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
+                <div class="alert__icon icon-check-outline"></div>
+                <div class="alert__message text-left">
+                    <h4>{{ modalService.modalTitle }}</h4>
+                    <div>{{ modalService.modalBody }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
+            <div class="alert__icon icon-error-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
+
+        <div class="modal__footer" *ngIf="!modalService.decisionBox">
+            <button class="btn" (click)="modalService.hideModal()">Ok</button>
+        </div>
+        <div class="modal__footer" *ngIf="modalService.decisionBox">
+            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
+            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
+        </div>
+
+    </div>
+</ng-template>

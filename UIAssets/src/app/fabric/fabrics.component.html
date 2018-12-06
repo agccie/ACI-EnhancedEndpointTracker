@@ -1,0 +1,145 @@
+<div class="row">
+    <div class="col-md-12">
+        &nbsp;
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="panel panel--bordered panel--loose">
+                    <button type="button" class="link">
+                        <span class="icon-small icon-edit" (click)='modalService.openModal(filtertemplate)'></span>
+                    </button>
+                    {{ queryText }}
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                &nbsp;
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <router-outlet></router-outlet>
+            </div>
+        </div>
+    </div>
+</div>
+<ng-template #filtertemplate>
+    <div class="modal--large">
+        <div class="modal__header">
+            <div class="modal__title">
+                Change filter
+            </div>
+        </div>
+        <div class="modal__body text-left">
+            <query-builder
+                    [formControl]='queryCtrl'
+                    [config]='currentConfig'
+                    [allowRuleset]='false'
+                    [allowCollapse]='false'
+                    (ngModelChange)="updateQueryText($event)"
+            >
+                <ng-container *queryButtonGroup="let addRule=addRule">
+                    <button class="btn btn--icon btn--small btn--success" [style.margin-right.px]="9"
+                            (click)="addRule()">
+                        <span class="icon-add"></span>
+                    </button>
+                </ng-container>
+                <ng-container *queryRemoveButton="let rule; let removeRule=removeRule">
+                    <button class="btn btn--icon btn--small btn--negative" [style.margin-top.px]="5"
+                            (click)="removeRule(rule)">
+                        <span class="icon-trash"></span>
+                    </button>
+                </ng-container>
+                <ng-container *querySwitchGroup="let ruleset">
+                </ng-container>
+                <ng-container *queryArrowIcon>
+                </ng-container>
+                <ng-container *queryEntity="let rule; let entities=entities; let onChange=onChange">
+                </ng-container>
+                <ng-container
+                        *queryField="let rule; let fields=fields; let onChange=onChange; let getFields = getFields">
+                    <div class="form-group form-group--inline col-md-4">
+                        <div class="form-group__text select">
+                            <select [(ngModel)]="rule.field" (ngModelChange)="onChange($event, rule)">
+                                <option *ngFor="let field of fields" [value]="field.value">{{ field.name }}</option>
+                            </select>
+                        </div>
+                    </div>
+                </ng-container>
+                <ng-container *queryOperator="let rule; let operators=operators; let onChange=onChange">
+                    <div class="form-group form-group--inline col-md-3">
+                        <div class="form-group__text select">
+                            <select [(ngModel)]="rule.operator" (ngModelChange)="onChange()">
+                                <option *ngFor="let value of operators" [value]="value">
+                                    {{ value }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                </ng-container>
+                <ng-container
+                        *queryInput="let rule; let field=field; let options=options; type: 'category'; let onChange=onChange">
+                    <div class="form-group form-group--inline col-md-4">
+                        <div class="form-group__text select">
+                            <select [(ngModel)]="rule.value" (ngModelChange)="onChange()">
+                                <option *ngFor="let opt of options" [value]="opt.value">
+                                    {{ opt.name }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                </ng-container>
+                <ng-container *queryInput="let rule; type: 'date'; let onChange=onChange">
+                </ng-container>
+                <ng-container
+                        *queryInput="let rule; let options=options; type: 'multiselect'; let onChange=onChange">
+                    <div class="form-group form-group--inline col-md-4">
+                        <div class="form-group__text select">
+                            <select [(ngModel)]="rule.value" multiple (ngModelChange)="onChange()">
+                                <option *ngFor="let opt of options" [value]="opt.value">
+                                    {{ opt.name }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                </ng-container>
+                <ng-container *queryInput="let rule; type: 'boolean'; let onChange=onChange">
+                    <div class="form-group form-group--inline col-md-4">
+                        <input type="checkbox" class="col-md-4" [(ngModel)]="rule.value" (ngModelChange)="onChange()">
+                    </div>
+                </ng-container>
+                <ng-container *queryInput="let rule; let field=field; type: 'number'; let onChange=onChange">
+                    <div class="form-group form-group--inline col-md-4">
+                        <div class="form-group__text">
+                            <input [(ngModel)]="rule.value" type="number" (ngModelChange)="onChange()">
+                        </div>
+                    </div>
+                </ng-container>
+                <ng-container *queryInput="let rule; let field=field; type: 'string'; let onChange=onChange">
+                    <div class="form-group form-group--inline col-md-4">
+                        <div class="form-group__text">
+                            <input type="text" [(ngModel)]="rule.value" (ngModelChange)="onChange()">
+                        </div>
+                    </div>
+                </ng-container>
+                <ng-container *queryInput="let rule; let field=field; type: 'textarea'; let onChange=onChange">
+                    <div class="form-group form-group--inline col-md-4">
+                        <div class="form-group__text">
+                        <textarea [(ngModel)]="rule.value" (ngModelChange)="onChange()">
+                        </textarea>
+                        </div>
+                    </div>
+                </ng-container>
+            </query-builder>
+        </div>
+        &nbsp;
+        <div class="modal-footer">
+            <button class="btn btn--small btn--secondary" (click)="modalService.hideModal()">Cancel</button>
+            <button class="btn btn--small btn--primary" (click)="modalService.hideModal()">Apply</button>
+        </div>
+    </div>
+</ng-template>

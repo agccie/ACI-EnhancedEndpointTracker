@@ -453,7 +453,7 @@ def build_topology():
         new_node = eptNode(
                 fabric=fabric.fabric, 
                 node = nid,
-                name="fab-%s-leaf_%s" % (fabric.fabric, nid),
+                name="fabric-%s-leaf_%s" % (fabric.fabric, nid),
                 oob_addr = addr,
                 addr = addr,
                 role = "leaf",
@@ -474,7 +474,7 @@ def build_topology():
         new_node = eptNode(
                 fabric=fabric.fabric, 
                 node = vpc_nid,
-                name="fab-%s-vpc_%s" % (fabric.fabric, vpc_nid),
+                name="fabric-%s-vpc_%s" % (fabric.fabric, vpc_nid),
                 addr = addr,
                 role = "vpc",
                 state="in-service",

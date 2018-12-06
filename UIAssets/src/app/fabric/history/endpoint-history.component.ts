@@ -31,11 +31,13 @@ export class EndpointHistoryComponent implements OnInit {
     @ViewChild('clearMsg') clearModal: TemplateRef<any>;
     offsubnetList = [];
     staleList = [];
+    counts = [] ;
     addNodes = (term) => {
         return {label: term, value: term};
     };
 
-    constructor(private prefs: PreferencesService, private backendService: BackendService, private activatedRoute: ActivatedRoute, public modalService: ModalService) {
+    constructor(private prefs: PreferencesService, private backendService: BackendService,
+        private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.clearEndpointOptions = [
             {label: 'Select all', value: 0},
             {label: 'Offsubnet endpoints', value: 1},
@@ -56,7 +58,7 @@ export class EndpointHistoryComponent implements OnInit {
         this.loading = true;
         this.activatedRoute.parent.paramMap.subscribe(params => {
             this.fabricName = params.get('fabric');
-            if (this.fabricName != undefined) {
+            if (this.fabricName !== undefined) {
                 this.activatedRoute.paramMap.subscribe(params => {
                     this.vnid = params.get('vnid');
                     this.address = params.get('address');
@@ -78,6 +80,7 @@ export class EndpointHistoryComponent implements OnInit {
                 this.endpoint = data.objects[0]['ept.endpoint'];
                 this.prefs.selectedEndpoint = this.endpoint;
                 this.setupStatusAndInfoStrings();
+                this.getCounts() ;
                 this.loading = false;
             },
             (error) => {
@@ -216,12 +219,14 @@ export class EndpointHistoryComponent implements OnInit {
                 const msg = 'Failed to refresh endpoint';
                 this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
-        )
+        ) ;
     }
 
     onClickOfRefresh() {
         const msg =
-            'Are you sure you want to force a refresh of ' + this.address + '? This operation will query the APIC for the most recent state of the endpoint and then update the local database. It may take a few moments for the updates to be seen.';
+            'Are you sure you want to force a refresh of ' + this.address +
+            '? This operation will query the APIC for the most recent state of the endpoint and then update the local database.' +
+            'It may take a few moments for the updates to be seen.';
         this.modalService.setAndOpenModal('info', 'Wait', msg, this.msgModal, true, this.refresh, this);
     }
 
@@ -245,7 +250,7 @@ export class EndpointHistoryComponent implements OnInit {
                 }
             },
             (error) => {
-                const msg = "Failed to clear nodes! " + error['error']['error'];
+                const msg = 'Failed to clear nodes! ' + error['error']['error'];
                 this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         )
@@ -271,7 +276,7 @@ export class EndpointHistoryComponent implements OnInit {
                             if (csv[j].includes('-')) {
                                 newarr = newarr.concat(this.getArrayForRange(csv[j]));
                             } else {
-                                const node = parseInt(csv[j]);
+                                const node = parseInt(csv[j], 10);
                                 if (!isNaN(node)) {
                                     newarr.push(node);
                                 }
@@ -296,5 +301,28 @@ export class EndpointHistoryComponent implements OnInit {
             arr.push(i);
         }
         return arr;
+    }
+
+    public getCounts() {
+        const obsList = [] ;
+        for (const table of ['move', 'offsubnet', 'stale', 'rapid']) {
+        obsList.push(this.backendService.getCountsForEndpointDetails(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, table)) ;
+        }
+        obsList.push(this.backendService.getXrNodesCount(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr)) ;
+        forkJoin(obsList).subscribe(
+            (data) => {
+            this.counts = [
+                {prop: 'Moves', ct: data[0]['count']},
+                {prop: 'offsubnet', ct: data[1]['count']},
+                {prop: 'stale', ct: data[2]['count']},
+                {prop: 'rapid', ct: data[3]['count']}
+                ] ;
+            this.counts.push({prop: 'XR Nodes', ct: data[4]['count']}) ;
+            },
+            (error) => {
+                const msg = 'Could not fetch counts! ' + error['error']['error'] ;
+                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal) ;
+            }
+        ) ;
     }
 }

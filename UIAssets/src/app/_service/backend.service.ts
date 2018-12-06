@@ -6,7 +6,7 @@ import {environment} from '../../environments/environment';
 import {FabricSettings} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
 import {Fabric, FabricList} from "../_model/fabric";
-import {EndpointList} from "../_model/endpoint";
+import {EndpointList, Endpoint} from "../_model/endpoint";
 import {QueueList} from "../_model/queue";
 
 
@@ -31,7 +31,7 @@ export class BackendService {
     }
 
     getFabrics(sorts = []): Observable<FabricList> {
-        if (sorts.length == 0) {
+        if (sorts.length === 0) {
             return this.http.get<FabricList>(this.baseUrl + '/fabric');
         } else {
             const sortsStr = this.getSortsArrayAsString(sorts);
@@ -64,7 +64,7 @@ export class BackendService {
 
     getFilteredEndpoints(fabricName, sorts = [], offsubnetFilter = false, staleFilter = false, activeFilter = false, rapidFilter = false, tab = 'endpoint', pageOffset = 0, pageSize = 25): Observable<EndpointList> {
         let conditions = '';
-        let fabricFilter = 'eq("fabric","' + fabricName + '")';
+        const fabricFilter = 'eq("fabric","' + fabricName + '")';
         let count = 0;
         let sortsStr = '';
         if (offsubnetFilter) {
@@ -89,7 +89,7 @@ export class BackendService {
         } else if (count === 1) {
             conditions = 'and(' + fabricFilter + conditions + ')';
         } else {
-            conditions = fabricFilter
+            conditions = fabricFilter ;
         }
         if (sorts.length > 0) {
             sortsStr = '&sort=' + this.getSortsArrayAsString(sorts);
@@ -144,7 +144,7 @@ export class BackendService {
 
     getSortsArrayAsString(sorts) {
         let sortsStr = '';
-        for (let sort of sorts) {
+        for (const sort of sorts) {
             sortsStr += sort.prop + '|' + sort.dir + ',';
         }
         sortsStr = sortsStr.slice(0, sortsStr.length - 1);
@@ -172,7 +172,7 @@ export class BackendService {
     }
 
     createFabric(fabric: Fabric) {
-        let toSave = new Fabric(
+        const toSave = new Fabric(
             fabric.fabric,
             fabric.apic_hostname,
             fabric.apic_username,
@@ -207,7 +207,7 @@ export class BackendService {
     }
 
     createUser(user: User): Observable<any> {
-        let toSave = new User(
+        const toSave = new User(
             user.username,
             user.role,
             user.password
@@ -219,7 +219,7 @@ export class BackendService {
     }
 
     updateUser(user: User): Observable<any> {
-        let toSave = new User(
+        const toSave = new User(
             user.username,
             user.role,
             user.password
@@ -227,7 +227,7 @@ export class BackendService {
         delete toSave.is_new;
         delete toSave.password_confirm;
         delete toSave.last_login;
-        if (toSave.password == '') {
+        if (toSave.password === '') {
             delete toSave.password;
         }
         return this.http.patch(this.baseUrl + '/user/' + toSave.username, toSave);
@@ -268,7 +268,8 @@ export class BackendService {
 
     offsubnetStaleEndpointHistory(fabric, vnid, address, endpointState, table) {
 
-        return this.http.get(this.baseUrl + '/ept/' + table + '?filter=and(eq("' + endpointState + '",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))');
+        return this.http.get(this.baseUrl + '/ept/' + table + 
+        '?filter=and(eq("' + endpointState + '",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))');
     }
 
     testEmailNotifications(type: String, fabricName: String) {
@@ -280,20 +281,30 @@ export class BackendService {
     }
 
     getRapidEndpoints(fabricName: String, vnid: String, address: String): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + `/ept/rapid?filter=and(eq("fabric","${fabricName}"),eq("vnid",${vnid}),eq("addr","${address}"))`)
+        return this.http.get<EndpointList>(this.baseUrl + 
+            `/ept/rapid?filter=and(eq("fabric","${fabricName}"),eq("vnid",${vnid}),eq("addr","${address}"))`)
     }
 
     getClearedEndpoints(fabricName: String, vnid: String, address: String): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + `/ept/remediate?filter=and(eq("fabric","${fabricName}"),eq("vnid",${vnid}),eq("addr","${address}"))`)
+        return this.http.get<EndpointList>(this.baseUrl + 
+            `/ept/remediate?filter=and(eq("fabric","${fabricName}"),eq("vnid",${vnid}),eq("addr","${address}"))`)
     }
 
     getAllOffsubnetStaleEndpoints(fabric: String, vnid: String, address: String, table: String): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + `/ept/${table}?filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
+        return this.http.get<EndpointList>(this.baseUrl + 
+            `/ept/${table}?filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
     }
 
     clearNodes(fabric: String, vnid: String, addr: String, nodeList: Array<Number>) {
-        return this.http.post(this.baseUrl + `/uni/fb-${fabric}/endpoint/vnid-${vnid}/addr-${addr}/clear`, nodeList)
+        return this.http.post(this.baseUrl + `/uni/fb-${fabric}/endpoint/vnid-${vnid}/addr-${addr}/clear`, nodeList) ;
     }
 
+    getCountsForEndpointDetails(fabric, vnid, address,table): Observable<EndpointList> {
+    return this.http.get<EndpointList>(this.baseUrl + `/ept/${table}?count=1&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`) ;
+    }
+
+    getXrNodesCount(fabric, vnid, address):Observable<EndpointList> {
+    return this.http.get<EndpointList>(this.baseUrl + `/ept/history?count=1&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"),or(eq("events.0.status","created"),eq("events.0.status","modified")),gt("events.0.remote",0))`) ;
+    }
 
 }

@@ -24,7 +24,7 @@ export class EndpointHistoryComponent implements OnInit {
     clearEndpointOptions: any;
     clearNodes = [];
     loading = true;
-    dropdownActive: false;
+    dropdownActive = false;
     decisionBox = false;
     callback: any;
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;

@@ -99,7 +99,7 @@ export class SettingsComponent implements OnInit {
         if (otherSettings.hasOwnProperty('dn')) {
             delete otherSettings['dn'];
         }
-        const fields = ['dn', 'event_count', 'controllers', 'events', 'auto_start', 'status', 'mac', 'ipv4', 'ipv6'];
+        const fields = ['dn', 'event_count', 'controllers', 'events', 'auto_start', 'status', 'mac', 'ipv4', 'ipv6', 'restart_ts', 'uptime'];
         for (let field of fields) {
             if (connSettings.hasOwnProperty(field)) {
                 delete connSettings[field];

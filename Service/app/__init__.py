@@ -58,6 +58,7 @@ def create_app(config_filename="config.py"):
     from .models.aci.ept.ept_vpc import eptVpc
 
     # aci managed objects
+    from .models.aci.mo.datetimeFormat import datetimeFormat
     from .models.aci.mo.fvAEPg import fvAEPg
     from .models.aci.mo.fvBD import fvBD
     from .models.aci.mo.fvCtx import fvCtx

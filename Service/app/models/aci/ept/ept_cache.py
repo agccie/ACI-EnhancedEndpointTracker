@@ -106,7 +106,7 @@ class eptCache(object):
                 self.subnet_cache.flush()
                 self.offsubnet_cache.flush()
         else:
-            logger.warn("flush for unsupported collection name: %s", collection_name)
+            logger.debug("flush for unsupported collection name: %s", collection_name)
 
     def get_key_str(self, **keys):
         """ return std key string for consistency between any method calculating cache key string"""

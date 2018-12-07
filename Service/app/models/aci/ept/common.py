@@ -276,6 +276,14 @@ def subscriber_op(fabric, msg_type, data=None, qnum=1):
     else:
         return (False, "Fabric '%s' is not running" % fabric)
 
+def parse_tz(tz):
+    # expect to be in the form n#_Region-Tz where we need to replace - with /
+    r1 = re.search("^n[0-9]+_(?P<region>[^\-]+)-(?P<tz>.+)$", tz)
+    if r1 is not None:
+        return "%s/%s" % (r1.group("region"), re.sub("-","/", r1.group("tz")))
+    else:
+        logger.warn("failed to parse timezone: %s", tz)
+        return tz
 
 ###############################################################################
 #

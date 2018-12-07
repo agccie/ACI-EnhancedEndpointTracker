@@ -288,7 +288,7 @@ class eptWorker(object):
         if "cache" in msg.data and "name" in msg.data:
             if msg.fabric in self.fabrics:
                 name = msg.data["name"]
-                if len(name) == 0: 
+                if name is not None and len(name) == 0: 
                     name = None
                 self.fabrics[msg.fabric].cache.handle_flush(msg.data["cache"], name=name)
             else:

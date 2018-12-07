@@ -1452,7 +1452,7 @@ class Rest(object):
                     obj["_id"] = "%s"%ObjectId(r["_id"])
                 # add dn to object if configured and not already an attribute of the object
                 if cls._access["dn"] and "dn" not in obj:
-                    _vars = [obj.get(attr,"") for attr in cls._dn_attributes]
+                    _vars = [obj.get(attr,"").encode("utf-8") for attr in cls._dn_attributes]
                     obj["dn"] = cls._dn_path.format(*_vars)
                 ret["objects"].append({cls._classname: obj})
 

@@ -13,7 +13,7 @@ import {OffSubnetEventsComponent} from './fabric/history/off-subnet-events/off-s
 import {StaleEventsComponent} from './fabric/history/stale-events/stale-events.component';
 import {PerNodeHistoryComponent} from './fabric/history/per-node-history/per-node-history.component';
 import {AuthGuardService} from './_service/auth-guard.service';
-import {AccordionModule, ModalModule, TypeaheadModule} from 'ngx-bootstrap';
+import {AccordionModule, ModalModule} from 'ngx-bootstrap';
 import {EndpointsComponent} from './fabric/endpoint/endpoints.component';
 import {EventComponent} from './fabric/event/event.component';
 import {MovesComponent} from './fabric/moves/moves.component';
@@ -23,7 +23,6 @@ import {BackendService} from './_service/backend.service';
 import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
 import {MomentModule} from 'ngx-moment';
 import {NgSelectModule} from '@ng-select/ng-select';
-import {NgbModule} from '@ng-bootstrap/ng-bootstrap';
 import {BackendInterceptorService} from './_service/backend-interceptor.service';
 import {CookieService} from 'ngx-cookie-service';
 import {HashLocationStrategy, LocationStrategy} from '@angular/common';
@@ -162,8 +161,6 @@ const appRoutes: Routes = [
         MomentModule,
         NgSelectModule,
         HighchartsChartModule,
-        NgbModule.forRoot(),
-        TypeaheadModule.forRoot(),
         ModalModule.forRoot(),
         QueryBuilderModule,
     ],

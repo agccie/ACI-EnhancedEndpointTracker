@@ -23,6 +23,49 @@
 </div>
 <div class="row">
     <div class="col-md-12">
+        <div class="form-group">
+            <ng-select
+                    [items]="endpoints$ | async"
+                    bindLabel="name"
+                    [typeahead]="endpointInput$"
+                    [(ngModel)]="selectedEp"
+                    autofocus
+            >
+                <ng-template ng-option-tmp let-item="item" let-index="index" let-search="searchTerm">
+                    <div class="row">
+                        <div class="col-md-2">
+                            {{ item['ept.endpoint'].addr }}
+                        </div>
+                        <div class="col-md-1">
+                            <span class="label label--raised"
+                                  [ngClass]="{
+                                      'label--success':item['ept.endpoint'].type==='ipv4',
+                                      'label--warning':item['ept.endpoint'].type==='mac',
+                                      'label--info':item['ept.endpoint'].type==='ipv6'
+                                  }">
+                                {{ item['ept.endpoint'].type.toUpperCase() }}
+                            </span>
+                        </div>
+                        <div class="col-md-1">
+                            {{ item['ept.endpoint'].first_learn.encap }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ item['ept.endpoint'].first_learn.vnid_name }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ item['ept.endpoint'].first_learn.epg_name }}
+                        </div>
+                    </div>
+                </ng-template>
+            </ng-select>
+        </div>
+    </div>
+</div>
+<div class="row">
+    &nbsp;
+</div>
+<div class="row">
+    <div class="col-md-12">
         <div class="panel panel--raised">
             <h4>Fabric Events
                 <button class="btn btn--icon btn--small btn--primary" (click)='getFabric()'>

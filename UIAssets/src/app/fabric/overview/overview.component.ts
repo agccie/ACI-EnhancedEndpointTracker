@@ -3,8 +3,9 @@ import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Fabric, FabricList} from "../../_model/fabric";
-import {forkJoin} from "rxjs";
+import {concat, forkJoin, Observable, of, Subject} from "rxjs";
 import {ModalService} from '../../_service/modal.service';
+import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
 
 @Component({
     selector: 'app-overview',
@@ -18,16 +19,21 @@ export class OverviewComponent implements OnInit {
     sorts = [{prop: 'timestamp', dir: 'desc'}];
     loading = true;
     fabric: Fabric;
-    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
+    endpoints$: Observable<any[]>;
+    endpointInput$ = new Subject<string>();
 
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
-                private activatedRoute: ActivatedRoute, public modalService: ModalService) {
+    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
+    selectedEp: any;
+    endpointLoading: boolean;
+
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.pageSize = this.prefs.pageSize;
         this.rows = [];
     }
 
     ngOnInit() {
         this.getFabric();
+        this.searchEndpoint();
     }
 
     getFabric() {
@@ -57,5 +63,20 @@ export class OverviewComponent implements OnInit {
                 });
             }
         });
+    }
+
+    private searchEndpoint() {
+        this.endpoints$ = concat(
+            of([]), // default items
+            this.endpointInput$.pipe(
+                debounceTime(200),
+                distinctUntilChanged(),
+                tap(() => this.endpointLoading = true),
+                switchMap(term => this.backendService.searchEndpoint(term).pipe(
+                    catchError(() => of([])), // empty list on error
+                    tap(() => this.endpointLoading = false)
+                ))
+            )
+        );
     }
 }

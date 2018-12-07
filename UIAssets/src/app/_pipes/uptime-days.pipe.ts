@@ -9,22 +9,9 @@ export class UptimeDaysPipe implements PipeTransform {
         let days = value / (24 * 3600);
         let hours = (value % (24 * 3600)) / 3600;
         let minutes = ((hours % 1) * 60);
-        let seconds = Math.trunc((minutes % 1) * 60);
-        let secondsStr = '';
-        let hoursStr = '' ;
-        let minutesStr = '' ;
-        if (seconds < 10) {
-            secondsStr = '0';
-        }
-        if (minutes < 10) {
-            minutesStr = '0';
-        }
-        if(hours < 10) {
-            hoursStr = '0';
-        }
-        secondsStr += seconds;
-        minutesStr += Math.trunc(minutes) ;
-        hoursStr += Math.trunc(hours);
+        let secondsStr = Math.trunc((minutes % 1) * 60).toString().padStart(2, '0');
+        let minutesStr = Math.trunc(minutes).toString().padStart(2, '0');
+        let hoursStr = Math.trunc(hours).toString().padStart(2, '0');
         return `${Math.trunc(days)} days, ${hoursStr}:${minutesStr}:${secondsStr}`;
     }
 }

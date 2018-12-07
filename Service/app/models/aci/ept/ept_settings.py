@@ -208,6 +208,12 @@ class eptSettings(Rest):
             "default": 600,
             "description": "holdtime to ignore new events for endpoint marked as rapid",
         },
+        "tz": {
+            "type": str,
+            "write": False,
+            "description": "fabric timezone setting (this is synchronized when fabric is running)",
+            "default": "",
+        },
         # internal state info
         "overlay_vnid": {
             "type": int,

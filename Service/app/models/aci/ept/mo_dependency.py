@@ -80,6 +80,7 @@ class DependencyNode(object):
                 self.ept_key = "name"
             else:
                 self.ept_key = key
+            logger.debug("setting %s ept_key to: %s", self.classname, self.ept_key)
             if self.ept_key not in self.ept_attributes:
                 self.ept_attributes[self.ept_key] = self.ept_key
             if callback is not None:
@@ -96,18 +97,23 @@ class DependencyNode(object):
             setattr(mo, "ept", None)
         else:
             key = {"fabric": mo.fabric}
-            key[self.ept_key] = getattr(mo, self.ept_attributes[self.ept_key])
+            if isinstance(self.ept_attributes[self.ept_key], moAttrHandler):
+                val = self.ept_attributes[self.ept_key].get_value(self.ept_key, mo, [])
+            else:
+                val = getattr(mo, self.ept_attributes[self.ept_key])
+            key[self.ept_key] = val
+            logger.debug("setting keys: %s", key)
             setattr(mo, "ept", self.ept_db.load(**key))
 
-    def sync_ept_to_mo(self, mo, mo_parents):
-        """ sync ept object to mo. Also perform sync for each child node.  Return list of all ept
+    def sync_mo_to_ept(self, mo, mo_parents):
+        """ sync mo object to ept. Also perform sync for each child node.  Return list of all ept
             objects that were updated (created, modified, or deleted)
         """
         updates = []
         updated = False
         if hasattr(mo, "ept") and mo.ept is not None:
             ept = mo.ept
-            logger.debug("sync_ept_to_mo %s to %s(%s)", ept._classname, mo._classname, mo.dn)
+            logger.debug("sync_mo_to_ept %s(%s) to %s", mo._classname, mo.dn, ept._classname)
             # delete operation requires us to delete the ept object
             if not mo.exists():
                 if ept.exists():
@@ -207,11 +213,11 @@ class DependencyNode(object):
             for c in mo.children:
                 # need to get the DependencyNode for child mo before triggering sync
                 if hasattr(c, "dependency"):
-                    updates+= c.dependency.sync_ept_to_mo(c, sub_parents)
+                    updates+= c.dependency.sync_mo_to_ept(c, sub_parents)
                 else:
                     logger.warn("cannot sync child, DependencyNode not set: %s %s",c._classname,c.dn)
 
-        #logger.debug("sync_ept_to_mo %s(%s) returning %s updates",mo._classname,mo.dn,len(updates))
+        #logger.debug("sync_mo_to_ept %s(%s) returning %s updates",mo._classname,mo.dn,len(updates))
         return updates
 
     def sync_event(self, fabric, attr, session=None):
@@ -274,7 +280,7 @@ class DependencyNode(object):
                 len(parents), ts2-ts1, len(mo.children), ts3-ts2) 
 
         # update local ept object
-        return self.sync_ept_to_mo(mo, parents)
+        return self.sync_mo_to_ept(mo, parents)
 
     def get_parent_objects(self, mo):
         # return dict indexed by classname of each parent.  Note, each classname can only be one
@@ -367,5 +373,14 @@ class StaticMoAttrHandler(moAttrHandler):
     """ moAttrHandler that returns a static value """
     def __init__(self, static_value):
         self.static_value = static_value
-    def get_value(self, a, mo, mo_parents):
+    def get_value(self, attribute_name, mo, mo_parents):
         return self.static_value
+
+class CustomMoAttrHandler(moAttrHandler):
+    """ moAttrHandler that accepts a function to parse attribute """
+    def __init__(self, func):
+        self.func = func
+    def get_value(self, attribute_name, mo, mo_parents):
+        return self.func(attribute_name, mo, mo_parents)
+
+

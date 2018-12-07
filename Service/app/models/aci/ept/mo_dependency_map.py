@@ -1,15 +1,26 @@
 """
 maintain dependency mapping to ease subscription events for APIC MOs
 """
-
+from . common import parse_tz
 from . mo_dependency import DependencyNode
+from . mo_dependency import CustomMoAttrHandler
 from . mo_dependency import StaticMoAttrHandler
 from . ept_epg import eptEpg
 from . ept_pc import eptPc
+from . ept_settings import eptSettings
 from . ept_subnet import eptSubnet
 from . ept_tunnel import eptTunnel
 from . ept_vnid import eptVnid
 from . ept_vpc import eptVpc
+
+# wrapper for parse_tz
+def wrap_parse_tz(attribute_name, mo, mo_parent): 
+    if mo.displayFormat == "utc": 
+        return "UTC"
+    return parse_tz(mo.tz)
+
+# settings 
+n_datetimeFormat = DependencyNode("datetimeFormat")
 
 # vnid objects
 n_fvCtx = DependencyNode("fvCtx")
@@ -71,6 +82,7 @@ n_vnsLIfCtx.add_child(n_fvSubnet, "dn", "parent")
 
 # dict lookup for each object into dependency tree
 dependency_map = {
+    "datetimeFormat": n_datetimeFormat,
     "fvCtx": n_fvCtx,
     "fvBD": n_fvBD,
     "fvSvcBD": n_fvSvcBD,
@@ -95,6 +107,16 @@ dependency_map = {
 
 # statically map IFC MOs to ept db objects eptVnid, eptEpg, eptSubnet
 ept_map = {
+    # sync settings
+    "datetimeFormat": {
+        "db": eptSettings,
+        "key": "settings",
+        "attributes": {
+            "settings": StaticMoAttrHandler("default"),
+            "tz": CustomMoAttrHandler(wrap_parse_tz),
+        },
+    },
+
     # eptVnid
     "fvCtx": {
         "db": eptVnid,

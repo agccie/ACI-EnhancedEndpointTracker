@@ -18,6 +18,7 @@ from . common import MINIMUM_SUPPORTED_VERSION
 from . common import MO_BASE
 from . common import SUBSCRIBER_CTRL_CHANNEL
 from . common import get_vpc_domain_id
+from . common import parse_tz
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
 from . ept_msg import eptEpmEventParser
@@ -95,6 +96,7 @@ class eptSubscriber(object):
             "pcAggrIf",
             "tunnelIf",
             "vpcRsVpcConf",
+            "datetimeFormat",
         ]
         # dict of classname to import mo object
         self.mo_classes = {}
@@ -268,13 +270,18 @@ class eptSubscriber(object):
             self.fabric.save()
             return
 
-        # get overlay vnid and fabricProtP (which requires hard reset on change)
-        vpc_attr = get_attributes(session=self.session, dn="uni/fabric/protpol")
+        # get overlay-vnid, fabricProtP (which requires hard reset on change), and tz
         overlay_attr = get_attributes(session=self.session, dn="uni/tn-infra/ctx-overlay-1")
         if overlay_attr and "scope" in overlay_attr:
             self.settings.overlay_vnid = int(overlay_attr["scope"])
-            if vpc_attr and "pairT" in vpc_attr:
+            vpc_attr = get_attributes(session=self.session, dn="uni/fabric/protpol")
+            tz_attr = get_attributes(session=self.session, dn="uni/fabric/format-default")
+            if vpc_attr and "pairT" in vpc_attr and tz_attr and "tz" in tz_attr:
                 self.settings.vpc_pair_type = vpc_attr["pairT"]
+                if "displayFormat" in tz_attr and tz_attr["displayFormat"] == "utc":
+                    self.settings.tz = "UTC"
+                else:
+                    self.settings.tz = parse_tz(tz_attr["tz"])
                 self.settings.save()
             else:
                 logger.warn("failed to determine fabricProtPol pairT: %s (using default)",vpc_attr)

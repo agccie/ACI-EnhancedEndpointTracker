@@ -231,6 +231,23 @@ class Swarmer(object):
         """ deploy docker service referencing config file and verify everything is running """
 
         logger.info("deploying app services, please wait...")
+        # check if stack is already running, if so bail out
+        out = run_command("docker stack ls --format '{{json .}}'")
+        if out is None:
+            raise Exception("failed to deploy stack")
+        for l in out.split("\n"):
+            if len(l.strip()) == 0: continue
+            try:
+                js = json.loads(l)
+                if "Name" in js and js["Name"] == self.config.app_name:
+                    err = "%s stack already running\n" % self.config.app_name
+                    err+= "If you want to redeploy the stack, first remove it via "
+                    err+= "'docker stack rm %s', wait 5 minutes, "
+                    err+= "and then rerun this script" % self.config.app_name
+                    raise Exception(err)
+            except (ValueError,KeyError) as e:
+                logger.warn("failed to parse docker service line: %s", l)
+
         cmd = "docker stack deploy -c %s %s" % (self.config.compose_file, self.config.app_name)
         if run_command(cmd) is None:
             raise Exception("failed to deploy stack")
@@ -267,7 +284,7 @@ class Swarmer(object):
                     logger.warn("failed to parse docker service line: %s", l)
 
             if not all_services_running:
-                logger.debug("one or more services pending, re-check in %s seconds", check_interval)
+                logger.info("one or more services pending, re-check in %s seconds", check_interval)
                 time.sleep(check_interval)
             else: break
 

@@ -458,7 +458,7 @@ function run_db_single_role(){
         cmd="/usr/bin/mongod --configsvr --replSet cfg "
         cmd="$cmd --bind_ip_all --port $LOCAL_PORT --dbpath $MONGO_DATA_DIR/cfg "
         cmd="$cmd --wiredTigerCacheSizeGB $DB_MEMORY "
-        cmd="$cmd --logpath $MONGO_LOG_DIR/cfg.log --logappend &"
+        cmd="$cmd --logpath $MONGO_LOG_DIR/cfg.log --logappend "
 
     elif [ "$DB_ROLE" == "shardsvr" ] ; then
         if [ ! -d $MONGO_DATA_DIR/sh$LOCAL_SHARD ] ; then

@@ -621,7 +621,7 @@ class Rest(object):
                             if not cls._attributes[attr]["key"] and hasattr(obj, attr):
                                 obj._original_attributes[attr] = copy.deepcopy(getattr(obj, attr))
                         # add _id to object for expose_id objects
-                        if cls._access["expose_id"] and "_id" in db_obj: 
+                        if cls._access["expose_id"] and "_id" in o[cls._classname]:
                             setattr(obj, "_id", o[cls._classname]["_id"])
                         results.append(obj)
         except Exception as e:

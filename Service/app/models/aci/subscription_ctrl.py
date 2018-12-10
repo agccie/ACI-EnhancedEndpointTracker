@@ -58,7 +58,7 @@ class SubscriptionCtrl(object):
 
         # verify interest dict
         if type(interests) is not dict:
-            raise Exception("invalid interest, must be type dict" % interest)
+            raise Exception("invalid interest, must be type dict" % interests)
         for cname in interests:
             if type(interests[cname]) is not dict or "handler" not in interests[cname]:
                 raise Exception("invalid interest %s: %s" % (cname, interests[cname]))

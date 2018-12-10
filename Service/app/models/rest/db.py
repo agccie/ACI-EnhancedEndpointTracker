@@ -114,7 +114,7 @@ def db_setup(app_name="App", username="admin", password="cisco", sharding=False,
         return False
     u = User(username=username, password=password, role=Role.FULL_ADMIN)
     if not u.save():
-        logger.error("failed to create username: %s" % args.username)
+        logger.error("failed to create username: %s", username)
         return False
 
     #successful setup

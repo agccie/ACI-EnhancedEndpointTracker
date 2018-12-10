@@ -9,17 +9,16 @@ logger = logging.getLogger(__name__)
 class ClusterConfig(object):
     """ manage parsing user config.yml to swarm compose file """
 
-    APP_IMAGE = "aci/enhancedendpointtracker:2.0"
-    MONGO_IMAGE = "mongo:3.6.7"
-    REDIS_IMAGE = "redis:4.0.11"
+    APP_IMAGE = "agccie/enhancedendpointtracker:latest"
 
     # limits to prevent accidental overprovisioning
     MAX_NODES = 10
     MAX_WORKERS = 128
+    MAX_WATCHERS = 4
     MIN_PREFIX = 8
     MAX_PREFIX = 27
     MAX_SHARDS = 32
-    MAX_REPLICAS = 3
+    MAX_REPLICAS = 9
     MAX_MEMORY = 512
 
     # everything has the same logging limits for now
@@ -29,6 +28,7 @@ class ClusterConfig(object):
     def __init__(self):
         self.nodes = {}         # indexed by node id, {"id":int, "hostname":"addr"}
         self.app_workers = 5
+        self.app_watchers = 1
         self.app_subnet = "192.0.2.0/27"
         self.app_name = "ept"
         # set http/https port to 0 to disable that service
@@ -203,9 +203,34 @@ class ClusterConfig(object):
             else:
                 raise Exception("unexpected attribute '%s' for configsvr" % k)
 
+    def get_shared_environment(self):
+        """ return shared environment list """
+        node_count = len(self.nodes)
+        shared_environment = {
+            "HOSTED_PLATFORM": "SWARM",
+            "REDIS_HOST": "redis",
+            "REDIS_PORT": self.redis_port,
+            "DB_SHARD_COUNT": self.shardsvr_shards,
+            "MONGO_HOST": "db",
+            "MONGO_PORT": self.mongos_port,
+        }
+        cfg_svr = []
+        for i in xrange(0, self.configsvr_replicas):
+            cfg_svr.append("db_cfg_%s:%s" % (i, self.configsvr_port))
+        shared_environment["DB_CFG_SRV"] = "cfg/%s" % (",".join(cfg_svr))
+
+        for s in xrange(0, self.shardsvr_shards):
+            rs = []
+            for r in xrange(0, self.shardsvr_replicas):
+                rs.append("db_sh_%s_%s:%s" % (s, r, self.shardsvr_port))
+            shared_environment["DB_RS_SHARD_%s" % s ] = "sh%s/%s" % (s, ",".join(rs))
+
+        return ["%s=%s" % (k, shared_environment[k]) for k in sorted(shared_environment)]
+
     def build_compose(self):
         """ build compose file used for docker swarm service """
         node_count = len(self.nodes)
+        shared_environment = self.get_shared_environment()
 
         # static logging referenced by each service
         default_logging = {
@@ -226,6 +251,7 @@ class ClusterConfig(object):
                 }
             }
         }
+
         # configure webservice (ports are configurable by user)
         web_service = {
             "image": ClusterConfig.APP_IMAGE,
@@ -233,6 +259,7 @@ class ClusterConfig(object):
             "ports": [],
             "deploy": {"replicas": 1},
             "logging": copy.deepcopy(default_logging),
+            "environment": copy.copy(shared_environment),
         }
         if self.app_http_port > 0:
             web_service["ports"].append("%s:80" % self.app_http_port)
@@ -243,23 +270,30 @@ class ClusterConfig(object):
 
         # configure redis service (static)
         redis_service = {
-            "image": ClusterConfig.REDIS_IMAGE,
+            "image": ClusterConfig.APP_IMAGE,
+            "command": "/home/app/src/Service/start.sh -r redis -l",
+            "deploy": {"replicas": 1},
             "logging": copy.deepcopy(default_logging),
+            "environment": copy.copy(shared_environment),
         }
         config["services"]["redis"] = redis_service
         self.services["redis"] = Service("redis")
         self.services["redis"].set_service_type("redis", port_number=self.redis_port)
 
         # configure shard service (multiple shards and replicas)
-        for s in xrange(0, node_count*self.shardsvr_shards):
+        for s in xrange(0, self.shardsvr_shards):
             for r in xrange(0, self.shardsvr_replicas):
                 svc = "db_sh_%s_%s" % (s, r)
                 anchor = ((s + r) % node_count) + 1
-                cmd = "mongod --shardsvr --replSet sh%s " % s
-                cmd+= "--wiredTigerCacheSizeGB %s " % self.shardsvr_memory
-                cmd+= "--bind_ip_all --port %s " % self.shardsvr_port 
+                env = copy.copy(shared_environment)
+                env.append("LOCAL_REPLICA=%s" % r)
+                env.append("LOCAL_SHARD=%s" % s)
+                env.append("LOCAL_PORT=%s" % self.shardsvr_port)
+                env.append("DB_MEMORY=%s" % self.shardsvr_memory)
+                env.append("DB_ROLE=shardsvr")
+                cmd = "/home/app/src/Service/start.sh -r db -l"
                 config["services"][svc] = {
-                    "image": ClusterConfig.MONGO_IMAGE,
+                    "image": ClusterConfig.APP_IMAGE,
                     "command": cmd,
                     "logging": copy.deepcopy(default_logging),
                     "deploy": {
@@ -270,22 +304,25 @@ class ClusterConfig(object):
                             ]
                         }
                     },
+                    "environment": env,
                 }
                 self.services[svc] = Service(svc, node=anchor, replica="sh%s" % s)
                 self.services[svc].set_service_type("db_sh", shard_number=s, replica_number=r,
                         port_number=self.shardsvr_port)
 
         # configure configsvr service (replicas only)
-        cfg_str = "cfg/"
         for r in xrange(0, self.configsvr_replicas):
             svc = "db_cfg_%s" % r
             anchor = (r % node_count) + 1
-            cfg_str+= "%s:%s," % (svc, self.configsvr_port)
-            cmd = "mongod --configsvr --replSet cfg "
-            cmd+= "--wiredTigerCacheSizeGB %s " % self.configsvr_memory
-            cmd+= "--bind_ip_all --port %s " % self.configsvr_port 
+            cmd = "/home/app/src/Service/start.sh -r db -l"
+            env = copy.copy(shared_environment)
+            env.append("LOCAL_REPLICA=%s" % r)
+            env.append("LOCAL_SHARD=0")
+            env.append("LOCAL_PORT=%s" % self.configsvr_port)
+            env.append("DB_MEMORY=%s" % self.configsvr_memory)
+            env.append("DB_ROLE=configsvr")
             config["services"][svc] = {
-                "image": ClusterConfig.MONGO_IMAGE,
+                "image": ClusterConfig.APP_IMAGE,
                 "command": cmd,
                 "logging": copy.deepcopy(default_logging),
                 "deploy": {
@@ -296,33 +333,64 @@ class ClusterConfig(object):
                         ]
                     }
                 },
+                "environment": env,
             }
             self.services[svc] = Service(svc, node=anchor, replica="cfg")
             self.services[svc].set_service_type("db_cfg", replica_number=r, 
                     port_number=self.configsvr_port)
-        cfg_str = re.sub(",$","", cfg_str)
 
         # configure router (mongos = main db app will use) pointing to cfg replica
-        cmd = "mongos --configdb %s --bind_ip_all --port %s" % (cfg_str, self.mongos_port)
+        cmd = "/home/app/src/Service/start.sh -r db -l"
+        env = copy.copy(shared_environment)
+        env.append("LOCAL_REPLICA=0")
+        env.append("LOCAL_SHARD=0")
+        env.append("LOCAL_PORT=%s" % self.mongos_port)
+        env.append("DB_MEMORY=%s" % self.configsvr_memory)
+        env.append("DB_ROLE=mongos")
         config["services"]["db"] = {
-            "image": ClusterConfig.MONGO_IMAGE,
+            "image": ClusterConfig.APP_IMAGE,
             "command": cmd,
             "logging": copy.deepcopy(default_logging),
             "deploy": {
                 "mode": "global"        # each node has local db instance
             },
+            "environment": env, 
         }
         self.services["db"] = Service("db")
         self.services["db"].set_service_type("db", port_number=self.mongos_port)
 
-        # configure workers
-        cmd = "/bin/sleep infinity"
+        # configure manager, watcher, and workers
+        config["services"]["mgr"] = {
+            "image": ClusterConfig.APP_IMAGE,
+            "command": "/home/app/src/Service/start.sh -r manager -l -c 1 -i 0",
+            "logging": copy.deepcopy(default_logging),
+            "deploy": {
+                "mode": "global"        # each node has local db instance
+            },
+            "environment": copy.copy(shared_environment)
+        }
+        self.services["mgr"] = Service("manager")
+
+        # configure multiple watchers (expect just one or two)
+        for i in xrange(0, self.app_watchers):
+            svc = "x%s" % i
+            config["services"][svc] = {
+                "image": ClusterConfig.APP_IMAGE,
+                "command": "/home/app/src/Service/start.sh -r watcher -l -c 1 -i %s" % i,
+                "logging": copy.deepcopy(default_logging),
+                "environment": copy.copy(shared_environment),
+            }
+            self.services[svc] = Service(svc)
+            self.services[svc].set_service_type("watcher")
+
+        # configure multiple workers
         for i in xrange(0, self.app_workers):
             svc = "w%s" % i
             config["services"][svc] = {
                 "image": ClusterConfig.APP_IMAGE,
-                "command": cmd,
+                "command": "/home/app/src/Service/start.sh -r worker -l -c 1 -i %s" % i,
                 "logging": copy.deepcopy(default_logging),
+                "environment": copy.copy(shared_environment),
             }
             self.services[svc] = Service(svc)
             self.services[svc].set_service_type("worker")
@@ -332,7 +400,7 @@ class ClusterConfig(object):
 
 class Service(object):
 
-    SERVICE_TYPES = ["web", "redis", "worker", "db", "db_cfg", "db_sh"]
+    SERVICE_TYPES = ["web", "redis", "worker", "manager", "watcher", "db", "db_cfg", "db_sh"]
     def __init__(self, name, node=None, replica=None):
         self.name = name
         self.node = node            # node label_id if constrained to a single node
@@ -349,10 +417,12 @@ class Service(object):
         # shard_number.  The supported services:
         #   web
         #   redis
-        #   worker
         #   db      (shard router)
         #   db_cfg  (configserver)
         #   db_sh   (shard)
+        #   mgr
+        #   watcher
+        #   worker
         if service_type not in Service.SERVICE_TYPES:
             raise Exception("unsupported service type %s" % service_type)
         self.service_type = service_type

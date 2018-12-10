@@ -17,27 +17,26 @@ app:
     # external ports for http and https.  Set to '0' to disable it.
     http_port: 80
     https_port: 443
-    # number of workers to process events
-    workers: 5
+    # number of workers containers
+    workers: 12
     # internal network for communication between app components. This subnet should only be changed
     # if it overlaps with an existing network
     subnet: "192.0.2.0/24"
 
 # mongodb cluster configuration
 database:
-    # shards is a number of shards per node.  If this is a three-node cluster and shardsvr.shards
-    # is set to 1, then there will be a total of 3 shards, one per node.  Similarly, if shards is
-    # set to 2, then there will be a total of 6 shards, two per node.
+    # shards is the number of db shards.
     #
-    # replicas are per-shard.  A replica count of 1 has no redundancy.  A replica count of 2 allows
-    # for one node to fail without impact.  The replica count must be <= total nodes configured
+    # replicas are per-shard.  A replica count of 1 has no redundancy. Recommended replica count
+    # is 3 for full redundancy.  Note, the replica count must be <= total nodes configured in the
+    # cluster.
     #
     # memory is a float measured in GB and is a per shard/per replica limit. 
     # The aggregate memory of all containers running on a single node should be less than total 
     # memory on the node or the db may crash.
     shardsvr: 
         shards: 3
-        replicas: 1
+        replicas: 3
         memory: 2.0
 
     # configsvr holds meta data for db shards.  The replica count here is per configsrv service.

@@ -63,6 +63,7 @@ function run_standalone_container() {
     # run the container with volume mount based on BASE_DIR and user provided http and https ports
     local cmd="docker run -dit --restart always --name $container_name "
     cmd="$cmd -v $BASE_DIR/Service:/home/app/src/Service:ro "
+    cmd="$cmd -v $BASE_DIR/Service/instance:/home/app/src/Service/instance:rw "
     cmd="$cmd -v $BASE_DIR/UIAssets:/home/app/src/UIAssets.src:ro "
     cmd="$cmd -v $BASE_DIR/build:/home/app/src/build:ro "
     if [ "$standalone_http_port" -gt "0" ] ; then
@@ -167,7 +168,7 @@ function build_app() {
     cp -p ./version.txt $TMP_DIR/$APP_ID/Service/
     # dynamically create clusterMgrConfig
     conf=$TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
-    python ./cluster/apic/create_config.py --image $docker_image_name > $conf
+    python ./cluster/kron/create_config.py --image $docker_image_name > $conf
 
     # create media and legal files
     # (note, snapshots are required in order for intro_video to be displayed on appcenter

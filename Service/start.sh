@@ -17,7 +17,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 self=$0
 role="all-in-one"
 identity=""
-worker_count=10
+worker_count=5
 log_rotate=0
 APP_MODE=${APP_MODE:-0}
 APP_DIR=${APP_DIR:-/home/app}
@@ -236,22 +236,27 @@ function create_app_config_file() {
             EIV=`cat $CRED_DIR/plugin.key | md5sum | egrep -o "^[^ ]+"`
             echo "EIV=\"$EIV\"" >> $PRIVATE_CONFIG
         fi
-        # if running as app-infra, update db, redis, and proxy info (apache doesn't pick up env)
-        if [ "$HOSTED_PLATFORM" == "APIC" ] ; then
-            log "updating $config_file with app-infra settings"
-            echo "REDIS_HOST=\"$REDIS_HOST\"" >> $config_file
-            echo "REDIS_PORT=$REDIS_PORT" >> $config_file
-            echo "MONGO_HOST=\"$MONGO_HOST\"" >> $config_file
-            echo "MONGO_PORT=$MONGO_PORT" >> $config_file
-            echo "PROXY_URL=\"https://localhost:$WEB_PORT\"" >> $config_file
-            echo 
-        fi
+    fi
+    # if running as app-infra, update db, redis, and proxy info (apache doesn't pick up env)
+    if [ "$HOSTED_PLATFORM" == "APIC" ] ; then
+        log "updating $config_file with app-infra settings"
+        echo "REDIS_HOST=\"$REDIS_HOST\"" >> $config_file
+        echo "REDIS_PORT=$REDIS_PORT" >> $config_file
+        echo "MONGO_HOST=\"$MONGO_HOST\"" >> $config_file
+        echo "MONGO_PORT=$MONGO_PORT" >> $config_file
+        echo "PROXY_URL=\"https://localhost:$WEB_PORT\"" >> $config_file
+    elif [ "$HOSTED_PLATFORM" == "SWARM" ] ; then
+        log "updating $config_file with swarm settings"
+        echo "REDIS_HOST=\"$REDIS_HOST\"" >> $config_file
+        echo "REDIS_PORT=$REDIS_PORT" >> $config_file
+        echo "MONGO_HOST=\"$MONGO_HOST\"" >> $config_file
+        echo "MONGO_PORT=$MONGO_PORT" >> $config_file
+        echo "PROXY_URL=\"http://localhost:80\"" >> $config_file
     fi
     chmod 755 $config_file
-
 }
 
-# execute db init scripts
+# execute db init scripts (all-in-one mode)
 function init_db() {
     set_status "initializing db"
 
@@ -345,6 +350,7 @@ function poll_web() {
     done
 }
 
+# run db cluster (mongos, cfg-srv, and shards in single container - used in APP_MODE on APIC)
 function run_db_cluster() {
     # create a folder for cfg and each shard then start each service
     set_status "run db cluster" 
@@ -413,6 +419,65 @@ function run_db_cluster() {
     eval $cmd
 }
 
+# run an individual db role (mongos, cfg, or single shard/replica) in swarm mode
+function run_db_single_role(){
+    # create a folder for cfg and each shard then start each service
+    set_status "run db single role" 
+
+    # check for required env variables first
+    required_env=(  "LOCAL_REPLICA" "LOCAL_SHARD" "LOCAL_PORT" 
+                    "DB_SHARD_COUNT" "DB_MEMORY" "DB_CFG_SRV" "DB_ROLE")    
+    for e in "${required_env[@]}" ; do
+        if [[ ! "${!e}" =~ [0-9a-zA-Z] ]] ; then
+            log "error: required env $e not set"
+            log `env`
+            return 1
+        fi
+    done
+
+    # all mongo logging to mongo directory
+    MONGO_LOG_DIR="$LOG_DIR/mongo/$LOCAL_REPLICA"
+    if [ ! -d $MONGO_LOG_DIR ] ; then
+        log "create $MONGO_LOG_DIR"
+        mkdir -p $MONGO_LOG_DIR
+    fi
+    # data directory path
+    MONGO_DATA_DIR="$LOCAL_DATA_DIR/db/$LOCAL_REPLICA"
+
+    if [ "$DB_ROLE" == "mongos" ] ; then
+        # start mongos last, exit if mongos stops running
+        cmd="/usr/bin/mongos --configdb $DB_CFG_SRV "
+        cmd="$cmd --bind_ip_all --port $LOCAL_PORT "
+        cmd="$cmd --logpath $MONGO_LOG_DIR/mongos.log --logappend "
+
+    elif [ "$DB_ROLE" == "configsvr" ] ; then
+        if [ ! -d $MONGO_DATA_DIR/cfg ] ; then
+            log "creating $MONGO_DATA_DIR/cfg"
+            mkdir -p $MONGO_DATA_DIR/cfg
+        fi
+        cmd="/usr/bin/mongod --configsvr --replSet cfg "
+        cmd="$cmd --bind_ip_all --port $LOCAL_PORT --dbpath $MONGO_DATA_DIR/cfg "
+        cmd="$cmd --wiredTigerCacheSizeGB $DB_MEMORY "
+        cmd="$cmd --logpath $MONGO_LOG_DIR/cfg.log --logappend &"
+
+    elif [ "$DB_ROLE" == "shardsvr" ] ; then
+        if [ ! -d $MONGO_DATA_DIR/sh$LOCAL_SHARD ] ; then
+            log "creating $MONGO_DATA_DIR/sh$LOCAL_SHARD"
+            mkdir -p $MONGO_DATA_DIR/sh$LOCAL_SHARD
+        fi
+        cmd="/usr/bin/mongod --shardsvr --replSet sh$LOCAL_SHARD "
+        cmd="$cmd --bind_ip_all --port $LOCAL_PORT --dbpath $MONGO_DATA_DIR/sh$LOCAL_SHARD "
+        cmd="$cmd --wiredTigerCacheSizeGB $DB_MEMORY "
+        cmd="$cmd --logpath $MONGO_LOG_DIR/sh$LOCAL_SHARD.log --logappend "
+    else
+        log "error: invalid DB_ROLE: $DB_ROLE"
+        return 1
+    fi
+    
+    log "starting $DB_ROLE: $cmd"
+    eval $cmd
+}
+
 # init replica set with continuous retry
 function init_rs(){
     local rs=$1
@@ -474,7 +539,6 @@ function init_db_cluster() {
         shard=$[$shard+1]
     done
     
-    
     # finally, setup db and discover apic
     set_status "setting up db"
     if [ "$APP_MODE" == "1" ] ; then
@@ -507,12 +571,14 @@ function validate_identity() {
 # main container startup
 function main(){
     # update LOG_FILE to unique service name if HOSTED_PLATFORM set and not all-in-one
-    if [ "$role" != "all-in-one" ] && [ "$HOSTED_PLATFORM" == "APIC" ] ; then
-        LOG_FILE="$LOG_DIR/start_$role"
-        if [ "$LOCAL_REPLICA" != "" ] ; then
-            LOG_FILE="$LOG_FILE-$LOCAL_REPLICA"
+    if [ "$role" != "all-in-one" ] ; then
+        if [ "$HOSTED_PLATFORM" == "APIC" ]  || [ "$HOSTED_PLATFORM" == "SWARM" ] ; then
+            LOG_FILE="$LOG_DIR/start_$role"
+            if [ "$LOCAL_REPLICA" != "" ] ; then
+                LOG_FILE="$LOG_FILE-$LOCAL_REPLICA"
+            fi
+            LOG_FILE="$LOG_FILE.log"
         fi
-        LOG_FILE="$LOG_FILE.log"
     fi
 
     log "======================================================================"
@@ -567,7 +633,11 @@ function main(){
     elif [ "$role" == "db" ] ; then
         # setup db files and start each db service, exits on error
         set_running
-        run_db_cluster 
+        if [ "$HOSTED_PLATFORM" == "APIC" ] ; then
+            run_db_cluster 
+        else
+            run_db_single_role
+        fi
     elif [ "$role" == "mgr" ] ; then
         # init db cluster (replicas and conditional db setup with sharding), then start 
         validate_identity

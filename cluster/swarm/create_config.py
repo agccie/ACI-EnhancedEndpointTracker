@@ -255,7 +255,7 @@ class ClusterConfig(object):
         # configure webservice (ports are configurable by user)
         web_service = {
             "image": ClusterConfig.APP_IMAGE,
-            "command": "/bin/sleep infinity",
+            "command": "/home/app/src/Service/start.sh -r web -l",
             "ports": [],
             "deploy": {"replicas": 1},
             "logging": copy.deepcopy(default_logging),
@@ -362,11 +362,9 @@ class ClusterConfig(object):
         # configure manager, watcher, and workers
         config["services"]["mgr"] = {
             "image": ClusterConfig.APP_IMAGE,
-            "command": "/home/app/src/Service/start.sh -r manager -l -c 1 -i 0",
+            "command": "/home/app/src/Service/start.sh -r mgr -l -c 1 -i 0",
             "logging": copy.deepcopy(default_logging),
-            "deploy": {
-                "mode": "global"        # each node has local db instance
-            },
+            "deploy": {"replicas": 1},
             "environment": copy.copy(shared_environment)
         }
         self.services["mgr"] = Service("manager")

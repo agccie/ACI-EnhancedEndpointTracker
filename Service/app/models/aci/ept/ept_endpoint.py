@@ -322,18 +322,21 @@ class eptEndpoint(Rest):
                                            self.addr, addr_type, vrf_name)
             if switch["ret"]:
                 # add event to eptRemediate and send notification
-                switch["worker_fabric"].push_event(eptRemediate._classname, {
-                    "fabric": self.fabric,
-                    "vnid": self.vnid,
-                    "addr": self.addr,
-                    "type": self.type,
-                    "node": switch["node"],
-                }, {
-                                                       "ts": time.time(),
-                                                       "vnid_name": self.first_learn["vnid_name"],
-                                                       "reason": "api",
-                                                       "action": "clear"
-                                                   })
+                switch["worker_fabric"].push_event(
+                    eptRemediate._classname,
+                    {
+                        "fabric": self.fabric,
+                        "vnid": self.vnid,
+                        "addr": self.addr,
+                        "type": self.type,
+                        "node": switch["node"],
+                    }, {
+                        "ts": time.time(),
+                        "vnid_name": self.first_learn["vnid_name"],
+                        "reason": "api",
+                        "action": "clear"
+                    }
+                )
                 # send notification if enabled
                 subject = "api clear endpoint"
                 txt = "api clear endpoint [fabric: %s, %s, addr: %s]" % (

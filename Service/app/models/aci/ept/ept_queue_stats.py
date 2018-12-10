@@ -1,20 +1,18 @@
-
-from ... rest import Rest
-from ... rest import api_register
-from ... rest import api_callback
-from ... utils import get_db
-
 import logging
 import time
+
+from ...rest import Rest
+from ...rest import api_register
+from ...utils import get_db
 
 # module level logging
 logger = logging.getLogger(__name__)
 
+
 @api_register(path="ept/queue")
 class eptQueueStats(Rest):
-
-    STATS_SLICE = 64            # maximum length of stats queue 
-    STATS_INTERVAL = 60.0       # stats collection interval
+    STATS_SLICE = 64  # maximum length of stats queue 
+    STATS_INTERVAL = 60.0  # stats collection interval
     INTERVALS = [
         ("stats_1min", 60),
         ("stats_5min", 300),
@@ -269,7 +267,7 @@ class eptQueueStats(Rest):
     def collect(self, qlen=0):
         # consuming process should be incrementing total tx/rx as the queue is utilized. However,
         # when it's time to push the statistics to historical list this function is called...
-   
+
         # save total rx/tx values before they are lost with db reload
         total_tx = self.total_tx_msg
         total_rx = self.total_rx_msg
@@ -281,7 +279,7 @@ class eptQueueStats(Rest):
         for (stat_name, delta) in eptQueueStats.INTERVALS:
             stats = getattr(self, stat_name)
             if ts - self.start_timestamp > delta and \
-                (len(stats)==0 or ts - stats[0]["timestamp"] >= delta):
+                    (len(stats) == 0 or ts - stats[0]["timestamp"] >= delta):
                 record = {
                     "timestamp": ts,
                     "total_tx_msg": total_tx,
@@ -292,7 +290,8 @@ class eptQueueStats(Rest):
                     "rx_msg_rate": 0,
                 }
                 # qlen only used by 1 minute stats collection
-                if stat_name == "stats_1min": record["qlen"] = qlen
+                if stat_name == "stats_1min":
+                    record["qlen"] = qlen
                 true_delta = delta
                 if len(stats) > 0:
                     record["tx_msg"] = abs(total_tx - stats[0]["total_tx_msg"])
@@ -308,4 +307,3 @@ class eptQueueStats(Rest):
         self.total_tx_msg = total_tx
         self.total_rx_msg = total_rx
         self.save()
-

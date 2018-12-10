@@ -5,28 +5,27 @@
     https://github.com/datacenter/acitoolkit
 """
 
-from requests.exceptions import ConnectionError
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from six.moves.queue import Queue
-from websocket import create_connection
-from websocket import WebSocketException
-from urllib import unquote
-from OpenSSL.crypto import FILETYPE_PEM
-from OpenSSL.crypto import load_privatekey
-from OpenSSL.crypto import sign
-
 import base64
-import copy
 import json
 import logging
 import re
-import requests
 import socket
 import ssl
 import threading
 import time
 import traceback
+from urllib import unquote
+
+import requests
 import urllib3
+from OpenSSL.crypto import FILETYPE_PEM
+from OpenSSL.crypto import load_privatekey
+from OpenSSL.crypto import sign
+from requests.exceptions import ConnectionError
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from six.moves.queue import Queue
+from websocket import WebSocketException
+from websocket import create_connection
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -34,23 +33,26 @@ logger = logging.getLogger(__name__)
 # disable urllib warnings
 urllib3.disable_warnings()
 
+
 class aaaUserDomain(object):
     """ track read and write for aaaUserDomain info received at login """
+
     def __init__(self, name, read_roles, write_roles):
         self.name = name
         self.read_roles = read_roles
         self.write_roles = write_roles
-    
+
     def __repr__(self):
         return "%s, read:[%s], write:[%s]" % (
-                self.name,
-                ",".join(self.read_roles),
-                ",".join(self.write_roles)
-            )
+            self.name,
+            ",".join(self.read_roles),
+            ",".join(self.write_roles)
+        )
 
 
 class Session(object):
     """ Session class responsible for all communication with the APIC """
+
     def __init__(self, url, uid, pwd=None, cert_name=None, key=None, verify_ssl=False,
                  appcenter_user=False, proxies=None, resubscribe=True):
         """
@@ -67,17 +69,21 @@ class Session(object):
             resubscribe (bool)      auto resubscribe on if subscription or login fails
                                     if false then subscription thread is closed on refresh failure
         """
-        if not isinstance(url, basestring): url = str(url)
-        if not isinstance(uid, basestring): uid = str(uid)
-        if pwd is not None and not isinstance(pwd, basestring): pwd = str(pwd)
-        if key is not None and not isinstance(key, basestring): key = str(key)
+        if not isinstance(url, basestring):
+            url = str(url)
+        if not isinstance(uid, basestring):
+            uid = str(uid)
+        if pwd is not None and not isinstance(pwd, basestring):
+            pwd = str(pwd)
+        if key is not None and not isinstance(key, basestring):
+            key = str(key)
         if pwd is None and (key is None or cert_name is None):
             raise Exception("A password or cert_name and key are required")
 
         r1 = re.search("^(?P<protocol>https?://)?(?P<hostname>.+$)", url.lower())
         if r1 is not None:
             self.hostname = r1.group("hostname")
-            if r1.group("protocol") is None: 
+            if r1.group("protocol") is None:
                 self.api = "https://%s" % self.hostname
             else:
                 self.api = "%s%s" % (r1.group("protocol"), self.hostname)
@@ -92,7 +98,7 @@ class Session(object):
         self.default_timeout = 120
         self.resubscribe = resubscribe
         # indexed by aaaUserDomain name and contains all permission info discovered at login
-        self.domains = {}               
+        self.domains = {}
 
         if self.pwd is not None:
             self.cert_auth = False
@@ -140,7 +146,7 @@ class Session(object):
             cert_dn = 'uni/userext/user-{0}/usercert-{1}'.format(self.uid, self.cert_name)
 
         url = unquote(url)
-        #logger.debug("Perparing cert, dn:%s, key:%s, request: %s %s, data: %s", cert_dn,
+        # logger.debug("Perparing cert, dn:%s, key:%s, request: %s %s, data: %s", cert_dn,
         #    self.key, method, url, data)
         payload = "%s%s" % (method, url)
         if data is not None:
@@ -152,7 +158,7 @@ class Session(object):
             'APIC-Certificate-Fingerprint': 'fingerprint',
             'APIC-Certificate-DN': cert_dn
         }
-        #logger.debug('Authentication cookie %s', cookie)
+        # logger.debug('Authentication cookie %s', cookie)
         return cookie
 
     def _send_login(self, timeout=None):
@@ -163,7 +169,7 @@ class Session(object):
 
         if self.appcenter_user:
             login_url = '/api/requestAppToken.json'
-            data = {'aaaAppToken':{'attributes':{'appName': self.cert_name}}}
+            data = {'aaaAppToken': {'attributes': {'appName': self.cert_name}}}
         elif self.cert_auth:
             # skip login for non appcenter_user cert auth
             resp = requests.Response()
@@ -184,7 +190,7 @@ class Session(object):
         self.login_thread._login_timeout = int(timeout) / 2
         # set domains from aaaUserDomain info
         self.domains = {}
-        if 'children' in ret_data['aaaLogin'] and len(ret_data['aaaLogin']['children'])>0:
+        if 'children' in ret_data['aaaLogin'] and len(ret_data['aaaLogin']['children']) > 0:
             for child in ret_data['aaaLogin']['children']:
                 classname = child.keys()[0]
                 if classname == 'aaaUserDomain':
@@ -227,7 +233,6 @@ class Session(object):
             returns requests response object
         """
         return self._send("GET", url, timeout=timeout, retry=retry)
-
 
     def init_subscription_thread(self):
         """ start subscription thread """
@@ -297,20 +302,21 @@ class Session(object):
             timeout = self.default_timeout
 
         # prep data and certificate before request
-        if data is not None: data = json.dumps(data, sort_keys=True)
+        if data is not None:
+            data = json.dumps(data, sort_keys=True)
         cookies = self._prep_x509_header(method, url, data=data)
 
         url = "%s%s" % (self.api, url)
-        #logger.debug("%s %s", method, url)
+        # logger.debug("%s %s", method, url)
         # perform request method with optional retry
-        resp = session_method(url, data=data, verify=self.verify_ssl, timeout=timeout, 
-                    proxies=self._proxies, cookies=cookies)
+        resp = session_method(url, data=data, verify=self.verify_ssl, timeout=timeout,
+                              proxies=self._proxies, cookies=cookies)
         if resp.status_code == 403 and retry:
             logger.warn('%s, refreshing login and will try again', resp.text)
             resp = self._send_login()
             if resp.ok:
-                resp = session_method(url, data=data, verify=self.verify_ssl, timeout=timeout, 
-                        proxies=self._proxies, cookies=cookies)
+                resp = session_method(url, data=data, verify=self.verify_ssl, timeout=timeout,
+                                      proxies=self._proxies, cookies=cookies)
             else:
                 logger.warn('retry login failed')
         return resp
@@ -324,8 +330,10 @@ class Session(object):
             return self.subscription_thread._resubscribe()
         return True
 
+
 class Login(threading.Thread):
     """ Login thread responsible for refreshing the APIC login before timeout """
+
     def __init__(self, session):
         threading.Thread.__init__(self)
         self._session = session
@@ -366,8 +374,10 @@ class Login(threading.Thread):
                     return self.exit()
         return self.exit()
 
+
 class EventHandler(threading.Thread):
     """ thread responsible for websocket event callbacks """
+
     def __init__(self, subscriber):
         threading.Thread.__init__(self)
         self.subscriber = subscriber
@@ -403,8 +413,10 @@ class EventHandler(threading.Thread):
                 except ValueError as e:
                     logger.debug("failed to parse ws event: %s", event)
 
+
 class CallbackHandler(object):
     """ handles callback for event for single url with pause support """
+
     def __init__(self, url, subscription_id, callback, paused):
         self.url = url
         self.subscription_id = subscription_id
@@ -445,15 +457,17 @@ class CallbackHandler(object):
                 logger.debug("Traceback:\n%s", traceback.format_exc())
                 logger.warn("failed to execute event callback: %s", e)
 
+
 class Subscriber(threading.Thread):
     """ thread responsible for event subscriptions """
+
     def __init__(self, session, resubscribe=True):
         threading.Thread.__init__(self)
         self._session = session
         # subscriptions indexed by url with pointer to subscription_id
         self._subscriptions = {}
         # indexed by subscription_id with pointer to CallbackHandler
-        self._subscription_ids = {}     
+        self._subscription_ids = {}
         # callbacks indexed by url with pointer to callback function
         self._callbacks = {}
         self._ws = None
@@ -518,7 +532,7 @@ class Subscriber(threading.Thread):
         """
         # cache result in case new subscription added during refresh
         logger.debug("refreshing %s subscriptions", len(self._subscriptions))
-        subscriptions = [ _id for (k, _id) in self._subscriptions.items() ]
+        subscriptions = [_id for (k, _id) in self._subscriptions.items()]
         refreshed_all = True
         for _id in subscriptions:
             refreshed = False
@@ -547,10 +561,12 @@ class Subscriber(threading.Thread):
         """
         # if only_new is false then force page-size to 1
         if only_new and "page-size" not in url:
-            if "?" in url: url = "%s&page-size=1" % url
-            else: url = "%s?page-size=1" % url
+            if "?" in url:
+                url = "%s&page-size=1" % url
+            else:
+                url = "%s?page-size=1" % url
 
-        #logger.debug('subscribing to url: %s', url)
+        # logger.debug('subscribing to url: %s', url)
         if self._ws is None or not self._ws.connected:
             if not self._open_web_socket():
                 return False
@@ -575,7 +591,7 @@ class Subscriber(threading.Thread):
                 resp = self._session.get(unsubscribe_url, timeout=5)
                 logger.debug("unsubscribe success: %r, url %s", resp.ok, unsubscribe_url)
             except Exception as e:
-                #logger.debug("Traceback:\n%s", traceback.format_exc())
+                # logger.debug("Traceback:\n%s", traceback.format_exc())
                 logger.debug("failed to unsubscribe while exiting subscription: %s", e)
 
     def _close_web_socket(self):
@@ -649,8 +665,8 @@ class Subscriber(threading.Thread):
                     ts = time.time()
                     for obj in resp_data["imdata"]:
                         cb.execute_callback({
-                            "imdata": [ obj ] ,
-                            "subscriptionId": [ subscription_id ],
+                            "imdata": [obj],
+                            "subscriptionId": [subscription_id],
                             "_ts": ts
                         })
                 return True
@@ -688,5 +704,3 @@ class Subscriber(threading.Thread):
                 if not self.subscribe(url, self._callbacks[url]):
                     return False
         return True
-
-

@@ -1,20 +1,20 @@
-
-from ... utils import get_db
-from . common import get_ip_prefix
-from . ept_endpoint import eptEndpoint
-from . ept_epg import eptEpg
-from . ept_node import eptNode
-from . ept_pc import eptPc
-from . ept_tunnel import eptTunnel
-from . ept_subnet import eptSubnet
-from . ept_vnid import eptVnid
-from . ept_vpc import eptVpc
-
 import logging
 import traceback
 
+from .common import get_ip_prefix
+from .ept_endpoint import eptEndpoint
+from .ept_epg import eptEpg
+from .ept_node import eptNode
+from .ept_pc import eptPc
+from .ept_subnet import eptSubnet
+from .ept_tunnel import eptTunnel
+from .ept_vnid import eptVnid
+from .ept_vpc import eptVpc
+from ...utils import get_db
+
 # module level logging
 logger = logging.getLogger(__name__)
+
 
 class eptCache(object):
     """ cache for ept_worker to cache common lookups
@@ -48,61 +48,70 @@ class eptCache(object):
     MAX_CACHE_SIZE = 512
     MAX_OFFSUBNET_CACHE_SIZE = 1024
     MAX_ENDPOINT_CACHE_SIZE = 1024
-    KEY_DELIM = "`"             # majority of keys are integers, this should be sufficient delimiter
+    KEY_DELIM = "`"  # majority of keys are integers, this should be sufficient delimiter
+
     def __init__(self, fabric):
         self.fabric = fabric
         self.flush_requests = 0
         self.key_delim = eptCache.KEY_DELIM
-        self.tunnel_cache = hitCache(eptCache.MAX_CACHE_SIZE)   # eptTunnel(node, intf) = eptTunnel
-        self.node_cache = hitCache(eptCache.MAX_CACHE_SIZE)         # eptNode(node) = eptNode
-        self.vpc_cache = hitCache(eptCache.MAX_CACHE_SIZE)          # eptVpc(node,intf) = eptVpc
-        self.pc_cache = hitCache(eptCache.MAX_CACHE_SIZE)           # eptPc(node, intf) = eptPc
-        self.vnid_cache = hitCache(eptCache.MAX_CACHE_SIZE)         # eptVnid(vnid) = eptVnid
-        self.epg_cache = hitCache(eptCache.MAX_CACHE_SIZE)          # eptEpg(vrf,pctag) = eptEpg
-        self.subnet_cache = hitCache(eptCache.MAX_CACHE_SIZE)       # eptSubnet(bd) = list(eptSubnet)
+        self.tunnel_cache = hitCache(eptCache.MAX_CACHE_SIZE)  # eptTunnel(node, intf) = eptTunnel
+        self.node_cache = hitCache(eptCache.MAX_CACHE_SIZE)  # eptNode(node) = eptNode
+        self.vpc_cache = hitCache(eptCache.MAX_CACHE_SIZE)  # eptVpc(node,intf) = eptVpc
+        self.pc_cache = hitCache(eptCache.MAX_CACHE_SIZE)  # eptPc(node, intf) = eptPc
+        self.vnid_cache = hitCache(eptCache.MAX_CACHE_SIZE)  # eptVnid(vnid) = eptVnid
+        self.epg_cache = hitCache(eptCache.MAX_CACHE_SIZE)  # eptEpg(vrf,pctag) = eptEpg
+        self.subnet_cache = hitCache(eptCache.MAX_CACHE_SIZE)  # eptSubnet(bd) = list(eptSubnet)
         # (vrf,pctag,ip) = eptOffSubnet
-        self.offsubnet_cache = hitCache(eptCache.MAX_OFFSUBNET_CACHE_SIZE) 
+        self.offsubnet_cache = hitCache(eptCache.MAX_OFFSUBNET_CACHE_SIZE)
         # (vnid,addr) = rapidEndpointCachedObject
-        self.rapid_cache = hitCache(eptCache.MAX_ENDPOINT_CACHE_SIZE, callback=self.evict_rapid) 
+        self.rapid_cache = hitCache(eptCache.MAX_ENDPOINT_CACHE_SIZE, callback=self.evict_rapid)
 
     def handle_flush(self, collection_name, name=None):
         """ flush one or more entries in collection name """
         logger.debug("flush request for %s: %s", collection_name, name)
-        self.flush_requests+= 1
+        self.flush_requests += 1
         if collection_name == eptNode._classname:
-            self.node_cache.flush()     # always full cache flush for node
+            self.node_cache.flush()  # always full cache flush for node
         elif collection_name == eptTunnel._classname:
-            if name is not None: self.tunnel_cache.remove(name, name=True)
-            else: self.tunnel_cache.flush()
+            if name is not None:
+                self.tunnel_cache.remove(name, name=True)
+            else:
+                self.tunnel_cache.flush()
         elif collection_name == eptVpc._classname:
-            if name is not None: self.vpc_cache.remove(name, name=True)
-            else: self.vpc_cache.flush()
+            if name is not None:
+                self.vpc_cache.remove(name, name=True)
+            else:
+                self.vpc_cache.flush()
         elif collection_name == eptPc._classname:
-            if name is not None: self.pc_cache.remove(name, name=True)
-            else: self.pc_cache.flush()
+            if name is not None:
+                self.pc_cache.remove(name, name=True)
+            else:
+                self.pc_cache.flush()
         elif collection_name == eptVnid._classname:
-            if name is not None: self.vnid_cache.remove(name, name=True)
-            else: self.vnid_cache.flush()
+            if name is not None:
+                self.vnid_cache.remove(name, name=True)
+            else:
+                self.vnid_cache.flush()
         elif collection_name == eptEpg._classname:
             # need to remove one or all entries in offsubnet cache based on matching epg.bd
-            if name is not None: 
+            if name is not None:
                 epg = self.epg_cache.search(name, name=True)
                 if not isinstance(epg, hitCacheNotFound) and epg is not None:
                     self.offsubnet_flush(epg.bd)
                 self.epg_cache.remove(name, name=True)
-            else: 
+            else:
                 self.epg_cache.flush()
                 self.offsubnet_cache.flush()
         elif collection_name == eptSubnet._classname:
             # need to remove on or all entries in offsubnet cache based on matching subnet.bd
-            if name is not None: 
+            if name is not None:
                 subnets = self.subnet_cache.search(name, name=True)
                 if not isinstance(subnets, hitCacheNotFound) and subnets is not None \
-                    and len(subnets)>0:
+                        and len(subnets) > 0:
                     # subnet_cache key is bd so we can just look at the first one
                     self.offsubnet_flush(subnets[0].bd)
                 self.subnet_cache.remove(name, name=True)
-            else: 
+            else:
                 self.subnet_cache.flush()
                 self.offsubnet_cache.flush()
         else:
@@ -113,7 +122,7 @@ class eptCache(object):
         return self.key_delim.join(["%s" % keys[k] for k in sorted(keys)])
 
     def generic_cache_lookup(self, cache, eptObject, find_one=True, db_lookup=True, projection=None,
-            **keys):
+                             **keys):
         """ check cache for object matching provided keys.  If not found then perform db lookup 
             against eptObject (Rest object).  If found, return db object else return None. Note that
             cached result may be None so returning None from cache also indicates object does not
@@ -133,9 +142,9 @@ class eptCache(object):
         keystr = self.get_key_str(**keys)
         obj = cache.search(keystr)
         if not isinstance(obj, hitCacheNotFound):
-            #logger.debug("(from cache) %s %s", eptObject._classname, keys)
+            # logger.debug("(from cache) %s %s", eptObject._classname, keys)
             return obj
-        if not db_lookup: 
+        if not db_lookup:
             # if entry not in cache and db_lookup disabled, then return None 
             return None
         obj = eptObject.find(projection=projection, fabric=self.fabric, **keys)
@@ -145,41 +154,49 @@ class eptCache(object):
             cache.push(keystr, None)
             return None
         else:
-            if find_one: val = obj[0]
-            else: val = obj
+            if find_one:
+                val = obj[0]
+            else:
+                val = obj
             # add result to cache for keys to prevent db lookup on next check
             cache.push(keystr, val)
             return val
-  
+
     def get_pod_id(self, node):
         """ get node's pod_id.  If not found or an error occurs, return 0 """
         ret = self.generic_cache_lookup(self.node_cache, eptNode, node=node)
-        if ret is None: return 0
+        if ret is None:
+            return 0
         return ret.pod_id
 
     def get_peer_node(self, node):
         """ get node's peer id if in vpc domain.  If not found or an error occurs, return 0 """
         ret = self.generic_cache_lookup(self.node_cache, eptNode, node=node)
-        if ret is None: return 0
+        if ret is None:
+            return 0
         return ret.peer
 
     def get_tunnel_remote(self, node, intf, return_object=False):
         """ get remote node for tunnel interface. If not found or an error occurs, return 0 """
         ret = self.generic_cache_lookup(self.tunnel_cache, eptTunnel, node=node, intf=intf)
-        if return_object: return ret
-        if ret is None: return 0
+        if return_object:
+            return ret
+        if ret is None:
+            return 0
         return ret.remote
 
     def get_pc_vpc_id(self, node, intf):
         """ get vpc id for provided port-channel interface, if not found return 0 """
         ret = self.generic_cache_lookup(self.vpc_cache, eptVpc, node=node, intf=intf)
-        if ret is None: return 0
+        if ret is None:
+            return 0
         return ret.vpc
 
     def get_pc_name(self, node, intf):
         """ get pc name for provided port-channel interface, if not found return empty string """
         ret = self.generic_cache_lookup(self.pc_cache, eptPc, node=node, intf=intf)
-        if ret is None: return ""
+        if ret is None:
+            return ""
         return ret.intf_name
 
     def get_vnid_name(self, vnid, return_object=False):
@@ -187,8 +204,10 @@ class eptCache(object):
             not in db, return an empty string
         """
         ret = self.generic_cache_lookup(self.vnid_cache, eptVnid, vnid=vnid)
-        if return_object: return ret
-        if ret is None: return ""
+        if return_object:
+            return ret
+        if ret is None:
+            return ""
         return ret.name
 
     def get_epg_name(self, vrf, pctag, return_object=False):
@@ -197,8 +216,10 @@ class eptCache(object):
             set return_object to true to return entire object instead of just epg name
         """
         ret = self.generic_cache_lookup(self.epg_cache, eptEpg, vrf=vrf, pctag=pctag)
-        if return_object: return ret
-        if ret is None: return ""
+        if return_object:
+            return ret
+        if ret is None:
+            return ""
         return ret.name
 
     def get_rapid_endpoint(self, vnid, addr, addr_type):
@@ -225,7 +246,8 @@ class eptCache(object):
             found or an error occurs
         """
         subnets = self.generic_cache_lookup(self.subnet_cache, eptSubnet, find_one=False, bd=bd)
-        if subnets is None: return []
+        if subnets is None:
+            return []
         return subnets
 
     def ip_is_offsubnet(self, vrf, pctag, ip):
@@ -233,15 +255,15 @@ class eptCache(object):
             if unable to determine bd then cannot execute offsubnet check and return False.  If 
             unable to parse ip address then also an error and assume not offsubnet
         """
-        ret = self.generic_cache_lookup(self.offsubnet_cache,offsubnetCachedObject, db_lookup=False,
-                vrf=vrf, pctag=pctag, ip=ip)
+        ret = self.generic_cache_lookup(self.offsubnet_cache, offsubnetCachedObject, db_lookup=False,
+                                        vrf=vrf, pctag=pctag, ip=ip)
         if ret is not None:
             return ret.offsubnet
 
         # get bd for corresponding epg (vrf, pctag)
         epg = self.get_epg_name(vrf, pctag, return_object=True)
         if epg is None:
-            logger.warn("failed to perform subnet check for %s, epg not found(%s, %s)",ip,vrf,pctag)
+            logger.warn("failed to perform subnet check for %s, epg not found(%s, %s)", ip, vrf, pctag)
             return False
         # try to parse ip string address
         (addr, mask) = get_ip_prefix(ip)
@@ -263,8 +285,8 @@ class eptCache(object):
                     offsubnet = False
                     break
             if offsubnet:
-                logger.debug("addr %s not matched against any of the %s subnets in bd %s", ip, 
-                    len(subnets), epg.bd)
+                logger.debug("addr %s not matched against any of the %s subnets in bd %s", ip,
+                             len(subnets), epg.bd)
 
         # add result to cache for next lookup
         keystr = self.get_key_str(vrf=vrf, pctag=pctag, ip=ip)
@@ -287,23 +309,25 @@ class eptCache(object):
         """ log statistics for each cache """
         caches = [
             "tunnel_cache",
-            "node_cache", 
-            "vpc_cache", 
-            "epg_cache", 
-            "subnet_cache", 
+            "node_cache",
+            "vpc_cache",
+            "epg_cache",
+            "subnet_cache",
             "offsubnet_cache",
             "rapid_cache",
         ]
-        logger.debug("cache stats for fabric %s, flush_request: 0x%08x", self.fabric, 
-                self.flush_requests)
+        logger.debug("cache stats for fabric %s, flush_request: 0x%08x", self.fabric,
+                     self.flush_requests)
         for cache_name in caches:
             c = getattr(self, cache_name)
-            logger.debug("[hit: 0x%08x, miss: 0x%08x, evict: 0x%08x, flush: 0x%08x] %s", 
-                c.hit_count, c.miss_count, c.evict_count, c.flush_count, cache_name)
+            logger.debug("[hit: 0x%08x, miss: 0x%08x, evict: 0x%08x, flush: 0x%08x] %s",
+                         c.hit_count, c.miss_count, c.evict_count, c.flush_count, cache_name)
+
 
 class rapidEndpointCachedObject(object):
     """ rapid statistics for eptEndpoint """
     _classname = "rapid_endpoint_cache"
+
     def __init__(self, fabric, vnid, addr, addr_type):
         self.fabric = fabric
         self.addr = addr
@@ -328,14 +352,17 @@ class rapidEndpointCachedObject(object):
             "fabric": self.fabric,
             "addr": self.addr,
             "vnid": self.vnid
-        }, {"$set":{
-            "is_rapid": self.is_rapid,
-            "is_rapid_ts": self.is_rapid_ts,
-            "rapid_lts": self.rapid_lts,
-            "rapid_count": self.rapid_count,
-            "rapid_lcount": self.rapid_lcount,
-            "rapid_icount": self.rapid_icount,
-        }})
+        }, {
+            "$set": {
+                "is_rapid": self.is_rapid,
+                "is_rapid_ts": self.is_rapid_ts,
+                "rapid_lts": self.rapid_lts,
+                "rapid_count": self.rapid_count,
+                "rapid_lcount": self.rapid_lcount,
+                "rapid_icount": self.rapid_icount,
+            }
+        })
+
 
 class offsubnetCachedObject(object):
     """ cache objects support a key and val where val can contain an optionally name used mainly for
@@ -347,9 +374,11 @@ class offsubnetCachedObject(object):
             offsubnet = boolean (true if offsubnet else false)
     """
     _classname = "offsubnet_cache"
+
     def __init__(self, bd, offsubnet):
         self.bd = bd
         self.offsubnet = offsubnet
+
 
 class hitCacheNotFound(object):
     """ when searching for an object within hitCache and the corresponding name or key is not found,
@@ -357,6 +386,7 @@ class hitCacheNotFound(object):
         (which is a valid result), and object missing within cache
     """
     pass
+
 
 class hitCache(object):
     """ hit linked list
@@ -374,13 +404,14 @@ class hitCache(object):
         logic on cache eviction (i.e., cache write back logic). callback must accept single argument
         which is value of object evicted
     """
+
     def __init__(self, max_size, callback=None):
         self.head = None
         self.tail = None
         self.max_size = max_size
         self.key_hash = {}
         self.name_hash = {}
-        self.none_hash = {}     # objects with no name set (cached 'not found' objects)
+        self.none_hash = {}  # objects with no name set (cached 'not found' objects)
         self.hit_count = 0
         self.miss_count = 0
         self.evict_count = 0
@@ -416,7 +447,7 @@ class hitCache(object):
         self.none_hash = {}
         self.head = None
         self.tail = None
-        self.flush_count+= 1
+        self.flush_count += 1
 
     def get_size(self):
         """ get number of nodes currently in cached linked list """
@@ -431,14 +462,14 @@ class hitCache(object):
         """
         if name:
             if key in self.name_hash:
-                self.hit_count+= 1
+                self.hit_count += 1
                 return self.name_hash[key].val
         elif key in self.key_hash:
-            self.hit_count+= 1
+            self.hit_count += 1
             node = self.key_hash[key]
-            self.push(node.key, node.val) 
+            self.push(node.key, node.val)
             return node.val
-        self.miss_count+= 1
+        self.miss_count += 1
         return hitCacheNotFound()
 
     def push(self, key, val):
@@ -468,7 +499,7 @@ class hitCache(object):
             self._set_node_child(node, self.head)
             self.head = node
             if len(self.key_hash) > self.max_size:
-                self.evict_count+=1
+                self.evict_count += 1
                 if self.evict_callback is not None and self.tail is not None:
                     try:
                         self.evict_callback(self.tail.val)
@@ -484,7 +515,7 @@ class hitCache(object):
         """
         if name:
             node = self.name_hash.get(key, None)
-            #logger.debug("remove name %s [%s]", key, node)
+            # logger.debug("remove name %s [%s]", key, node)
         else:
             node = self.key_hash.get(key, None)
         if node is not None:
@@ -522,21 +553,23 @@ class hitCache(object):
         node.parent = None
         node.child = None
 
+
 class hitCacheNode(object):
     """ individual hit node within hit node linked list """
+
     def __init__(self, key, val):
         self.key = key
         self.val = val
         self.parent = None
         self.child = None
-        self.name = []      # one or more names representing this node (many-to-one relation)
+        self.name = []  # one or more names representing this node (many-to-one relation)
         # val is a single object or list of objects. Each object may have a name attribute which 
         # needs to be added to name list
         if type(val) is list:
             for v in val:
                 if hasattr(v, "name"):
                     self.name.append(v.name)
-        elif hasattr(val,"name"):
+        elif hasattr(val, "name"):
             self.name = [val.name]
 
     def __repr__(self):
@@ -545,4 +578,3 @@ class hitCacheNode(object):
             self.key, self.val, self.name,
             self.child.key if self.child is not None else None
         )
-

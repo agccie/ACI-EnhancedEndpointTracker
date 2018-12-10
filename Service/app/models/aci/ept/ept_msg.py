@@ -1,54 +1,56 @@
+import json
+import logging
+import re
 
 from enum import Enum
 from enum import unique as enum_unique
 
-import json
-import logging
-import re
-import time
-
 # module level logging
 logger = logging.getLogger(__name__)
+
 
 # static msg types to prevent duplicates
 @enum_unique
 class MSG_TYPE(Enum):
-    WORK                = "work"            # worker from subscriber to manager to worker (or requeued)
-    HELLO               = "hello"           # hello from worker to manager
-    MANAGER_STATUS      = "manager_status"  # manager status response
-    GET_MANAGER_STATUS  = "get_manager_status" # request to get manager status from API to manager
-    FABRIC_START        = "fabric_start"    # request from API to manager to start fabric monitor
-    FABRIC_STOP         = "fabric_stop"     # request from API to manager to stop fabric monitor
-    FABRIC_RESTART      = "fabric_restart"  # request from API or subscriber to manager for restart
-    REFRESH_EPT         = "refresh_ept"     # refresh endpoint
-    DELETE_EPT          = "delete_ept"      # delete endpoint and all dependencies from db, also 
-                                            # ensures worker cache for this endpoint are properly 
-                                            # flushed.
-    TEST_EMAIL          = "test_email"      # send a test email
-    TEST_SYSLOG         = "test_syslog"     # send a test syslog
+    WORK = "work"  # worker from subscriber to manager to worker (or requeued)
+    HELLO = "hello"  # hello from worker to manager
+    MANAGER_STATUS = "manager_status"  # manager status response
+    GET_MANAGER_STATUS = "get_manager_status"  # request to get manager status from API to manager
+    FABRIC_START = "fabric_start"  # request from API to manager to start fabric monitor
+    FABRIC_STOP = "fabric_stop"  # request from API to manager to stop fabric monitor
+    FABRIC_RESTART = "fabric_restart"  # request from API or subscriber to manager for restart
+    REFRESH_EPT = "refresh_ept"  # refresh endpoint
+    DELETE_EPT = "delete_ept"  # delete endpoint and all dependencies from db, also
+    # ensures worker cache for this endpoint are properly
+    # flushed.
+    TEST_EMAIL = "test_email"  # send a test email
+    TEST_SYSLOG = "test_syslog"  # send a test syslog
+
 
 # static work types sent with MSG_TYPE.WORK
 @enum_unique
 class WORK_TYPE(Enum):
-    RAW                 = "raw"             # raw/unparsed epm event
-    WATCH_NODE          = "watch_node"      # a new node has become active/inactive
-    WATCH_MOVE          = "watch_move"      # an endpoint move event requires watch or notify
-    WATCH_STALE         = "watch_stale"     # a stale endpoint event requires watch or notify
-    WATCH_OFFSUBNET     = "watch_offsubnet" # an offsubnet endpoint event requires watch or notify
-    WATCH_RAPID         = "watch_rapid"     # rapid endpoint event requiring notify
-    FLUSH_CACHE         = "flush_cache"     # flush cache for specific collection and/or dn
-    EPM_IP_EVENT        = "epm_ip "         # epmIpEp event
-    EPM_MAC_EVENT       = "epm_mac"         # epmMacEp event
-    EPM_RS_IP_EVENT     = "epmRsIp"         # epmRsMacEpToIpEpAtt event
-    DELETE_EPT          = "delete_ept"      # work message to worker to delete endpoint from db and
-                                            # flush info from cache
-    TEST_EMAIL          = "test_email"      # test email notification
-    TEST_SYSLOG         = "test_syslog"     # test syslog notification
+    RAW = "raw"  # raw/unparsed epm event
+    WATCH_NODE = "watch_node"  # a new node has become active/inactive
+    WATCH_MOVE = "watch_move"  # an endpoint move event requires watch or notify
+    WATCH_STALE = "watch_stale"  # a stale endpoint event requires watch or notify
+    WATCH_OFFSUBNET = "watch_offsubnet"  # an offsubnet endpoint event requires watch or notify
+    WATCH_RAPID = "watch_rapid"  # rapid endpoint event requiring notify
+    FLUSH_CACHE = "flush_cache"  # flush cache for specific collection and/or dn
+    EPM_IP_EVENT = "epm_ip "  # epmIpEp event
+    EPM_MAC_EVENT = "epm_mac"  # epmMacEp event
+    EPM_RS_IP_EVENT = "epmRsIp"  # epmRsMacEpToIpEpAtt event
+    DELETE_EPT = "delete_ept"  # work message to worker to delete endpoint from db and
+    # flush info from cache
+    TEST_EMAIL = "test_email"  # test email notification
+    TEST_SYSLOG = "test_syslog"  # test syslog notification
+
 
 class eptMsg(object):
     """ generic ept job for messaging between workers 
         NOTE, msg_type must be instance of MSG_TYPE Enum
     """
+
     def __init__(self, msg_type, data={}, seq=1):
         self.msg_type = msg_type
         self.data = data
@@ -83,10 +85,11 @@ class eptMsg(object):
         elif js["msg_type"] == MSG_TYPE.TEST_SYSLOG.value:
             return eptMsgSubOp(MSG_TYPE.TEST_SYSLOG, js["data"], js["seq"])
         return eptMsg(
-                    MSG_TYPE(js["msg_type"]), 
-                    data=js.get("data", {}),
-                    seq = js.get("seq", None)
-                )
+            MSG_TYPE(js["msg_type"]),
+            data=js.get("data", {}),
+            seq=js.get("seq", None)
+        )
+
 
 class eptMsgSubOp(eptMsg):
     """ subscriber operation supporting following ops:
@@ -94,6 +97,7 @@ class eptMsgSubOp(eptMsg):
             - MSG_TYPE.DELETE_EPT
             - MSG_TYPE.TEST_EMAIL   (no ept required but fabric is required)
     """
+
     def __init__(self, msg_type, data={}, seq=1):
         super(eptMsgSubOp, self).__init__(msg_type, data, seq)
         self.msg_type = msg_type
@@ -118,8 +122,9 @@ class eptMsgSubOp(eptMsg):
         })
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [0x%06x %s]" % (self.msg_type.value, self.seq, 
-                self.fabric, self.type, self.vnid, self.addr)
+        return "%s.0x%08x %s %s [0x%06x %s]" % (self.msg_type.value, self.seq,
+                                                self.fabric, self.type, self.vnid, self.addr)
+
 
 class eptMsgHello(object):
     """ hello message sent from worker to manager """
@@ -128,7 +133,7 @@ class eptMsgHello(object):
         self.msg_type = MSG_TYPE.HELLO
         self.worker_id = worker_id
         self.role = role
-        self.queues = queues            # list of queue names sorted by priority        
+        self.queues = queues  # list of queue names sorted by priority
         self.start_time = start_time
         self.seq = seq
 
@@ -143,7 +148,7 @@ class eptMsgHello(object):
             "data": {
                 "worker_id": self.worker_id,
                 "role": self.role,
-                "queues": self.queues, 
+                "queues": self.queues,
                 "start_time": self.start_time,
             },
         })
@@ -157,8 +162,9 @@ class eptMsgHello(object):
             hello_data["role"],
             hello_data["queues"],
             hello_data["start_time"],
-            seq = js["seq"],
+            seq=js["seq"],
         )
+
 
 class eptMsgWork(object):
     """ primary work message sent from subscriber to manager and then dispatched to a worker  
@@ -173,13 +179,13 @@ class eptMsgWork(object):
         self.role = role
         self.qnum = qnum
         self.data = data
-        self.wt = wt            # WORK_TYPE enum
+        self.wt = wt  # WORK_TYPE enum
         self.seq = seq
         self.fabric = fabric
 
     def __repr__(self):
-        return "%s.0x%08x %s %s %s" % (self.msg_type.value, self.seq, self.fabric, self.wt.value, 
-                self.addr)
+        return "%s.0x%08x %s %s %s" % (self.msg_type.value, self.seq, self.fabric, self.wt.value,
+                                       self.addr)
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """
@@ -199,35 +205,49 @@ class eptMsgWork(object):
         # return eptMsgWork object from received msg js
         # check if this is eptMsgWorkEpmEvent and initialize accordingly
         wt = WORK_TYPE(js["wt"])
-        args = [js["addr"], js["role"], js["data"], wt ]
+        args = [js["addr"], js["role"], js["data"], wt]
         kwargs = {"qnum": js["qnum"], "seq": js["seq"], "fabric": js["fabric"]}
         mod = eptMsgWork
-        if wt==WORK_TYPE.EPM_IP_EVENT:          mod = eptMsgWorkEpmEvent
-        elif wt==WORK_TYPE.EPM_MAC_EVENT:       mod = eptMsgWorkEpmEvent
-        elif wt==WORK_TYPE.EPM_RS_IP_EVENT:     mod = eptMsgWorkEpmEvent
-        elif wt == WORK_TYPE.RAW:               mod = eptMsgWorkRaw
-        elif wt == WORK_TYPE.WATCH_MOVE:        mod = eptMsgWorkWatchMove
-        elif wt == WORK_TYPE.WATCH_OFFSUBNET:   mod = eptMsgWorkWatchOffSubnet
-        elif wt == WORK_TYPE.WATCH_STALE:       mod = eptMsgWorkWatchStale
-        elif wt == WORK_TYPE.WATCH_RAPID:       mod = eptMsgWorkWatchRapid
-        elif wt == WORK_TYPE.WATCH_NODE:        mod = eptMsgWorkWatchNode
-        elif wt == WORK_TYPE.DELETE_EPT:        mod = eptMsgWorkDeleteEpt
+        if wt == WORK_TYPE.EPM_IP_EVENT:
+            mod = eptMsgWorkEpmEvent
+        elif wt == WORK_TYPE.EPM_MAC_EVENT:
+            mod = eptMsgWorkEpmEvent
+        elif wt == WORK_TYPE.EPM_RS_IP_EVENT:
+            mod = eptMsgWorkEpmEvent
+        elif wt == WORK_TYPE.RAW:
+            mod = eptMsgWorkRaw
+        elif wt == WORK_TYPE.WATCH_MOVE:
+            mod = eptMsgWorkWatchMove
+        elif wt == WORK_TYPE.WATCH_OFFSUBNET:
+            mod = eptMsgWorkWatchOffSubnet
+        elif wt == WORK_TYPE.WATCH_STALE:
+            mod = eptMsgWorkWatchStale
+        elif wt == WORK_TYPE.WATCH_RAPID:
+            mod = eptMsgWorkWatchRapid
+        elif wt == WORK_TYPE.WATCH_NODE:
+            mod = eptMsgWorkWatchNode
+        elif wt == WORK_TYPE.DELETE_EPT:
+            mod = eptMsgWorkDeleteEpt
         return mod(*args, **kwargs)
+
 
 class eptMsgWorkRaw(eptMsgWork):
     """ raw/unparsed epm event """
+
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         super(eptMsgWorkRaw, self).__init__(addr, role, data, wt, qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.RAW
 
+
 class eptMsgWorkDeleteEpt(eptMsgWork):
     """ fixed message type for DELETE_EPT """
+
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
-        super(eptMsgWorkDeleteEpt, self).__init__(addr, "worker", data, wt, 
-                                                    qnum=qnum, seq=seq, fabric=fabric)
+        super(eptMsgWorkDeleteEpt, self).__init__(addr, "worker", data, wt,
+                                                  qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.DELETE_EPT
-        self.vnid = int(data.get("vnid",0))
+        self.vnid = int(data.get("vnid", 0))
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """
@@ -246,15 +266,17 @@ class eptMsgWorkDeleteEpt(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [0x%06x, %s]" % (self.msg_type.value, self.seq, 
-                self.fabric, self.wt.value, self.vnid, self.addr) 
+        return "%s.0x%08x %s %s [0x%06x, %s]" % (self.msg_type.value, self.seq,
+                                                 self.fabric, self.wt.value, self.vnid, self.addr)
+
 
 class eptMsgWorkWatchNode(eptMsgWork):
     """ fixed message type for WATCH_NODE """
+
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
-        super(eptMsgWorkWatchNode, self).__init__(addr, "watcher", data, wt, 
-                qnum=qnum, seq=seq, fabric=fabric)
+        super(eptMsgWorkWatchNode, self).__init__(addr, "watcher", data, wt,
+                                                  qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.WATCH_NODE
         self.ts = float(data.get("ts", 0))
         self.node = int(data.get("node", 0))
@@ -279,15 +301,18 @@ class eptMsgWorkWatchNode(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f node:0x%04x, %s]" % (self.msg_type.value, self.seq, 
-                self.fabric, self.wt.value, self.ts, self.node, self.status)
+        return "%s.0x%08x %s %s [ts:%.03f node:0x%04x, %s]" % (self.msg_type.value, self.seq,
+                                                               self.fabric, self.wt.value, self.ts, self.node,
+                                                               self.status)
+
 
 class eptMsgWorkWatchMove(eptMsgWork):
     """ fixed message type for WATCH_MOVE """
+
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
-        super(eptMsgWorkWatchMove, self).__init__(addr, "watcher", data, wt, 
-                qnum=qnum, seq=seq, fabric=fabric)
+        super(eptMsgWorkWatchMove, self).__init__(addr, "watcher", data, wt,
+                                                  qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.WATCH_MOVE
         self.vnid = int(data.get("vnid", 0))
         self.type = data.get("type", "")
@@ -314,22 +339,25 @@ class eptMsgWorkWatchMove(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [0x%06x, %s, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.vnid, self.type, self.addr)
+        return "%s.0x%08x %s %s [0x%06x, %s, %s]" % (self.msg_type.value,
+                                                     self.seq, self.fabric, self.wt.value, self.vnid, self.type,
+                                                     self.addr)
+
 
 class eptMsgWorkWatchRapid(eptMsgWork):
     """ fixed message type for WATCH_RAPID """
+
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
-        super(eptMsgWorkWatchRapid, self).__init__(addr, "watcher", data, wt, 
-                qnum=qnum, seq=seq, fabric=fabric)
+        super(eptMsgWorkWatchRapid, self).__init__(addr, "watcher", data, wt,
+                                                   qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.WATCH_RAPID
         self.vnid = int(data.get("vnid", 0))
         self.type = data.get("type", "")
         self.ts = float(data.get("ts", 0))
-        self.xts = float(data.get("xts", 0))        # watcher execute timestamp
+        self.xts = float(data.get("xts", 0))  # watcher execute timestamp
         self.count = int(data.get("count", 0))
-        self.rate = float(data.get("rate",0))
+        self.rate = float(data.get("rate", 0))
         self.vnid_name = data.get("vnid_name", "")
 
     def jsonify(self):
@@ -354,18 +382,20 @@ class eptMsgWorkWatchRapid(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [0x%06x, %s, %s, rate %.3f]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.vnid, self.type, self.addr, self.rate)
+        return "%s.0x%08x %s %s [0x%06x, %s, %s, rate %.3f]" % (self.msg_type.value,
+                                                                self.seq, self.fabric, self.wt.value, self.vnid,
+                                                                self.type, self.addr, self.rate)
 
 
 class eptMsgWorkWatchOffSubnet(eptMsgWork):
     """ fixed message type for WATCH_OFFSUBNET """
+
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
-        super(eptMsgWorkWatchOffSubnet, self).__init__(addr, "watcher", data, wt, 
-                qnum=qnum, seq=seq, fabric=fabric)
+        super(eptMsgWorkWatchOffSubnet, self).__init__(addr, "watcher", data, wt,
+                                                       qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.WATCH_OFFSUBNET
-        self.xts = float(data.get("xts", 0))        # watcher execute timestamp
+        self.xts = float(data.get("xts", 0))  # watcher execute timestamp
         self.ts = float(data.get("ts", 0))
         self.vnid = int(data.get("vnid", 0))
         self.node = int(data.get("node", 0))
@@ -393,17 +423,21 @@ class eptMsgWorkWatchOffSubnet(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.ts, self.type,self.node,self.vnid,self.addr)
+        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value,
+                                                                           self.seq, self.fabric, self.wt.value,
+                                                                           self.ts, self.type, self.node, self.vnid,
+                                                                           self.addr)
+
 
 class eptMsgWorkWatchStale(eptMsgWork):
     """ fixed message type for WATCH_STALE """
+
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
-        super(eptMsgWorkWatchStale, self).__init__(addr, "watcher", data, wt, 
-                qnum=qnum, seq=seq, fabric=fabric)
+        super(eptMsgWorkWatchStale, self).__init__(addr, "watcher", data, wt,
+                                                   qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.WATCH_STALE
-        self.xts = float(data.get("xts", 0))        # watcher execute timestamp
+        self.xts = float(data.get("xts", 0))  # watcher execute timestamp
         self.ts = float(data.get("ts", 0))
         self.vnid = int(data.get("vnid", 0))
         self.node = int(data.get("node", 0))
@@ -431,8 +465,11 @@ class eptMsgWorkWatchStale(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.ts,self.type,self.node,self.vnid,self.addr)
+        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value,
+                                                                           self.seq, self.fabric, self.wt.value,
+                                                                           self.ts, self.type, self.node, self.vnid,
+                                                                           self.addr)
+
 
 ###############################################################################
 #
@@ -445,18 +482,20 @@ class eptMsgWorkWatchStale(eptMsgWork):
 
 # pre-compile regex expressions
 epm_reg = "node-(?P<node>[0-9]+)/sys/"
-epm_reg+= "((ctx-\[vxlan-(?P<vrf>[0-9]+)\]/)|(?P<ovl>inst-overlay-1/))"
-epm_reg+= "(bd-\[vxlan-(?P<bd>[0-9]+)\]/)?"
-epm_reg+= "(vx?lan-\[(?P<encap>vx?lan-[0-9]+)\]/)?"
-epm_reg+= "db-ep/"
-epm_reg+= "((mac|ip)-\[?(?P<addr>[0-9\.a-fA-F:]+)\]?)?"
-epm_rsMacToIp_reg = epm_reg+"/rsmacEpToIpEpAtt-.+?"
-epm_rsMacToIp_reg+= "ip-\[(?P<ip>[0-9\.a-fA-F\:]+)\]"
+epm_reg += "((ctx-\[vxlan-(?P<vrf>[0-9]+)\]/)|(?P<ovl>inst-overlay-1/))"
+epm_reg += "(bd-\[vxlan-(?P<bd>[0-9]+)\]/)?"
+epm_reg += "(vx?lan-\[(?P<encap>vx?lan-[0-9]+)\]/)?"
+epm_reg += "db-ep/"
+epm_reg += "((mac|ip)-\[?(?P<addr>[0-9\.a-fA-F:]+)\]?)?"
+epm_rsMacToIp_reg = epm_reg + "/rsmacEpToIpEpAtt-.+?"
+epm_rsMacToIp_reg += "ip-\[(?P<ip>[0-9\.a-fA-F\:]+)\]"
 epm_rsMacToIp_reg = re.compile(epm_rsMacToIp_reg)
 epm_reg = re.compile(epm_reg)
 
+
 class eptEpmEventParser(object):
     """ shim for creating/parsing epmEvents """
+
     def __init__(self, fabric, overlay_vnid):
         logger.debug("init parser for fabric %s with overlay-vnid: %s", fabric, overlay_vnid)
         self.fabric = fabric
@@ -491,21 +530,23 @@ class eptEpmEventParser(object):
             return None
         return msg
 
+
 class eptMsgWorkEpmEvent(eptMsgWork):
     """ standardize parsed result for epmMacEp, epmIpEp, and epmRsMacEpToIpEpAtt objects to always
         include all attributes with default of empty string if not present
     """
+
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set 
-        super(eptMsgWorkEpmEvent, self).__init__(addr, "worker", data, wt, 
-                qnum=qnum, seq=seq, fabric=fabric)
+        super(eptMsgWorkEpmEvent, self).__init__(addr, "worker", data, wt,
+                                                 qnum=qnum, seq=seq, fabric=fabric)
         self.ts = float(data.get("ts", 0))
         self.classname = data.get("classname", "")
         self.type = data.get("type", "")
         self.status = data.get("status", "")
         self.flags = data.get("flags", [])
         self.ifId = data.get("ifId", "")
-        self.pcTag = int(data.get("pcTag",0))
+        self.pcTag = int(data.get("pcTag", 0))
         self.encap = data.get("encap", "")
         self.ip = data.get("ip", "")
         self.node = int(data.get("node", 0))
@@ -543,10 +584,10 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         self.ts = ts
         self.status = attr.get("status", "created")
         # on build, status is empty string, we need assume created if not provided or empty
-        if len(self.status) == 0: 
+        if len(self.status) == 0:
             self.status = "created"
         self.flags = attr.get("flags", "")
-        if len(self.flags) == 0: 
+        if len(self.flags) == 0:
             self.flags = []
         else:
             self.flags = self.flags.split(",")
@@ -564,12 +605,12 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         elif r1.group("ovl") is not None:
             self.vrf = overlay_vnid
         else:
-            logger.warn("parse did not match vrf or ovl %s: %s",attr["dn"],r1.groupdict())
+            logger.warn("parse did not match vrf or ovl %s: %s", attr["dn"], r1.groupdict())
             return False
 
         # optional matches that need to be set empty string if not present
-        self.bd = int(r1.group("bd"))   if r1.group("bd") is not None else 0
-        self.encap = r1.group("encap")  if r1.group("encap") is not None else ""
+        self.bd = int(r1.group("bd")) if r1.group("bd") is not None else 0
+        self.encap = r1.group("encap") if r1.group("encap") is not None else ""
 
         # set vnid to bd or vrf depending on classname
         self.vnid = self.bd if self.classname == "epmMacEp" else self.vrf
@@ -607,6 +648,7 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.3f, node:0x%04x, 0x%06x, %s, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.ts, self.node, self.vnid, self.addr, self.ip)
-
+        return "%s.0x%08x %s %s [ts:%.3f, node:0x%04x, 0x%06x, %s, %s]" % (self.msg_type.value,
+                                                                           self.seq, self.fabric, self.wt.value,
+                                                                           self.ts, self.node, self.vnid, self.addr,
+                                                                           self.ip)

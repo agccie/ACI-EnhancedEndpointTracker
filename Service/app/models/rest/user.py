@@ -1,40 +1,37 @@
-
-from . import Rest
-from . import Role
-from . import api_register
-from . import api_route
-from . import api_callback
-from ..utils import get_user_data
-from ..utils import get_user_params 
-from ..utils import get_user_headers 
-from ..utils import get_user_cookies
-from ..utils import  MSG_403
-from .settings import Settings
-
-from flask import abort
-from flask import g
-from flask import current_app
-from flask import jsonify
-from flask_login import login_user
-from flask_login import logout_user
-
 import base64
-import json
 import logging
 import os
 import time
 import uuid
 
+from flask import abort
+from flask import current_app
+from flask import g
+from flask import jsonify
+from flask_login import login_user
+from flask_login import logout_user
+
+from . import Rest
+from . import Role
+from . import api_callback
+from . import api_register
+from . import api_route
+from .settings import Settings
+from ..utils import MSG_403
+from ..utils import get_user_data
+from ..utils import get_user_headers
+from ..utils import get_user_params
+
 # module level logger
 logger = logging.getLogger(__name__)
 
+
 @api_register()
 class User(Rest):
-
     logger = logger
 
     # reserved usernames
-    RESERVED = [ "root", "local" ]
+    RESERVED = ["root", "local"]
 
     META_ACCESS = {
         "create_role": Role.FULL_ADMIN,
@@ -45,7 +42,7 @@ class User(Rest):
 
     # meta data and type that are exposed via read/write with type and defaults
     META = {
-        "username":{
+        "username": {
             "key": True,
             "type": str,
             "regex": "^(?i)[a-z0-9\_.:]{1,128}$",
@@ -106,15 +103,15 @@ class User(Rest):
         session_id = g.user.session
         if session_id is not None:
             s = Session.find(session=session_id)
-            if len(s)>0:
-                #logger.debug("deleting session: %s", session_id)
+            if len(s) > 0:
+                # logger.debug("deleting session: %s", session_id)
                 s = s[0]
                 s.remove()
         logout_user()
         return User.api_ok()
 
     @staticmethod
-    @api_route(path="login", methods=["POST"], authenticated=False, swag_ret=["success","token"])
+    @api_route(path="login", methods=["POST"], authenticated=False, swag_ret=["success", "token"])
     def login(username, password, token_required=False):
         """ create new user login session """
         u = User.load(username=username)
@@ -126,8 +123,8 @@ class User(Rest):
                     u.save()
                     # create a new session for user
                     sid = base64.b64encode(os.urandom(64))
-                    s = Session(username=u.username, role=u.role, session=sid, 
-                                                            token_required=token_required)
+                    s = Session(username=u.username, role=u.role, session=sid,
+                                token_required=token_required)
                     if not s.save():
                         logger.error("failed to create session for user %s", u.username)
                     login_user(s, remember=True)
@@ -151,7 +148,7 @@ class User(Rest):
             abort(403, MSG_403)
 
         # create a temporary random key and timestamp it
-        self.password_reset_key = "%s"%uuid.uuid4()
+        self.password_reset_key = "%s" % uuid.uuid4()
         self.password_reset_timestamp = time.time()
         self.save()
         return jsonify({"key": self.password_reset_key})
@@ -169,7 +166,7 @@ class User(Rest):
             abort(400, "Incorrect username or inactive key provided")
 
         pwtimeout = int(current_app.config.get("password_reset_timeout", 7200))
-        if u.password_reset_timestamp+pwtimeout < int(time.time()):
+        if u.password_reset_timestamp + pwtimeout < int(time.time()):
             # key has timed out, reset it and return an error
             u.password_reset_timestamp = 0
             u.password_reset_key = ""
@@ -187,7 +184,8 @@ class User(Rest):
     @api_callback("before_create")
     def before_user_create(cls, data, api=False):
         # only perform check on api calls
-        if not api: return data
+        if not api:
+            return data
         # ensure username is not a reserved username
         if "username" in data and data["username"] in User.RESERVED:
             abort(400, "Username \"%s\" is reserved" % data["username"])
@@ -197,7 +195,8 @@ class User(Rest):
     @api_callback("before_read")
     def before_user_read(cls, filters, api=False):
         # only perform check on api calls
-        if not api: return filters
+        if not api:
+            return filters
         # for non-admins, force filter to include their username
         admin = (g.user.role == Role.FULL_ADMIN)
         if not admin:
@@ -212,12 +211,13 @@ class User(Rest):
     @api_callback("before_update")
     def before_user_update(cls, filters, data, api=False):
         # only perform check on api calls
-        if not api: return (filters, data)
+        if not api:
+            return (filters, data)
         # block user from updating reserved users
         admin = (g.user.role == Role.FULL_ADMIN)
         if "username" in filters:
             if filters["username"] in User.RESERVED:
-                abort(400, "Username \"%s\" is reserved and cannot be updated"%filters["username"])
+                abort(400, "Username \"%s\" is reserved and cannot be updated" % filters["username"])
             elif not admin and g.user.username != filters["username"]:
                 abort(403, MSG_403)
         else:
@@ -226,41 +226,48 @@ class User(Rest):
                 filters["username"] = g.user.username
             else:
                 # else add filter blocking updates to reserved usernames
-                filters["username"] = {"$nin":User.RESERVED}
+                filters["username"] = {"$nin": User.RESERVED}
         return (filters, data)
 
     @classmethod
     @api_callback("before_delete")
     def before_user_delete(cls, filters, api=False):
         # only perform check on api calls
-        if not api: return filters
+        if not api:
+            return filters
         username = g.user.username
         if "username" in filters:
             if filters["username"] in User.RESERVED:
-                abort(400, "Username \"%s\" is reserved and cannot be updated"%filters["username"])
+                abort(400, "Username \"%s\" is reserved and cannot be updated" % filters["username"])
             elif username is not None and username == filters["username"]:
-                abort(400, "User \"%s\" cannot delete user \"%s\""%(username, filters["username"]))
+                abort(400, "User \"%s\" cannot delete user \"%s\"" % (username, filters["username"]))
         else:
             # else add filter blocking updates to reserved usernames and local user
-            filters["username"] = {"$nin":User.RESERVED}
-            if username is not None: filters["username"]["$nin"].append(username)
+            filters["username"] = {"$nin": User.RESERVED}
+            if username is not None:
+                filters["username"]["$nin"].append(username)
         return filters
 
     @classmethod
     @api_callback("after_read")
     def after_user_read(cls, data, api=False):
         # only perform check on api calls.  
-        if not api: return data
+        if not api:
+            return data
         # remove reserved usernames from results
-        if "objects" not in data or "count" not in data: return data
+        if "objects" not in data or "count" not in data:
+            return data
         count = data["count"]
         objects = []
         for o in data["objects"]:
             if "username" in o["user"] and o["user"]["username"] in User.RESERVED:
-                count-= 1
-            else: objects.append(o)
-        if count < 0: count = 0
+                count -= 1
+            else:
+                objects.append(o)
+        if count < 0:
+            count = 0
         return {"count": count, "objects": objects}
+
 
 @api_register(parent="user")
 class Session(Rest):
@@ -287,7 +294,7 @@ class Session(Rest):
         "created": {
             "type": float,
             "description": "epoch timestampe when session was created",
-        },  
+        },
         "timeout": {
             "type": float,
             "description": "epoch timestamp when session will no longer be valid",
@@ -305,18 +312,25 @@ class Session(Rest):
 
     # required for flask-login
     # https://flask-login.readthedocs.org/en/latest/#your-user-class
-    def is_authenticated(self): return True
-    def is_active(self): return True
-    def is_anonymous(self): return False
-    def get_id(self): return self.session
+    def is_authenticated(self):
+        return True
 
-    @staticmethod 
+    def is_active(self):
+        return True
+
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        return self.session
+
+    @staticmethod
     def load_session(session_id):
         # load user object for corresponding session id.  If session id is invalid, has expired,
         # or token is not present within the request and token_required enabled, then return None
         now = time.time()
         s = Session.find(session=session_id)
-        if len(s)== 0: 
+        if len(s) == 0:
             return None
         else:
             s = s[0]
@@ -340,7 +354,7 @@ class Session(Rest):
 
         # load user corresponding to valid session
         u = User.load(username=s.username)
-        if not u.exists(): 
+        if not u.exists():
             logger.debug("username %s for session %s no longer exists", s.username, s.session)
             return None
         return s
@@ -362,13 +376,12 @@ class Session(Rest):
     @api_callback("after_create")
     def after_session_create(cls, data):
         # after each successful session creation, purge expired sessions
-        ret = Session.delete(_filters={"session":{"$lte":time.time()}})    
-        if "count" in ret and ret["count"]>0:
+        ret = Session.delete(_filters={"session": {"$lte": time.time()}})
+        if "count" in ret and ret["count"] > 0:
             logger.debug("old sessions purged: %s", ret["count"])
         s = Session.load(username=data["username"], session=data["session"])
         if not s.exists():
             logger.debug("failed to save that session thing...")
         else:
             logger.debug("created session: (%s, %s, token:%s, timeout: %s)", s.username, s.session,
-                    s.token, s.timeout)
-
+                         s.token, s.timeout)

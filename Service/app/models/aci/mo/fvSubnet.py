@@ -1,20 +1,18 @@
-
-from ... rest import Rest
-from ... rest import api_register
-from ... rest import api_callback
-from . import ManagedObject
-
 import logging
 import re
+
+from . import ManagedObject
+from ...rest import api_callback
+from ...rest import api_register
 
 # module level logging
 logger = logging.getLogger(__name__)
 
+
 @api_register(parent="fabric", path="mo/fvSubnet")
 class fvSubnet(ManagedObject):
-
     META_ACCESS = ManagedObject.append_meta_access({
-        "namespace":"fvSubnet",
+        "namespace": "fvSubnet",
     })
 
     META = ManagedObject.append_meta({
@@ -63,4 +61,3 @@ class fvSubnet(ManagedObject):
         else:
             logger.warn("failed to map parent class (tCl) for fvSubnet: %s", data["dn"])
         return data
-

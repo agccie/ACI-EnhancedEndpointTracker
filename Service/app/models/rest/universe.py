@@ -4,12 +4,14 @@ this allows a user to read all objects/config from the API in single call which 
 may not be desirable
 """
 
-from . import api_register
-from . import Rest
 import logging
+
+from . import Rest
+from . import api_register
 
 # module level logging
 logger = logging.getLogger(__name__)
+
 
 @api_register(path="/uni")
 class Universe(Rest):
@@ -21,4 +23,3 @@ class Universe(Rest):
         "delete": False,
     }
     META = {}
-

@@ -2,14 +2,14 @@
 maintain dependency mapping to ease subscription events for APIC MOs
 """
 
-from . mo_dependency import DependencyNode
-from . mo_dependency import StaticMoAttrHandler
-from . ept_epg import eptEpg
-from . ept_pc import eptPc
-from . ept_subnet import eptSubnet
-from . ept_tunnel import eptTunnel
-from . ept_vnid import eptVnid
-from . ept_vpc import eptVpc
+from .ept_epg import eptEpg
+from .ept_pc import eptPc
+from .ept_subnet import eptSubnet
+from .ept_tunnel import eptTunnel
+from .ept_vnid import eptVnid
+from .ept_vpc import eptVpc
+from .mo_dependency import DependencyNode
+from .mo_dependency import StaticMoAttrHandler
 
 # vnid objects
 n_fvCtx = DependencyNode("fvCtx")
@@ -177,7 +177,7 @@ ept_map = {
     "fvSubnet": {
         "db": eptSubnet,
         "attributes": {
-            "name": "dn", 
+            "name": "dn",
             "ip": "ip",
             "bd": ["fvBD.seg", "fvSvcBD.seg"],
         },
@@ -225,7 +225,7 @@ ept_map = {
             "intf": "id",
             "dst": "dest",
             "src": "src",
-            #"remote": "",  remote mapping via custom callback
+            # "remote": "",  remote mapping via custom callback
             "status": "operSt",
             "encap": "tType",
             "flags": "type",
@@ -238,10 +238,7 @@ ept_map = {
     },
 }
 
-
-
 # add ept_map info to DependencyNode object
 for classname in ept_map:
     if classname in dependency_map:
         dependency_map[classname].set_ept_map(**ept_map[classname])
-

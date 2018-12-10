@@ -1,73 +1,70 @@
-
-from ... utils import get_db
-from ... utils import get_redis
-
-from .. utils import get_apic_session
-from .. utils import get_apic_session
-from .. utils import get_attributes
-from .. utils import get_class
-from .. utils import get_controller_version
-from .. utils import parse_apic_version
-from .. utils import validate_session_role
-from .. subscription_ctrl import SubscriptionCtrl
-
-from . common import MANAGER_CTRL_CHANNEL
-from . common import MANAGER_WORK_QUEUE
-from . common import MAX_SEND_MSG_LENGTH
-from . common import MINIMUM_SUPPORTED_VERSION
-from . common import MO_BASE
-from . common import SUBSCRIBER_CTRL_CHANNEL
-from . common import get_vpc_domain_id
-from . ept_msg import MSG_TYPE
-from . ept_msg import WORK_TYPE
-from . ept_msg import eptEpmEventParser
-from . ept_msg import eptMsg
-from . ept_msg import eptMsgWork
-from . ept_msg import eptMsgWorkDeleteEpt
-from . ept_msg import eptMsgWorkRaw
-from . ept_msg import eptMsgWorkWatchNode
-from . ept_epg import eptEpg
-from . ept_history import eptHistory
-from . ept_node import eptNode
-from . ept_pc import eptPc
-from . ept_settings import eptSettings
-from . ept_subnet import eptSubnet
-from . ept_tunnel import eptTunnel
-from . ept_vnid import eptVnid
-from . ept_vpc import eptVpc
-from . mo_dependency_map import dependency_map
-
-from importlib import import_module
-
 import logging
 import re
 import threading
 import time
 import traceback
+from importlib import import_module
+
+from .common import MANAGER_CTRL_CHANNEL
+from .common import MANAGER_WORK_QUEUE
+from .common import MAX_SEND_MSG_LENGTH
+from .common import MINIMUM_SUPPORTED_VERSION
+from .common import MO_BASE
+from .common import SUBSCRIBER_CTRL_CHANNEL
+from .common import get_vpc_domain_id
+from .ept_epg import eptEpg
+from .ept_history import eptHistory
+from .ept_msg import MSG_TYPE
+from .ept_msg import WORK_TYPE
+from .ept_msg import eptEpmEventParser
+from .ept_msg import eptMsg
+from .ept_msg import eptMsgWork
+from .ept_msg import eptMsgWorkDeleteEpt
+from .ept_msg import eptMsgWorkRaw
+from .ept_msg import eptMsgWorkWatchNode
+from .ept_node import eptNode
+from .ept_pc import eptPc
+from .ept_settings import eptSettings
+from .ept_subnet import eptSubnet
+from .ept_tunnel import eptTunnel
+from .ept_vnid import eptVnid
+from .ept_vpc import eptVpc
+from .mo_dependency_map import dependency_map
+from ..subscription_ctrl import SubscriptionCtrl
+from ..utils import get_apic_session
+from ..utils import get_attributes
+from ..utils import get_class
+from ..utils import get_controller_version
+from ..utils import parse_apic_version
+from ..utils import validate_session_role
+from ...utils import get_db
+from ...utils import get_redis
 
 # module level logging
 logger = logging.getLogger(__name__)
+
 
 class eptSubscriber(object):
     """ builds initial fabric state and subscribes to events to ensure db is in sync with fabric.
         epm events are sent to workers to analyze.
         subscriber also listens 
     """
+
     def __init__(self, fabric):
         # receive instance of Fabric rest object
         self.fabric = fabric
         self.settings = eptSettings.load(fabric=self.fabric.fabric, settings="default")
-        self.initializing = True    # set to queue events until fully initialized
-        self.epm_initializing = True # different initializing flag for epm events
-        self.stopped = False        # set to ignore events after hard_restart triggered
+        self.initializing = True  # set to queue events until fully initialized
+        self.epm_initializing = True  # different initializing flag for epm events
+        self.stopped = False  # set to ignore events after hard_restart triggered
         self.db = None
         self.redis = None
         self.session = None
         self.ept_epm_parser = None  # initialized once overlay vnid is known
-        self.soft_restart_ts = 0    # timestamp of last soft_restart
+        self.soft_restart_ts = 0  # timestamp of last soft_restart
         self.manager_ctrl_channel_lock = threading.Lock()
         self.manager_work_queue_lock = threading.Lock()
-        self.subscription_check_interval = 5.0   # interval to check subscription health
+        self.subscription_check_interval = 5.0  # interval to check subscription health
 
         # classes that have corresponding mo Rest object and handled by handle_std_mo_event
         # the order shouldn't matter during build but just to be safe we'll control the order...
@@ -104,13 +101,13 @@ class eptSubscriber(object):
         # static/special handlers for a subset of 'slow' subscriptions
         # note, slow subscriptions are handled via handle_std_mo_event and dependency_map
         self.subscription_classes = [
-            "fabricProtPol",        # handle_fabric_prot_pol
-            "fabricAutoGEp",        # handle_fabric_group_ep
-            "fabricExplicitGEp",    # handle_fabric_group_ep
-            "fabricNode",           # handle_fabric_node
+            "fabricProtPol",  # handle_fabric_prot_pol
+            "fabricAutoGEp",  # handle_fabric_group_ep
+            "fabricExplicitGEp",  # handle_fabric_group_ep
+            "fabricNode",  # handle_fabric_node
         ]
         # classname to function handler for subscription events
-        self.handlers = {                
+        self.handlers = {
             "fabricProtPol": self.handle_fabric_prot_pol,
             "fabricAutoGEp": self.handle_fabric_group_ep,
             "fabricExplicitGEp": self.handle_fabric_group_ep,
@@ -119,7 +116,7 @@ class eptSubscriber(object):
 
         # epm subscriptions expect a high volume of events
         # note the order of the subscription classes is also the order in which analysis is performed
-        #rs-ip-events before  epmIpEp so that each local epmIpEp will already have corresponding mac 
+        # rs-ip-events before  epmIpEp so that each local epmIpEp will already have corresponding mac 
         # rewrite info ready. Ideally, all epmIpEp analysis completes in under 
         # TRANSITORY_STALE_NO_LOCAL time (300 seconds) so no false stale is triggered. 
         self.epm_subscription_classes = [
@@ -164,7 +161,7 @@ class eptSubscriber(object):
         try:
             if msg["type"] == "message":
                 channel = msg["channel"]
-                msg = eptMsg.parse(msg["data"]) 
+                msg = eptMsg.parse(msg["data"])
                 logger.debug("[%s] msg on q(%s): %s", self, channel, msg)
                 if channel == SUBSCRIBER_CTRL_CHANNEL:
                     self.handle_subscriber_ctrl(msg)
@@ -184,19 +181,19 @@ class eptSubscriber(object):
             self.refresh_endpoint(msg.vnid, msg.addr, msg.type, msg.qnum)
         elif msg.msg_type == MSG_TYPE.DELETE_EPT:
             # enqueue work to available worker
-            self.send_msg(eptMsgWorkDeleteEpt(msg.addr, "worker", {"vnid":msg.vnid},
-                WORK_TYPE.DELETE_EPT, qnum=msg.qnum, fabric=self.fabric,
-            ))
+            self.send_msg(eptMsgWorkDeleteEpt(msg.addr, "worker", {"vnid": msg.vnid},
+                                              WORK_TYPE.DELETE_EPT, qnum=msg.qnum, fabric=self.fabric,
+                                              ))
         elif msg.msg_type == MSG_TYPE.TEST_EMAIL:
             # enqueue notification test to watcher
             self.send_msg(eptMsgWork(msg.addr, "watcher", {},
-                WORK_TYPE.TEST_EMAIL, qnum=msg.qnum, fabric=self.fabric,
-            ))
+                                     WORK_TYPE.TEST_EMAIL, qnum=msg.qnum, fabric=self.fabric,
+                                     ))
         elif msg.msg_type == MSG_TYPE.TEST_SYSLOG:
             # enqueue notification test to watcher
             self.send_msg(eptMsgWork(msg.addr, "watcher", {},
-                WORK_TYPE.TEST_SYSLOG, qnum=msg.qnum, fabric=self.fabric,
-            ))
+                                     WORK_TYPE.TEST_SYSLOG, qnum=msg.qnum, fabric=self.fabric,
+                                     ))
         else:
             logger.debug("ignoring unexpected msg type: %s", msg.msg_type)
 
@@ -234,11 +231,11 @@ class eptSubscriber(object):
             self.fabric.add_fabric_event("failed", "failed to determine apic version")
             return
         apic_version_set = set([n["version"] for n in apic_version])
-        if len(apic_version_set)>1:
+        if len(apic_version_set) > 1:
             logger.warn("version mismatch for %s: %s", self.fabric.fabric, apic_version_set)
             self.fabric.add_fabric_event("warning", "version mismatch: %s" % ", ".join([
-                    "apic-%s: %s" % (n["node"], n["version"]) for n in apic_version
-                ]))
+                "apic-%s: %s" % (n["node"], n["version"]) for n in apic_version
+            ]))
         # use whatever the first detected version is for validation, we don't expect version 
         # mismatch for controllers so warning is sufficient
         min_version = parse_apic_version(MINIMUM_SUPPORTED_VERSION)
@@ -246,7 +243,7 @@ class eptSubscriber(object):
         self.fabric.add_fabric_event(init_str, "apic version: %s" % apic_version[0]["version"])
         if version is None or min_version is None:
             logger.warn("failed to parse apic version: %s (min version: %s)", version, min_version)
-            self.fabric.add_fabric_event("failed","unknown or unsupported apic version: %s" % (
+            self.fabric.add_fabric_event("failed", "unknown or unsupported apic version: %s" % (
                 apic_version[0]["version"]))
             self.fabric.auto_start = False
             self.fabric.save()
@@ -262,7 +259,7 @@ class eptSubscriber(object):
                 min_matched = (version["build"] >= min_version["build"])
         if not min_matched:
             logger.warn("fabric does not meet minimum code version (%s < %s)", version, min_version)
-            self.fabric.add_fabric_event("failed","unknown or unsupported apic version: %s" % (
+            self.fabric.add_fabric_event("failed", "unknown or unsupported apic version: %s" % (
                 apic_version[0]["version"]))
             self.fabric.auto_start = False
             self.fabric.save()
@@ -277,12 +274,12 @@ class eptSubscriber(object):
                 self.settings.vpc_pair_type = vpc_attr["pairT"]
                 self.settings.save()
             else:
-                logger.warn("failed to determine fabricProtPol pairT: %s (using default)",vpc_attr)
+                logger.warn("failed to determine fabricProtPol pairT: %s (using default)", vpc_attr)
         else:
             logger.warn("failed to determine overlay vnid: %s", overlay_attr)
             self.fabric.add_fabric_event("failed", "unable to determine overlay-1 vnid")
             return
-       
+
         # setup slow subscriptions to catch events occurring during build 
         if self.settings.queue_init_events:
             self.subscriber.pause(self.subscription_classes + self.ordered_mo_classes)
@@ -380,8 +377,8 @@ class eptSubscriber(object):
             logger.error("Traceback:\n%s", traceback.format_exc())
 
         reason = "restarting: %s" % reason
-        data = {"fabric":self.fabric.fabric, "reason":reason}
-        msg = eptMsg(MSG_TYPE.FABRIC_RESTART,data=data)
+        data = {"fabric": self.fabric.fabric, "reason": reason}
+        msg = eptMsg(MSG_TYPE.FABRIC_RESTART, data=data)
         with self.manager_ctrl_channel_lock:
             self.redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
 
@@ -398,8 +395,8 @@ class eptSubscriber(object):
         """
         logger.debug("soft restart requested: %s", reason)
         if ts is not None and self.soft_restart_ts > ts:
-            logger.debug("skipping stale soft_restart request (%.3f > %.3f)",self.soft_restart_ts,ts)
-            return 
+            logger.debug("skipping stale soft_restart request (%.3f > %.3f)", self.soft_restart_ts, ts)
+            return
 
         init_str = "re-initializing"
         # remove slow interests from subscriber
@@ -448,8 +445,8 @@ class eptSubscriber(object):
                 sub_msg.fabric = self.fabric.fabric
             # break up msg into multiple blocks 
             for i in range(0, len(msg), MAX_SEND_MSG_LENGTH):
-                work = [m.jsonify() for m in msg[i:i+MAX_SEND_MSG_LENGTH]]
-                if len(work)>0:
+                work = [m.jsonify() for m in msg[i:i + MAX_SEND_MSG_LENGTH]]
+                if len(work) > 0:
                     with self.manager_work_queue_lock:
                         self.redis.rpush(MANAGER_WORK_QUEUE, *work)
         else:
@@ -464,7 +461,7 @@ class eptSubscriber(object):
         # node addr of 0 is broadcast to all nodes of provided role
         data = {"cache": collection._classname, "name": name}
         msg = eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE)
-        msg.qnum = 0    # highest priority queue
+        msg.qnum = 0  # highest priority queue
         self.send_msg(msg)
 
     def parse_event(self, event, verify_ts=True):
@@ -472,17 +469,18 @@ class eptSubscriber(object):
             attribute representing timestamp when event was received if verify_ts is set
         """
         try:
-            if type(event) is dict: event = event["imdata"]
+            if type(event) is dict:
+                event = event["imdata"]
             for e in event:
                 classname = e.keys()[0]
                 if "attributes" in e[classname]:
-                        attr = e[classname]["attributes"]
-                        if verify_ts:
-                            if "_ts" in event: 
-                                attr["_ts"] = event["_ts"]
-                            else:
-                                attr["_ts"] = time.time()
-                        yield (classname, attr)
+                    attr = e[classname]["attributes"]
+                    if verify_ts:
+                        if "_ts" in event:
+                            attr["_ts"] = event["_ts"]
+                        else:
+                            attr["_ts"] = time.time()
+                    yield (classname, attr)
                 else:
                     logger.warn("invalid event: %s", e)
         except Exception as e:
@@ -531,7 +529,7 @@ class eptSubscriber(object):
             logger.debug("ignoring event (in initializing state): %s", event)
             return
         try:
-            #logger.debug("event: %s", event)
+            # logger.debug("event: %s", event)
             for (classname, attr) in self.parse_event(event):
                 if classname not in self.mo_classes or "dn" not in attr or "status" not in attr:
                     logger.warn("event received for unknown classname: %s, %s", classname, event)
@@ -539,8 +537,8 @@ class eptSubscriber(object):
 
                 if classname in dependency_map:
                     logger.debug("triggering sync_event for dependency %s", classname)
-                    updates+= dependency_map[classname].sync_event(self.fabric.fabric, attr, 
-                            self.session)
+                    updates += dependency_map[classname].sync_event(self.fabric.fabric, attr,
+                                                                    self.session)
                     logger.debug("updated objects: %s", len(updates))
                 else:
                     logger.warn("%s not defined in dependency_map", classname)
@@ -567,13 +565,13 @@ class eptSubscriber(object):
             return
         try:
             for (classname, attr) in self.parse_event(event):
-                #msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
+                # msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
                 # dn for each possible epm event:
                 #   .../db-ep/mac-00:AA:00:00:28:1A
                 #   .../db-ep/ip-[10.1.55.220]
                 #   rsmacEpToIpEpAtt-.../db-ep/ip-[10.1.1.74]]
-                addr = re.sub("[\[\]]","", attr["dn"].split("-")[-1])
-                self.send_msg(eptMsgWorkRaw(addr,"worker",{classname:attr},WORK_TYPE.RAW,qnum=qnum))
+                addr = re.sub("[\[\]]", "", attr["dn"].split("-")[-1])
+                self.send_msg(eptMsgWorkRaw(addr, "worker", {classname: attr}, WORK_TYPE.RAW, qnum=qnum))
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 
@@ -584,8 +582,8 @@ class eptSubscriber(object):
                 return False
         return True
 
-    def initialize_ept_collection(self, eptObject, mo_classname, attribute_map=None, 
-            regex_map=None ,set_ts=False, flush=False):
+    def initialize_ept_collection(self, eptObject, mo_classname, attribute_map=None,
+                                  regex_map=None, set_ts=False, flush=False):
         """ initialize ept collection.  Note, mo_object or mo_classname must be provided
                 eptObject = eptNode, eptVnid, eptEpg, etc...
                 mo_classname = classname of mo used for query, or if exists within self.mo_classes,
@@ -613,6 +611,7 @@ class eptSubscriber(object):
             return bool success
 
         """
+
         # iterator over data from class query returning just dict attributes
         def raw_iterator(data):
             for attr in get_attributes(data=data):
@@ -640,7 +639,7 @@ class eptSubscriber(object):
         if mo_classname in dependency_map:
             default_attribute_map = dependency_map[mo_classname].ept_attributes
             default_regex_map = dependency_map[mo_classname].ept_regex_map
-        if attribute_map is None: 
+        if attribute_map is None:
             attribute_map = default_attribute_map
         if regex_map is None:
             regex_map = default_regex_map
@@ -664,47 +663,49 @@ class eptSubscriber(object):
                         if r1:
                             if "value" in r1.groupdict():
                                 db_obj[db_attr] = r1.group("value")
-                            else: 
+                            else:
                                 db_obj[attr] = attr[o_attr]
                         else:
-                            logger.warn("%s value %s does not match regex %s", o_attr,attr[o_attr], 
-                                regex_map[db_attr])
+                            logger.warn("%s value %s does not match regex %s", o_attr, attr[o_attr],
+                                        regex_map[db_attr])
                             db_obj = {}
                             break
                     else:
                         db_obj[db_attr] = attr[o_attr]
-            if len(db_obj)>0:
+            if len(db_obj) > 0:
                 db_obj["fabric"] = self.fabric.fabric
-                if set_ts: 
-                    if "ts" in attr: db_obj["ts"] = attr["ts"]
-                    else: db_obj["ts"] = ts
+                if set_ts:
+                    if "ts" in attr:
+                        db_obj["ts"] = attr["ts"]
+                    else:
+                        db_obj["ts"] = ts
                 bulk_objects.append(eptObject(**db_obj))
             else:
-                logger.warn("%s object not added from MO (no matching attributes): %s", 
-                    eptObject._classname, attr)
+                logger.warn("%s object not added from MO (no matching attributes): %s",
+                            eptObject._classname, attr)
 
         # flush right before insert to minimize time of empty table
         if flush:
-            logger.debug("flushing %s entries for fabric %s",eptObject._classname,self.fabric.fabric)
-            eptObject.delete(_filters={"fabric":self.fabric.fabric})
-        if len(bulk_objects)>0:
+            logger.debug("flushing %s entries for fabric %s", eptObject._classname, self.fabric.fabric)
+            eptObject.delete(_filters={"fabric": self.fabric.fabric})
+        if len(bulk_objects) > 0:
             eptObject.bulk_save(bulk_objects, skip_validation=False)
         else:
             logger.debug("no objects of %s to insert", mo_classname)
         return True
-    
+
     def build_node_db(self):
         """ initialize node collection and vpc nodes. return bool success """
         logger.debug("initializing node db")
-        if not self.initialize_ept_collection(eptNode, "topSystem", attribute_map = {
-                "addr": "address",
-                "name": "name",
-                "node": "id",
-                "oob_addr": "oobMgmtAddr",
-                "pod_id": "podId",
-                "role": "role",
-                "state": "state",
-            }, flush=True):
+        if not self.initialize_ept_collection(eptNode, "topSystem", attribute_map={
+            "addr": "address",
+            "name": "name",
+            "node": "id",
+            "oob_addr": "oobMgmtAddr",
+            "pod_id": "podId",
+            "role": "role",
+            "state": "state",
+        }, flush=True):
             logger.warn("failed to build node db from topSystem")
             return False
 
@@ -760,29 +761,29 @@ class eptSubscriber(object):
                         bulk_objects.append(child_nodes[0])
                         bulk_objects.append(child_nodes[1])
                         bulk_objects.append(eptNode(fabric=self.fabric.fabric,
-                            addr=addr,
-                            name=name,
-                            node=vpc_domain_id,
-                            pod_id=child_nodes[0].pod_id,
-                            role="vpc",
-                            state="in-service",
-                            nodes=[
-                                {
-                                    "node": child_nodes[0].node,
-                                    "addr": child_nodes[0].addr,
-                                },
-                                {
-                                    "node": child_nodes[1].node,
-                                    "addr": child_nodes[1].addr,
-                                },
-                            ],
-                        ))
+                                                    addr=addr,
+                                                    name=name,
+                                                    node=vpc_domain_id,
+                                                    pod_id=child_nodes[0].pod_id,
+                                                    role="vpc",
+                                                    state="in-service",
+                                                    nodes=[
+                                                        {
+                                                            "node": child_nodes[0].node,
+                                                            "addr": child_nodes[0].addr,
+                                                        },
+                                                        {
+                                                            "node": child_nodes[1].node,
+                                                            "addr": child_nodes[1].addr,
+                                                        },
+                                                    ],
+                                                    ))
                     else:
-                        logger.warn("expected 2 %s child objects: %s", node_ep,obj)
+                        logger.warn("expected 2 %s child objects: %s", node_ep, obj)
                 else:
                     logger.warn("invalid %s object: %s", vpc_type, obj)
-        
-        if len(bulk_objects)>0:
+
+        if len(bulk_objects) > 0:
             eptNode.bulk_save(bulk_objects, skip_validation=False)
         return True
 
@@ -790,18 +791,18 @@ class eptSubscriber(object):
         """ initialize tunnel db. return bool success """
         logger.debug("initializing tunnel db")
         if not self.initialize_ept_collection(eptTunnel, "tunnelIf", attribute_map={
-                "name": "dn",
-                "node": "dn",
-                "intf": "id",
-                "dst": "dest",
-                "src": "src",
-                "status": "operSt",
-                "encap": "tType",
-                "flags": "type",
-            }, regex_map = {
-                "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
-                "src": "(?P<value>[^/]+)(/[0-9]+)?",
-            }, flush=True, set_ts=True):
+            "name": "dn",
+            "node": "dn",
+            "intf": "id",
+            "dst": "dest",
+            "src": "src",
+            "status": "operSt",
+            "encap": "tType",
+            "flags": "type",
+        }, regex_map={
+            "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
+            "src": "(?P<value>[^/]+)(/[0-9]+)?",
+        }, flush=True, set_ts=True):
             return False
 
         # walk through each tunnel and map remote to correct node id with pseudo vpc node awareness
@@ -818,11 +819,11 @@ class eptSubscriber(object):
                 # tunnel type of vxlan (instead of ivxlan), or flags of dci(multisite) or 
                 # proxy(spines) can be safely ignored, else print a warning
                 if t.encap == "vxlan" or "proxy" in t.flags or "dci" in t.flags:
-                    #logger.debug("failed to map tunnel to remote node: %s", t)
+                    # logger.debug("failed to map tunnel to remote node: %s", t)
                     pass
                 else:
                     logger.warn("failed to map tunnel to remote node: %s", t)
-        if len(bulk_objects)>0:
+        if len(bulk_objects) > 0:
             eptTunnel.bulk_save(bulk_objects, skip_validation=False)
         return True
 
@@ -833,8 +834,8 @@ class eptSubscriber(object):
         logger.debug("initializing pc/vpc db")
         # vpcRsVpcConf exists within self.mo_classses and already defined in dependency_map
         return (
-            self.initialize_ept_collection(eptVpc,"vpcRsVpcConf",set_ts=True, flush=True) and \
-            self.initialize_ept_collection(eptPc,"pcAggrIf",set_ts=True, flush=True)
+                self.initialize_ept_collection(eptVpc, "vpcRsVpcConf", set_ts=True, flush=True) and \
+                self.initialize_ept_collection(eptPc, "pcAggrIf", set_ts=True, flush=True)
         )
 
     def build_vnid_db(self):
@@ -846,7 +847,7 @@ class eptSubscriber(object):
                 l3extExtEncapAllocator (external BD)
         """
         logger.debug("initializing vnid db")
-       
+
         # handle fvCtx, fvBD, and fvSvcBD
         logger.debug("bulding vnid from fvCtx")
         if not self.initialize_ept_collection(eptVnid, "fvCtx", set_ts=True, flush=True):
@@ -865,23 +866,23 @@ class eptSubscriber(object):
         logger.debug("bulding vnid from l3extExtEncapAllocator")
         ts = time.time()
         bulk_objects = []
-        vnids = {}  
-        l3ctx = {}     # mapping of l3out name to vrf vnid
-        for v in eptVnid.find(fabric=self.fabric.fabric): 
+        vnids = {}
+        l3ctx = {}  # mapping of l3out name to vrf vnid
+        for v in eptVnid.find(fabric=self.fabric.fabric):
             vnids[v.name] = v.vnid
         for c in self.mo_classes["l3extRsEctx"].find(fabric=self.fabric.fabric):
             if c.tDn in vnids:
-                l3ctx[c.parent]  = vnids[c.tDn]
+                l3ctx[c.parent] = vnids[c.tDn]
             else:
                 logger.warn("failed to map l3extRsEctx tDn(%s) to vrf vnid", c.tDn)
         for obj in self.mo_classes["l3extExtEncapAllocator"].find(fabric=self.fabric.fabric):
             new_vnid = eptVnid(
-                fabric = self.fabric.fabric,
-                vnid = int(re.sub("vxlan-","", obj.extEncap)),
-                name = obj.dn,
-                encap = obj.encap,
-                external = True,
-                ts = ts
+                fabric=self.fabric.fabric,
+                vnid=int(re.sub("vxlan-", "", obj.extEncap)),
+                name=obj.dn,
+                encap=obj.encap,
+                external=True,
+                ts=ts
             )
             if obj.parent in l3ctx:
                 new_vnid.vrf = l3ctx[obj.parent]
@@ -889,7 +890,7 @@ class eptSubscriber(object):
                 logger.warn("failed to map l3extOut(%s) to vrf vnid", obj.parent)
             bulk_objects.append(new_vnid)
 
-        if len(bulk_objects)>0:
+        if len(bulk_objects) > 0:
             eptVnid.bulk_save(bulk_objects, skip_validation=False)
         return True
 
@@ -913,11 +914,11 @@ class eptSubscriber(object):
         logger.debug("mapping epg to bd vnid")
         # need to build mapping of epg to bd. to do so need to get the dn of the BD for each epg
         # and then lookup into vnids table for bd name to get bd vnid to merge into epg table
-        bulk_object_keys = {}   # dict to prevent duplicate addition of object to bulk_objects
+        bulk_object_keys = {}  # dict to prevent duplicate addition of object to bulk_objects
         bulk_objects = []
-        vnids = {}      # indexed by bd/vrf name (dn), contains only vnid
-        epgs = {}       # indexed by epg name (dn), contains full object
-        for v in eptVnid.find(fabric=self.fabric.fabric): 
+        vnids = {}  # indexed by bd/vrf name (dn), contains only vnid
+        epgs = {}  # indexed by epg name (dn), contains full object
+        for v in eptVnid.find(fabric=self.fabric.fabric):
             vnids[v.name] = v.vnid
         for e in eptEpg.find(fabric=self.fabric.fabric):
             epgs[e.name] = e
@@ -925,7 +926,7 @@ class eptSubscriber(object):
             logger.debug("map epg bd vnid from %s", classname)
             for mo in self.mo_classes[classname].find(fabric=self.fabric.fabric):
                 epg_name = re.sub("/(rsbd|rsEPpInfoToBD|rsmgmtBD)$", "", mo.dn)
-                bd_name = mo.tDn 
+                bd_name = mo.tDn
                 if epg_name not in epgs:
                     logger.warn("cannot map bd to unknown epg '%s' from '%s'", epg_name, classname)
                     continue
@@ -939,7 +940,7 @@ class eptSubscriber(object):
                 else:
                     logger.warn("skipping duplicate dn: %s", epg_name)
 
-        if len(bulk_objects)>0:
+        if len(bulk_objects) > 0:
             # only adding vnid here which was validated from eptVnid so no validation required
             eptEpg.bulk_save(bulk_objects, skip_validation=True)
         return True
@@ -960,11 +961,12 @@ class eptSubscriber(object):
         # performance hit even with max scale
         vnids = {}
         epgs = {}
-        for v in eptVnid.find(fabric=self.fabric.fabric): 
+        for v in eptVnid.find(fabric=self.fabric.fabric):
             vnids[v.name] = v.vnid
         for e in eptEpg.find(fabric=self.fabric.fabric):
             # we only care about the bd vnid, only add to epgs list if a non-zero value is present
-            if e.bd != 0: epgs[e.name] = e.bd
+            if e.bd != 0:
+                epgs[e.name] = e.bd
         # although not technically an epg, eptVnsLIfCtxToBD contains a mapping to bd that we need
         for mo in self.mo_classes["vnsRsLIfCtxToBD"].find(fabric=self.fabric.fabric):
             if mo.tDn in vnids:
@@ -986,18 +988,18 @@ class eptSubscriber(object):
                     # FYI - we support fvSubnet on BD and EPG for shared services so duplicate ip
                     # can exist. unique index is disabled on eptSubnet to support this... 
                     bulk_objects.append(eptSubnet(
-                        fabric = self.fabric.fabric,
-                        bd = bd_vnid,
-                        name = mo.dn,
-                        ip = mo.ip,
-                        ts = mo.ts
+                        fabric=self.fabric.fabric,
+                        bd=bd_vnid,
+                        name=mo.dn,
+                        ip=mo.ip,
+                        ts=mo.ts
                     ))
                 else:
                     logger.warn("failed to map subnet '%s' (%s) to a bd", mo.ip, mo.parent)
 
-        logger.debug("flushing entries in %s for fabric %s",eptSubnet._classname,self.fabric.fabric)
-        eptSubnet.delete(_filters={"fabric":self.fabric.fabric})
-        if len(bulk_objects)>0:
+        logger.debug("flushing entries in %s for fabric %s", eptSubnet._classname, self.fabric.fabric)
+        eptSubnet.delete(_filters={"fabric": self.fabric.fabric})
+        if len(bulk_objects) > 0:
             eptSubnet.bulk_save(bulk_objects, skip_validation=False)
         return True
 
@@ -1005,7 +1007,7 @@ class eptSubscriber(object):
         """ if pairT changes in fabricProtPol then trigger hard restart """
         logger.debug("handle fabricProtPol event: %s", attr["pairT"])
         if "pairT" in attr and attr["pairT"] != self.settings.vpc_pair_type:
-            msg="fabricProtPol changed from %s to %s" % (self.settings.vpc_pair_type,attr["pairT"])
+            msg = "fabricProtPol changed from %s to %s" % (self.settings.vpc_pair_type, attr["pairT"])
             logger.warn(msg)
             self.hard_restart(msg)
         else:
@@ -1045,14 +1047,14 @@ class eptSubscriber(object):
                         self.hard_restart(reason="leaf '%s' became active" % node.node)
                     else:
                         logger.debug("node %s '%s', sending watch_node event", node.node, status)
-                        msg = eptMsgWorkWatchNode("%s"%node.node,"watcher",{},WORK_TYPE.WATCH_NODE)
+                        msg = eptMsgWorkWatchNode("%s" % node.node, "watcher", {}, WORK_TYPE.WATCH_NODE)
                         msg.node = node.node
                         msg.ts = attr["_ts"]
                         msg.status = status
                         self.send_msg(msg)
             else:
                 if status != "active":
-                    logger.debug("ignorning '%s' event for unknown node: %s",status,r1.group("node"))
+                    logger.debug("ignorning '%s' event for unknown node: %s", status, r1.group("node"))
                 else:
                     # a new node became active, double check that is a leaf and if so trigger a 
                     # hard restart
@@ -1103,13 +1105,15 @@ class eptSubscriber(object):
                     msg = self.ept_epm_parser.parse(c, obj[c]["attributes"], ts)
                     if msg is not None:
                         create_msgs.append(msg)
-                        if msg.node not in endpoints: endpoints[msg.node] = {}
-                        if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
+                        if msg.node not in endpoints:
+                            endpoints[msg.node] = {}
+                        if msg.vnid not in endpoints[msg.node]:
+                            endpoints[msg.node][msg.vnid] = {}
                         endpoints[msg.node][msg.vnid][msg.addr] = 1
                 else:
                     logger.warn("invalid %s object: %s", c, obj)
             # send all create and delete messages to workers (delete first just because...)
-            logger.debug("build_endpoint_db sending %s create for %s", len(create_msgs),c)
+            logger.debug("build_endpoint_db sending %s create for %s", len(create_msgs), c)
             self.send_msg(create_msgs)
             create_msgs = []
 
@@ -1117,7 +1121,7 @@ class eptSubscriber(object):
         delete_msgs = self.get_epm_delete_msgs(endpoints)
         logger.debug("build_endpoint_db sending %s delete jobs", len(delete_msgs))
         self.send_msg(delete_msgs)
-        logger.debug("build_endpoint_db total time: %.3f", time.time()-start_time)
+        logger.debug("build_endpoint_db total time: %.3f", time.time() - start_time)
         return True
 
     def refresh_endpoint(self, vnid, addr, addr_type, qnum=1):
@@ -1130,12 +1134,12 @@ class eptSubscriber(object):
         if addr_type == "mac":
             classname = "epmMacEp"
             kwargs = {
-                "queryTargetFilter": "eq(epmMacEp.addr,\"%s\")" % addr  
+                "queryTargetFilter": "eq(epmMacEp.addr,\"%s\")" % addr
             }
         else:
             # need epmIpEp and epmRsMacEpToIpEpAtt objects for this addr
             classname = "epmDb"
-            f="or(eq(epmIpEp.addr,\"%s\"),wcard(epmRsMacEpToIpEpAtt.dn,\"ip-\[%s\]\"))"%(addr,addr)
+            f = "or(eq(epmIpEp.addr,\"%s\"),wcard(epmRsMacEpToIpEpAtt.dn,\"ip-\[%s\]\"))" % (addr, addr)
             kwargs = {
                 "queryTarget": "subtree",
                 "targetSubtreeClass": "epmIpEp,epmRsMacEpToIpEpAtt",
@@ -1157,17 +1161,19 @@ class eptSubscriber(object):
                     msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
                     if msg is not None:
                         create_msgs.append(msg)
-                        if msg.node not in endpoints: endpoints[msg.node] = {}
-                        if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
+                        if msg.node not in endpoints:
+                            endpoints[msg.node] = {}
+                        if msg.vnid not in endpoints[msg.node]:
+                            endpoints[msg.node][msg.vnid] = {}
                         endpoints[msg.node][msg.vnid][msg.addr] = 1
                 else:
                     logger.debug("ignoring invalid epm object %s", obj)
             # get delete jobs
             delete_msgs = self.get_epm_delete_msgs(endpoints, addr=addr, vnid=vnid)
             logger.debug("sending %s create and %s delete msgs from refresh", len(create_msgs),
-                    len(delete_msgs))
+                         len(delete_msgs))
             # set force flag and qnum on each msg to trigger analysis update
-            for msg in create_msgs+delete_msgs:
+            for msg in create_msgs + delete_msgs:
                 msg.qnum = qnum
                 msg.force = True
 
@@ -1203,22 +1209,21 @@ class eptSubscriber(object):
         for obj in self.db[eptHistory._classname].find(flt, projection):
             # if in endpoints dict, then stil exists in the fabric so do not create a delete event
             if obj["node"] in endpoints and obj["vnid"] in endpoints[obj["node"]] and \
-                obj["addr"] in endpoints[obj["node"]][obj["vnid"]]:
+                    obj["addr"] in endpoints[obj["node"]][obj["vnid"]]:
                 continue
             if obj["type"] == "mac":
-                msg = self.ept_epm_parser.get_delete_event("epmMacEp", obj["node"], 
-                    obj["vnid"], obj["addr"], ts)
+                msg = self.ept_epm_parser.get_delete_event("epmMacEp", obj["node"],
+                                                           obj["vnid"], obj["addr"], ts)
                 if msg is not None:
                     delete_msgs.append(msg)
             else:
                 # create an epmRsMacEpToIpEpAtt and epmIpEp delete event
-                msg = self.ept_epm_parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"], 
-                    obj["vnid"], obj["addr"], ts)
+                msg = self.ept_epm_parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"],
+                                                           obj["vnid"], obj["addr"], ts)
                 if msg is not None:
                     delete_msgs.append(msg)
-                msg = self.ept_epm_parser.get_delete_event("epmIpEp", obj["node"], 
-                    obj["vnid"], obj["addr"], ts)
+                msg = self.ept_epm_parser.get_delete_event("epmIpEp", obj["node"],
+                                                           obj["vnid"], obj["addr"], ts)
                 if msg is not None:
                     delete_msgs.append(msg)
         return delete_msgs
-

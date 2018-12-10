@@ -1,18 +1,20 @@
+import logging
+
+from .common import common_event_attribute
+from .ept_stale import eptStaleEvent
 from ...rest import Rest
 from ...rest import api_register
-from . common import common_event_attribute
-from . ept_stale import eptStaleEvent
-import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
 
 history_event = {}
 common_attr = ["classname", "ts", "status", "remote", "pctag", "flags", "tunnel_flags", "encap",
-                "intf_id", "intf_name", "rw_mac", "rw_bd", "epg_name", "vnid_name"]
+               "intf_id", "intf_name", "rw_mac", "rw_bd", "epg_name", "vnid_name"]
 # pull interesting common attributes
 for a in common_attr:
     history_event[a] = common_event_attribute[a]
+
 
 @api_register(parent="fabric", path="ept/history")
 class eptHistory(Rest):
@@ -55,7 +57,7 @@ class eptHistory(Rest):
             "type": str,
             "key": True,
             "key_index": 2,
-            "default": "0.0.0.0",   # default is only used for swagger docs example fields
+            "default": "0.0.0.0",  # default is only used for swagger docs example fields
             "description": """
             for endpoints of type ipv4 this is 32-bit ipv4 address, for endpoints of type ipv6 this
             is 64-bit ipv6 address, and for endpoints of type mac this is 48-bit mac address
@@ -133,11 +135,11 @@ class eptHistoryEvent(object):
         self.watch_stale_event = eptStaleEvent()
 
     def __repr__(self):
-        return "%s %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s], flags(%s):[%s], tflags:%s"%(
-                self.status, self.ts, self.pctag, self.intf_id, self.encap, self.rw_bd, self.rw_mac,
-                len(self.flags), ",".join(self.flags),
-                self.tunnel_flags
-            )
+        return "%s %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s], flags(%s):[%s], tflags:%s" % (
+            self.status, self.ts, self.pctag, self.intf_id, self.encap, self.rw_bd, self.rw_mac,
+            len(self.flags), ",".join(self.flags),
+            self.tunnel_flags
+        )
 
     def to_dict(self):
         """ convert object to dict for insertion into eptHistory events list """
@@ -182,4 +184,3 @@ class eptHistoryEvent(object):
             event.epg_name = msg.epg_name
             event.vnid_name = msg.vnid_name
         return event
-

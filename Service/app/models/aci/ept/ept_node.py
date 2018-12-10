@@ -1,9 +1,11 @@
+import logging
+
 from ...rest import Rest
 from ...rest import api_register
-import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
+
 
 @api_register(parent="fabric", path="ept/node")
 class eptNode(Rest):
@@ -36,7 +38,7 @@ class eptNode(Rest):
             "max": 4096,
         },
         "name": {
-            "type":str, 
+            "type": str,
             "description": "node name as seen in fabric node vector",
         },
         "oob_addr": {
@@ -80,4 +82,3 @@ class eptNode(Rest):
             },
         },
     }
-

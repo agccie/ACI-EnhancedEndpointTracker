@@ -1,15 +1,16 @@
+import logging
+
+from .common import common_event_attribute
+from .common import get_vpc_domain_name
 from ...rest import Rest
 from ...rest import api_register
-from . common import get_vpc_domain_name
-from . common import common_event_attribute
-import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
 
-common_attr = ["ts", "pctag", "encap", "intf_name", "intf_id", "rw_mac", "rw_bd", "remote", 
-                "epg_name", "vnid_name"]
-offsubnet_event = { }
+common_attr = ["ts", "pctag", "encap", "intf_name", "intf_id", "rw_mac", "rw_bd", "remote",
+               "epg_name", "vnid_name"]
+offsubnet_event = {}
 # pull interesting common attributes
 for a in common_attr:
     offsubnet_event[a] = common_event_attribute[a]
@@ -56,7 +57,7 @@ class eptOffSubnet(Rest):
             "type": str,
             "key": True,
             "key_index": 2,
-            "default": "0.0.0.0",   # default is only used for swagger docs example fields
+            "default": "0.0.0.0",  # default is only used for swagger docs example fields
             "description": """
             for endpoints of type ipv4 this is 32-bit ipv4 address, for endpoints of type ipv6 this
             is 64-bit ipv6 address, and for endpoints of type mac this is 48-bit mac address
@@ -98,8 +99,8 @@ class eptOffSubnetEvent(object):
 
     def __repr__(self):
         return "%.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s], remote:0x%04x" % (
-                self.ts, self.pctag, self.intf_id, self.encap, self.rw_bd, self.rw_mac, self.remote
-            )
+            self.ts, self.pctag, self.intf_id, self.encap, self.rw_bd, self.rw_mac, self.remote
+        )
 
     def is_duplicate(self, event):
         """ check if this offsubnet event is logically the same as the provided offsubnet object """
@@ -129,8 +130,8 @@ class eptOffSubnetEvent(object):
             self.encap,
             self.pctag,
             self.epg_name,
-            "-" if len(self.rw_mac)==0 else self.rw_mac,
-            "-" if self.remote==0 else get_vpc_domain_name(self.remote),
+            "-" if len(self.rw_mac) == 0 else self.rw_mac,
+            "-" if self.remote == 0 else get_vpc_domain_name(self.remote),
         )
 
     @staticmethod
@@ -153,6 +154,3 @@ class eptOffSubnetEvent(object):
         event.rw_bd = h.rw_bd
         event.remote = h.remote
         return event
-
-
-

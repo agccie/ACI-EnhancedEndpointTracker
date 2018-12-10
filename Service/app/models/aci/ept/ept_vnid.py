@@ -1,14 +1,16 @@
+import logging
+
+from .ept_epg import pctag_validator
 from ...rest import Rest
 from ...rest import api_register
-from . ept_epg import pctag_validator
-import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
 
+
 @api_register(parent="fabric", path="ept/vnid")
 class eptVnid(Rest):
-    """ provide mapping of vnid to bd or vrf name """ 
+    """ provide mapping of vnid to bd or vrf name """
     logger = logger
 
     META_ACCESS = {
@@ -16,9 +18,9 @@ class eptVnid(Rest):
         "read": True,
         "update": False,
         "delete": False,
-        "db_index_unique": True,  
-        "db_index": ["fabric","name"],      # fabric+name(dn) is unique (for insert/update)
-        "db_index2": ["fabric", "vnid"],    # second index for quick lookup
+        "db_index_unique": True,
+        "db_index": ["fabric", "name"],  # fabric+name(dn) is unique (for insert/update)
+        "db_index2": ["fabric", "vnid"],  # second index for quick lookup
     }
 
     META = {

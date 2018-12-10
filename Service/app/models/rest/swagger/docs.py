@@ -1,10 +1,10 @@
+from flask import jsonify
 
 from .. import Rest
-from .. import api_register
 from .. import RouteInfo
+from .. import api_register
 from .. import registered_classes
-from flask import jsonify, current_app
-import logging
+
 
 def get_swagger_documentation():
     """ get swagger documentation for all rest endpoints """
@@ -16,7 +16,7 @@ def get_swagger_documentation():
             "title": "API Documentation",
         },
         "servers": [
-            { "url": "/api" },
+            {"url": "/api"},
         ],
         "paths": {},
         "components": {
@@ -25,7 +25,7 @@ def get_swagger_documentation():
                     "in": "query",
                     "name": "filter",
                     "required": False,
-                    "schema": { "type": "string"},
+                    "schema": {"type": "string"},
                     "description": """ 
 Filters allow user to perform advanced filtering on attributes to limit the number of objects read 
 or modified.  **Note** objects that support `bulk update` and `bulk delete` can utilize the same 
@@ -56,17 +56,17 @@ float timestamp `last_login`:
                   
                     """.strip()
                 },
-               "page": {
+                "page": {
                     "in": "query",
                     "name": "page",
                     "schema": {"type": "integer"},
                     "description": "page to return (default is page 0)"
-                }, 
+                },
                 "page-size": {
                     "in": "query",
                     "name": "page-size",
                     "schema": {"type": "integer"},
-                    "description":"number of objects per page (default is 1000)"
+                    "description": "number of objects per page (default is 1000)"
                 },
                 "sort": {
                     "in": "query",
@@ -105,7 +105,7 @@ float timestamp `last_login`:
                 "rsp-include": {
                     "in": "query",
                     "name": "rsp-include",
-                    "schema": {"type": "string", "enum":["self","children","subtree"]},
+                    "schema": {"type": "string", "enum": ["self", "children", "subtree"]},
                     "description": """ 
                         Include children or full subtree in response. By default, only the object 
                         matching the provided query filter is returned.
@@ -116,7 +116,7 @@ float timestamp `last_login`:
                 "create_response": {
                     "type": "object",
                     "properties": {
-                        "success":{
+                        "success": {
                             "type": "boolean",
                             "description": "successfully created object"
                         },
@@ -129,7 +129,7 @@ float timestamp `last_login`:
                 "create_id_response": {
                     "type": "object",
                     "properties": {
-                        "success":{
+                        "success": {
                             "type": "boolean",
                             "description": "successfully created object"
                         },
@@ -152,16 +152,14 @@ float timestamp `last_login`:
         c = registered_classes[c]
         if "read_obj_ref" in c._swagger:
             swagger["components"]["schemas"][c._classname] = c._swagger["read_obj_ref"]
-        for p in c._swagger: 
+        for p in c._swagger:
             swagger["paths"][p] = c._swagger[p]
 
     return jsonify(swagger)
 
 
-
 @api_register(path="/docs/")
 class Docs(Rest):
-
     META_ACCESS = {
         "read": False,
         "create": False,
@@ -169,7 +167,6 @@ class Docs(Rest):
         "delete": False,
         "routes": [
             RouteInfo(path="/", methods=["GET"], function=get_swagger_documentation,
-                        authenticated=False)
+                      authenticated=False)
         ],
     }
-    

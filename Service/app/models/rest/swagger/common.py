@@ -1,20 +1,19 @@
 """
 common functions for interacting with Rest objects to build swagger docs
 """
+from ..role import Role
 import copy
 import logging
 import re
-
-from ..role import Role
 
 logger = logging.getLogger(__name__)
 
 # most CRUD operations will have following possibly responses
 crud_responses = {
     "200": {
-        "description": "successfully created or updated object",
+        "description":"successfully created or updated object",
         "content": {
-            "application/json": {
+            "application/json":{
                 "schema": {},
             },
         },
@@ -29,9 +28,9 @@ crud_responses = {
             }
         },
     },
-    "401": {"description": "unauthorized"},
-    "403": {"description": "forbidden resource"},
-    "404": {"description": "resource not found"},
+    "401": { "description": "unauthorized"},
+    "403": { "description": "forbidden resource"},
+    "404": { "description": "resource not found"},
 }
 # for now 400/401/403/404 are a little annoying, let's leave them out
 crud_responses.pop("400", None)
@@ -58,17 +57,14 @@ generic_read = {
 }
 generic_post = copy.deepcopy(crud_responses)
 generic_post["200"]["description"] = "successful operation"
-generic_get = {"200": {"description": "successful operation"}}
-generic_get["200"]["content"] = {"application/json": {"schema": {}}}
+generic_get = {"200": {"description":"successful operation"}}
+generic_get["200"]["content"]= {"application/json": {"schema":{}}}
 
-
-def swagger_generic_path(cls, path, method, summary, args=None, ret=None, authenticated=False,
-                         role=None):
+def swagger_generic_path(cls, path, method, summary, args=None, ret=None, authenticated=False, 
+    role=None):
     # add simple route to swagger doc with optional args and return attributes
-    if not hasattr(cls, "_swagger"):
-        setattr(cls, "_swagger", {})
-    if path not in cls._swagger:
-        cls._swagger[path] = {}
+    if not hasattr(cls, "_swagger"): setattr(cls, "_swagger", {})
+    if path not in cls._swagger: cls._swagger[path] = {}
     op = method.lower()
     cls._swagger[path][op] = {
         "summary": summary,
@@ -81,9 +77,9 @@ def swagger_generic_path(cls, path, method, summary, args=None, ret=None, authen
             cls._swagger[path][op]["description"] = role_fmt.format("any")
     else:
         cls._swagger[path][op]["description"] = unauthenticated
-    if op == "post":
+    if op == "post": 
         cls._swagger[path][op]["responses"] = copy.deepcopy(generic_post)
-    else:
+    else: 
         cls._swagger[path][op]["responses"] = copy.deepcopy(generic_get)
     # if any attributes exists within path, add them as parameters
     path_params = []
@@ -93,20 +89,18 @@ def swagger_generic_path(cls, path, method, summary, args=None, ret=None, authen
     cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls, paths=path_params)
 
     # build requestBody schema if args are provided
-    if args is not None and type(args) is list and len(args) > 0:
-        properties = {}
+    if args is not None and type(args) is list and len(args)>0:
+        properties = {} 
         for a in args:
             attr = None
-            if a in cls._attributes:
-                attr = cls._attributes[a]
-            elif a in cls._attributes_reference:
-                attr = cls._attributes_reference[a]
+            if a in cls._attributes: attr = cls._attributes[a]
+            elif a in cls._attributes_reference: attr = cls._attributes_reference[a]
             if attr is not None:
                 properties[a] = build_swagger_attribute(attr)
                 properties[a]["example"] = cls.get_attribute_default(a)
             else:
                 # known details about this attribute, just set it to a string
-                properties[a] = {"type": "string", "example": "", "description": a}
+                 properties[a] = {"type": "string", "example": "", "description": a}
         # add results to requestBody
         cls._swagger[path][op]["requestBody"] = {
             "required": True,
@@ -121,45 +115,40 @@ def swagger_generic_path(cls, path, method, summary, args=None, ret=None, authen
             }
         }
     # if ret is provided then overwrite responses 
-    if ret is not None and type(ret) is list and len(ret) > 0:
+    if ret is not None and type(ret) is list and len(ret)>0:
         properties = {}
         for a in ret:
             attr = None
-            if a in cls._attributes:
-                attr = cls._attributes[a]
-            elif a in cls._attributes_reference:
-                attr = cls._attributes_reference[a]
+            if a in cls._attributes: attr = cls._attributes[a]
+            elif a in cls._attributes_reference: attr = cls._attributes_reference[a]
             if attr is not None:
-                # properties[a] = {"description": attr["description"], "type": attr["type"].__name__}
+                #properties[a] = {"description": attr["description"], "type": attr["type"].__name__}
                 properties[a] = build_swagger_attribute(attr)
             elif a == "success":
-                properties[a] = {"description": "successful operation", "type": "bool"}
-            elif a == "error":
+                properties[a] = {"description": "successful operation", "type":"bool"}
+            elif a == "error": 
                 properties[a] = {"description": "description of error", "type": "string"}
             else:
-                properties[a] = {"description": a, "type": "string"}
+                properties[a] = {"description": a, "type":"string"}
         schema = {"properties": properties}
 
         cls._swagger[path][op]["responses"]["200"]["content"]["application/json"]["schema"] = schema
 
-
 def swagger_create(cls, path):
     # add swagger doc to class object for create operation
-    if not hasattr(cls, "_swagger"):
-        setattr(cls, "_swagger", {})
-    if path not in cls._swagger:
-        cls._swagger[path] = {}
+    if not hasattr(cls, "_swagger"): setattr(cls, "_swagger", {})
+    if path not in cls._swagger: cls._swagger[path] = {}
     schema_200 = "#/components/schemas/create_response"
-    if cls._access["expose_id"]:
+    if cls._access["expose_id"]: 
         schema_200 = "#/components/schemas/create_id_response"
     op = "post"
     cls._swagger[path][op] = {
-        "summary": "create %s" % cls._classname,
+        "summary":"create %s" % cls._classname,
         "description": role_fmt.format(Role.ROLES_STR.get(
-            cls._access["create_role"], cls._access["create_role"])),
+                                    cls._access["create_role"],cls._access["create_role"])),
         "tags": [cls._classname],
         "requestBody": {
-            "required": len(cls._keys) > 0,
+            "required": len(cls._keys)>0,
             "content": {
                 "application/json": {
                     "schema": build_swagger_schema(cls, "write")
@@ -168,23 +157,20 @@ def swagger_create(cls, path):
         },
         "responses": copy.deepcopy(crud_responses)
     }
-    cls._swagger[path][op]["responses"]["200"]["content"] \
+    cls._swagger[path][op]["responses"]["200"]["content"]\
         ["application/json"]["schema"]["$ref"] = schema_200
-
 
 def swagger_read(cls, path, bulk=False):
     # add swagger doc to class object for read operation
-    if not hasattr(cls, "_swagger"):
-        setattr(cls, "_swagger", {})
-    if path not in cls._swagger:
-        cls._swagger[path] = {}
+    if not hasattr(cls, "_swagger"): setattr(cls, "_swagger", {})
+    if path not in cls._swagger: cls._swagger[path] = {}
     op = "get"
     cls._swagger[path][op] = {
         "tags": [cls._classname],
         "responses": copy.deepcopy(crud_responses),
         "description": role_fmt.format(Role.ROLES_STR.get(
-            cls._access["read_role"], cls._access["read_role"])),
-    }
+                                    cls._access["read_role"],cls._access["read_role"])),
+        }
     if bulk:
         cls._swagger[path][op]["summary"] = "bulk read %s" % cls._classname
         cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls, full=True, query=True)
@@ -195,30 +181,27 @@ def swagger_read(cls, path, bulk=False):
     swagger_desc = "list of %s objects" % cls._classname
     gr = copy.deepcopy(generic_read)
     obj_schema = build_swagger_schema(cls, "read")
-    # gr["properties"]["objects"]["items"]= build_swagger_schema(cls,"read")
+    #gr["properties"]["objects"]["items"]= build_swagger_schema(cls,"read")
     gr["properties"]["objects"]["items"] = {"$ref": "#/components/schemas/%s" % cls._classname}
     gr["properties"]["objects"]["description"] = swagger_desc
-    cls._swagger[path]["get"]["responses"]["200"]["content"] \
+    cls._swagger[path]["get"]["responses"]["200"]["content"]\
         ["application/json"]["schema"] = gr
     # add read_obj_ref as attribute to path which will be 'popped' by docs and used to complete the 
     # reference used in objects['items']
     cls._swagger["read_obj_ref"] = obj_schema
 
-
 def swagger_update(cls, path, bulk=False):
     # add swagger doc to class object for update operation
-    if not hasattr(cls, "_swagger"):
-        setattr(cls, "_swagger", {})
-    if path not in cls._swagger:
-        cls._swagger[path] = {}
+    if not hasattr(cls, "_swagger"): setattr(cls, "_swagger", {})
+    if path not in cls._swagger: cls._swagger[path] = {}
 
     op = "patch"
     cls._swagger[path][op] = {
         "tags": [cls._classname],
         "description": role_fmt.format(Role.ROLES_STR.get(
-            cls._access["update_role"], cls._access["update_role"])),
+                                    cls._access["update_role"],cls._access["update_role"])),
         "requestBody": {
-            "required": len(cls._keys) > 0,
+            "required": len(cls._keys)>0,
             "content": {
                 "application/json": {
                     "schema": build_swagger_schema(cls, "write")
@@ -234,19 +217,16 @@ def swagger_update(cls, path, bulk=False):
         cls._swagger[path][op]["summary"] = "update %s" % cls._classname
         cls._swagger[path][op]["parameters"] = build_swagger_parameters(cls, path=True)
 
-
 def swagger_delete(cls, path, bulk=False):
     # add swagger doc to class object for delete operation
-    if not hasattr(cls, "_swagger"):
-        setattr(cls, "_swagger", {})
-    if path not in cls._swagger:
-        cls._swagger[path] = {}
+    if not hasattr(cls, "_swagger"): setattr(cls, "_swagger", {})
+    if path not in cls._swagger: cls._swagger[path] = {}
 
     op = "delete"
     cls._swagger[path][op] = {
         "tags": [cls._classname],
         "description": role_fmt.format(Role.ROLES_STR.get(
-            cls._access["delete_role"], cls._access["delete_role"])),
+                                    cls._access["delete_role"],cls._access["delete_role"])),
         "responses": copy.deepcopy(crud_responses)
     }
     if bulk:
@@ -263,7 +243,7 @@ def build_swagger_attribute(attr):
         "description": attr.get("description", "").strip()
     }
     p = {}
-    if attr["type"] is list:
+    if attr["type"] is list: 
         parent["type"] = "array"
         parent["items"] = {}
         p = parent["items"]
@@ -278,7 +258,7 @@ def build_swagger_attribute(attr):
         bool: "boolean",
         dict: "object",
         list: "array"
-    }.get(subtype, "string")
+    }.get(subtype, "string")    
 
     # check for regex validator
     if subtype is str and attr["regex"] is not None:
@@ -288,60 +268,52 @@ def build_swagger_attribute(attr):
     if subtype is float or subtype is int:
         if attr["min"] is not None:
             p["minimum"] = attr["min"]
-            if attr["max"] is None:
-                p["exclusiveMinimum"] = True
+            if attr["max"] is None: p["exclusiveMinimum"] = True
         if attr["max"] is not None:
             p["maximum"] = attr["max"]
-            if attr["min"] is None:
-                p["exclusiveMaximum"] = True
-        if subtype is float:
-            p["format"] = "double"
+            if attr["min"] is None: p["exclusiveMaximum"] = True
+        if subtype is float: p["format"] = "double"
 
     # force user to use a particular value from list
-    if attr["values"] is not None and len(attr["values"]) > 0:
+    if attr["values"] is not None and len(attr["values"])>0:
         p["enum"] = attr["values"]
 
     # add object sub-data
-    if subtype is dict and attr["meta"] is not None and len(attr["meta"]) > 0:
+    if subtype is dict and attr["meta"] is not None and len(attr["meta"])>0:
         p["properties"] = {}
-        for a in sorted(attr["meta"]):
+        for a in sorted(attr["meta"]): 
             p["properties"][a] = build_swagger_attribute(attr["meta"][a])
     return parent
-
 
 def build_swagger_schema(cls, op="read"):
     # receive Rest cls instance and build swagger properties used for body
     # in create/update/delete along with response for read
 
     # sort attributes by name with keys (required) first
-    a_keys, a_non_keys = [], []
+    a_keys , a_non_keys = [], []
     for a in sorted(cls._attributes):
-        if cls._attributes[a]["key"]:
-            a_keys.append(a)
-        else:
-            a_non_keys.append(a)
+        if cls._attributes[a]["key"]: a_keys.append(a)
+        else: a_non_keys.append(a)
 
     schema = {
         "type": "object",
         "required": a_keys,
         "properties": {}
     }
-    for a in a_keys + a_non_keys:
+    for a in a_keys+a_non_keys:
         attr = cls._attributes[a]
         if op == "read" and not attr["read"] or \
-                op == "write" and not attr["write"]:
-            continue
+            op == "write" and not attr["write"]: continue
         schema["properties"][a] = build_swagger_attribute(attr)
         schema["properties"][a]["example"] = cls.get_attribute_default(a)
-    if cls._access["expose_id"] and op != "write":
+    if cls._access["expose_id"] and op!="write":
         schema["properties"]["_id"] = {
             "description": "%s unique id" % cls._classname,
             "type": "string"
         }
     return schema
 
-
-def build_swagger_parameters(cls, path=False, query=False, full=False, paths=[]):
+def build_swagger_parameters(cls, path=False,query=False,full=False,paths=[]):
     """ receive Rest cls instance and build swagger parameters used within path
         for key lookup along with possible query parameters.
             path(bool)  create path parameter for all keys
@@ -350,9 +322,8 @@ def build_swagger_parameters(cls, path=False, query=False, full=False, paths=[])
             paths(list) manual list of path attributes names to create
     """
     parameters = []
-    if path or len(paths) > 0:
-        if len(paths) == 0:
-            paths = cls._keys
+    if path or len(paths)>0:
+        if len(paths) == 0: paths = cls._keys
         for a in paths:
             attr = cls._attributes[a]
             s = {
@@ -368,7 +339,7 @@ def build_swagger_parameters(cls, path=False, query=False, full=False, paths=[])
                 "description": attr.get("description", "").strip(),
                 "schema": build_swagger_attribute(attr)
             })
-        if cls._access["expose_id"]:
+        if cls._access["expose_id"]: 
             parameters.append({
                 "in": "path",
                 "name": "_id",
@@ -386,7 +357,7 @@ def build_swagger_parameters(cls, path=False, query=False, full=False, paths=[])
             "$ref": "#/components/parameters/filter"
         })
         if full:
-            parameters += [
+            parameters+= [
                 {"$ref": "#/components/parameters/sort"},
                 {"$ref": "#/components/parameters/page"},
                 {"$ref": "#/components/parameters/page-size"},
@@ -396,3 +367,5 @@ def build_swagger_parameters(cls, path=False, query=False, full=False, paths=[])
             ]
 
     return parameters
+
+

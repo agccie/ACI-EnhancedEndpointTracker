@@ -1,23 +1,20 @@
+
+from ..utils import get_user_data
+from .dependency import RestDependency
+from flask import abort
+from functools import wraps
+from swagger.common import (swagger_create, swagger_read, swagger_update,
+                            swagger_delete, swagger_generic_path)
 import copy
 import inspect
 import re
-from functools import wraps
-
-from flask import abort
-
-from swagger.common import (swagger_create, swagger_read, swagger_update,
-                            swagger_delete, swagger_generic_path)
-from .dependency import RestDependency
-from ..utils import get_user_data
 
 root = RestDependency(None)
-registered_classes = {}  # all register classes indexed by classname
-registered_callbacks = {}  # all registered callbacks indexed by classname that needs to be attached
+registered_classes = {}     # all register classes indexed by classname
+registered_callbacks = {}   # all registered callbacks indexed by classname that needs to be attached
+                            # to Rest classes
 
-
-# to Rest classes
-
-def api_register(path=None, parent=None):
+def api_register(path=None,  parent=None):
     """ register REST class with API.  Optional arguments are as follows: 
 
             path    custom api path relative to api blueprint. if not set then 
@@ -39,26 +36,22 @@ def api_register(path=None, parent=None):
             are deleted.
     """
     global root
-
     def decorator(cls):
         # stage for registration 
         _cname = cls.__name__.lower()
-        if _cname not in registered_classes:
+        if _cname not in registered_classes: 
             # create dependency node for class
             node = RestDependency(cls, path=path)
-            if parent is None:
-                root.add_child(node)
-            else:
+            if parent is None: root.add_child(node)
+            else: 
                 root.add_loose(node)
                 node.set_parent_classname(parent)
             registered_classes[_cname] = cls
         return cls
-
     return decorator
-
-
-def api_route(authenticated=True, keyed_url=False, methods=None, path=None, role=None,
-              summary=None, swag_args=None, swag_ret=None):
+   
+def api_route(authenticated = True, keyed_url = False, methods = None, path = None, role = None, 
+    summary = None, swag_args = None, swag_ret = None):
     """ register a custom route to a Rest class method. This simplifies route declaration and 
         validation under several common use cases below. Additionally, any non-key arguments
         provided under the function that are also defined under the META dict will use the 
@@ -167,44 +160,34 @@ def api_route(authenticated=True, keyed_url=False, methods=None, path=None, role
         "swag_args": swag_args,
         "swag_ret": swag_ret
     })
-
     def add_route_decorator(func):
         spec = inspect.getargspec(func)
-        if len(spec.args) > 0:
+        if len(spec.args)>0:
             start_index = 1
-            if spec.args[0] == "self":
-                route_info.is_self = True
-            elif spec.args[0] == "cls":
-                route_info.is_cls = True
-            else:
-                start_index = 0
-            route_info.args = [[i, _undefined()] for i in spec.args[start_index:]]
-            if spec.defaults is not None and len(spec.defaults) > 0 and \
-                    len(spec.defaults) <= len(route_info.args):
+            if spec.args[0]=="self": route_info.is_self = True
+            elif spec.args[0]=="cls": route_info.is_cls = True
+            else: start_index = 0
+            route_info.args = [[i,_undefined()] for i in spec.args[start_index:] ]
+            if spec.defaults is not None and len(spec.defaults)>0 and \
+                len(spec.defaults)<=len(route_info.args):
                 # walk backwords on spec.defaults to set corresponding args default
-                for i, v in enumerate(reversed(spec.defaults)):
-                    route_info.args[-(i + 1)][1] = v
+                for i,v in enumerate(reversed(spec.defaults)):
+                    route_info.args[-(i+1)][1] = v
 
             # set swag_args if not provided by the user
             if route_info.swag_args is None:
                 route_info.swag_args = [a[0] for a in route_info.args]
 
         route_info.kwargs = (spec.keywords is not None)
-        if route_info.path is None:
-            route_info.path = func.__name__
-        if route_info.summary is None:
-            route_info.summary = ""
+        if route_info.path is None: route_info.path = func.__name__
+        if route_info.summary is None: route_info.summary = ""
         route_info.function = func
 
         @wraps(func)
-        def decorator(*args, **kwargs):
-            return func(*args, **kwargs)
-
+        def decorator(*args, **kwargs): return func(*args, **kwargs)
         decorator.route_info = route_info
         return decorator
-
     return add_route_decorator
-
 
 def api_callback(callback, cls=None):
     """ register a function callback for a CRUD action for provided cls REST object. cls can be 
@@ -269,29 +252,24 @@ def api_callback(callback, cls=None):
 
             after_delete    callback triggered after a db delete
     """
-
     def add_callback_decorator(func):
         callback_info = CallbackInfo(callback=callback, function=func)
         # if cls is provided, then ensure it inherits rest (basic check) and then add to 
         # registered_callbacks. Else, assume callback is tied to cls that will be caught at register
         if cls is not None:
-            cls_name = "%s" % cls  # this includes full package path for name
+            cls_name = "%s" % cls   # this includes full package path for name
             if not hasattr(cls, "META") or not hasattr(cls, "_access") \
-                    or not hasattr(cls, "_classname"):
+                or not hasattr(cls, "_classname"):
                 raise Exception("cls %s has not inherited Rest class" % cls_name)
-            if cls_name not in registered_callbacks:
+            if cls_name not in registered_callbacks: 
                 registered_callbacks[cls_name] = {"cls": cls}
             registered_callbacks[cls_name][callback] = callback_info
 
         @wraps(func)
-        def decorator(*args, **kwargs):
-            return func(*args, **kwargs)
-
+        def decorator(*args, **kwargs): return func(*args, **kwargs)
         decorator.callback_info = callback_info
         return decorator
-
     return add_callback_decorator
-
 
 def register(api, uni=True):
     """ register routes for each class with provided api blueprint and build per-object swagger 
@@ -302,11 +280,11 @@ def register(api, uni=True):
     root.build()
     if uni:
         # if uni is enabled then required before any other object is created
+        from .universe import Universe
         uni_node = root.find_classname("universe")
         children = [c for c in root.children]
         for c in children:
-            if c is uni_node:
-                continue
+            if c is uni_node: continue
             root.remove_child(c)
             uni_node.add_child(c)
             c.set_parent_classname("universe")
@@ -314,35 +292,32 @@ def register(api, uni=True):
 
     # raise warning for keypath collision (indexed per method)
     unique_path = {}
-
     def warn_dup(c, method, path):
-        if type(method) is not list:
-            method = [method]
+        if type(method) is not list: method = [method]
         for m in method:
-            if m not in unique_path:
-                unique_path[m] = {}
+            if m not in unique_path: unique_path[m] = {}
             if path in unique_path[m]:
                 c.logger.warn("duplicate path %s to %s (%s)", c._classname, unique_path[m][path],
-                              path)
+                    path)
             else:
                 unique_path[m][path] = c._classname
 
     for node in root.get_ordered_objects():
         c = node.obj
-        # c.logger.debug("*"*80)
+        #c.logger.debug("*"*80)
         c._dependency = node
         c.init(force=True)
         # after class has been init, check for method route_info and callback_info
         for name, method in c.__dict__.iteritems():
             # route_info for normal bound methods on object
-            if hasattr(method, "route_info"):
+            if hasattr(method, "route_info"): 
                 c._access["routes"].append(method.route_info)
             # route_info for classmethod and staticmethods
             elif hasattr(method, "__func__") and hasattr(method.__func__, "route_info"):
                 c._access["routes"].append(method.__func__.route_info)
 
             # callback_info for normal bound methods on object
-            if hasattr(method, "callback_info"):
+            if hasattr(method, "callback_info"): 
                 c._access[method.callback_info.callback] = method.callback_info
             # callback_info for classmethod and staticmethods
             elif hasattr(method, "__func__") and hasattr(method.__func__, "callback_info"):
@@ -352,37 +327,33 @@ def register(api, uni=True):
         parent = None
         if node.parent is not None and node.parent.obj is not None:
             parent = node.parent.obj
-            # c.logger.debug("parent: %s" , parent._classname)
-        keys = {}  # dict of keys per key_index
+            #c.logger.debug("parent: %s" , parent._classname)
+        keys = {}   # dict of keys per key_index
         for attr in c._attributes:
             if c._attributes[attr]["key"] and (parent is None or \
-                                               (parent is not None and attr not in parent._keys)):
+                (parent is not None and attr not in parent._keys)):
                 _type = c._attributes[attr]["type"]
                 _index = c._attributes[attr]["key_index"]
-                if _index not in keys:
-                    keys[_index] = {}
+                if _index not in keys: keys[_index] = {}
                 key_type = c._attributes[attr]["key_type"]
-                if key_type in ["string", "int", "float", "path", "any", "uuid", "filename"]:
+                if key_type in ["string","int","float","path","any","uuid", "filename"]:
                     keys[_index][attr] = "<%s:%s>" % (key_type, attr)
-                elif _type is str:
-                    keys[_index][attr] = "<string:%s>" % attr
-                elif _type is int:
-                    keys[_index][attr] = "<int:%s>" % attr
-                elif _type is float:
-                    keys[_index][attr] = "<float:%s>" % attr
+                elif _type is str: keys[_index][attr] = "<string:%s>" % attr
+                elif _type is int: keys[_index][attr] = "<int:%s>" % attr
+                elif _type is float: keys[_index][attr] = "<float:%s>" % attr
                 else:
                     c.logger.error("invalid type for key: [%s, %s, %s]" % (
                         c.__name__, attr, _type))
                     continue
                 if c._access["keyed_path"]:
-                    if len(c._attributes[attr]["key_sn"]) > 0:
-                        keys[_index][attr] = "%s-%s" % (c._attributes[attr]["key_sn"],
-                                                        keys[_index][attr])
+                    if len(c._attributes[attr]["key_sn"])>0: 
+                        keys[_index][attr] = "%s-%s" % (c._attributes[attr]["key_sn"], 
+                                keys[_index][attr])
                     else:
                         keys[_index][attr] = "%s-%s" % (attr, keys[_index][attr])
 
         # build list of keys sorted first by index
-        key_string = []
+        key_string = [] 
         for _index in sorted(keys):
             for attr in sorted(keys[_index]):
                 c._dn_attributes.append(attr)
@@ -393,68 +364,67 @@ def register(api, uni=True):
         # create key path and swagger key paths
         path = "/%s" % "/".join(c._classname.split("."))
         if parent is None:
-            if len(key_string) > 0:
+            if len(key_string)>0:
                 key_path = "%s/%s" % (path, key_string)
             else:
                 key_path = path
         else:
             # add namespace if present
-            if c._access["namespace"] is not None and len(c._access["namespace"]) > 0:
-                key_path = "%s/%s/%s" % (parent._key_path, c._access["namespace"].lower(), key_string)
+            if c._access["namespace"] is not None and len(c._access["namespace"])>0:
+                key_path = "%s/%s/%s"%(parent._key_path, c._access["namespace"].lower(),key_string)
             else:
                 key_path = "%s/%s" % (parent._key_path, key_string)
             c._dn_attributes = parent._dn_attributes + c._dn_attributes
         # remove duplicate slashes from all paths
-        path = re.sub("//", "/", path)
-        key_path = re.sub("//", "/", key_path)
-        key_swag_path = re.sub("<[a-z]+:([^>]+)>", r"{\1}", key_path)
+        path = re.sub("//","/", path)
+        key_path = re.sub("//","/", key_path)
+        key_swag_path = re.sub("<[a-z]+:([^>]+)>",r"{\1}", key_path)
         c._swagger = {}
 
         # add create path
         if c._access["create"]:
             endpoint = "%s_create" % c.__name__.lower()
-            api.add_url_rule(path, endpoint, c.api_create, methods=["POST"])
-            # c.logger.debug("registered create path: POST %s", path)
-            if path not in c._swagger:
-                c._swagger[path] = {}
+            api.add_url_rule(path, endpoint , c.api_create, methods=["POST"])
+            #c.logger.debug("registered create path: POST %s", path)
+            if path not in c._swagger: c._swagger[path] = {}
             swagger_create(c, path)
 
         # create path will not have _id but read, update, and delete will 
         # include _id as key (if enabled)
-        if c._access["expose_id"]:
+        if c._access["expose_id"]: 
             # if keyed_path is enabled OR there is parent present ,then we should use
             # /_classname-{_id} for the _id key
             # else, the key_path will already include the classname and we should just use /{_id}
             if parent is not None or c._access["keyed_path"]:
-                cname = re.sub("\.", "/", c._classname)
+                cname = re.sub("\.","/", c._classname)
                 key_path = re.sub("//", "/", "%s/%s-%s" % (key_path, cname, "<string:_id>"))
             else:
                 key_path = re.sub("//", "/", "%s/%s" % (key_path, "<string:_id>"))
-            key_swag_path = re.sub("<[a-z]+:([^>]+)>", r"{\1}", key_path)
+            key_swag_path = re.sub("<[a-z]+:([^>]+)>",r"{\1}", key_path)
             c._dn_attributes.append("_id")
-
+           
         # set final _key_path and _key_swag_path along with calculated _dn_path
         c._key_path = key_path
         c._key_swag_path = key_swag_path
-        c._dn_path = re.sub("{.+?}", "{}", c._key_swag_path)
+        c._dn_path = re.sub("{.+?}","{}", c._key_swag_path)
 
-        # c.logger.debug("%s, dn: %s, attributes: %s", c._classname, c._dn_path, c._dn_attributes)
-        keyed = lambda cls: (key_path is not None and len(cls._keys) > 0 or c._access["expose_id"])
-        bulk = lambda cls: (key_path != path or (len(cls._keys) == 0 and not cls._access["expose_id"]))
+        #c.logger.debug("%s, dn: %s, attributes: %s", c._classname, c._dn_path, c._dn_attributes)
+        keyed = lambda cls: (key_path is not None and len(cls._keys)>0 or c._access["expose_id"])
+        bulk = lambda cls: (key_path!=path or (len(cls._keys)==0 and not cls._access["expose_id"]))
 
         # add read paths
         if c._access["read"]:
             if keyed(c):
                 endpoint = "%s_read" % c.__name__.lower()
-                api.add_url_rule(key_path, endpoint, c.api_read, methods=["GET"])
-                # c.logger.debug("registered read path: GET %s", key_path)
+                api.add_url_rule(key_path, endpoint, c.api_read,methods=["GET"])
+                #c.logger.debug("registered read path: GET %s", key_path)
                 swagger_read(c, key_swag_path, bulk=False)
                 warn_dup(c, "GET", key_path)
 
             if c._access["bulk_read"] and bulk(c):
                 endpoint = "%s_bulk_read" % c.__name__.lower()
                 api.add_url_rule(path, endpoint, c.api_read, methods=["GET"])
-                # c.logger.debug("registered bulk read path: GET %s", path)
+                #c.logger.debug("registered bulk read path: GET %s", path)
                 swagger_read(c, path, bulk=True)
                 warn_dup(c, "GET", path)
 
@@ -462,17 +432,17 @@ def register(api, uni=True):
         if c._access["update"]:
             if keyed(c):
                 endpoint = "%s_update" % c.__name__.lower()
-                api.add_url_rule(key_path, endpoint, c.api_update,
-                                 methods=["PATCH", "PUT"])
-                # c.logger.debug("registered update path: PATCH,PUT %s", key_path)
+                api.add_url_rule(key_path,endpoint,c.api_update,
+                    methods=["PATCH","PUT"])
+                #c.logger.debug("registered update path: PATCH,PUT %s", key_path)
                 swagger_update(c, key_swag_path, bulk=False)
                 warn_dup(c, ["PUT", "PATCH"], key_path)
 
             if c._access["bulk_update"] and bulk(c):
                 endpoint = "%s_bulk_update" % c.__name__.lower()
-                api.add_url_rule(path, endpoint, c.api_update,
-                                 methods=["PATCH", "PUT"])
-                # c.logger.debug("registered bulk update path: PATCH,PUT %s",path)
+                api.add_url_rule(path,endpoint,c.api_update,
+                    methods=["PATCH","PUT"])
+                #c.logger.debug("registered bulk update path: PATCH,PUT %s",path)
                 swagger_update(c, path, bulk=True)
                 warn_dup(c, ["PUT", "PATCH"], path)
 
@@ -480,16 +450,16 @@ def register(api, uni=True):
         if c._access["delete"]:
             if keyed(c):
                 endpoint = "%s_delete" % c.__name__.lower()
-                api.add_url_rule(key_path, endpoint, c.api_delete,
-                                 methods=["DELETE"])
-                # c.logger.debug("registered delete path: DELETE %s", key_path)
+                api.add_url_rule(key_path,endpoint,c.api_delete,
+                    methods=["DELETE"])
+                #c.logger.debug("registered delete path: DELETE %s", key_path)
                 swagger_delete(c, key_swag_path, bulk=False)
                 warn_dup(c, "DELETE", key_path)
 
             if c._access["bulk_delete"] and bulk(c):
                 endpoint = "%s_bulk_delete" % c.__name__.lower()
-                api.add_url_rule(path, endpoint, c.api_delete, methods=["DELETE"])
-                # c.logger.debug("registered bulk delete path: DELETE %s", path)
+                api.add_url_rule(path,endpoint,c.api_delete,methods=["DELETE"])
+                #c.logger.debug("registered bulk delete path: DELETE %s", path)
                 swagger_delete(c, path, bulk=True)
                 warn_dup(c, "DELETE", path)
 
@@ -498,25 +468,25 @@ def register(api, uni=True):
             # build dynamic route function to handle rbac/role (and any new pre_check features)
             r.init_function(c)
             if not callable(r.function):
-                c.logger.warn("%s skipping invalid route: %s, bad function", c._classname, r.function)
+                c.logger.warn("%s skipping invalid route: %s, bad function",c._classname,r.function)
                 continue
             if len(r.path) == 0:
                 c.logger.warn("%s skipping invalid route: %s, bad path", c._classname, r.path)
                 continue
             if r.keyed_url:
-                rpath = "%s/%s" % (key_path, re.sub("(^/+)|(/+$)", "", r.path))
-            else:
-                rpath = "%s/%s" % (path, re.sub("(^/+)|(/+$)", "", r.path))
+                rpath = "%s/%s"%(key_path, re.sub("(^/+)|(/+$)","",r.path))
+            else: 
+                rpath = "%s/%s"%(path, re.sub("(^/+)|(/+$)","",r.path))
             # fixup path
-            rpath = re.sub("//", "/", rpath)
-            endpoint = "%s_%s" % (c.__name__.lower(), r.function.__name__)
-
+            rpath = re.sub("//","/", rpath)
+            endpoint="%s_%s" % (c.__name__.lower(), r.function.__name__)
+            
             api.add_url_rule(rpath, endpoint, r.function, methods=r.methods)
             c.logger.debug("registered custom path: %s %s", r.methods, rpath)
-            swag_rpath = re.sub("<[a-z]+:([^>]+)>", r"{\1}", rpath)
+            swag_rpath = re.sub("<[a-z]+:([^>]+)>",r"{\1}", rpath)
             swagger_generic_path(c, swag_rpath, r.methods[0], r.summary, r.swag_args, r.swag_ret,
-                                 authenticated=r.authenticated, role=r.role)
-            warn_dup(c, r.methods, rpath)
+                    authenticated=r.authenticated, role=r.role)
+            warn_dup(c,r.methods,rpath)
 
     # check registered_callbacks for additional callback_info (decorators used outside of class)
     # and set the method to the registered CallbackInfo object
@@ -524,8 +494,7 @@ def register(api, uni=True):
         cb = registered_callbacks[cls_name]
         cls = cb["cls"]
         for method in cb:
-            if method == "cls":
-                continue
+            if method == "cls": continue
             cls._access[method] = cb[method]
 
     # need to loop through all rest objects again and init callbacks
@@ -533,11 +502,9 @@ def register(api, uni=True):
         c = node.obj
         c.init_callbacks()
 
-
-class _undefined():
+class _undefined(): 
     """ local class type for differentiating between None and never defined """
     pass
-
 
 class RouteInfo(object):
     """ maintain standard route info attributes.  The attributes maintained within this class are 
@@ -570,7 +537,6 @@ class RouteInfo(object):
         "delete_role",
         "default_role",
     ]
-
     def __init__(self, **kwargs):
         self.authenticated = kwargs.get("authenticated", True)
         self.keyed_url = kwargs.get("keyed_url", False)
@@ -582,33 +548,30 @@ class RouteInfo(object):
         self.swag_ret = kwargs.get("swag_ret", None)
         self.function = kwargs.get("function", None)
         # dynamically discovered by api_route decorator
-        self.is_self = False  # for bound functions with first argument 'self'
-        self.is_cls = False  # for classmethod functions with first argument 'cls'
-        self.args = []  # list of function args lists[name, default], excluding self/cls
-        self.kwargs = False  # bool indicating whether function expects keyword args
+        self.is_self = False    # for bound functions with first argument 'self'
+        self.is_cls = False     # for classmethod functions with first argument 'cls'
+        self.args = []          # list of function args lists[name, default], excluding self/cls
+        self.kwargs = False     # bool indicating whether function expects keyword args
         # flag indicate function init has completed
-        self.init = False
-        self.ofunc = None
+        self.init = False       
+        self.ofunc = None   
 
     def init_function(self, cls):
         """ wrap function with route prechecks """
-        if self.init:
-            return
+        if self.init: return
 
         # prevent duplicate inits
         self.init = True
 
         # don't do anything if original function is not callable
-        if not callable(self.function):
-            return
+        if not callable(self.function): return
 
         # override keyed_url to true if a key exists and normal class method used decorator
         if self.is_self and not self.keyed_url:
-            if cls._access["expose_id"]:
-                self.keyed_url = True
-            elif len(cls._attributes) > 0:
+            if cls._access["expose_id"]: self.keyed_url = True
+            elif len(cls._attributes)>0:
                 for attr in cls._attributes:
-                    if cls._attributes[attr]["key"]:
+                    if cls._attributes[attr]["key"]: 
                         self.keyed_url = True
                         break
 
@@ -651,8 +614,7 @@ class RouteInfo(object):
             data = get_user_data()
             for (farg, fval) in self.args:
                 # skip key args if keyed_url is set
-                if self.keyed_url and farg in keys:
-                    continue
+                if self.keyed_url and farg in keys: continue
                 required = isinstance(fval, _undefined)
                 # if route is not keyed but user specified path with args available, then those are
                 # preferred over user data. Check/validate those values first 
@@ -662,28 +624,25 @@ class RouteInfo(object):
                     if farg in cls._attributes or farg in cls._attributes_reference:
                         val = cls.validate_attribute(farg, val)
                     # add to ordered args if required, else add to optional_args.
-                    if required:
-                        ordered_args.append(val)
-                    else:
-                        optional_args[farg] = val
+                    if required: ordered_args.append(val)
+                    else: optional_args[farg] = val
                 elif required:
-                    abort(400, "missing required attribute %s" % farg)
+                    abort(400,"missing required attribute %s" % farg)
 
             # prepare final list of arguments for function
             if self.is_self:
                 # for self-bound methods, load mo add add as first argument to ordered_args
                 mo = cls.load(**keys)
-                if not mo.exists():
-                    okeys = ",".join(["%s=%s" % (k, keys[k]) for k in keys])
+                if not mo.exists(): 
+                    okeys = ",".join(["%s=%s" % (k,keys[k]) for k in keys])
                     abort(404, "%s (%s) not found" % (cls._classname, okeys))
                 ordered_args.insert(0, mo)
             else:
                 ordered_args = ordered_keys + ordered_args
                 # for class method, first argument is cls
-                if self.is_cls:
-                    ordered_args.insert(0, cls)
+                if self.is_cls: ordered_args.insert(0, cls)
             # execute the function
-            if len(optional_args) > 0:
+            if len(optional_args)>0:
                 return self.ofunc(*ordered_args, **optional_args)
             else:
                 return self.ofunc(*ordered_args)
@@ -694,21 +653,20 @@ class RouteInfo(object):
         self.function = pre_checks
 
         # set summary to provided summary or function doc string
-        if self.summary is None or len(self.summary) == 0:
+        if self.summary is None or len(self.summary) == 0: 
             self.summary = self.function.__doc__
 
         # set methods to a valid value, with default of GET
         methods = []
         if isinstance(self.methods, list):
             for m in self.methods:
-                if m not in ["GET", "DELETE", "POST", "PATCH", "PUT"]:
-                    # cls.logger.warn("%s invalid method: (%s) %s", cls._classname, self, m)
+                if m not in ["GET","DELETE","POST","PATCH","PUT"]:
+                    #cls.logger.warn("%s invalid method: (%s) %s", cls._classname, self, m)
                     continue
-                if m not in methods:
-                    methods.append(m)
-        if len(methods) == 0:
-            # cls.logger.warn("%s no valid methods %s", cls._classname, r)
-            methods = ["GET"]
+                if m not in methods: methods.append(m)
+        if len(methods)==0:
+            #cls.logger.warn("%s no valid methods %s", cls._classname, r)
+            methods=["GET"]
         self.methods = methods
 
         return self
@@ -722,24 +680,23 @@ class CallbackInfo(object):
             method      str, see method in Rest api_callback for allowed types and further info
     """
     allowed_args = [
-        "api",
-        "cls",
-        "data",
-        "filters",
-        "read_all",
+        "api", 
+        "cls", 
+        "data", 
+        "filters", 
+        "read_all", 
         "write_all"
     ]
     allowed_callbacks = [
-        "before_create",
-        "before_read",
-        "before_update",
+        "before_create", 
+        "before_read", 
+        "before_update", 
         "before_delete",
-        "after_create",
-        "after_read",
-        "after_update",
+        "after_create", 
+        "after_read", 
+        "after_update", 
         "after_delete"
     ]
-
     def __init__(self, callback=None, function=None):
         if not isinstance(callback, basestring) or callback not in CallbackInfo.allowed_callbacks:
             raise Exception("invalid callback type: %s" % callback)
@@ -760,23 +717,19 @@ class CallbackInfo(object):
         # present then an exception is raised
         spec = inspect.getargspec(self.function)
         self.kwargs = (spec.keywords is not None)
-        if len(spec.args) > 0:
+        if len(spec.args)>0:
             start_index = 1
-            if spec.args[0] == "cls":
-                self.is_cls = True
-            elif spec.args[0] == "self":
-                self.is_self = True
-            else:
-                start_index = 0
+            if spec.args[0]=="cls": self.is_cls = True
+            elif spec.args[0]=="self": self.is_self = True
+            else: start_index = 0
             for i, a in enumerate(spec.args[start_index:]):
                 if a == "cls" and self.cls:
                     raise Exception("duplicate callback argument '%s' in %s" % (a, self.function.__name__))
                 if a in self.arg_list:
                     raise Exception("duplicate callback argument '%s' in %s" % (a, self.function.__name__))
                 if a not in CallbackInfo.allowed_args:
-                    raise Exception("unsupported callback argument '%s' in %s, expecting %s" % (a,
-                                                                                                self.function.__name__,
-                                                                                                CallbackInfo.allowed_args))
+                    raise Exception("unsupported callback argument '%s' in %s, expecting %s" % (a, 
+                        self.function.__name__, CallbackInfo.allowed_args))
                 self.arg_list.append(a)
 
         # remap ofunc to original function
@@ -784,28 +737,23 @@ class CallbackInfo(object):
 
         # build new function that will send only required args to callback
         def decorator(**kwargs):
-            args = [kwargs.get(a, None) for a in self.arg_list]
+            args = [kwargs.get(a, None) for a in self.arg_list] 
             copy_kwargs = copy.deepcopy(kwargs)
             for a in self.arg_list:
-                if a in copy_kwargs:
+                if a in copy_kwargs: 
                     copy_kwargs.pop(a, None)
 
             # instaniated object is best effort... It does not make since for callbacks
             if self.is_self:
-                if self.kwargs:
-                    return self.ofunc(cls(), *args, **copy_kwargs)
-                else:
-                    return self.ofunc(cls(), *args)
+                if self.kwargs: return self.ofunc(cls(), *args, **copy_kwargs)
+                else: return self.ofunc(cls(), *args)
             elif self.is_cls:
-                if self.kwargs:
-                    return self.ofunc(cls, *args, **copy_kwargs)
-                else:
-                    return self.ofunc(cls, *args)
+                if self.kwargs: return self.ofunc(cls, *args, **copy_kwargs)
+                else: return self.ofunc(cls, *args)
             else:
-                if self.kwargs:
-                    return self.ofunc(*args, **copy_kwargs)
-                else:
-                    return self.ofunc(*args)
+                if self.kwargs: return self.ofunc(*args, **copy_kwargs)
+                else: return self.ofunc(*args)
 
         # remap function to the decorator
         self.function = decorator
+

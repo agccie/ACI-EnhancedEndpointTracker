@@ -1,35 +1,35 @@
-import logging
-import threading
-import time
 
+from ... rest import Rest
+from ... rest import api_register
+from ... rest import api_route
+from ... rest import api_callback
+from .. utils import clear_endpoint
+from . common import common_event_attribute
+from . common import get_mac_value
+from . common import parse_vrf_name
+from . common import subscriber_op
+from . ept_history import eptHistory
+from . ept_move import eptMove
+from . ept_msg import MSG_TYPE
+from . ept_node import eptNode
+from . ept_offsubnet import eptOffSubnet
+from . ept_rapid import eptRapid
+from . ept_remediate import eptRemediate
+from . ept_subnet import eptSubnet
+from . ept_stale import eptStale
 from flask import abort
 from flask import jsonify
 
-from .common import common_event_attribute
-from .common import get_mac_value
-from .common import parse_vrf_name
-from .common import subscriber_op
-from .ept_history import eptHistory
-from .ept_move import eptMove
-from .ept_msg import MSG_TYPE
-from .ept_node import eptNode
-from .ept_offsubnet import eptOffSubnet
-from .ept_rapid import eptRapid
-from .ept_remediate import eptRemediate
-from .ept_stale import eptStale
-from .ept_subnet import eptSubnet
-from ..utils import clear_endpoint
-from ...rest import Rest
-from ...rest import api_callback
-from ...rest import api_register
-from ...rest import api_route
+import logging
+import threading
+import time
 
 # module level logging
 logger = logging.getLogger(__name__)
 
 # reusable attributes for local event piggy-backing on history meta for consistency
-common_attr = ["ts", "status", "intf_id", "intf_name", "pctag", "encap", "rw_mac", "rw_bd",
-               "epg_name", "vnid_name"]
+common_attr = ["ts", "status", "intf_id", "intf_name", "pctag", "encap", "rw_mac", "rw_bd", 
+                "epg_name", "vnid_name"]
 local_event = {
     "node": {
         "type": int,
@@ -48,7 +48,6 @@ local_event = {
 for a in common_attr:
     local_event[a] = common_event_attribute[a]
 
-
 @api_register(parent="fabric", path="ept/endpoint")
 class eptEndpoint(Rest):
     """ endpoint info 
@@ -65,11 +64,11 @@ class eptEndpoint(Rest):
         "create": False,
         "read": True,
         "update": False,
-        "delete": False,  # custom delete function through workers
+        "delete": False,                # custom delete function through workers
         "db_index": ["addr", "vnid", "fabric"],
         "db_shard_enable": True,
         "db_shard_index": ["addr"],
-        "db_index2": ["addr_byte"],  # second index for quick lookup on addr_byte
+        "db_index2": ["addr_byte"],      # second index for quick lookup on addr_byte
     }
 
     META = {
@@ -86,7 +85,7 @@ class eptEndpoint(Rest):
             "type": str,
             "key": True,
             "key_index": 2,
-            "default": "0.0.0.0",  # default is only used for swagger docs example fields
+            "default": "0.0.0.0",   # default is only used for swagger docs example fields
             "description": """
             for endpoints of type ipv4 this is 32-bit ipv4 address, for endpoints of type ipv6 this
             is 64-bit ipv6 address, and for endpoints of type mac this is 48-bit mac address
@@ -115,7 +114,7 @@ class eptEndpoint(Rest):
             "description": """ control flag to distinguish between endpoints learned on an 
             application epg, an external l3out, the infra overlay, loopback, or pervasive svi
             """,
-        },
+        }, 
         "is_stale": {
             "type": bool,
             "default": False,
@@ -148,7 +147,7 @@ class eptEndpoint(Rest):
         "rapid_lcount": {
             "type": int,
             "description": "epm event count when last rapid rate calculation was performed",
-        },
+        },  
         "rapid_icount": {
             "type": int,
             "description": "epm events ignored while endpoint was marked as rapid",
@@ -192,7 +191,7 @@ class eptEndpoint(Rest):
         """ delete all endpoints and all historical data from database for the provided fabric.
             This requires that the fabric monitor is stopped.
         """
-        from ..fabric import Fabric
+        from .. fabric import Fabric
         f = Fabric.load(fabric=fabric)
         if not f.exists():
             abort(404, "fabric '%s' not found" % fabric)
@@ -200,32 +199,32 @@ class eptEndpoint(Rest):
         if f.get_fabric_status(api=False):
             abort(400, "cannot perform bulk endpoint delete while fabric is running")
         flt = {"fabric": fabric}
-        if vnid is not None and vnid > 0:
+        if vnid is not None and vnid>0: 
             flt["vnid"] = vnid
         # get number of endpoints that will be cleared
         count = 0
-        js = eptEndpoint.read(_params={"count": 1}, _projection={"addr": 1}, _filters=flt)
+        js = eptEndpoint.read(_params={"count":1}, _projection={"addr":1}, _filters=flt)
         if "count" in js:
             count = js["count"]
         # create message for fabric history
         msg = "bulk delete"
         if vnid is not None:
-            msg += " endpoint filter(vnid:%s)" % vnid
+            msg+= " endpoint filter(vnid:%s)" % vnid
         else:
-            msg += " all endpoints"
-        msg += " count(%s)" % js["count"]
+            msg+= " all endpoints"
+        msg+= " count(%s)" % js["count"]
         f.add_fabric_event("cleared", msg)
         cls.delete(_filters=flt)
-        return jsonify({"success": True, "count": js["count"]})
+        return jsonify({"success":True, "count":js["count"]})
 
     @api_route(path="delete", methods=["DELETE"], swag_ret=["success"])
     def delete_endpoint(self):
         """ delete endpoint and all historical data from database """
         (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.DELETE_EPT, qnum=0, data={
-            "addr": self.addr,
-            "vnid": self.vnid,
-            "type": self.type,
-        })
+                "addr": self.addr,
+                "vnid": self.vnid,
+                "type": self.type,
+            })
         if success:
             return self.refresh_endpoint()
         abort(500, err_str)
@@ -234,10 +233,10 @@ class eptEndpoint(Rest):
     def refresh_endpoint(self):
         """ force endpoint refresh by querying APIC epmDb to get current state of endpoint """
         (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.REFRESH_EPT, qnum=0, data={
-            "addr": self.addr,
-            "vnid": self.vnid,
-            "type": self.type,
-        })
+                "addr": self.addr,
+                "vnid": self.vnid,
+                "type": self.type,
+            })
         if success:
             return jsonify({"success": True})
         abort(500, err_str)
@@ -256,9 +255,9 @@ class eptEndpoint(Rest):
                 (addr & 0x0000ffffffff),
             ]
         elif data["type"] == "ipv6":
-            (data["addr_byte"], _) = eptSubnet.get_prefix_array("ipv6", data["addr"])
+            (data["addr_byte"], _) = eptSubnet.get_prefix_array("ipv6",data["addr"])
         else:
-            (data["addr_byte"], _) = eptSubnet.get_prefix_array("ipv4", data["addr"])
+            (data["addr_byte"], _) = eptSubnet.get_prefix_array("ipv4",data["addr"])
         return data
 
     @api_callback("after_delete")
@@ -275,13 +274,13 @@ class eptEndpoint(Rest):
     def clear_endpoint(self, nodes=[]):
         """ clear endpoint on one or more nodes """
         # on-demand import of eptWorkerFabric only at api call (prevents circular imports)
-        from .ept_worker_fabric import eptWorkerFabric
-        from ..fabric import Fabric
+        from . ept_worker_fabric import eptWorkerFabric
+        from .. fabric import Fabric
         # validate credentials exists before any other validation
         f = Fabric.load(fabric=self.fabric)
         if len(f.ssh_password) == 0 or len(f.ssh_username) == 0:
             abort(400, "cannot clear endpoint, ssh credentials not configured.")
-
+        
         if self.type == "mac":
             addr_type = "mac"
             vrf_name = ""
@@ -299,7 +298,7 @@ class eptEndpoint(Rest):
 
         # need to get pod for each node, ignore unknown nodes
         error_rows = []
-        valid_nodes = []  # list of tuples (pod, node)
+        valid_nodes = []    # list of tuples (pod, node)
         for n in nodes:
             obj = eptNode.load(fabric=self.fabric, node=n)
             if obj.exists():
@@ -308,23 +307,21 @@ class eptEndpoint(Rest):
                     valid_nodes.append((obj.pod_id, obj.node))
                 else:
                     logger.debug("invalid role %s for node %s", obj.role, n)
-                    error_rows.append("cannot clear endpoint on node %s, role %s" % (n, obj.role))
+                    error_rows.append("cannot clear endpoint on node %s, role %s" % (n,obj.role))
             else:
                 logger.debug("invalid/unknown node:0x%04x for fabric %s", n, self.fabric)
-                error_rows.append("invalid/unknown node %s" % n)
+                error_rows.append("invalid/unknown node %s"  % n)
         if len(valid_nodes) == 0:
             error_rows.append("no valid nodes provided")
             abort(400, ". ".join(error_rows))
 
         # execute clear endpoint in parallel across each node
         def per_node_clear_endpoint(switch):
-            switch["ret"] = clear_endpoint(self.fabric, switch["pod"], switch["node"], self.vnid,
-                                           self.addr, addr_type, vrf_name)
+            switch["ret"] = clear_endpoint(self.fabric, switch["pod"], switch["node"], self.vnid, 
+                                self.addr, addr_type, vrf_name)
             if switch["ret"]:
                 # add event to eptRemediate and send notification
-                switch["worker_fabric"].push_event(
-                    eptRemediate._classname,
-                    {
+                switch["worker_fabric"].push_event(eptRemediate._classname, {
                         "fabric": self.fabric,
                         "vnid": self.vnid,
                         "addr": self.addr,
@@ -335,13 +332,12 @@ class eptEndpoint(Rest):
                         "vnid_name": self.first_learn["vnid_name"],
                         "reason": "api",
                         "action": "clear"
-                    }
-                )
+                    })
                 # send notification if enabled
                 subject = "api clear endpoint"
                 txt = "api clear endpoint [fabric: %s, %s, addr: %s]" % (
                     self.fabric,
-                    self.events[0]["vnid_name"] if len(self.events) > 0 else "vnid:%d" % self.vnid,
+                    self.events[0]["vnid_name"] if len(self.events)>0 else "vnid:%d" % self.vnid,
                     self.addr
                 )
                 switch["worker_fabric"].send_notification("clear", subject, txt)
@@ -360,13 +356,12 @@ class eptEndpoint(Rest):
             t = threading.Thread(target=per_node_clear_endpoint, args=(process[node],))
             t.start()
             threads.append(t)
-        for t in threads:
-            t.join()
+        for t in threads: t.join()
         for node in process:
-            if not process[node]["ret"]:
+            if not process[node]["ret"]: 
                 error_rows.append("failed to clear endpoint on node %s" % node)
         return jsonify({
-            "success": len(error_rows) == 0,
+            "success": len(error_rows)==0, 
             "error": ". ".join(error_rows)
         })
 
@@ -389,9 +384,9 @@ class eptEndpointEvent(object):
 
     def __repr__(self):
         return "[%.3f] %s node:0x%04x pod:%d, pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
-            self.ts, self.status, self.node, self.pod, self.pctag, self.intf_id, self.encap,
-            self.rw_bd, self.rw_mac
-        )
+                self.ts, self.status, self.node, self.pod, self.pctag, self.intf_id, self.encap, 
+                self.rw_bd, self.rw_mac
+            )
 
     def to_dict(self):
         """ convert object to dict for insertion into eptEndpoint events list """
@@ -422,10 +417,10 @@ class eptEndpointEvent(object):
         event.node = node
         # pod needs to be calculated based on node but this operation is not always required so
         # will let caller manually set pod id if needed
-        # event.pod = 0
+        #event.pod = 0
         # intentionally ignore status from history event, will set directly to created/deleted 
         # before updating eptEndpoint entry
-        # event.status = h.status       
+        #event.status = h.status       
         event.ts = h.ts
         event.pctag = h.pctag
         event.encap = h.encap
@@ -436,3 +431,5 @@ class eptEndpointEvent(object):
         event.rw_mac = h.rw_mac
         event.rw_bd = h.rw_bd
         return event
+
+

@@ -1,24 +1,23 @@
+
+from ... utils import get_app_config
+from ... utils import get_db
+from .. utils import email
+from .. utils import syslog
+from . common import push_event
+from . ept_cache import eptCache
+from . ept_msg import eptEpmEventParser
+from . ept_settings import eptSettings
+
 import logging
 import time
 
-from .common import push_event
-from .ept_cache import eptCache
-from .ept_msg import eptEpmEventParser
-from .ept_settings import eptSettings
-from ..utils import email
-from ..utils import syslog
-from ...utils import get_app_config
-from ...utils import get_db
-
 # module level logging
 logger = logging.getLogger(__name__)
-
 
 class eptWorkerFabric(object):
     """ tracks cache and settings for each fabric actively being monitored, also provides useful
         notification and push_event functions
     """
-
     def __init__(self, fabric):
         self.fabric = fabric
         self.start_ts = time.time()
@@ -31,7 +30,7 @@ class eptWorkerFabric(object):
         self.email_address = self.settings.email_address
         self.syslog_server = self.settings.syslog_server
         self.syslog_port = self.settings.syslog_port
-        if len(self.email_address) == 0:
+        if len(self.email_address) == 0: 
             self.email_address = None
         if len(self.syslog_server) == 0:
             self.syslog_server = None
@@ -42,19 +41,17 @@ class eptWorkerFabric(object):
             less than zero, return 0.  If no delta is provided, then return the uptime.
         """
         uptime = time.time() - self.start_ts
-        if delta is None:
-            return uptime
+        if delta is None: return uptime
         uptime_delta = delta - uptime
-        if uptime_delta > 0:
-            return uptime_delta
+        if uptime_delta > 0: return uptime_delta
         return 0
 
     def push_event(self, table, key, event, per_node=True):
         # wrapper to push an event to eptHistory events list.  set per_node to false to use 
         # max_endpoint_event rotate length, else max_per_node_endpoint_events value is used
         if per_node:
-            return push_event(self.db[table], key, event,
-                              rotate=self.settings.max_per_node_endpoint_events)
+            return push_event(self.db[table], key, event, 
+                    rotate=self.settings.max_per_node_endpoint_events)
         else:
             return push_event(self.db[table], key, event, rotate=self.settings.max_endpoint_events)
 
@@ -65,7 +62,7 @@ class eptWorkerFabric(object):
         #   overlay if vnid is overlay vnid
         #   external if vnid is in eptVnid table with external set to true
         #   else returns 'epg' (default learn type)
-        if "loopback" in flags:
+        if "loopback" in flags: 
             return "loopback"
         elif "psvi" in flags:
             return "psvi"
@@ -89,7 +86,7 @@ class eptWorkerFabric(object):
             attr = ("notify_offsubnet_email", "notify_offsubnet_syslog")
         elif notify_type == "clear":
             attr = ("notify_clear_email", "notify_clear_syslog")
-        elif notify_type == "rapid":
+        elif notify_type == "rapid": 
             attr = ("notify_rapid_email", "notify_rapid_syslog")
         elif notify_type == "any_email":
             # return all notification types enabled

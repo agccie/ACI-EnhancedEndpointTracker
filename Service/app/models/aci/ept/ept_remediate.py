@@ -1,12 +1,10 @@
-import logging
-
-from .common import common_event_attribute
 from ...rest import Rest
 from ...rest import api_register
+from . common import common_event_attribute
+import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
-
 
 @api_register(parent="fabric", path="ept/remediate")
 class eptRemediate(Rest):
@@ -46,7 +44,7 @@ class eptRemediate(Rest):
             "type": str,
             "key": True,
             "key_index": 2,
-            "default": "0.0.0.0",  # default is only used for swagger docs example fields
+            "default": "0.0.0.0",   # default is only used for swagger docs example fields
             "description": """
             for endpoints of type ipv4 this is 32-bit ipv4 address, for endpoints of type ipv6 this
             is 64-bit ipv6 address, and for endpoints of type mac this is 48-bit mac address
@@ -92,3 +90,4 @@ class eptRemediate(Rest):
             }
         },
     }
+

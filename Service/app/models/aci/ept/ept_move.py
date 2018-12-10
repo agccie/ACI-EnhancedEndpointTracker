@@ -1,16 +1,15 @@
-import logging
-
-from .common import common_event_attribute
-from .common import get_vpc_domain_name
 from ...rest import Rest
 from ...rest import api_register
+from . common import get_vpc_domain_name
+from . common import common_event_attribute
+import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
 
 # reusable attributes for src/dst move events piggy-backing on history meta for consistency
 common_attr = ["ts", "intf_id", "intf_name", "pctag", "encap", "rw_mac", "rw_bd", "epg_name",
-               "vnid_name"]
+                "vnid_name"]
 move_event = {
     "type": dict,
     "meta": {
@@ -26,7 +25,6 @@ move_event = {
 # pull interesting common attributes
 for a in common_attr:
     move_event["meta"][a] = common_event_attribute[a]
-
 
 @api_register(parent="fabric", path="ept/move")
 class eptMove(Rest):
@@ -58,7 +56,7 @@ class eptMove(Rest):
             "type": str,
             "key": True,
             "key_index": 2,
-            "default": "0.0.0.0",  # default is only used for swagger docs example fields
+            "default": "0.0.0.0",   # default is only used for swagger docs example fields
             "description": """
             for endpoints of type ipv4 this is 32-bit ipv4 address, for endpoints of type ipv6 this
             is 64-bit ipv6 address, and for endpoints of type mac this is 48-bit mac address
@@ -103,9 +101,9 @@ class eptMoveEvent(object):
 
     def __repr__(self):
         return "node:0x%04x %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
-            self.node, self.ts, self.pctag, self.intf_id, self.encap,
-            self.rw_bd, self.rw_mac
-        )
+                self.node, self.ts, self.pctag, self.intf_id, self.encap, 
+                self.rw_bd, self.rw_mac
+            )
 
     def to_dict(self):
         """ convert object to dict for insertion into eptEndpoint events list """
@@ -130,7 +128,7 @@ class eptMoveEvent(object):
             self.encap,
             self.pctag,
             self.epg_name,
-            ", mac:%s" % self.rw_mac if include_rw else ""
+            ", mac:%s"%self.rw_mac if include_rw else ""
         )
 
     @staticmethod
@@ -159,6 +157,8 @@ class eptMoveEvent(object):
         """ compare two eptMoveEvents and return true if they are different """
         for a in ["node", "intf_id", "pctag", "encap", "rw_mac", "rw_bd"]:
             if getattr(e1, a) != getattr(e2, a):
-                logger.debug("move: %s changed from '%s' to '%s'", a, getattr(e1, a), getattr(e2, a))
+                logger.debug("move: %s changed from '%s' to '%s'",a,getattr(e1,a),getattr(e2,a))
                 return True
         return False
+
+

@@ -3,24 +3,23 @@
     @author agossett@cisco.com
 """
 
+from . utils import get_apic_session
+from . utils import get_dn
+
 import logging
 import threading
 import time
 import traceback
 
-from .utils import get_apic_session
-from .utils import get_dn
-
 # module level logging
 logger = logging.getLogger(__name__)
-
 
 class SubscriptionCtrl(object):
     """ subscription controller """
 
-    CTRL_QUIT = 1
-    CTRL_CONTINUE = 2
-    CTRL_RESTART = 3
+    CTRL_QUIT       = 1
+    CTRL_CONTINUE   = 2
+    CTRL_RESTART    = 3
 
     def __init__(self, fabric, interests={}, only_new=True, heartbeat=60.0, subscribe_timeout=10):
         """
@@ -45,7 +44,7 @@ class SubscriptionCtrl(object):
 
         self.fabric = fabric
         self.interests = {}
-        self.only_new = only_new
+        self.only_new  = only_new 
         self.heartbeat = heartbeat
         self.subscribe_timeout = subscribe_timeout
 
@@ -132,7 +131,7 @@ class SubscriptionCtrl(object):
                                 subscription is active. If blocking is set to
                                 false then subscription is handled in background     
         """
-        logger.info("restart: (alive: %r, thread: %r)", self.alive, (self.worker_thread is not None))
+        logger.info("restart: (alive: %r, thread: %r)",self.alive,(self.worker_thread is not None))
         # if called from within worker then just update self.ctrl
         if self.worker_thread is threading.current_thread():
             with self.lock:
@@ -141,12 +140,11 @@ class SubscriptionCtrl(object):
             # if subscription is already active, wait for it close
             self.unsubscribe()
             self.subscribe(blocking=blocking)
-
+  
     def unsubscribe(self):
         """ unsubscribe and close connections """
-        if not self.alive:
-            return
-        logger.info("unsubscribe: (alive:%r, thread:%r)", self.alive, (self.worker_thread is not None))
+        if not self.alive: return
+        logger.info("unsubscribe: (alive:%r, thread:%r)",self.alive,(self.worker_thread is not None))
 
         # should never call unsubscribe without worker (subscribe called with block=True), however 
         # as sanity check let's put it in there...
@@ -158,16 +156,16 @@ class SubscriptionCtrl(object):
         logger.debug("setting ctrl to close")
         with self.lock:
             self.ctrl = SubscriptionCtrl.CTRL_QUIT
-
+           
         # wait for child thread to die
         logger.debug("waiting for worker thread to exit")
         if self.worker_thread is threading.current_thread():
             logger.debug("worker_thread is current_thread, cannot join")
         else:
-            self.worker_thread.join()
+            self.worker_thread.join() 
             self.worker_thread = None
             logger.debug("worker thread closed")
-
+ 
     def subscribe(self, blocking=True):
         """ start subscription and handle appropriate callbacks 
 
@@ -187,23 +185,23 @@ class SubscriptionCtrl(object):
 
         # never try to subscribe without first killing previous sessions
         self.unsubscribe()
-        if blocking:
+        if blocking: 
             self._subscribe_wrapper()
         else:
             self.worker_thread = threading.Thread(target=self._subscribe_wrapper)
             self.worker_thread.daemon = True
             self.worker_thread.start()
-
+            
             # wait until subscription is alive or exceeds timeout
             ts = time.time()
             while not self.alive:
-                if time.time() - ts > self.subscribe_timeout:
-                    logger.warning("failed to start subscription within timeout: %.3f",
-                                   self.subscribe_timeout)
+                if time.time() - ts  > self.subscribe_timeout:
+                    logger.warning("failed to start subscription within timeout: %.3f", 
+                            self.subscribe_timeout)
                     self.unsubscribe()
                     return False
-                # logger.debug("waiting for subscription to start")
-                time.sleep(1)
+                #logger.debug("waiting for subscription to start")
+                time.sleep(1) 
             logger.debug("subscription successfully started")
             return True
 
@@ -233,11 +231,9 @@ class SubscriptionCtrl(object):
         self.alive = restarting
 
         # dummy function that does nothing
-        def noop(*args, **kwargs):
-            pass
-
-        try:
-            self.heartbeat = float(self.heartbeat)
+        def noop(*args,**kwargs): pass
+    
+        try: self.heartbeat = float(self.heartbeat)
         except ValueError as e:
             logger.warn("invalid heartbeat '%s' setting to 60.0", self.heartbeat)
             self.heartbeat = 60.0
@@ -261,14 +257,13 @@ class SubscriptionCtrl(object):
         self.last_heartbeat = time.time()
         while True:
             # check ctrl flags and exit if set to quit
-            if not self._continue_subscription():
-                return
+            if not self._continue_subscription(): return
 
             ts = time.time()
             heartbeat = False
-            if (ts - self.last_heartbeat) > self.heartbeat:
+            if (ts-self.last_heartbeat) > self.heartbeat:
                 logger.debug("checking session status, last_heartbeat: %.3f (delta: %.3f)",
-                             self.last_heartbeat, (ts - self.last_heartbeat))
+                    self.last_heartbeat, (ts-self.last_heartbeat))
                 self.last_heartbeat = ts
                 heartbeat = True
             if not self.check_session_subscription_health(heartbeat=heartbeat):
@@ -291,8 +286,8 @@ class SubscriptionCtrl(object):
             paused = self.interests[classname]["paused"]
             callback = self.interests[classname]["handler"]
             if self.session is None or \
-                    not self.session.subscribe(url, callback, only_new=self.only_new, paused=paused):
-                logger.warn("failed to subscribe to %s", classname)
+                not self.session.subscribe(url, callback, only_new=self.only_new, paused=paused):
+                logger.warn("failed to subscribe to %s",  classname)
                 self._close_subscription()
                 return False
             else:
@@ -314,7 +309,7 @@ class SubscriptionCtrl(object):
     def _continue_subscription(self):
         # return true if ok to continue monitoring subscription, else cleanup and return false
         if self.ctrl != SubscriptionCtrl.CTRL_CONTINUE:
-            logger.debug("exiting subscription due to ctrl: %s", self.ctrl)
+            logger.debug("exiting subscription due to ctrl: %s",self.ctrl)
             self._close_subscription()
             return False
         return True
@@ -342,16 +337,17 @@ class SubscriptionCtrl(object):
         alive = False
         try:
             alive = (
-                    hasattr(self.session.subscription_thread, "is_alive") and \
-                    self.session.subscription_thread.is_alive() and \
-                    hasattr(self.session.subscription_thread, "_ws") and \
-                    self.session.subscription_thread._ws.connected and \
-                    hasattr(self.session.subscription_thread.event_handler_thread, "is_alive") and \
-                    self.session.subscription_thread.event_handler_thread.is_alive() and \
-                    not heartbeat or get_dn(self.session, "uni", timeout=10) is not None
+                hasattr(self.session.subscription_thread, "is_alive") and \
+                self.session.subscription_thread.is_alive() and \
+                hasattr(self.session.subscription_thread, "_ws") and \
+                self.session.subscription_thread._ws.connected and \
+                hasattr(self.session.subscription_thread.event_handler_thread, "is_alive") and \
+                self.session.subscription_thread.event_handler_thread.is_alive() and \
+                not heartbeat or get_dn(self.session, "uni", timeout=10) is not None
             )
-        except Exception as e:
+        except Exception as e: 
             logger.debug("Traceback:\n%s", traceback.format_exc())
         if heartbeat:
-            logger.debug("heartbeat check to ensure session is still alive: %r", alive)
+            logger.debug("heartbeat check to ensure session is still alive: %r",alive)
         return alive
+

@@ -1,19 +1,17 @@
-import logging
 
+from ... rest import Rest
+from ... rest import api_register
+from ... rest import api_route
+from ... rest import api_callback
+from .. fabric import Fabric
+from . common import subscriber_op
+from . ept_msg import MSG_TYPE
 from flask import abort
 from flask import jsonify
-
-from .common import subscriber_op
-from .ept_msg import MSG_TYPE
-from ..fabric import Fabric
-from ...rest import Rest
-from ...rest import api_callback
-from ...rest import api_register
-from ...rest import api_route
+import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
-
 
 # add a callback to fabric to create Settings on after_delete
 @api_callback("after_create", cls=Fabric)
@@ -21,7 +19,6 @@ def after_fabric_create(data):
     s = eptSettings(fabric=data["fabric"])
     if not s.save():
         logger.error("failed to create fabric settings object")
-
 
 @api_register(parent="fabric", path="ept/settings")
 class eptSettings(Rest):
@@ -43,34 +40,34 @@ class eptSettings(Rest):
             "default": "default",
         },
         "email_address": {
-            "type": str,
+            "type":str,             
             "description": "email address for sending email based notifications",
-            "regex": "(^$|^[a-zA-Z0-9\-_\.@\+]+$)",
+            "regex":"(^$|^[a-zA-Z0-9\-_\.@\+]+$)",
         },
-        "syslog_server": {
-            "type": str,
-            "regex": "(^$|^[a-zA-Z0-9\-_\.\+]+$)",
+        "syslog_server":{
+            "type":str,
+            "regex":"(^$|^[a-zA-Z0-9\-_\.\+]+$)",
             "description": "syslog IP or hostname for sending syslog based notifications",
         },
-        "syslog_port": {
-            "type": int,
+        "syslog_port":{
+            "type": int, 
             "description": "syslog port number",
-            "default": 514,
+            "default":514,
             "min": 1,
             "max": 65534,
         },
-        "notify_move_email": {
-            "type": bool,
+        "notify_move_email":{
+            "type": bool, 
             "default": False,
             "description": "send email notifications on endpoint move",
         },
-        "notify_stale_email": {
+        "notify_stale_email":{
             "type": bool,
             "default": False,
             "description": "send email notifications on stale endpoint detection",
         },
-        "notify_offsubnet_email": {
-            "type": bool,
+        "notify_offsubnet_email":{
+            "type": bool, 
             "default": False,
             "description": "send email notifications on off-subnet endpoint detection",
         },
@@ -85,17 +82,17 @@ class eptSettings(Rest):
             "description": "send email notification for rapid endpoint events",
         },
         "notify_move_syslog": {
-            "type": bool,
+            "type": bool, 
             "default": False,
             "description": "send syslog notifications on endpoint move",
         },
         "notify_stale_syslog": {
-            "type": bool,
+            "type": bool, 
             "default": False,
             "description": "send syslog notifications on stale endpoint detection",
         },
         "notify_offsubnet_syslog": {
-            "type": bool,
+            "type": bool, 
             "default": False,
             "description": "send syslog notifications on off-subnet endpoint detection",
         },
@@ -147,7 +144,7 @@ class eptSettings(Rest):
             synchronized with the endpoint state within the fabric
             """,
         },
-        "max_per_node_endpoint_events": {
+        "max_per_node_endpoint_events":{
             "type": int,
             "description": """
             maximum number of historical endpoint events per endpoint per node.  When this number is
@@ -155,7 +152,7 @@ class eptSettings(Rest):
             number of stale, move, and off-subnet records per endpoint maintained in the database.
             """,
             "default": 64,
-            "min_val": 8,
+            "min_val": 8, 
             "max_val": 1024,
         },
         "max_endpoint_events": {
@@ -248,3 +245,4 @@ class eptSettings(Rest):
         if success:
             return jsonify({"success": True})
         abort(500, err_str)
+

@@ -1,19 +1,20 @@
+
+from . aci.ept.ept_msg import eptMsg
+from . aci.ept.ept_msg import MSG_TYPE
+from . aci.ept.common import MANAGER_CTRL_CHANNEL 
+from . rest import api_register
+from . rest import api_route
+from . rest import Rest
+from . utils import get_redis
+
+from flask import jsonify
+from flask import abort
+from flask import current_app
+
 import logging
 import os
 import time
 import traceback
-
-from flask import abort
-from flask import current_app
-from flask import jsonify
-
-from .aci.ept.common import MANAGER_CTRL_CHANNEL
-from .aci.ept.ept_msg import MSG_TYPE
-from .aci.ept.ept_msg import eptMsg
-from .rest import Rest
-from .rest import api_register
-from .rest import api_route
-from .utils import get_redis
 
 # module level logger
 logger = logging.getLogger(__name__)
@@ -32,9 +33,9 @@ queue_len_meta = {
     """,
 }
 
-
 @api_register(path="/app-status")
 class AppStatus(Rest):
+
     MANAGER_STATUS_TIMEOUT = 3
 
     META_ACCESS = {
@@ -99,7 +100,7 @@ class AppStatus(Rest):
                     "type": dict,
                     "description": "container for manager info",
                     "meta": {
-                        "status": {
+                        "status":{
                             "type": str,
                             "description": "manager status (running|stopped)",
                             "values": ["running", "stopped"],
@@ -158,8 +159,7 @@ class AppStatus(Rest):
             error description
         """
         (success, status) = AppStatus.check_status()
-        if success:
-            return jsonify({"success": True})
+        if success: return jsonify({"success": True})
         abort(503, status)
 
     @staticmethod
@@ -172,14 +172,14 @@ class AppStatus(Rest):
             logger.debug("application started flag is set")
             # check mongo connection 
             try:
-                from .utils import get_db
+                from . utils import get_db
                 assert len(get_db().collection_names()) >= 0
             except Exception as e:
                 logger.debug("failed to connect to mongo db: %s", e)
                 return (False, "failed to connect to mongo database")
             # check redis connection
             try:
-                from .utils import get_redis
+                from . utils import get_redis
                 assert get_redis().dbsize() >= 0
             except Exception as e:
                 logger.debug("failed to connect to redis db: %s", e)
@@ -205,7 +205,7 @@ class AppStatus(Rest):
     def get_version():
         """ get app version and build info """
         version = current_app.config.get("APP_FULL_VERSION", "")
-        if len(version) == 0:
+        if len(version) == 0: 
             version = current_app.config.get("APP_VERSION", "")
         return jsonify({
             "version": version,
@@ -254,7 +254,7 @@ class AppStatus(Rest):
                 if data is not None:
                     channel = data["channel"]
                     if channel == MANAGER_CTRL_CHANNEL:
-                        msg = eptMsg.parse(data["data"])
+                        msg = eptMsg.parse(data["data"]) 
                         if msg.msg_type == MSG_TYPE.MANAGER_STATUS:
                             ret["manager"] = msg.data["manager"]
                             ret["manager"]["status"] = "running"
@@ -270,3 +270,5 @@ class AppStatus(Rest):
 
         logger.warn("no manager response within timeout(%s sec)", AppStatus.MANAGER_STATUS_TIMEOUT)
         return ret
+
+

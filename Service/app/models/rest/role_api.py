@@ -1,18 +1,17 @@
-import logging
 
-from flask import current_app
-from flask import jsonify
-
-from . import Rest
 from . import api_register
 from . import api_route
+from . import Rest
+from . import RouteInfo
 from .role import Role
+from flask import current_app
+from flask import jsonify
+import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
 
-
-# expose an API to get roles
+# expose an API to get roles 
 @api_register(path="/role")
 class RoleApi(Rest):
     logger = logger
@@ -36,3 +35,4 @@ class RoleApi(Rest):
         """ get all available app routes """
         from ..utils import list_routes
         return jsonify(list_routes(current_app, api=True))
+

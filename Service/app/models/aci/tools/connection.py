@@ -1,13 +1,12 @@
 #!/usr/bin/python
 # some problems with pexpect 4.4 - 4.2 works nicely
 
+import time, string, pexpect, re
+import subprocess
 import logging
-import pexpect
-import time
 
 # module level logging
 logger = logging.getLogger(__name__)
-
 
 class Connection(object):
     """
@@ -48,24 +47,24 @@ class Connection(object):
     """
 
     def __init__(self, hostname):
-        self.hostname = hostname
-        self.log = None
-        self.username = 'admin'
-        self.password = 'cisco'
-        self.enable_password = 'cisco'
-        self.protocol = "ssh"
-        self.port = None
-        self.timeout = 30
-        self.prompt = "[^#]#[ ]*(\x1b[\x5b-\x5f][\x40-\x7e])*[ ]*$"
-        self.verify = False
-        self.searchwindowsize = 256
-        self.force_wait = 0
-        self.child = None
-        self.output = ""  # output from last command
-        self._term_len = 0  # terminal length for cisco devices
-        self._login = False  # set to true at first successful login
-        self._log = None  # variable for tracking logfile state
-        self.bind = None  # bind IP for ssh 
+        self.hostname           = hostname
+        self.log                = None
+        self.username           = 'admin'
+        self.password           = 'cisco'
+        self.enable_password    = 'cisco'
+        self.protocol           = "ssh"
+        self.port               = None
+        self.timeout            = 30
+        self.prompt             = "[^#]#[ ]*(\x1b[\x5b-\x5f][\x40-\x7e])*[ ]*$"
+        self.verify             = False
+        self.searchwindowsize   = 256
+        self.force_wait         = 0
+        self.child              = None
+        self.output             = ""    # output from last command
+        self._term_len          = 0     # terminal length for cisco devices
+        self._login             = False # set to true at first successful login
+        self._log               = None  # variable for tracking logfile state
+        self.bind               = None  # bind IP for ssh 
 
     def __connected(self):
         # determine if a connection is already open
@@ -74,8 +73,7 @@ class Connection(object):
         return connected
 
     @property
-    def term_len(self):
-        return self._term_len
+    def term_len(self): return self._term_len 
 
     @term_len.setter
     def term_len(self, term_len):
@@ -118,23 +116,21 @@ class Connection(object):
                 self.port = 23
         # spawn new thread
         if self.protocol.lower() == "ssh":
-            logger.debug("spawning new pexpect connection: ssh %s@%s -p %d",
-                         self.username, self.hostname, self.port)
+            logger.debug("spawning new pexpect connection: ssh %s@%s -p %d", 
+                self.username, self.hostname, self.port)
             no_verify = " -o StrictHostKeyChecking=no -o LogLevel=ERROR "
-            no_verify += " -o UserKnownHostsFile=/dev/null"
-            no_verify += " -o HostKeyAlgorithms=+ssh-dss"
-            if self.verify:
-                no_verify = ""
-            if self.bind is not None:
-                no_verify = " -b %s" % self.bind
-            self.child = pexpect.spawn("ssh %s %s@%s -p %d" % (no_verify,
-                                                               self.username, self.hostname, self.port),
-                                       searchwindowsize=self.searchwindowsize)
+            no_verify+= " -o UserKnownHostsFile=/dev/null"
+            no_verify+= " -o HostKeyAlgorithms=+ssh-dss"
+            if self.verify: no_verify = ""
+            if self.bind is not None: no_verify = " -b %s" % self.bind
+            self.child = pexpect.spawn("ssh %s %s@%s -p %d" % (no_verify, 
+                self.username, self.hostname, self.port),
+                searchwindowsize = self.searchwindowsize)
         elif self.protocol.lower() == "telnet":
-            logger.info("spawning new pexpect connection: telnet %s %d",
-                        self.hostname, self.port)
-            self.child = pexpect.spawn("telnet %s %d" % (self.hostname, self.port),
-                                       searchwindowsize=self.searchwindowsize)
+            logger.info("spawning new pexpect connection: telnet %s %d", 
+                self.hostname, self.port)
+            self.child = pexpect.spawn("telnet %s %d"%(self.hostname,self.port),
+                searchwindowsize = self.searchwindowsize)
         # support custom protocols such as vsh/vsh_lc
         else:
             logger.info("custom protocol spawn: %s", self.protocol)
@@ -165,8 +161,7 @@ class Connection(object):
         if "timeout" not in matches:
             matches["timeout"] = pexpect.TIMEOUT
 
-        if timeout is None:
-            timeout = self.timeout
+        if timeout is None: timeout = self.timeout
         indexed = []
         mapping = []
         for i in matches:
@@ -174,15 +169,15 @@ class Connection(object):
             mapping.append(i)
         result = self.child.expect(indexed, timeout)
         logger.debug("timeout: %d, matched: '%s'\npexpect output: '%s%s'",
-                     timeout, self.child.after, self.child.before, self.child.after)
-        if result <= len(mapping) and result >= 0:
+            timeout, self.child.after, self.child.before, self.child.after)
+        if result <= len(mapping) and result>=0:
             logger.debug("expect matched result[%d] = %s",
-                         result, mapping[result])
+                result, mapping[result])
             return mapping[result]
         ds = ''
         logger.error("unexpected pexpect return index: %s", result)
-        for i in range(0, len(mapping)):
-            ds += '[%d] %s\n' % (i, mapping[i])
+        for i in range(0,len(mapping)):
+            ds+= '[%d] %s\n' % (i, mapping[i])
         logger.debug("mapping:\n%s", ds)
         raise Exception("Unexpected pexpect return index: %s" % result)
 
@@ -194,34 +189,33 @@ class Connection(object):
         logger.debug("logging into host")
 
         # successfully logged in at a different time
-        if not self.__connected():
-            self.connect()
+        if not self.__connected(): self.connect()
         # check for user provided 'prompt' which indicates successful login
         # else provide approriate username/password/enable_password
         matches = {
-            "console": "(?i)press return to get started",
-            "refuse": "(?i)connection refused",
-            "yes/no": "(?i)yes/no",
-            "username": "(?i)(user(name)*|login)[ as]*[ \t]*:[ \t]*$",
-            "password": "(?i)password[ \t]*:[ \t]*$",
-            "enable": ">[ \t]*$",
-            "prompt": self.prompt
+            "console"   : "(?i)press return to get started",
+            "refuse"    : "(?i)connection refused",
+            "yes/no"    : "(?i)yes/no",
+            "username"  : "(?i)(user(name)*|login)[ as]*[ \t]*:[ \t]*$",
+            "password"  : "(?i)password[ \t]*:[ \t]*$",
+            "enable"    : ">[ \t]*$",
+            "prompt"    : self.prompt
         }
 
         last_match = None
-        while max_attempts > 0:
-            max_attempts -= 1
+        while max_attempts>0:
+            max_attempts-=1
             match = self.__expect(matches, timeout)
-            if match == "console":  # press return to get started
+            if match == "console":      # press return to get started
                 logger.debug("matched console, send enter")
                 self.child.sendline("\r\n")
-            elif match == "refuse":  # connection refused
+            elif match == "refuse":    # connection refused
                 logger.error("connection refused by host")
                 return False
-            elif match == "yes/no":  # yes/no for SSH key acceptance
+            elif match == "yes/no":   # yes/no for SSH key acceptance
                 logger.debug("received yes/no prompt, send yes")
                 self.child.sendline("yes")
-            elif match == "username":  # username/login prompt
+            elif match == "username":   # username/login prompt
                 logger.debug("received username prompt, send username")
                 self.child.sendline(self.username)
             elif match == "password":
@@ -255,10 +249,9 @@ class Connection(object):
         """ execute a remote ssh/telnet login command on an active connection
             object. This allows user to login to a device through a jump box.
         """
-        if not self.__connected():
-            self.connect()
+        if not self.__connected(): self.connect()
         self.child.sendline(command)
-        return self.login(**kwargs)
+        return self.login(**kwargs) 
 
     def cmd(self, command, **kwargs):
         """
@@ -290,11 +283,10 @@ class Connection(object):
         sendline = kwargs.get("sendline", True)
         timeout = kwargs.get("timeout", self.timeout)
         matches = kwargs.get("matches", {})
-        echo_cmd = kwargs.get("echo_cmd", False)
+        echo_cmd = kwargs.get("echo_cmd", False) 
 
         # ensure prompt is in the matches list
-        if "prompt" not in matches:
-            matches["prompt"] = self.prompt
+        if "prompt" not in matches: matches["prompt"] = self.prompt
 
         self.output = ""
         # check if we've ever logged into device or currently connected
@@ -305,19 +297,15 @@ class Connection(object):
 
         # if echo_cmd is disabled, then need to disable logging before
         # executing commands
-        if not echo_cmd:
-            self.stop_log()
+        if not echo_cmd: self.stop_log()
 
         # execute command
         logger.debug("cmd command: %s", command)
-        if sendline:
-            self.child.sendline(command)
-        else:
-            self.child.send(command)
+        if sendline: self.child.sendline(command)
+        else: self.child.send(command)
 
         # remember to re-enable logging
-        if not echo_cmd:
-            self.start_log()
+        if not echo_cmd: self.start_log()
 
         # force wait option
         if self.force_wait != 0:
@@ -328,3 +316,4 @@ class Connection(object):
         if result == "eof" or result == "timeout":
             logger.warn("unexpected %s occurred", result)
         return result
+

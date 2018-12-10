@@ -1,18 +1,20 @@
-import logging
 
+from ... rest import Rest
+from ... rest import api_register
+from ... rest import api_callback
+from .. utils import get_parent_dn
 from . import ManagedObject
-from ..utils import get_parent_dn
-from ...rest import api_callback
-from ...rest import api_register
+
+import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
 
-
 @api_register(parent="fabric", path="mo/l3extExtEncapAllocator")
 class l3extExtEncapAllocator(ManagedObject):
+
     META_ACCESS = ManagedObject.append_meta_access({
-        "namespace": "l3extExtEncapAllocator",
+        "namespace":"l3extExtEncapAllocator",
     })
 
     META = ManagedObject.append_meta({
@@ -30,3 +32,4 @@ class l3extExtEncapAllocator(ManagedObject):
         """ set parent to l3extOut based on dn """
         data["parent"] = get_parent_dn(data["dn"])
         return data
+

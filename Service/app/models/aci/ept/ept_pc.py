@@ -1,17 +1,15 @@
-import logging
-import time
-
 from ...rest import Rest
 from ...rest import api_callback
 from ...rest import api_register
+import logging
+import time
 
 # module level logging
 logger = logging.getLogger(__name__)
 
-
 @api_register(parent="fabric", path="ept/pc")
 class eptPc(Rest):
-    """ provide mapping of port-channel interface to port-channel name """
+    """ provide mapping of port-channel interface to port-channel name """ 
     logger = logger
 
     META_ACCESS = {
@@ -19,9 +17,9 @@ class eptPc(Rest):
         "read": True,
         "update": False,
         "delete": False,
-        "db_index_unique": True,
-        "db_index": ["fabric", "name"],  # fabric+name(dn) is unique (for insert/update)
-        "db_index2": ["fabric", "node", "intf"],  # second index for quick lookup
+        "db_index_unique": True,  
+        "db_index": ["fabric","name"],      # fabric+name(dn) is unique (for insert/update)
+        "db_index2": ["fabric", "node", "intf"],    # second index for quick lookup
     }
 
     META = {
@@ -29,7 +27,7 @@ class eptPc(Rest):
             "type": str,
             "key": True,
             "key_sn": "pc",
-            "description": "name(dn) for pcAggrIf that created this object",
+            "description":"name(dn) for pcAggrIf that created this object",
         },
         "node": {
             "type": int,

@@ -1,15 +1,14 @@
-import logging
-
-from .common import common_event_attribute
-from .common import get_vpc_domain_name
 from ...rest import Rest
 from ...rest import api_register
+from . common import get_vpc_domain_name
+from . common import common_event_attribute
+import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
 
 common_attr = ["ts", "remote", "pctag", "flags", "encap", "intf_id", "intf_name",
-               "epg_name", "vnid_name"]
+                "epg_name", "vnid_name"]
 stale_event = {
     "expected_remote": {
         "type": int,
@@ -65,7 +64,7 @@ class eptStale(Rest):
             "type": str,
             "key": True,
             "key_index": 2,
-            "default": "0.0.0.0",  # default is only used for swagger docs example fields
+            "default": "0.0.0.0",   # default is only used for swagger docs example fields
             "description": """
             for endpoints of type ipv4 this is 32-bit ipv4 address, for endpoints of type ipv6 this
             is 64-bit ipv6 address, and for endpoints of type mac this is 48-bit mac address
@@ -106,12 +105,12 @@ class eptStaleEvent(object):
         self.vnid_name = kwargs.get("vnid_name", "")
 
     def __repr__(self):
-        return "%.3f: pctag:0x%x, intf:%s, encap:%s, flags(%s):[%s], remote/expected:0x%04x/0x%04x" % (
-            self.ts, self.pctag, self.intf_id, self.encap,
-            len(self.flags),
-            ",".join(self.flags),
-            self.remote, self.expected_remote
-        )
+        return "%.3f: pctag:0x%x, intf:%s, encap:%s, flags(%s):[%s], remote/expected:0x%04x/0x%04x"%(
+                self.ts, self.pctag, self.intf_id, self.encap, 
+                len(self.flags),
+                ",".join(self.flags),
+                self.remote, self.expected_remote
+            )
 
     def is_duplicate(self, event):
         """ check if this stale event is logically the same as the provided eptStaleEvent object """
@@ -141,8 +140,8 @@ class eptStaleEvent(object):
             self.encap,
             self.pctag,
             self.epg_name,
-            "-" if self.remote == 0 else get_vpc_domain_name(self.remote),
-            "-" if self.expected_remote == 0 else get_vpc_domain_name(self.expected_remote),
+            "-" if self.remote==0 else get_vpc_domain_name(self.remote),
+            "-" if self.expected_remote==0 else get_vpc_domain_name(self.expected_remote),
         )
 
     @staticmethod
@@ -165,3 +164,5 @@ class eptStaleEvent(object):
         event.epg_name = h.epg_name
         event.vnid_name = h.vnid_name
         return event
+
+

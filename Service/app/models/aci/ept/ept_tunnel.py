@@ -1,14 +1,12 @@
+from ... rest import Rest
+from ... rest import api_callback
+from ... rest import api_register
+from . ept_node import eptNode
 import logging
 import re
 
-from .ept_node import eptNode
-from ...rest import Rest
-from ...rest import api_callback
-from ...rest import api_register
-
 # module level logging
 logger = logging.getLogger(__name__)
-
 
 @api_register(parent="fabric", path="ept/tunnel")
 class eptTunnel(Rest):
@@ -21,9 +19,9 @@ class eptTunnel(Rest):
         "read": True,
         "update": False,
         "delete": False,
-        "db_index_unique": True,
-        "db_index": ["fabric", "name"],  # fabric+name(dn) is unique (for insert/update)
-        "db_index2": ["fabric", "node", "intf"],  # second index for quick lookup
+        "db_index_unique": True,  
+        "db_index": ["fabric","name"],      # fabric+name(dn) is unique (for insert/update)
+        "db_index2": ["fabric", "node", "intf"],      # second index for quick lookup
     }
 
     META = {
@@ -51,12 +49,12 @@ class eptTunnel(Rest):
         "dst": {
             "type": str,
             "description": "32-bit TEP destination ipv4 address",
-            "default": "0.0.0.0",  # default is only used for swagger docs example fields
+            "default": "0.0.0.0",   # default is only used for swagger docs example fields
         },
         "src": {
             "type": str,
             "description": "32-bit TEP source ipv4 address",
-            "default": "0.0.0.0",  # default is only used for swagger docs example fields
+            "default": "0.0.0.0",   # default is only used for swagger docs example fields
         },
         "remote": {
             "type": int,
@@ -94,7 +92,7 @@ class eptTunnel(Rest):
     def mo_sync(mo, tunnel):
         # when sync event happens for tunnel, perform remote mapping
         logger.debug("mo_sync for tunnel node 0x%04x, intf: %s, dst: %s", tunnel.node, tunnel.intf,
-                     tunnel.dst)
+                tunnel.dst)
         remote = eptNode.find(fabric=tunnel.fabric, addr=tunnel.dst)
         if len(remote) > 0:
             logger.debug("updating remote node to 0x%04x", remote[0].node)
@@ -106,3 +104,4 @@ class eptTunnel(Rest):
             pass
         else:
             logger.warn("failed to map tunnel to remote node")
+

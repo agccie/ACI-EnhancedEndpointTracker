@@ -1,22 +1,21 @@
+
+from ..utils import (hash_password, aes_encrypt, aes_decrypt, MSG_403,
+                    get_user_data, get_user_params, get_db)
+from .decorators import CallbackInfo, RouteInfo
+from .dependency import RestDependency
+from .role import Role
+from bson.objectid import ObjectId, InvalidId
+from flask import abort, g, jsonify
+from pymongo.errors import (DuplicateKeyError, PyMongoError, BulkWriteError, NetworkTimeout)
+from pymongo.errors import OperationFailure
+from pymongo import (ASCENDING, DESCENDING, InsertOne, UpdateOne, UpdateMany)
+from werkzeug.exceptions import (NotFound, BadRequest, Forbidden, InternalServerError)
+
 import copy
 import logging
 import re
 import time
 import traceback
-
-from bson.objectid import ObjectId, InvalidId
-from flask import abort, g, jsonify
-from pymongo import (ASCENDING, DESCENDING, InsertOne, UpdateOne, UpdateMany)
-from pymongo.errors import (DuplicateKeyError, PyMongoError, BulkWriteError)
-from pymongo.errors import OperationFailure
-from werkzeug.exceptions import (NotFound, BadRequest, Forbidden, InternalServerError)
-
-from .decorators import CallbackInfo, RouteInfo
-from .dependency import RestDependency
-from .role import Role
-from ..utils import (hash_password, aes_encrypt, aes_decrypt, MSG_403,
-                     get_user_data, get_user_params, get_db)
-
 
 class Rest(object):
     """ generic REST object providing common rest functionality.  All other 
@@ -297,8 +296,8 @@ class Rest(object):
         "default": None,
         "read": True,
         "write": True,
-        "key": False,
-        "key_type": None,
+        "key": False, 
+        "key_type": None,      
         "key_index": 0,
         "key_sn": "",
         "description": "",
@@ -312,50 +311,48 @@ class Rest(object):
         "subtype": None,
         "meta": None,
         "formatter": None,
-        "validator": None,
+        "validator": None ,
     }
     _access = {}
     _attributes = {}
     _attributes_reference = {}  # reference only attributes
-    _keys = []  # list of attribute keys
+    _keys = []                  # list of attribute keys
     _class_init = False
     _dependency = None
     _classname = ""
     _key_path = ""
     _key_swag_path = ""
-    _swagger = {}  # dict of endpoints types added during registration
-    # used only by swagger docs
-    _dn_path = ""  # when dn is enabled on object, this is fmt string used for dn.  I.e.,
-    #   /base/uname-%s/group-%s
-    _dn_attributes = []  # when dn is enabled on object, this is fmt attribute names used for dn:
-    #   ['username', 'group'] for substituting /base/uname-%s/group-%s
+    _swagger = {}       # dict of endpoints types added during registration
+                        # used only by swagger docs
+    _dn_path = ""       # when dn is enabled on object, this is fmt string used for dn.  I.e.,
+                        #   /base/uname-%s/group-%s
+    _dn_attributes = [] # when dn is enabled on object, this is fmt attribute names used for dn:
+                        #   ['username', 'group'] for substituting /base/uname-%s/group-%s
 
-    operator_reg = "^[ ]*(?P<op>[a-z]+)[ ]*\((?P<data>.+)\)[ ]*$"
+    operator_reg= "^[ ]*(?P<op>[a-z]+)[ ]*\((?P<data>.+)\)[ ]*$" 
     operand_reg = '^(?P<delim>[ ]*,?[ ]*)('
-    operand_reg += '(?P<str>".*?(?<!\\\\)")|'
-    operand_reg += '(?P<float>-?[0-9\.]+)|'
-    operand_reg += '(?P<bool>true|false)|'
-    operand_reg += '(?P<op>[a-z]+\()'
-    operand_reg += ')'
+    operand_reg+= '(?P<str>".*?(?<!\\\\)")|'
+    operand_reg+= '(?P<float>-?[0-9\.]+)|'
+    operand_reg+= '(?P<bool>true|false)|'
+    operand_reg+= '(?P<op>[a-z]+\()'
+    operand_reg+= ')'
 
     def __init__(self, **kwargs):
         """ per-object initialization. Allows for any attribute to be provided
             via kwargs.  If not provided then default is applied 
-        """
-        self.init()  # class initialization if not already initialized
-        self._exists = False  # true if read from db (via Rest.load)
+        """ 
+        self.init()     # class initialization if not already initialized
+        self._exists = False            # true if read from db (via Rest.load)
         self._original_attributes = {}  # original attribute default values
-        # used to determine which values have
-        # changed at save()
+                                        # used to determine which values have 
+                                        # changed at save()
 
         for attr in self._attributes:
             d = self.get_attribute_default(attr)
             if not self._attributes[attr]["key"]:
                 self._original_attributes[attr] = d
-            if attr in kwargs:
-                setattr(self, attr, kwargs[attr])
-            else:
-                setattr(self, attr, d)
+            if attr in kwargs: setattr(self, attr, kwargs[attr])
+            else: setattr(self, attr, d)
 
     def __repr__(self):
         """ string representation of object for debugging 
@@ -364,22 +361,20 @@ class Rest(object):
         s = "%s" % self._classname
         a = []
         if self._access["expose_id"] and hasattr(self, "_id"):
-            a.append("_id:%s" % getattr(self, "_id"))
+            a.append("_id:%s"%getattr(self,"_id"))
         for attr in self.__class__._attributes:
-            if self.__class__._attributes[attr]["encrypt"]:
-                continue
-            if hasattr(self, attr):
-                a.append("%s:%s" % (attr, getattr(self, attr)))
+            if self.__class__._attributes[attr]["encrypt"]: continue
+            if hasattr(self, attr): 
+                a.append("%s:%s" % (attr, getattr(self,attr)))
         return "%s{%s}" % (s, ",".join(a))
 
     def to_json(self):
         """ return json(dict) representation of object """
         js = {}
         for attr in self._attributes:
-            if hasattr(self, attr):
-                js[attr] = getattr(self, attr)
+            if hasattr(self, attr): js[attr] = getattr(self,attr)
         if self._access["expose_id"] and hasattr(self, "_id"):
-            js["_id"] = getattr(self, "_id")
+            js["_id"]  = getattr(self, "_id")    
         return js
 
     def exists(self, force=False):
@@ -387,8 +382,7 @@ class Rest(object):
             then a db lookup is performed based on object keys to ensure object still exists or
             was created by some other function
         """
-        if not force:
-            return self._exists
+        if not force: return self._exists
         try:
             # if no 404 occurred then object must exist (or this is a object with no keys and that
             # use case doesn't make any sense here....)
@@ -412,13 +406,13 @@ class Rest(object):
         keys = self.get_keys(minimum=True)
         try:
             ret = self.read(**keys)
-            if ret["count"] > 0 and len(ret["objects"]) > 0:
+            if ret["count"]>0 and len(ret["objects"])>0:
                 obj = ret["objects"][0]
-                if self._classname in obj:
+                if self._classname in obj: 
                     for attr in obj[self._classname]:
                         if hasattr(self, attr):
                             setattr(self, attr, obj[self._classname][attr])
-                            self._original_attributes[attr] = copy.deepcopy(getattr(self, attr))
+                            self._original_attributes[attr] = copy.deepcopy(getattr(self,attr))
                 self._exists = True
             else:
                 self._exists = False
@@ -452,15 +446,12 @@ class Rest(object):
         keys = {}
         for attr in self.__class__._attributes:
             if self.__class__._attributes[attr]["key"]:
-                if hasattr(self, attr):
-                    keys[attr] = getattr(self, attr)
-                else:
+                if hasattr(self, attr): keys[attr] = getattr(self, attr)
+                else: 
                     keys[attr] = self.__class__.get_attribute_default(attr)
         if self._access["expose_id"] and hasattr(self, "_id"):
-            if minimum:
-                keys = {"_id": self._id}
-            else:
-                keys["_id"] = self._id
+            if minimum: keys = {"_id": self._id}
+            else: keys["_id"] = self._id
         return keys
 
     def save(self, skip_validation=False, allow_reload=True):
@@ -498,18 +489,17 @@ class Rest(object):
             # perform create if this object does not currently exists
             if not self.exists():
                 for attr in self._attributes:
-                    if hasattr(self, attr):
-                        obj[attr] = getattr(self, attr)
+                    if hasattr(self, attr): 
+                        obj[attr] = getattr(self,attr)
                         # secure encrypt/hash attributes only if skip_validation is disabled
                         if skip_validation:
                             obj[attr] = self.secure_attribute(attr, obj[attr])
 
-                ret = self.create(_data=obj, _bulk_prep=bulk_prep, _skip_validation=skip_validation,
-                                  _write_all=True)
-                if bulk_prep:
-                    result = ret
+                ret = self.create(_data=obj, _bulk_prep=bulk_prep, _skip_validation=skip_validation, 
+                                    _write_all=True)
+                if bulk_prep: result = ret
                 else:
-                    if self._access["expose_id"] and "_id" in ret:
+                    if self._access["expose_id"] and "_id" in ret: 
                         self._id = ret["_id"]
                     result = True
                     reload_required = True
@@ -518,49 +508,44 @@ class Rest(object):
             else:
                 keys = self.get_keys()
                 keys["_write_all"] = True
-                for attr in self._attributes:
+                for attr in self._attributes: 
                     if hasattr(self, attr):
                         if attr in self._original_attributes and \
-                                self._original_attributes[attr] == getattr(self, attr):
+                            self._original_attributes[attr]==getattr(self,attr):
                             continue
                         # keys are sent as part of kwargs in update call so they should be
                         # excluded from update obj
-                        if attr in keys:
-                            continue
+                        if attr in keys: continue
                         obj[attr] = getattr(self, attr)
                         # secure encrypt/hash attributes only if skip_validation is disabled
                         if skip_validation:
                             obj[attr] = self.secure_attribute(attr, obj[attr])
-
+        
                 # only perform update if length of update is > 0
-                if len(obj) > 0:
-                    ret = self.update(_data=obj, _bulk_prep=bulk_prep,
-                                      _skip_validation=skip_validation, **keys)
-                    if bulk_prep:
-                        result = ret
-                    else:
+                if len(obj)>0: 
+                    ret = self.update(_data=obj, _bulk_prep=bulk_prep, 
+                            _skip_validation=skip_validation, **keys)
+                    if bulk_prep: result = ret
+                    else: 
                         reload_required = True
                         result = True
-                else:
+                else: 
                     # if no update then save is still successful (return none for bulk prep)
-                    if bulk_prep:
-                        result = None
-                    else:
-                        result = True
+                    if bulk_prep: result = None
+                    else: result = True     
 
-                    # if there are callbacks for create/update then it's possible that the attribute values
+            # if there are callbacks for create/update then it's possible that the attribute values
             # were changed on save. we don't want to do this on bulk as it requires a db read which
             # will significantly offset the benefits of bulk.
-            if allow_reload and reload_required:
-                self.reload()
+            if allow_reload and reload_required: self.reload()
 
             # reset all current _original_attributes to current value so 
             # subsequent saves correctly reflect current state
-            for attr in self._original_attributes:
-                if hasattr(self, attr):
+            for attr in self._original_attributes: 
+                if hasattr(self, attr): 
                     self._original_attributes[attr] = copy.deepcopy(
                         getattr(self, attr))
-
+            
         except Exception as e:
             self.logger.warn("%s save failed: %s", self._classname, e)
         return result
@@ -584,10 +569,9 @@ class Rest(object):
         bulk = []
         for r in rest_objects:
             save_obj = r._save(bulk_prep=True, skip_validation=skip_validation)
-            if save_obj is not None:
-                bulk.append(save_obj)
+            if save_obj is not None: bulk.append(save_obj)
         try:
-            if len(bulk) > 0:
+            if len(bulk)>0:
                 insert_time = time.time()
                 cls.logger.debug("%s executing bulk for %s objects", cls._classname, len(bulk))
                 result = cls._mongo(collection.bulk_write, bulk)
@@ -595,8 +579,8 @@ class Rest(object):
                 timing = "build_time: %0.3f, insert_time: %0.3f, total_time: %0.3f" % (
                     insert_time - ts, now - insert_time, now - ts
                 )
-                cls.logger.debug("%s bulk write results (objects:%s), inserts: %s, updates: %s, %s",
-                                 cls._classname, len(bulk), result.inserted_count, result.modified_count, timing)
+                cls.logger.debug("%s bulk write results (objects:%s), inserts: %s, updates: %s, %s", 
+                    cls._classname, len(bulk), result.inserted_count, result.modified_count, timing)
             return True
         except BulkWriteError as be:
             cls.logger.warn("%s bulkwrite error: %s", cls._classname, be.details)
@@ -625,11 +609,11 @@ class Rest(object):
                     read_filter[attr] = kwargs[attr]
             if "_id" in kwargs and cls._access["expose_id"]:
                 read_filter["_id"] = ObjectId(kwargs["_id"])
-            ret = cls.read(_disable_page=True, _read_all=True, _projection=_projection,
-                           _filters=read_filter)
+            ret = cls.read(_disable_page=True, _read_all=True, _projection=_projection, 
+                            _filters=read_filter)
             if "objects" in ret and isinstance(ret["objects"], list):
                 for o in ret["objects"]:
-                    if cls._classname in o:
+                    if cls._classname in o: 
                         obj = cls(**o[cls._classname])
                         obj._exists = True
                         # update original_attributes to db value
@@ -637,7 +621,7 @@ class Rest(object):
                             if not cls._attributes[attr]["key"] and hasattr(obj, attr):
                                 obj._original_attributes[attr] = copy.deepcopy(getattr(obj, attr))
                         # add _id to object for expose_id objects
-                        if cls._access["expose_id"] and "_id" in db_obj:
+                        if cls._access["expose_id"] and "_id" in db_obj: 
                             setattr(obj, "_id", o[cls._classname]["_id"])
                         results.append(obj)
         except Exception as e:
@@ -670,7 +654,7 @@ class Rest(object):
         db_objs = []
         try:
             kwargs["_read_all"] = True
-            read_kwargs = {"_read_all": True}
+            read_kwargs = {"_read_all":True}
             if "_id" in kwargs and cls._access["expose_id"]:
                 read_kwargs["_id"] = kwargs["_id"]
             else:
@@ -680,16 +664,13 @@ class Rest(object):
                             read_kwargs[attr] = kwargs[attr]
                         else:
                             if not _bulk:
-                                raise RestLoadError("non-bulk load called for %s missing key %s" % (
+                                raise RestLoadError("non-bulk load called for %s missing key %s"%(
                                     cls._classname, attr))
-            if _bulk:
-                ret = cls.read(_disable_page=True, **read_kwargs)
-            else:
-                ret = cls.read(_params={"page-size": 1}, **read_kwargs)
+            if _bulk: ret = cls.read(_disable_page=True, **read_kwargs)
+            else: ret = cls.read(_params={"page-size":1}, **read_kwargs)
             if "objects" in ret and isinstance(ret["objects"], list):
                 for o in ret["objects"]:
-                    if cls._classname in o:
-                        db_objs.append(o[cls._classname])
+                    if cls._classname in o: db_objs.append(o[cls._classname])
         except NotFound as e:
             cls.logger.debug("%s", e)
         except RestLoadError as e:
@@ -707,19 +688,15 @@ class Rest(object):
                     # override original attributes to represent original db state
                     obj._original_attributes[attr] = copy.deepcopy(db_obj[attr])
                     # update return object with db value if not in kwargs
-                    if attr not in kwargs:
-                        setattr(obj, attr, db_obj[attr])
-            if cls._access["expose_id"] and "_id" in db_obj:
-                setattr(obj, "_id", db_obj["_id"])
+                    if attr not in kwargs: setattr(obj, attr, db_obj[attr])
+            if cls._access["expose_id"] and "_id" in db_obj: setattr(obj, "_id", db_obj["_id"])
             results.append(obj)
-
+            
         # load guarantee's uninitialized obj if not found and bulk is disabled
         if not _bulk:
-            if len(results) > 0:
-                return results[0]
+            if len(results)>0: return results[0]
             return cls(**kwargs)
-        else:
-            return results
+        else: return results
 
     @classmethod
     def get_attribute_default(cls, a):
@@ -728,13 +705,10 @@ class Rest(object):
         """
         v = None
         attr = None
-        if a in cls._attributes:
-            attr = cls._attributes[a]
-        elif a in cls._attributes_reference:
-            attr = cls._attributes_reference[a]
+        if a in cls._attributes: attr = cls._attributes[a]
+        elif a in cls._attributes_reference: attr = cls._attributes_reference[a]
         if attr is not None:
-            if attr["type"] is list:
-                return []
+            if attr["type"] is list: return []
             v = attr["default"]
             if attr["type"] is dict:
                 v = cls.validate_attribute(a, {})
@@ -743,8 +717,7 @@ class Rest(object):
     @classmethod
     def init(cls, force=False):
         """ update class _access and _attributes based on meta data """
-        if cls._class_init and not force:
-            return
+        if cls._class_init and not force: return
         cls._class_init = True
         cls._access = {}
         cls._attributes = {}
@@ -758,49 +731,43 @@ class Rest(object):
             cls.logger.debug("dependency not set (this should only happen in tests)")
             cls._dependency = RestDependency(cls)
         if cls._dependency.path is None:
-            cls._classname = re.sub("_", ".", cls.__name__).lower()
+            cls._classname = re.sub("_",".", cls.__name__).lower()
         else:
-            path = re.sub("(^/+)|(/+$)", "", cls._dependency.path)
-            cls._classname = re.sub("/", ".", path).lower()
-        # cls.logger.debug("initializing class %s", cls._classname)
+            path = re.sub("(^/+)|(/+$)","", cls._dependency.path)
+            cls._classname = re.sub("/",".", path).lower()
+        #cls.logger.debug("initializing class %s", cls._classname)
         # for each access attribute, ensure all def values are present
         for d in cls.ACCESS_DEF:
-            if d not in cls.META_ACCESS:
+            if d not in cls.META_ACCESS: 
                 cls._access[d] = copy.copy(cls.ACCESS_DEF[d])
-            else:
-                cls._access[d] = cls.META_ACCESS[d]
+            else: cls._access[d] = cls.META_ACCESS[d]
 
         # for access routes, cast and provided dicts to RouteInfo objects
         routes = []
         for r in cls._access["routes"]:
-            if type(r) is dict:
-                routes.append(RouteInfo(**r))
-            else:
-                routes.append(r)
+            if type(r) is dict: routes.append(RouteInfo(**r))
+            else: routes.append(r)
         cls._access["routes"] = routes
 
         def init_attribute(attr, sub=False):
             base = {}
             for d in cls.ATTRIBUTE_DEF:
-                if sub and d in ["key", "read", "write", "encrypt", "hash"]:
+                if sub and d in ["key","read","write","encrypt", "hash"]: 
                     continue
-                if d in attr:
-                    base[d] = attr[d]
-                else:
-                    base[d] = copy.copy(cls.ATTRIBUTE_DEF[d])
+                if d in attr: base[d] = attr[d]
+                else: base[d] = copy.copy(cls.ATTRIBUTE_DEF[d])
 
             # handle meta for dict type or list with subtype dict
             if base["type"] is dict or (base["type"] is list and \
-                                        base["subtype"] is dict):
-                if not isinstance(base["meta"], dict):
-                    base["meta"] = {}
+                base["subtype"] is dict):
+                if not isinstance(base["meta"], dict): base["meta"] = {}
                 for m in base["meta"]:
-                    base["meta"][m] = init_attribute(base["meta"][m], sub=True)
+                    base["meta"][m] = init_attribute(base["meta"][m],sub=True)
 
             # set default value if not present
             if base["default"] is None:
                 if base["type"] is dict or (base["type"] is list and \
-                                            base["subtype"] is dict):
+                    base["subtype"] is dict): 
                     sv = {}
                     for m in base["meta"]:
                         sv[m] = base["meta"][m]["default"]
@@ -817,21 +784,20 @@ class Rest(object):
 
         # for each attribute, ensure all def values are present
         for a in cls.META:
-            if type(cls.META[a]) is not dict:
+            if type(cls.META[a]) is not dict: 
                 cls.logger.warn("%s invalid meta attribute %s: %s", cls._classname, a, cls.META[a])
             # ignore any top level attribute that begins with an underscore
             if a[0] == "_":
                 cls.logger.error("%s unsupported parameter name %s" % (
                     cls._classname, a))
-                continue
+                continue 
             base = init_attribute(cls.META[a])
             if base["reference"]:
                 # reference attributes maintained in separate dict to prevent impact on CRUD ops
                 cls._attributes_reference[a] = base
             else:
                 cls._attributes[a] = base
-                if cls._attributes[a]["key"]:
-                    cls._keys.append(a)
+                if cls._attributes[a]["key"]: cls._keys.append(a)
 
         # copy over parent keys as implicit keys for this object.
         # abort if parent (or grandparent) and child have overlapping keys
@@ -839,16 +805,16 @@ class Rest(object):
             parent = cls._dependency.parent.obj
             for k in parent._keys:
                 if k in parent._attributes:
-                    # cls.logger.debug("adding implicit parent key '%s'",k)
+                    #cls.logger.debug("adding implicit parent key '%s'",k)
                     if k in cls._attributes:
-                        raise Exception("%s inherited key '%s' overlaps with existing attribute" % (
+                        raise Exception("%s inherited key '%s' overlaps with existing attribute"%(
                             cls._classname, k))
                     cls._attributes[k] = copy.deepcopy(parent._attributes[k])
             cls._keys = parent._keys + cls._keys
 
         # revisit later if this needs to be disabled
         # (dn is disabled if class does not have any keys)
-        # if len(cls._keys)==0: cls._access["dn"] = False
+        #if len(cls._keys)==0: cls._access["dn"] = False
 
     @classmethod
     def init_callbacks(cls):
@@ -856,8 +822,7 @@ class Rest(object):
         # wrap the function. create a dynamic function from CallbackInfo and assign to corresponding
         # callback
         for cb in CallbackInfo.allowed_callbacks:
-            if cb not in cls._access or cls._access[cb] is None:
-                continue
+            if cb not in cls._access or cls._access[cb] is None: continue
             if not isinstance(cls._access[cb], CallbackInfo):
                 cls._access[cb] = CallbackInfo(callback=cb, function=cls._access[cb])
             cls._access[cb].init_function(cls)
@@ -866,9 +831,8 @@ class Rest(object):
     @classmethod
     def authenticated(cls):
         """ abort if user is not currently authenticated (not currently logged in) """
-        if (g.user.is_authenticated is False):
-            abort(401, "Unauthenticated")
-
+        if (g.user.is_authenticated is False): abort(401, "Unauthenticated")
+        
     @classmethod
     def rbac(cls, role=None):
         """ execute rbac/rule to verify user has access to resource
@@ -877,16 +841,14 @@ class Rest(object):
         # ensure user is authenticated which aborts on error
         cls.authenticated()
         # perform role check only if role is a integer (can extend functionality later)
-        if role is None:
-            role = cls._access["default_role"]
+        if role is None: role = cls._access["default_role"]
         if type(role) is int:
-            if g.user.role > role:
-                abort(403, MSG_403)
+            if g.user.role > role: abort(403, MSG_403)
 
     @classmethod
     def api_ok(cls):
         """ standard success method returned to api"""
-        return jsonify({"success": True})
+        return jsonify({"success":True})
 
     @classmethod
     def api_create(cls):
@@ -895,8 +857,7 @@ class Rest(object):
         _data = get_user_data()
         ret = cls.create(_data=_data, _api=True)
         # pop _id as this is not exposed by default on api create operations
-        if not cls._access["expose_id"]:
-            ret.pop("_id", None)
+        if not cls._access["expose_id"]: ret.pop("_id", None)
         return jsonify(ret)
 
     @classmethod
@@ -941,17 +902,15 @@ class Rest(object):
 
         # perform validation on attribute
         attribute_meta = None
-        if attr in cls._attributes:
-            attribute_meta = cls._attributes[attr]
-        elif attr in cls._attributes_reference:
-            attribute_meta = cls._attributes_reference[attr]
+        if attr in cls._attributes: attribute_meta = cls._attributes[attr]
+        elif attr in cls._attributes_reference: attribute_meta = cls._attributes_reference[attr]
         if attribute_meta is None or type(attribute_meta) is not dict:
             cls.logger.error("unknown or invalid attribute: %s" % attr)
             abort(500, "unable to validate attribute %s" % attr)
 
-        return default_validator(classname=cls._classname,
-                                 attribute_name=attr, value=val, attribute_meta=attribute_meta)
-
+        return default_validator(classname=cls._classname, 
+            attribute_name = attr, value = val, attribute_meta=attribute_meta)
+     
     @classmethod
     def filter(cls, f={}, params=None):
         """ parses user provided params to build db filter used for bulk
@@ -983,9 +942,8 @@ class Rest(object):
         """
 
         def raise_error(fs, e=""):
-            if len(e) > 0:
-                e = ". %s" % e
-            cls.logger.debug("invalid filter %s%s", fs, e)
+            if len(e)>0: e = ". %s" % e 
+            cls.logger.debug("invalid filter %s%s", fs,e)
             abort(400, "invalid filter %s%s" % (fs, e))
 
         def parse_operands(fs):
@@ -1005,88 +963,79 @@ class Rest(object):
             # operand_reg pre-compiled within rest object
 
             original_fs = fs
-            # cls.logger.debug("parse operands: [%s]", original_fs)
+            #cls.logger.debug("parse operands: [%s]", original_fs)
             fs = fs.strip()
             while len(fs) > 0:
-                # cls.logger.debug("parsing sub-operands: [%s]", fs)
+                #cls.logger.debug("parsing sub-operands: [%s]", fs)
                 r1 = re.search(Rest.operand_reg, fs, re.IGNORECASE)
-                if r1 is None:
+                if r1 is None: 
                     # occurs with invalid operand only
                     cls.logger.debug("sub-operand not matched")
                     err = "invalid operand or unbalanced parenthesis"
                     raise ValueError(err)
                 delim = r1.group("delim")
-                # cls.logger.debug("delim: [%s]", r1.group("delim"))
-                if r1.group("str") is not None:
-                    # cls.logger.debug("str: [%s]", r1.group("str"))
+                #cls.logger.debug("delim: [%s]", r1.group("delim"))
+                if r1.group("str") is not None: 
+                    #cls.logger.debug("str: [%s]", r1.group("str"))
                     operands.append(r1.group("str"))
-                    delim += r1.group("str")
+                    delim+= r1.group("str")
                 elif r1.group("float") is not None:
-                    # cls.logger.debug("float: [%s]", r1.group("float"))
+                    #cls.logger.debug("float: [%s]", r1.group("float"))
                     operands.append(float(r1.group("float")))
-                    delim += r1.group("float")
+                    delim+= r1.group("float")
                 elif r1.group("bool") is not None:
-                    # cls.logger.debug("bool: [%s]", r1.group("bool"))
-                    if r1.group("bool").lower() == "true":
-                        operands.append(True)
-                    else:
-                        operands.append(False)
-                    delim += r1.group("bool")
+                    #cls.logger.debug("bool: [%s]", r1.group("bool"))
+                    if r1.group("bool").lower() == "true": operands.append(True)
+                    else: operands.append(False)
+                    delim+= r1.group("bool")
                 else:
                     # match on operator need to walk each character to account
                     # for embedded operators within it.
-                    # cls.logger.debug("op: [%s]", r1.group("op"))
-                    op = delim + r1.group("op")
+                    #cls.logger.debug("op: [%s]", r1.group("op"))
+                    op = delim+r1.group("op")
                     depth = 0
                     for i, c in enumerate(fs[len(op):]):
-                        # cls.logger.debug("checking: [%s:%s]", i,c)
-                        if c == ")":
-                            if i > 0 and fs[i - 1] == "\\":
-                                continue
-                            elif depth > 0:
-                                depth -= 1
-                            else:
-                                operands.append("%s%s" % (r1.group("op"),
-                                                          fs[len(op):len(op) + i + 1]))
-                                delim += operands[-1]
-                                # cls.logger.debug("op set:[%s]", operands[-1])
+                        #cls.logger.debug("checking: [%s:%s]", i,c)
+                        if c==")":
+                            if i>0 and fs[i-1]=="\\": continue
+                            elif depth>0: depth-=1
+                            else:  
+                                operands.append("%s%s"%(r1.group("op"),
+                                    fs[len(op):len(op)+i+1]))
+                                delim+= operands[-1]
+                                #cls.logger.debug("op set:[%s]", operands[-1])
                                 break
-                        elif c == "(":
-                            if i > 0 and fs[i - 1] == "\\":
-                                continue
-                            depth += 1
-                    if depth != 0:
+                        elif c=="(":
+                            if i>0 and fs[i-1]=="\\": continue
+                            depth+= 1
+                    if depth!=0:
                         raise ValueError("unbalanced parathensis")
-
+                
                 # remove the delimiter and ensure that if there are any more 
                 # characters, they start with a comma ','
                 fs = re.sub("^%s" % re.escape(delim), "", fs)
-                if len(fs) > 0 and not re.search("^[ ]*,", fs):
+                if len(fs)>0 and not re.search("^[ ]*,", fs):
                     cls.logger.debug("operands not separated by comma: %s", fs)
                     err = "invalid operand or unbalanced parenthesis"
                     raise ValueError(err)
             return operands
 
+            
         def parse_operator(fs):
             # receives a filter string (fs) and returns mongo filter json
-            if len(fs) == 0:
-                return {}
-            # cls.logger.debug("parse operator: [%s]", fs)
+            if len(fs) == 0: return {}
+            #cls.logger.debug("parse operator: [%s]", fs)
             r1 = re.search(Rest.operator_reg, fs, re.IGNORECASE)
-            if r1 is None:
-                raise_error(fs)
+            if r1 is None: raise_error(fs)
             operator = r1.group("op").lower()
-            try:
-                operands = parse_operands(r1.group("data"))
-            except ValueError as e:
-                raise_error(fs, "%s" % e)
-            if len(operands) == 0:
-                raise_error(fs)
+            try: operands = parse_operands(r1.group("data"))
+            except ValueError as e: raise_error(fs, "%s" % e)
+            if len(operands) == 0: raise_error(fs)
 
-            # cls.logger.debug("operator: %s, operands: %s", operator,operands)
-            if operator == "and" or operator == "or":
+            #cls.logger.debug("operator: %s, operands: %s", operator,operands)
+            if operator=="and" or operator=="or":
                 op_str = "$%s" % operator
-                if len(operands) < 2:
+                if len(operands)<2:
                     err = "two or more operands required for '%s'" % operator
                     raise_error(fs, err)
                 ret = {op_str: []}
@@ -1095,17 +1044,17 @@ class Rest(object):
                 return ret
             else:
                 # validate supported operator
-                if operator not in ["gt", "lt", "ge", "le", "eq", "neq", "regex"]:
+                if operator not in ["gt","lt","ge","le","eq","neq","regex"]:
                     raise_error(fs, "unknown operator %s" % operator)
                 # all other operators must have two operands where first operand
                 # is a string representing the attribute name and the second is
                 # the value (which can be string, float, or bool)
-                if len(operands) != 2:
+                if len(operands)!=2: 
                     raise_error(fs, "received %s operands" % (len(operands)))
                 # for each operand, remove quotes if string
-                for i, o in enumerate(operands):
+                for i,o in enumerate(operands):
                     if isinstance(o, str) or isinstance(o, unicode):
-                        o = re.sub("(^\")|(\"$)", "", o)
+                        o = re.sub("(^\")|(\"$)","", o)
                     operands[i] = o
                 # check that operand[0] which represents an attribute exists
                 # if not, check if it represents a sub object in list/dict
@@ -1116,21 +1065,17 @@ class Rest(object):
                         if attr in meta:
                             metatype = meta[attr].get("type", str)
                             meta = meta[attr].get("meta", {})
-                            if not isinstance(meta, dict):
-                                meta = {}
-                        elif metatype is list and re.search("^[0-9]+$", attr):
-                            metatype = None  # only allow list match once
+                            if not isinstance(meta,dict): meta = {}
+                        elif metatype is list and re.search("^[0-9]+$",attr):
+                            metatype = None # only allow list match once
                         else:
-                            raise_error(fs, "unknown attribute %s" % operands[0])
+                            raise_error(fs,"unknown attribute %s"%operands[0])
                 # build filter based on operator
-                if operator == "eq":
-                    return {operands[0]: operands[1]}
+                if operator == "eq": return { operands[0]: operands[1]}
                 elif operator == "regex":
                     # validate regex is valid 
-                    try:
-                        re.compile(operands[1])
-                    except re.error as e:
-                        raise_error(fs, "%s" % e)
+                    try: re.compile(operands[1])
+                    except re.error as e: raise_error(fs, "%s" % e)
                 op_str = {
                     "eq": "$eq",
                     "gt": "$gt",
@@ -1140,18 +1085,15 @@ class Rest(object):
                     "neq": "$ne",
                     "regex": "$regex",
                 }.get(operator, "eq")
-                return {operands[0]: {op_str: operands[1]}}
-
-        if params is None:
-            params = get_user_params()
-        user_filter = params.get("filter", "").strip()
-        if len(user_filter) > 0:
+                return {operands[0]: { op_str: operands[1]}}
+            
+        if params is None: params = get_user_params()
+        user_filter = params.get("filter","").strip()
+        if len(user_filter)>0:
             cls.logger.debug("parse user filter: %s", user_filter)
             r = parse_operator(user_filter)
-            if len(r) > 0:
-                cls.logger.debug("parsed filter: %s", r)
-            for k in r:
-                f[k] = r[k]
+            if len(r)>0: cls.logger.debug("parsed filter: %s", r)
+            for k in r: f[k] = r[k]
         return f
 
     @classmethod
@@ -1210,7 +1152,7 @@ class Rest(object):
             "read_all": kwargs.get("_read_all", False),
             "write_all": kwargs.get("_write_all", False),
         }
-        ret_obj = {"success": True, "count": 1, "_id": ""}
+        ret_obj = {"success": True, "count":1, "_id":""}
         if _skip_validation:
             # when skip validation is enabled then assume caller has already provided proper data
             # (along with handling encryption/hash)
@@ -1225,7 +1167,7 @@ class Rest(object):
             for attr in cls._attributes:
                 if attr not in _data:
                     if cls._attributes[attr]["key"]:
-                        abort(400, "%s missing required attribute %s" % (classname, attr))
+                        abort(400,"%s missing required attribute %s" % (classname, attr))
                     obj[attr] = cls.get_attribute_default(attr)
                 else:
                     if not cls._attributes[attr]["write"] and not _write_all:
@@ -1236,19 +1178,18 @@ class Rest(object):
 
                 # secure encrypt/hash attributes
                 obj[attr] = cls.secure_attribute(attr, obj[attr])
-                if cls._attributes[attr]["key"]:
-                    keys[attr] = obj[attr]
+                if cls._attributes[attr]["key"]: keys[attr] = obj[attr]
 
             # check for any user provided attributes that do not exists
             for attr in _data:
                 if attr not in cls._attributes:
-                    abort(400, "%s unknown attribute %s" % (classname, attr))
-
+                    abort(400, "%s unknown attribute %s"%(classname, attr))
+      
             # before anything (include before_create callback), if this node has a parent
             # dependency, check for the existence of the parent. This is only done on api requests,
             # not on normal backend calls
             if kwargs.get("_api", False) and cls._dependency is not None and \
-                    cls._dependency.parent is not None and cls._dependency.parent.obj is not None:
+                cls._dependency.parent is not None and cls._dependency.parent.obj is not None:
                 # parent keys are always a subset of child keys, determine corresponding parent that
                 # must exist for this child to be created
                 parent = cls._dependency.parent.obj
@@ -1261,7 +1202,7 @@ class Rest(object):
                 if not p.exists():
                     okeys = []
                     for attr in parent._attributes:
-                        if parent._attributes[attr].get("key", False):
+                        if parent._attributes[attr].get("key",False):
                             okeys.append("%s=%s" % (attr, obj.get(attr, "")))
                     okeys = ",".join(okeys)
                     abort(400, "parent (%s) does not exist" % okeys)
@@ -1273,19 +1214,18 @@ class Rest(object):
                 new_obj = cls._access["before_create"](**callback_kwargs)
                 assert new_obj is not None and isinstance(new_obj, dict)
                 obj = new_obj
-            except (BadRequest, NotFound, Forbidden, InternalServerError) as e:
-                cls.logger.debug("%s before create abort: %s", classname, e)
+            except (BadRequest,NotFound,Forbidden,InternalServerError) as e:
+                cls.logger.debug("%s before create abort: %s",classname, e)
                 raise e
             except AssertionError as e:
-                emsg = "invalid create object returned: %s" % str(type(new_obj))
+                emsg = "invalid create object returned: %s"%str(type(new_obj))
                 cls.logger.debug("%s before create callback assert: %s", classname, emsg)
             except Exception as e:
                 cls.logger.debug(traceback.format_exc())
                 cls.logger.warn("%s before create callback failed: %s", classname, e)
-
+ 
         # if _bulk_prep then we are not doing insertion, only creating InsertOne object 
-        if _bulk_prep:
-            return InsertOne(obj)
+        if _bulk_prep: return InsertOne(obj)
 
         # insert the update into the collection
         try:
@@ -1298,11 +1238,10 @@ class Rest(object):
             # include keys in duplicate error message
             okeys = []
             for attr in cls._attributes:
-                if cls._attributes[attr].get("key", False):
+                if cls._attributes[attr].get("key",False):
                     okeys.append("%s=%s" % (attr, obj.get(attr, "")))
             err = "%s duplicate entry " % classname
-            if len(okeys) > 0:
-                err = "%s (%s)" % (err, ", ".join(okeys))
+            if len(okeys)>0: err = "%s (%s)" % (err, ", ".join(okeys))
             abort(400, err)
         except PyMongoError as e:
             abort(500, "database error %s" % e)
@@ -1312,7 +1251,7 @@ class Rest(object):
             try:
                 callback_kwargs["data"] = obj
                 cls._access["after_create"](**callback_kwargs)
-            except (BadRequest, NotFound, Forbidden, InternalServerError) as e:
+            except (BadRequest,NotFound,Forbidden,InternalServerError) as e:
                 cls.logger.debug("%s after create abort: %s", classname, e)
                 raise e
             except Exception as e:
@@ -1370,7 +1309,7 @@ class Rest(object):
         """
         cls.init()
         classname = cls._classname
-        # cls.logger.debug("%s read request [p,f,k] [%s,%s,%s]",classname,_params,_filters,kwargs)
+        #cls.logger.debug("%s read request [p,f,k] [%s,%s,%s]",classname,_params,_filters,kwargs)
         collection = get_db()[classname]
         callback_kwargs = {
             "api": kwargs.get("_api", False),
@@ -1391,36 +1330,30 @@ class Rest(object):
             read_one = True
             filters = {}
             for attr in cls._attributes:
-                if cls._attributes[attr].get("key", False) and attr not in kwargs:
+                if cls._attributes[attr].get("key",False) and attr not in kwargs:
                     read_one = False
                 if attr in kwargs:
                     filters[attr] = kwargs.get(attr, "")
             if cls._access["expose_id"]:
                 # error on invalid id
                 try:
-                    if "_id" in kwargs:
-                        filters["_id"] = ObjectId(kwargs["_id"])
-                    else:
-                        read_one = False
+                    if "_id" in kwargs: filters["_id"] = ObjectId(kwargs["_id"])
+                    else: read_one = False
                 except InvalidId as e:
-                    abort(400, "%s._id invalid value '%s" % (cls._classname, kwargs["_id"]))
+                    abort(400, "%s._id invalid value '%s" % (cls._classname,kwargs["_id"]))
             # additional read filters via user params
             filters = cls.filter(f=filters, params=_params)
-        else:
+        else: 
             read_one = False
             filters = _filters
 
         # set page and pagesize
         page = _params.get("page", 0)
         pagesize = _params.get("page-size", cls.DEFAULT_PAGE_SIZE)
-        try:
-            page = int(page)
-        except Exception as e:
-            abort(400, "invalid page value: %s" % page)
-        try:
-            pagesize = int(pagesize)
-        except Exception as e:
-            abort(400, "invalid pagesize: %s" % pagesize)
+        try: page = int(page)
+        except Exception as e: abort(400, "invalid page value: %s" % page)
+        try: pagesize = int(pagesize)
+        except Exception as e: abort(400, "invalid pagesize: %s" % pagesize)
 
         if not _disable_page:
             if page < 0:
@@ -1428,9 +1361,9 @@ class Rest(object):
             if pagesize <= 0:
                 abort(400, "page-size cannot be <= zero: %s" % pagesize)
             if pagesize > cls.MAX_PAGE_SIZE:
-                abort(400, "page-size %s exceeds max: %s" % (pagesize, cls.MAX_PAGE_SIZE))
-            if page * pagesize > cls.MAX_RESULT_SIZE:
-                abort(400, "result size of page(%s)*page-size(%s) exceeds max %s" % (
+                abort(400,"page-size %s exceeds max: %s" % (pagesize,cls.MAX_PAGE_SIZE))
+            if page*pagesize > cls.MAX_RESULT_SIZE:
+                abort(400, "result size of page(%s)*page-size(%s) exceeds max %s"%(
                     page, pagesize, cls.MAX_RESULT_SIZE))
 
         # validate rsp_include values
@@ -1445,11 +1378,11 @@ class Rest(object):
                 new_filters = cls._access["before_read"](**callback_kwargs)
                 assert new_filters is not None and isinstance(new_filters, dict)
                 filters = new_filters
-            except (BadRequest, NotFound, Forbidden, InternalServerError) as e:
-                cls.logger.debug("%s before read abort: %s", classname, e)
+            except (BadRequest,NotFound,Forbidden,InternalServerError) as e:
+                cls.logger.debug("%s before read abort: %s",classname, e)
                 raise e
             except AssertionError as e:
-                emsg = "invalid read filters returned: %s" % str(type(new_filters))
+                emsg="invalid read filters returned: %s"%str(type(new_filters))
                 cls.logger.warn("%s before read callback failed: %s", classname, emsg)
             except Exception as e:
                 cls.logger.debug(traceback.format_exc())
@@ -1461,48 +1394,43 @@ class Rest(object):
         else:
             # parse projections from params
             projections = {}
-            for i in _params.get("include", "").split(","):
-                if len(i) > 0 and i not in projections:
-                    projections[i] = 1
-            if len(projections) == 0:
-                projections = None
+            for i in _params.get("include","").split(","):
+                if len(i)>0 and i not in projections: projections[i] = 1
+            if len(projections)==0: projections = None
             elif cls._access["dn"] and "dn" not in cls._attributes:
                 # ensure all keys are set for 'dn' case when 'include' limits return results
                 # AND 'dn' is not already a user defined attribute for the object
-                for k in cls._keys:
-                    projections[k] = 1
+                for k in cls._keys: projections[k] = 1
 
         # acquire cursor 
         try:
-            # cls.logger.debug("read filters(%s): %s", cls._classname, filters)
+            #cls.logger.debug("read filters(%s): %s", cls._classname, filters)
             cursor = cls._mongo(collection.find, filters, projections)
         except PyMongoError as e:
             abort(500, "database error %s" % e)
-
+            
         # check for sort options
         if "sort" in _params:
             sort = []
-            reg = "(?i)(?P<sort>[^|\,]+)(\|(?P<dir>[a-z]+))?(,|$)"
-            for match in re.finditer(reg, _params["sort"].strip()):
-                sdir = ASCENDING
+            reg="(?i)(?P<sort>[^|\,]+)(\|(?P<dir>[a-z]+))?(,|$)"
+            for match in re.finditer(reg,_params["sort"].strip()):
+                sdir= ASCENDING
                 if match.group("dir") is not None:
                     _sdir = match.group("dir").lower()
-                    if _sdir == "asc":
-                        pass
-                    elif _sdir == "desc":
-                        sdir = DESCENDING
+                    if _sdir == "asc": pass
+                    elif _sdir == "desc": sdir = DESCENDING
                     else:
                         em = "invalid sort direction (expected desc or asc) "
-                        abort(400, "%s: %s for %s" % (em, _sdir, _params["sort"]))
+                        abort(400, "%s: %s for %s" %(em,_sdir,_params["sort"]))
                 sort.append((match.group("sort"), sdir))
             if len(sort) == 0:
                 abort(400, "invalid sort string: %s" % _params["sort"])
             # prepare cursor
-            cursor = cls._mongo(cursor.sort, sort)
-
-            # peform pagination
+            cursor = cls._mongo(cursor.sort, sort) 
+    
+        # peform pagination
         if not _disable_page:
-            cursor = cls._mongo(cursor.skip, pagesize * page)
+            cursor = cls._mongo(cursor.skip, pagesize*page)
             cursor = cls._mongo(cursor.limit, pagesize)
 
         # prepare return object
@@ -1510,7 +1438,7 @@ class Rest(object):
             "count": cls._mongo(cursor.count),
             "objects": []
         }
-
+        
         # only if user did not explicitly request count, iterate through results
         if "count" not in _params:
             for r in cursor:
@@ -1521,10 +1449,10 @@ class Rest(object):
                         if cls._attributes[v]["type"] is str and cls._attributes[v]["encrypt"]:
                             obj[v] = aes_decrypt(obj[v])
                 if cls._access["expose_id"] and "_id" in r:
-                    obj["_id"] = "%s" % ObjectId(r["_id"])
+                    obj["_id"] = "%s"%ObjectId(r["_id"])
                 # add dn to object if configured and not already an attribute of the object
                 if cls._access["dn"] and "dn" not in obj:
-                    _vars = [obj.get(attr, "") for attr in cls._dn_attributes]
+                    _vars = [obj.get(attr,"") for attr in cls._dn_attributes]
                     obj["dn"] = cls._dn_path.format(*_vars)
                 ret["objects"].append({cls._classname: obj})
 
@@ -1532,22 +1460,21 @@ class Rest(object):
             if rsp_include != "self":
                 child_rsp_include = "self" if rsp_include == "children" else "subtree"
                 child_params = {"rsp-include": child_rsp_include}
-                if cls._dependency is not None and len(cls._dependency.children) > 0:
+                if cls._dependency is not None and len(cls._dependency.children)>0:
                     for obj in ret["objects"]:
                         obj = obj[cls._classname]
                         obj["children"] = []
                         child_filters = {}
                         for attr in obj:
-                            if attr in cls._keys:
-                                child_filters[attr] = obj[attr]
+                            if attr in cls._keys: child_filters[attr] = obj[attr]
                         for n in cls._dependency.children:
                             if n.obj is not None:
-                                # cls.logger.debug("sub-read for child %s: (%s) %s",
+                                #cls.logger.debug("sub-read for child %s: (%s) %s", 
                                 #                    n.obj._classname, child_params, child_filters)
                                 try:
                                     cret = n.obj.read(_params=child_params, _filters=child_filters)
                                     if "objects" in cret:
-                                        obj["children"] += cret["objects"]
+                                        obj["children"]+= cret["objects"]
                                 except Exception as e:
                                     cls.logger.debug("subreadtraceback: %s", traceback.format_exc())
 
@@ -1556,13 +1483,12 @@ class Rest(object):
             # include keys in not-found error message
             okeys = []
             for attr in cls._attributes:
-                if cls._attributes[attr].get("key", False):
+                if cls._attributes[attr].get("key",False):
                     okeys.append("%s=%s" % (attr, filters.get(attr, "")))
             if cls._access["expose_id"]:
-                okeys.append("_id=%s" % filters.get("_id", ""))
+                okeys.append("_id=%s" % filters.get("_id",""))
             err = "%s not found" % classname
-            if len(okeys) > 0:
-                err = "%s (%s) not found" % (classname, ", ".join(okeys))
+            if len(okeys)>0: err = "%s (%s) not found" % (classname, ", ".join(okeys))
             abort(404, err)
 
         # after read callback
@@ -1572,7 +1498,7 @@ class Rest(object):
                 new_ret = cls._access["after_read"](**callback_kwargs)
                 assert new_ret is not None
                 ret = new_ret
-            except (BadRequest, NotFound, Forbidden, InternalServerError) as e:
+            except (BadRequest,NotFound,Forbidden,InternalServerError) as e:
                 cls.logger.debug("%s after read abort: %s", classname, e)
                 raise e
             except AssertionError as e:
@@ -1586,7 +1512,7 @@ class Rest(object):
 
     @classmethod
     def update(cls, _data={}, _params={}, _filters=None, _bulk_prep=False, _skip_validation=False,
-               **kwargs):
+                **kwargs):
         """ update rest object, aborts on error.
        
             _data is dict of attributes for object.  Missing attributes will automatically be added
@@ -1665,22 +1591,20 @@ class Rest(object):
             write_one = True
             filters = {}
             for attr in cls._attributes:
-                if cls._attributes[attr].get("key", False) and \
-                        attr not in kwargs:
+                if cls._attributes[attr].get("key",False) and \
+                    attr not in kwargs:
                     write_one = False
                 if attr in kwargs:
                     filters[attr] = kwargs.get(attr, "")
             if cls._access["expose_id"]:
                 # error on invalid id
                 try:
-                    if "_id" in kwargs:
-                        filters["_id"] = ObjectId(kwargs["_id"])
-                    else:
-                        write_one = False
+                    if "_id" in kwargs: filters["_id"]=ObjectId(kwargs["_id"])
+                    else: write_one = False
                 except InvalidId as e:
-                    abort(400, "%s._id invalid value '%s" % (cls._classname, kwargs["_id"]))
+                    abort(400, "%s._id invalid value '%s" % (cls._classname,kwargs["_id"]))
             # additional filters via user params
-            if not write_one:
+            if not write_one: 
                 filters = cls.filter(f=filters, params=_params)
                 # sanity check against bulk_update
                 if not cls._access["bulk_update"]:
@@ -1690,21 +1614,19 @@ class Rest(object):
             write_one = False
 
         # build update object 
-        ret_obj = {"success": True, "count": 0}
+        ret_obj = {"success": True, "count":0 }
         if _skip_validation:
             obj = _data
         else:
             obj = {}
             for attr in _data:
-                if attr == "$patch":
-                    abort(400, "$patch not yet implemented")
+                if attr == "$patch": abort(400, "$patch not yet implemented")
                 elif attr not in cls._attributes:
-                    abort(400, "%s unknown attribute %s" % (classname, attr))
+                    abort(400, "%s unknown attribute %s"%(classname, attr))
                 # don't include keys in update object but allow user to provide them
-                if cls._attributes[attr]["key"]:
-                    continue
+                if cls._attributes[attr]["key"]: continue
                 if not cls._attributes[attr]["write"] and not _write_all:
-                    abort(400, "%s write to %s not permitted" % (classname, attr))
+                    abort(400, "%s write to %s not permitted" % (classname,attr))
                 # validate attribute
                 obj[attr] = cls.validate_attribute(attr, _data[attr])
 
@@ -1725,7 +1647,7 @@ class Rest(object):
                 assert isinstance(nf, dict) and isinstance(nd, dict)
                 obj = nd
                 filters = nf
-            except (BadRequest, NotFound, Forbidden, InternalServerError) as e:
+            except (BadRequest,NotFound,Forbidden,InternalServerError) as e:
                 cls.logger.debug("%s before update abort: %s", classname, e)
                 raise e
             except AssertionError as e:
@@ -1735,17 +1657,15 @@ class Rest(object):
             except Exception as e:
                 cls.logger.debug(traceback.format_exc())
                 cls.logger.warn("%s before update callback failed: %s", classname, e)
-
+   
         # if _bulk_prep then we are not doing update, only creating UpdateOne object 
-        if _bulk_prep:
-            if write_one:
-                return UpdateOne(filters, {"$set": obj})
-            else:
-                return UpdateMany(filters, {"$set": obj})
+        if _bulk_prep: 
+            if write_one: return UpdateOne(filters, {"$set":obj})
+            else: return UpdateMany(filters, {"$set":obj})
 
         # perform db update for selected objects
         try:
-            r = cls._mongo(collection.update_many, filters, {"$set": obj})
+            r = cls._mongo(collection.update_many, filters, {"$set":obj})
             ret_obj["count"] = r.matched_count
         except PyMongoError as e:
             abort(500, "database error %s" % e)
@@ -1758,10 +1678,9 @@ class Rest(object):
                 if cls._attributes[attr]["key"]:
                     okeys.append("%s=%s" % (attr, filters.get(attr, "")))
             if cls._access["expose_id"]:
-                okeys.append("_id=%s" % filters.get("_id", ""))
+                okeys.append("_id=%s" % filters.get("_id",""))
             err = "%s not found" % classname
-            if len(okeys) > 0:
-                err = "%s (%s) not found" % (classname, ", ".join(okeys))
+            if len(okeys)>0: err = "%s (%s) not found" % (classname, ", ".join(okeys))
             abort(404, err)
 
         # after update callback
@@ -1770,12 +1689,12 @@ class Rest(object):
                 callback_kwargs["data"] = obj
                 callback_kwargs["filters"] = filters
                 cls._access["after_update"](**callback_kwargs)
-            except (BadRequest, NotFound, Forbidden, InternalServerError) as e:
+            except (BadRequest,NotFound,Forbidden,InternalServerError) as e:
                 cls.logger.debug("%s after update abort: %s", classname, e)
                 raise e
             except Exception as e:
                 cls.logger.debug(traceback.format_exc())
-                cls.logger.warn("%s after update callback failed: %s", classname, e)
+                cls.logger.warn("%s after update callback failed: %s", classname,e)
 
         # return object successfully database operation
         return ret_obj
@@ -1804,7 +1723,7 @@ class Rest(object):
         """
         cls.init()
         classname = cls._classname
-        cls.logger.debug("%s delete request filters:%s, kwargs: %s", classname, _filters, kwargs)
+        cls.logger.debug("%s delete request filters:%s, kwargs: %s",classname,_filters,kwargs)
         collection = get_db()[classname]
         callback_kwargs = {
             "api": kwargs.get("_api", False),
@@ -1820,23 +1739,21 @@ class Rest(object):
             write_one = True
             filters = {}
             for attr in cls._attributes:
-                if cls._attributes[attr].get("key", False) and \
-                        attr not in kwargs:
+                if cls._attributes[attr].get("key",False) and \
+                    attr not in kwargs:
                     write_one = False
                 if attr in kwargs:
                     filters[attr] = kwargs.get(attr, "")
             if cls._access["expose_id"]:
                 # error on invalid id
                 try:
-                    if "_id" in kwargs:
-                        filters["_id"] = ObjectId(kwargs["_id"])
-                    else:
-                        write_one = False
+                    if "_id" in kwargs: filters["_id"]=ObjectId(kwargs["_id"])
+                    else: write_one = False
                 except InvalidId as e:
                     abort(400, "%s._id invalid value '%s" % (
-                        cls._classname, kwargs["_id"]))
+                        cls._classname,kwargs["_id"]))
             # additional filters via user params
-            if not write_one:
+            if not write_one: 
                 filters = cls.filter(f=filters, params=_params)
                 # sanity check against bulk_delete
                 if not cls._access["bulk_delete"]:
@@ -1850,13 +1767,13 @@ class Rest(object):
             try:
                 callback_kwargs["filters"] = filters
                 new_filters = cls._access["before_delete"](**callback_kwargs)
-                assert new_filters is not None and isinstance(new_filters, dict)
+                assert new_filters is not None and isinstance(new_filters,dict)
                 filters = new_filters
-            except (BadRequest, NotFound, Forbidden, InternalServerError) as e:
+            except (BadRequest,NotFound,Forbidden,InternalServerError) as e:
                 cls.logger.debug("%s before delete abort: %s", classname, e)
                 raise e
             except AssertionError as e:
-                emsg = "invalid delete filter returned: %s" % str(type(new_filters))
+                emsg="invalid delete filter returned: %s"%str(type(new_filters))
                 cls.logger.debug("%s before delete callback assert: %s", classname, emsg)
             except Exception as e:
                 cls.logger.debug(traceback.format_exc())
@@ -1865,21 +1782,20 @@ class Rest(object):
         # trigger delete on all child objects. This requires exact list of objects that match user
         # provided filter and limit that filter to appropriate keys only. This will require a read
         # operation to get list of delete objects followed by delete on corresponding children
-        if cls._dependency is not None and len(cls._dependency.children) > 0:
+        if cls._dependency is not None and len(cls._dependency.children)>0:
             matched_objs = cls.read(_filters=filters)
             for obj in matched_objs["objects"]:
                 obj = obj[cls._classname]
                 child_filters = {}
                 for attr in obj:
-                    if attr in cls._keys:
-                        child_filters[attr] = obj[attr]
+                    if attr in cls._keys: child_filters[attr] = obj[attr]
                 for n in cls._dependency.children:
                     if n.obj is not None:
-                        # cls.logger.debug("deleting child %s: %s", n.obj._classname, child_filters)
+                        #cls.logger.debug("deleting child %s: %s", n.obj._classname, child_filters)
                         n.obj.delete(_filters=child_filters)
 
         # perform delete request
-        ret_obj = {"success": True, "count": 0}
+        ret_obj = {"success": True, "count":0 }
 
         # perform db update for selected objects
         try:
@@ -1893,14 +1809,13 @@ class Rest(object):
             # include keys in not-found error message
             okeys = []
             for attr in cls._attributes:
-                if cls._attributes[attr].get("key", False):
+                if cls._attributes[attr].get("key",False):
                     okeys.append("%s=%s" % (attr, filters.get(attr, "")))
             if cls._access["expose_id"]:
-                okeys.append("_id=%s" % filters.get("_id", ""))
+                okeys.append("_id=%s" % filters.get("_id",""))
             err = "%s not found" % classname
-            if len(okeys) > 0:
-                err = "%s (%s) not found" % (classname,
-                                             ", ".join(okeys))
+            if len(okeys)>0: err = "%s (%s) not found" % (classname, 
+                ", ".join(okeys))
             abort(404, err)
 
         # after delete callback
@@ -1908,7 +1823,7 @@ class Rest(object):
             try:
                 callback_kwargs["filters"] = filters
                 cls._access["after_delete"](**callback_kwargs)
-            except (BadRequest, NotFound, Forbidden, InternalServerError) as e:
+            except (BadRequest,NotFound,Forbidden,InternalServerError) as e:
                 cls.logger.debug("%s after delete abort: %s", classname, e)
                 raise e
             except Exception as e:
@@ -1928,17 +1843,12 @@ class Rest(object):
             cls.logger.warn("database error: %s", e)
             raise e
 
-
 def raise_error(classname, attr, val, e=""):
     """ raise attribute validate error in with standard format """
-    if len(e) > 0:
-        e = ". %s" % e
+    if len(e)>0: e = ". %s" % e 
     abort(400, "%s.%s invalid value '%s'%s" % (classname, attr, val, e))
 
-
 default_validator_primitive_list = [str, float, int, bool, dict, list]
-
-
 def default_validator(**kwargs):
     """ default rest validator engine """
     classname = kwargs.get("classname", "<class>")
@@ -1947,31 +1857,31 @@ def default_validator(**kwargs):
     value = kwargs.get("value", None)
     original_value = value
 
-    atype = a.get("type", str)
-    values = a.get("values", None)
-    a_min = a.get("min", None)
-    a_max = a.get("max", None)
+    atype   = a.get("type", str)
+    values  = a.get("values", None)
+    a_min   = a.get("min", None)
+    a_max   = a.get("max", None)
     a_regex = a.get("regex", None)
     subtype = a.get("subtype", None)
-    meta = a.get("meta", None)
-    index = 0
+    meta    = a.get("meta", None)
+    index   = 0
     try:
         # check for custom validator for attribute first
         if callable(a["validator"]):
             return a["validator"](
-                classname=classname,
-                attribute_meta=a,
-                attribute_name=attribute_name,
-                value=value
+                    classname=classname, 
+                    attribute_meta=a, 
+                    attribute_name=attribute_name, 
+                    value=value
             )
 
         # if type is a list, then first validate correct type. To allow per-item validation in list, 
         # always assume a list and return either list or just first item in the list.
         valid_values = []
-        if a["type"] is list:
+        if a["type"] is list :
             if not isinstance(value, list):
-                raise ValueError("received '%s' but expected a list" % (str(type(value))))
-        else:
+                raise ValueError("received '%s' but expected a list" % (str(type(value))) )
+        else: 
             # perform validation as if attribute was a list, set subtype to the original type
             value = [value]
             subtype = atype
@@ -1990,36 +1900,32 @@ def default_validator(**kwargs):
                 elif subtype is bool:
                     # support string 'True', 'False', 'yes', and 'no' for bools along
                     # with int/float 1 or 0.  For any other value raise ValueError
-                    if isinstance(pre_v, bool):
+                    if isinstance(pre_v, bool): 
                         v = bool(pre_v)
-                    elif isinstance(pre_v, float) or isinstance(pre_v, int):
+                    elif isinstance(pre_v,float) or isinstance(pre_v,int):
                         v = int(pre_v)
-                        if v != 0 and v != 1:
-                            raise ValueError()
+                        if v!=0 and v!=1: raise ValueError()
                         v = bool(v)
                     elif isinstance(pre_v, basestring):
                         pre_v = pre_v.lower()
-                        if pre_v == "true" or pre_v == "yes":
+                        if pre_v == "true" or pre_v == "yes": 
                             v = True
-                        elif pre_v == "false" or pre_v == "no":
+                        elif pre_v == "false" or pre_v == "no": 
                             v = False
-                        else:
-                            raise ValueError()
-                    else:
-                        raise ValueError()
-                else:
-                    v = subtype(pre_v)
+                        else: raise ValueError() 
+                    else: raise ValueError()
+                else: v = subtype(pre_v)
 
                 # check for formatter function
-                if callable(a["formatter"]):
+                if callable(a["formatter"]): 
                     v = a["formatter"](v)
 
                 # check if value is in list of values
                 if values is not None and v not in values:
-                    raise ValueError("Value must be one of the following: %s" % (values))
+                    raise ValueError("Value must be one of the following: %s"%(values))
 
                 # handle type dict by examining per-attribute meta
-                if subtype is dict and meta is not None and len(meta) > 0:
+                if subtype is dict and meta is not None and len(meta)>0:
                     vv = {}
                     for m in meta:
                         mtype = meta[m].get("type", str)
@@ -2028,16 +1934,15 @@ def default_validator(**kwargs):
                             if m not in v:
                                 v[m] = [] if mtype is list else {}
                             if atype is list:
-                                aname = "%s.%s.%s" % (attribute_name, index, m)
-                            else:
-                                aname = "%s.%s" % (attribute_name, m)
+                                aname = "%s.%s.%s" % (attribute_name,index, m)
+                            else: aname = "%s.%s" % (attribute_name, m)
                             vv[m] = default_validator(
-                                classname=classname,
-                                attribute_name=aname,
-                                value=v[m],
-                                attribute_meta=meta[m]
-                            )
-                        else:
+                                    classname=classname, 
+                                    attribute_name=aname, 
+                                    value = v[m], 
+                                    attribute_meta=meta[m]
+                                )
+                        else: 
                             vv[m] = meta[m].get("default", None)
 
                     # ensure any attributes in v not in meta raise error
@@ -2045,32 +1950,29 @@ def default_validator(**kwargs):
                         if m not in meta:
                             raise ValueError("unknown attribute '%s'" % m)
                     v = vv
-
+                    
                 # perform min/max check for int/float only
                 if subtype is int or subtype is float:
                     if a_min is not None and v < a_min:
-                        raise ValueError("Must be >= %s" % a_min)
+                        raise ValueError("Must be >= %s" %a_min)
                     if a_max is not None and v > a_max:
-                        raise ValueError("Must be <= %s" % a_max)
+                        raise ValueError("Must be <= %s" %a_max)
 
                 # perform regex only for strings
                 if subtype is str and a_regex is not None:
-                    if not re.search(a_regex, v):
-                        raise ValueError()
+                    if not re.search(a_regex, v): raise ValueError()
 
                 # value is valid
                 valid_values.append(v)
 
         # finally single valid value or all values if atype was list
-        if atype is list:
-            return valid_values
-        elif len(valid_values) > 0:
-            return valid_values[0]
+        if atype is list: return valid_values
+        elif len(valid_values)>0: return valid_values[0]
 
-    except (ValueError, TypeError) as e:
-        if atype is list:
-            attribute_name = "%s.%s" % (attribute_name, index)
-        raise_error(classname, attribute_name, original_value, ("%s" % e).strip())
+    except (ValueError, TypeError) as e: 
+        if atype is list: 
+            attribute_name = "%s.%s" % (attribute_name,index)
+        raise_error(classname, attribute_name, original_value, ("%s"%e).strip())
 
     # should never get here, abort with server error
     abort(500, "unable to validate %s.%s value %s" % (classname, attribute_name, original_value))
@@ -2079,3 +1981,5 @@ def default_validator(**kwargs):
 class RestLoadError(Exception):
     """ raised on invalid load """
     pass
+
+

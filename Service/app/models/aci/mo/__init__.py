@@ -1,20 +1,20 @@
+from ... rest import Rest
+from .. utils import get_class
+from .. utils import get_apic_session
+
 import copy
 import logging
 import time
 
-from ..utils import get_apic_session
-from ..utils import get_class
-from ...rest import Rest
-
 # module level logging
 logger = logging.getLogger(__name__)
 
-
 class ManagedObject(Rest):
+    
     logger = logger
 
-    VALIDATE = False  # flag to force validation on rebuild
-    TRUST_SUBSCRIPTION = True  # flag to indicate trusted subscriptions (or refresh required)
+    VALIDATE = False                # flag to force validation on rebuild
+    TRUST_SUBSCRIPTION = True       # flag to indicate trusted subscriptions (or refresh required)
 
     META_ACCESS = {
         "create": False,
@@ -44,15 +44,13 @@ class ManagedObject(Rest):
     @classmethod
     def append_meta(cls, meta):
         ret = copy.deepcopy(cls.META)
-        for k in meta:
-            ret[k] = meta[k]
+        for k in meta: ret[k] = meta[k]
         return ret
 
     @classmethod
     def append_meta_access(cls, meta_access):
         ret = copy.copy(cls.META_ACCESS)
-        for k in meta_access:
-            ret[k] = meta_access[k]
+        for k in meta_access: ret[k] = meta_access[k]
         return ret
 
     @classmethod
@@ -63,7 +61,7 @@ class ManagedObject(Rest):
         """
         classname = cls.__name__
         logger.debug("db rebuild of '%s'", classname)
-        cls.delete(_filters={"fabric": fabric.fabric})
+        cls.delete(_filters={"fabric":fabric.fabric})
 
         if session is None:
             session = get_apic_session(fabric)
@@ -79,7 +77,7 @@ class ManagedObject(Rest):
         ts = time.time()
         bulk_objects = []
         for obj in data:
-            if type(obj) is dict and len(obj) > 0:
+            if type(obj) is dict and len(obj)>0:
                 cname = obj.keys()[0]
                 if "attributes" in obj[cname]:
                     attr = obj[cname]["attributes"]
@@ -91,8 +89,13 @@ class ManagedObject(Rest):
                             if a in attr:
                                 db_obj[a] = attr[a]
                         bulk_objects.append(cls(**db_obj))
-        if len(bulk_objects) > 0:
+        if len(bulk_objects)>0:
             cls.bulk_save(bulk_objects, skip_validation=not cls.VALIDATE)
         else:
             logger.debug("no objects of %s to insert", classname)
         return True
+
+
+
+
+

@@ -1,28 +1,31 @@
-import logging
-import os
-import re
-import time
-import traceback
+
+from .. app_status import AppStatus
+from .. rest import Rest
+from .. rest import Role
+from .. rest import api_register
+from .. rest import api_route
+from .. rest import api_callback
+from .. utils import get_app_config
+from .. utils import get_redis
+
+from . import utils as aci_utils
+from . ept.ept_msg import eptMsg
+from . ept.ept_msg import MSG_TYPE
+from . ept.common import MANAGER_CTRL_CHANNEL 
 
 from flask import abort
 from flask import jsonify
 
-from . import utils as aci_utils
-from .ept.common import MANAGER_CTRL_CHANNEL
-from .ept.ept_msg import MSG_TYPE
-from .ept.ept_msg import eptMsg
-from ..app_status import AppStatus
-from ..rest import Rest
-from ..rest import Role
-from ..rest import api_callback
-from ..rest import api_register
-from ..rest import api_route
-from ..utils import get_app_config
-from ..utils import get_redis
+import json
+import logging
+import os
+import re
+import requests
+import time
+import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
-
 
 @api_register(path="/fabric")
 class Fabric(Rest):
@@ -34,41 +37,41 @@ class Fabric(Rest):
         "default_role": Role.FULL_ADMIN
     }
     META = {
-        "fabric": {
+        "fabric":{
             "key": True,
-            "type": str,
-            "default": "",
+            "type":str, 
+            "default":"", 
             "key_sn": "fb",
-            "regex": "^[a-zA-Z0-9\-\.:_]{1,64}$",
+            "regex":"^[a-zA-Z0-9\-\.:_]{1,64}$",
             "description": "fabric name",
         },
-        "apic_username": {
-            "type": str,
-            "default": "admin",
-            "regex": "^[a-zA-Z0-9\-_\.@]{1,128}$",
+        "apic_username":{
+            "type":str, 
+            "default":"admin",
+            "regex":"^[a-zA-Z0-9\-_\.@]{1,128}$",
             "description": "APIC username",
         },
-        "apic_password": {
-            "type": str,
+        "apic_password":{
+            "type": str, 
             "default": "",
             "read": False,
             "encrypt": True,
             "description": "APIC password for token based authentication",
         },
-        "apic_hostname": {
-            "type": str,
+        "apic_hostname":{
+            "type":str, 
             "description": "APIC hostname or IP address",
         },
         "apic_cert": {
-            "type": str,
+            "type":str,
             "description": "path to APIC private-key for cert-based authentication",
         },
-        "ssh_username": {
-            "regex": "^[a-zA-Z0-9\-_\.@]{0,128}$",
+        "ssh_username":{
+            "regex":"^[a-zA-Z0-9\-_\.@]{0,128}$",
             "default": "admin",
             "description": "username for ssh access to switch",
         },
-        "ssh_password": {
+        "ssh_password":{
             "encrypt": True,
             "read": False,
             "description": "password for ssh access to switch",
@@ -80,7 +83,7 @@ class Fabric(Rest):
             "description": "auto start when application starts or auto restart on failure",
         },
         "controllers": {
-            "type": list,
+            "type":list,
             "subtype": str,
             "write": False,
             "description": "dynamically discovered out-of-band or inband ipv4 management addresses",
@@ -175,8 +178,7 @@ class Fabric(Rest):
             uptime = 0
             if is_running:
                 uptime = time.time() - self.restart_ts
-                if uptime < 0:
-                    uptime = 0
+                if uptime<0: uptime = 0
             if api:
                 return jsonify({
                     "status": "running" if is_running else "stopped",
@@ -186,7 +188,7 @@ class Fabric(Rest):
                 return is_running
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
-            abort(500, "failed to send message or invalid manager response")
+            abort(500, "failed to send message or invalid manager response") 
 
     @api_route(path="stop", methods=["POST"], swag_ret=["success"])
     def stop_fabric_monitor(self, reason=""):
@@ -194,13 +196,12 @@ class Fabric(Rest):
         self.auto_start = False
         self.save()
         try:
-            if len(reason) == 0:
-                reason = "API requested stop"
+            if len(reason) == 0: reason = "API requested stop"
             redis = get_redis()
-            data = {"fabric": self.fabric, "reason": reason}
-            msg = eptMsg(MSG_TYPE.FABRIC_STOP, data=data)
+            data={"fabric":self.fabric, "reason":reason}
+            msg = eptMsg(MSG_TYPE.FABRIC_STOP,data=data)
             redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
-            return jsonify({"success": True})
+            return jsonify({"success":True})
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
             abort(500, "failed to send message to redis db")
@@ -211,24 +212,23 @@ class Fabric(Rest):
         self.auto_start = True
         self.save()
         try:
-            if len(reason) == 0:
-                reason = "API requested start"
+            if len(reason) == 0: reason = "API requested start"
             redis = get_redis()
-            data = {"fabric": self.fabric, "reason": reason}
-            msg = eptMsg(MSG_TYPE.FABRIC_START, data=data)
+            data={"fabric":self.fabric, "reason":reason}
+            msg = eptMsg(MSG_TYPE.FABRIC_START,data=data)
             redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
-            return jsonify({"success": True})
+            return jsonify({"success":True})
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
             abort(500, "failed to send message to redis db")
 
-    @api_route(path="verify", methods=["POST"], swag_ret=["success", "apic_error", "ssh_error"])
+    @api_route(path="verify", methods=["POST"], swag_ret=["success","apic_error","ssh_error"])
     def verify_credentials(self):
         """ verify credentials to access APIC API and switch via SSH """
 
         ret = {"success": False, "apic_error": "", "ssh_error": ""}
         (success, error) = self.verify_apic_credentials()
-        if not success:
+        if not success: 
             ret["apic_error"] = error
             ret["ssh_error"] = "not tested"
             return jsonify(ret)
@@ -260,8 +260,7 @@ class Fabric(Rest):
         (valid, err_msg) = aci_utils.validate_session_role(session)
         # always close session before returning success
         session.close()
-        if not valid:
-            return (False, err_msg)
+        if not valid: return (False, err_msg)
         return (True, "")
 
     def verify_ssh_credentials(self):
@@ -273,13 +272,13 @@ class Fabric(Rest):
             return (False, "failed to connect or authenticate to APIC")
         # use API to get first active leaf to test ssh connectivity 
         fabricNodes = aci_utils.get_class(session, "fabricNode")
-        if fabricNodes is None or len(fabricNodes) == 0:
+        if fabricNodes is None or len(fabricNodes)==0:
             return (False, "unable to get list of nodes in fabric")
         attributes = aci_utils.get_attributes(data=fabricNodes)
-        if attributes is None or len(attributes) == 0:
+        if attributes is None or len(attributes)==0:
             return (False, "unable to parse fabricNodes results")
         reg = "topology/pod-(?P<pod_id>[0-9]+)/node-(?P<node_id>[0-9]+)"
-        (pod_id, node_id) = (0, 0)
+        (pod_id, node_id) = (0,0)
         for a in attributes:
             if a["role"] == "leaf" and a["fabricSt"] == "active":
                 r1 = re.search(reg, a["dn"])
@@ -294,7 +293,7 @@ class Fabric(Rest):
         # finally, test ssh connectivity to leaf
         if aci_utils.get_ssh_connection(self, pod_id, node_id, session) is None:
             return (False, "failed to establish ssh connection to leaf %s" % (
-                    "topology/pod-%s/node-%s" % (pod_id, node_id))
+                            "topology/pod-%s/node-%s" % (pod_id, node_id))
                     )
         # always close session before returning success
         session.close()
@@ -307,7 +306,7 @@ class Fabric(Rest):
         """
         ret = {"success": False, "error": ""}
         session = aci_utils.get_apic_session(self)
-        if session is None:
+        if session is None: 
             ret["error"] = "unable to connect to apic"
             return jsonify(ret)
         objects = aci_utils.get_class(session, "topSystem")
@@ -320,10 +319,10 @@ class Fabric(Rest):
                 attr = o.values()[0]["attributes"]
                 if "role" in attr and attr["role"] == "controller":
                     if "state" in attr and attr["state"] == "in-service":
-                        if "oobMgmtAddr" in attr and attr["oobMgmtAddr"] != "0.0.0.0":
+                        if "oobMgmtAddr" in attr and attr["oobMgmtAddr"]!="0.0.0.0":
                             if attr["oobMgmtAddr"] not in controllers:
                                 controllers.append(attr["oobMgmtAddr"])
-                        if "inbMgmtAddr" in attr and attr["inbMgmtAddr"] != "0.0.0.0":
+                        if "inbMgmtAddr" in attr and attr["inbMgmtAddr"]!="0.0.0.0":
                             if attr["inbMgmtAddr"] not in controllers:
                                 controllers.append(attr["inbMgmtAddr"])
             if len(controllers) == 0:
@@ -345,7 +344,7 @@ class Fabric(Rest):
         logger.debug("add event %s: %s to %s", status, description, self.fabric)
         if not self.exists():
             return False
-        self.event_count += 1
+        self.event_count+=1
         self.events.insert(0, {
             "timestamp": time.time(),
             "status": status,
@@ -356,3 +355,4 @@ class Fabric(Rest):
             logger.warn("failed to save fabric event %s:%s", status, description)
             return False
         return True
+

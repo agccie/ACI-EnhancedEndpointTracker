@@ -5,17 +5,18 @@
     @author agossett@cisco.com
 """
 
+from .. utils import get_app
+from .. utils import get_db
+from .. utils import setup_logger
+from . utils import clear_endpoint
+
 import logging
+import re
 import sys
 import traceback
 
-from .utils import clear_endpoint
-from ..utils import get_db
-from ..utils import setup_logger
-
 # module level logging
 logger = logging.getLogger(__name__)
-
 
 def db_is_alive():
     """ perform connection attempt to database 
@@ -27,11 +28,9 @@ def db_is_alive():
         logger.debug("collection names: %s", db.collection_names())
         logger.debug("database is alive")
         return True
-    except Exception as e:
-        pass
+    except Exception as e: pass
     logger.error("failed to connect to database")
     return False
-
 
 def get_args():
     """ get arguments for worker """
@@ -43,10 +42,10 @@ def get_args():
     on environmental variable AUTO_START_MONITOR
     """
     parser = argparse.ArgumentParser(description=desc,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter,
-                                     )
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
     parser.add_argument("--stdout", dest="stdout", action="store_true",
-                        help="send logger output to stdout")
+        help="send logger output to stdout")
     subparsers = parser.add_subparsers(title="worker options", dest="worker_op")
     parser0 = subparsers.add_parser("check_db", help="validate successful database connection")
     parser1 = subparsers.add_parser("clear", help="clear endpoint in fabric")
@@ -55,12 +54,11 @@ def get_args():
     parser1.add_argument("--node", required=True, type=int, dest="node", help="node id")
     parser1.add_argument("--addr", required=True, dest="addr", help="mac, ipv4, or ipv6 address")
     parser1.add_argument("--addr_type", dest="addr_type", help="address type (ip or mac)",
-                         choices=["mac", "ip"])
+            choices=["mac","ip"])
     parser1.add_argument("--vnid", required=True, type=int, dest="vnid", help="vrf/bd vnid")
     parser1.add_argument("--vrf_name", dest="vrf_name", help="vrf name", default="")
     args = parser.parse_args()
     return args
-
 
 if __name__ == "__main__":
 
@@ -70,15 +68,15 @@ if __name__ == "__main__":
     method_args = []
 
     stdout = args.stdout
-    fname = "worker.log"
+    fname="worker.log"
     debug_modules = [
         "app.models.aci.utils",
-        # "app.models.aci.tools.connection",
+        #"app.models.aci.tools.connection",
     ]
-    setup_logger(logger, fname=fname, stdout=stdout, quiet=True, thread=True)
+    setup_logger(logger,fname=fname,stdout=stdout,quiet=True,thread=True)
     for l in debug_modules:
         setup_logger(logging.getLogger(l), fname=fname, stdout=stdout,
-                     quiet=True, thread=True)
+                quiet=True,thread=True)
 
     if args.worker_op == "check_db":
         logger.debug("worker request: check_db")
@@ -86,21 +84,20 @@ if __name__ == "__main__":
     elif args.worker_op == "clear":
         logger.debug("worker request: clear endpoint")
         method = clear_endpoint
-        method_args = [args.fabric, args.pod, args.node, args.vnid, args.addr,
-                       args.addr_type, args.vrf_name]
+        method_args = [args.fabric, args.pod, args.node, args.vnid, args.addr, 
+                args.addr_type, args.vrf_name]
     else:
         logger.warn("no action provided. use -h for help")
         sys.exit(1)
 
     # execute method with required arguments and exit with appropriate exit code
     from ..utils import get_app
-
     app = get_app()
     with app.app_context():
         try:
-            if not method(*method_args):
-                sys.exit(1)
+            if not method(*method_args): sys.exit(1)
             sys.exit(0)
         except Exception as e:
-            sys.stderr.write("%s\n" % traceback.format_exc())
+            sys.stderr.write("%s\n"% traceback.format_exc())
     sys.exit(1)
+

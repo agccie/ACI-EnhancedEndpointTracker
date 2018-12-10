@@ -1,18 +1,16 @@
-import logging
-
+from ...rest import Rest
+from ...rest import api_register
+from ...rest import api_callback
 from .common import get_ipv4_prefix
 from .common import get_ipv6_prefix
-from ...rest import Rest
-from ...rest import api_callback
-from ...rest import api_register
+import logging
 
 # module level logging
 logger = logging.getLogger(__name__)
 
-
 @api_register(parent="fabric", path="ept/subnet")
 class eptSubnet(Rest):
-    """ provide subnet to BD vnid mapping for configured subnets """
+    """ provide subnet to BD vnid mapping for configured subnets """ 
     logger = logger
 
     META_ACCESS = {
@@ -20,9 +18,9 @@ class eptSubnet(Rest):
         "read": True,
         "update": False,
         "delete": False,
-        "db_index_unique": True,
-        "db_index": ["fabric", "name"],  # fabric+name(dn) is unique (for insert/update)
-        "db_index2": ["fabric", "bd"],  # second index for quick lookup
+        "db_index_unique": True,  
+        "db_index": ["fabric","name"],      # fabric+name(dn) is unique (for insert/update)
+        "db_index2": ["fabric", "bd"],      # second index for quick lookup
     }
 
     META = {
@@ -75,10 +73,10 @@ class eptSubnet(Rest):
         """ before create auto-detect type and update integer value for addr and mask list """
         if ":" in data["ip"]:
             data["type"] = "ipv6"
-            (data["addr_byte"], data["mask_byte"]) = eptSubnet.get_prefix_array("ipv6", data["ip"])
+            (data["addr_byte"],data["mask_byte"]) = eptSubnet.get_prefix_array("ipv6",data["ip"])
         else:
             data["type"] = "ipv4"
-            (data["addr_byte"], data["mask_byte"]) = eptSubnet.get_prefix_array("ipv4", data["ip"])
+            (data["addr_byte"],data["mask_byte"]) = eptSubnet.get_prefix_array("ipv4",data["ip"])
         return data
 
     @staticmethod
@@ -91,16 +89,16 @@ class eptSubnet(Rest):
             (addr, mask) = get_ipv6_prefix(prefix)
             return (
                 [
-                    (addr & 0xffffffff000000000000000000000000) >> 96,
-                    (addr & 0x00000000ffffffff0000000000000000) >> 64,
-                    (addr & 0x0000000000000000ffffffff00000000) >> 32,
-                    (addr & 0x000000000000000000000000ffffffff)
+                    (addr & 0xffffffff000000000000000000000000 ) >> 96,
+                    (addr & 0x00000000ffffffff0000000000000000 ) >> 64,
+                    (addr & 0x0000000000000000ffffffff00000000 ) >> 32,
+                    (addr & 0x000000000000000000000000ffffffff )
                 ],
                 [
-                    (mask & 0xffffffff000000000000000000000000) >> 96,
-                    (mask & 0x00000000ffffffff0000000000000000) >> 64,
-                    (mask & 0x0000000000000000ffffffff00000000) >> 32,
-                    (mask & 0x000000000000000000000000ffffffff)
+                    (mask & 0xffffffff000000000000000000000000 ) >> 96,
+                    (mask & 0x00000000ffffffff0000000000000000 ) >> 64,
+                    (mask & 0x0000000000000000ffffffff00000000 ) >> 32,
+                    (mask & 0x000000000000000000000000ffffffff )
                 ]
             )
 
@@ -114,3 +112,5 @@ class eptSubnet(Rest):
         for i, x in enumerate(byte_list):
             result = (result << 32) + x
         return result
+
+

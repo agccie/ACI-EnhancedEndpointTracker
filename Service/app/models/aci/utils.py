@@ -3,6 +3,10 @@
     @author agossett@cisco.com
 """
 
+from ..utils import get_app
+from ..utils import get_app_config
+from ..utils import pretty_print
+
 import logging
 import logging.handlers
 import os
@@ -12,17 +16,12 @@ import subprocess
 import time
 import traceback
 
-from ..utils import get_app
-from ..utils import get_app_config
-from ..utils import pretty_print
-
 # module level logging
 logger = logging.getLogger(__name__)
 
 # static queue thresholds and timeouts
-SESSION_MAX_TIMEOUT = 120  # apic timeout hardcoded to 90...
+SESSION_MAX_TIMEOUT = 120   # apic timeout hardcoded to 90...
 SESSION_LOGIN_TIMEOUT = 10  # login should be fast
-
 
 ###############################################################################
 #
@@ -34,15 +33,14 @@ def get_lpass():
     """ get local user password for REST calls against local API 
         return string decrypted password on success else return None
     """
-
+    
     from ..settings import Settings
     s = Settings.load(__read_all=True)
     if s.exists() and hasattr(s, "lpass"):
         return s.lpass
-
+    
     logger.error("unable to determine lpass from settings")
     return None
-
 
 def build_query_filters(**kwargs):
     """
@@ -55,37 +53,35 @@ def build_query_filters(**kwargs):
         rspPropInclude=[all|naming-only|config-explicit|config-all|oper]
         orderBy=[attr]
     """
-    queryTarget = kwargs.get("queryTarget", None)
-    targetSubtreeClass = kwargs.get("targetSubtreeClass", None)
-    queryTargetFilter = kwargs.get("queryTargetFilter", None)
-    rspSubtree = kwargs.get("rspSubtree", None)
-    rspSubtreeClass = kwargs.get("rspSubtreeClass", None)
-    rspSubtreeInclude = kwargs.get("rspSubtreeInclude", None)
-    rspPropInclude = kwargs.get("rspPropInclude", None)
-    orderBy = kwargs.get("orderBy", None)
+    queryTarget         = kwargs.get("queryTarget", None)
+    targetSubtreeClass  = kwargs.get("targetSubtreeClass", None)
+    queryTargetFilter   = kwargs.get("queryTargetFilter", None)
+    rspSubtree          = kwargs.get("rspSubtree", None)
+    rspSubtreeClass     = kwargs.get("rspSubtreeClass", None)
+    rspSubtreeInclude   = kwargs.get("rspSubtreeInclude", None)
+    rspPropInclude      = kwargs.get("rspPropInclude", None)
+    orderBy             = kwargs.get("orderBy", None)
     opts = ""
     if queryTarget is not None:
-        opts += "&query-target=%s" % queryTarget
+        opts+= "&query-target=%s" % queryTarget
     if targetSubtreeClass is not None:
-        opts += "&target-subtree-class=%s" % targetSubtreeClass
+        opts+= "&target-subtree-class=%s" % targetSubtreeClass
     if queryTargetFilter is not None:
-        opts += "&query-target-filter=%s" % queryTargetFilter
+        opts+= "&query-target-filter=%s" % queryTargetFilter
     if rspSubtree is not None:
-        opts += "&rsp-subtree=%s" % rspSubtree
+        opts+= "&rsp-subtree=%s" % rspSubtree
     if rspSubtreeClass is not None:
-        opts += "&rsp-subtree-class=%s" % rspSubtreeClass
+        opts+= "&rsp-subtree-class=%s" % rspSubtreeClass
     if rspSubtreeInclude is not None:
-        opts += "&rsp-subtree-include=%s" % rspSubtreeInclude
+        opts+= "&rsp-subtree-include=%s" % rspSubtreeInclude
     if rspPropInclude is not None:
-        opts += "&rsp-prop-include=%s" % rspPropInclude
+        opts+= "&rsp-prop-include=%s" % rspPropInclude
     if orderBy is not None:
-        opts += "&order-by=%s" % orderBy
+        opts+= "&order-by=%s" % orderBy
 
-    if len(opts) > 0:
-        opts = "?%s" % opts.strip("&")
+    if len(opts)>0: opts = "?%s" % opts.strip("&")
     return opts
-
-
+                
 def _get(session, url, timeout=None, limit=None, page_size=75000):
     # handle session request and perform basic data validation.  
     # this module always returns a generator of the results. If there is an error the first item
@@ -96,9 +92,8 @@ def _get(session, url, timeout=None, limit=None, page_size=75000):
         timeout = SESSION_MAX_TIMEOUT
 
     url_delim = "?"
-    if "?" in url:
-        url_delim = "&"
-
+    if "?" in url: url_delim="&"
+    
     count_received = 0
     count_yield = 0
     # walk through pages until return count is less than page_size 
@@ -122,21 +117,21 @@ def _get(session, url, timeout=None, limit=None, page_size=75000):
                 logger.warn("failed to parse js reply: %s", pretty_print(js))
                 yield None
                 return
-            count_received += len(js["imdata"])
+            count_received+= len(js["imdata"])
             logger.debug("time: %0.3f, results count: %s/%s", time.time() - tstart, count_received,
-                         js["totalCount"])
-
+                    js["totalCount"])
+                
             for obj in js["imdata"]:
-                count_yield += 1
+                count_yield+=1
                 if (limit is not None and count_yield >= limit):
                     logger.debug("limit(%s) hit or exceeded", limit)
                     return
                 yield obj
 
-            if len(js["imdata"]) < page_size or count_received >= int(js["totalCount"]):
-                # logger.debug("all pages received")
+            if len(js["imdata"])<page_size or count_received >= int(js["totalCount"]):
+                #logger.debug("all pages received")
                 return
-            page += 1
+            page+= 1
         except ValueError as e:
             logger.warn("failed to decode resp: %s", resp.text)
             yield None
@@ -144,31 +139,29 @@ def _get(session, url, timeout=None, limit=None, page_size=75000):
     yield None
     return
 
-
 def get_dn(session, dn, timeout=None, **kwargs):
     # get a single dn.  Note, with advanced queries this may be list as well
     # for now, always return single value
     opts = build_query_filters(**kwargs)
-    url = "/api/mo/%s.json%s" % (dn, opts)
+    url = "/api/mo/%s.json%s" % (dn,opts)
     ret = []
     for obj in _get(session, url, timeout=timeout):
-        if obj is None:
+        if obj is None: 
             return None
         ret.append(obj)
-    if len(ret) > 0:
+    if len(ret)>0: 
         return ret[0]
-    else:
+    else: 
         # empty non-None object implies valid empty response
-        return {}
-
-
+        return {} 
+    
 def get_class(session, classname, timeout=None, limit=None, stream=False, **kwargs):
     # perform class query.  If stream is set to true then this will act as an iterator yielding the
     # next result. If the query failed then the first (and only) result of the iterator will be None
     opts = build_query_filters(**kwargs)
     url = "/api/class/%s.json%s" % (classname, opts)
     if stream:
-        return _get(session, url, timeout=timeout, limit=limit)
+        return _get(session, url, timeout=timeout, limit=limit) 
     ret = []
     for obj in _get(session, url, timeout=timeout, limit=limit):
         if obj is None:
@@ -176,14 +169,12 @@ def get_class(session, classname, timeout=None, limit=None, stream=False, **kwar
         ret.append(obj)
     return ret
 
-
 def get_parent_dn(dn):
     # return parent dn for provided dn
     # note this is not currently aware of complex dn including prefixes or sub dn...
     t = dn.split("/")
     t.pop()
     return "/".join(t)
-
 
 def get_attributes(session=None, dn=None, attribute=None, data=None):
     """ get single attribute from a DN.
@@ -205,21 +196,19 @@ def get_attributes(session=None, dn=None, attribute=None, data=None):
     if data is None:
         logger.debug("get attributes '%s' for dn '%s'", attribute, dn)
         data = get_dn(session, dn)
-        if data is None or type(data) is not dict or len(data) == 0:
+        if data is None or type(data) is not dict or len(data)==0:
             logger.debug("return object for %s is None or invalid", dn)
             return
 
     # handle case raw 'imdata' dict was received
     if type(data) is dict:
-        if "imdata" in data:
-            data = data["imdata"]
+        if "imdata" in data: data = data["imdata"]
 
     # always treat remaining result as list of objects
     ret = []
-    if type(data) is not list:
-        data = [data]
+    if type(data) is not list: data = [data]
     for obj in data:
-        if type(obj) is not dict or len(obj) == 0:
+        if type(obj) is not dict or len(obj)==0:
             logger.debug("unexpected format for obj: %s" % obj)
             continue
         cname = obj.keys()[0]
@@ -238,10 +227,8 @@ def get_attributes(session=None, dn=None, attribute=None, data=None):
 
     # if dn was set, then caller assumes get_dn execute and only one result
     # is present, so don't return list.
-    if dn is not None and len(ret) == 1:
-        return ret[0]
+    if dn is not None and len(ret)==1: return ret[0]
     return ret
-
 
 def validate_session_role(session):
     """ verify apic session has appropriate roles/permissions for this app
@@ -253,9 +240,8 @@ def validate_session_role(session):
         return (True, "")
     else:
         err_msg = "insufficent permissions, user '%s' " % session.uid
-        err_msg += "missing required read role 'admin' for security domain 'all'"
+        err_msg+= "missing required read role 'admin' for security domain 'all'"
         return (False, err_msg)
-
 
 def get_apic_session(fabric, resubscribe=False):
     """ get_apic_session 
@@ -270,16 +256,14 @@ def get_apic_session(fabric, resubscribe=False):
 
         Returns None on failure
     """
-    from .fabric import Fabric
-    from .session import Session
-
-    if isinstance(fabric, Fabric):
-        aci = fabric
-    else:
-        aci = Fabric.load(fabric=fabric)
+    from . fabric import Fabric
+    from . session import Session
+     
+    if isinstance(fabric, Fabric): aci = fabric
+    else: aci = Fabric.load(fabric=fabric)
     logger.debug("get_apic_session for fabric: %s", aci.fabric)
-
-    if not aci.exists():
+        
+    if not aci.exists(): 
         logger.warn("fabric %s not found", fabric)
         return
 
@@ -288,32 +272,30 @@ def get_apic_session(fabric, resubscribe=False):
     hostnames = [aci.apic_hostname]
     if not app.config["ACI_APP_MODE"]:
         for h in aci.controllers:
-            if h not in hostnames:
-                hostnames.append(h)
+            if h not in hostnames: hostnames.append(h)
 
     # determine if we should connect with cert or credentials
     apic_cert_mode = False
-    if len(aci.apic_cert) > 0 and app.config["ACI_APP_MODE"]:
+    if len(aci.apic_cert)>0 and app.config["ACI_APP_MODE"]:
         logger.debug("session mode set to apic_cert_mode")
         apic_cert_mode = True
         if not os.path.exists(aci.apic_cert):
             logger.warn("quiting app_cert mode, apic_cert file not found: %s",
-                        aci.apic_cert)
+                aci.apic_cert)
             apic_cert_mode = False
 
     # try to create a session with each hostname
     logger.debug("attempting to connect to following apics: %s", hostnames)
     for h in hostnames:
         # ensure apic_hostname is in url form.  If not, assuming https
-        if not re.search("^http", h.lower()):
-            h = "https://%s" % h
-        h = re.sub("[/]+$", "", h)
+        if not re.search("^http", h.lower()): h = "https://%s" % h
+        h = re.sub("[/]+$","", h)
 
         # create session object
-        logger.debug("creating session on %s@%s", aci.apic_username, h)
+        logger.debug("creating session on %s@%s",aci.apic_username,h)
         if apic_cert_mode:
-            session = Session(h, aci.apic_username, appcenter_user=True,
-                              cert_name=aci.apic_username, key=aci.apic_cert, resubscribe=resubscribe)
+            session = Session(h, aci.apic_username, appcenter_user=True, 
+                cert_name=aci.apic_username, key=aci.apic_cert, resubscribe=resubscribe)
         else:
             session = Session(h, aci.apic_username, aci.apic_password, resubscribe=resubscribe)
         try:
@@ -324,12 +306,11 @@ def get_apic_session(fabric, resubscribe=False):
                 logger.debug("failed to connect on %s", h)
                 session.close()
         except Exception as e:
-            logger.warn("session creation exception: %s", e)
+            logger.warn("session creation exception: %s",e)
             logger.debug(traceback.format_exc())
 
     logger.warn("failed to connect to any known apic")
-    return None
-
+    return None   
 
 def get_ssh_connection(fabric, pod_id, node_id, session=None):
     """ create active/logged in ssh connection object for provided fabric name 
@@ -343,23 +324,21 @@ def get_ssh_connection(fabric, pod_id, node_id, session=None):
     from .tools.connection import Connection
     from .fabric import Fabric
 
-    if isinstance(fabric, Fabric):
-        f = fabric
-    else:
-        f = Fabric.load(fabric=fabric)
+    if isinstance(fabric, Fabric): f = fabric
+    else: f = Fabric.load(fabric=fabric)
     if not f.exists():
         logger.warn("unknown fabric: %s", f.fabric)
         return
-
+    
     # verify credentials are configured
-    if len(f.ssh_username) == 0 or len(f.ssh_password) == 0:
+    if len(f.ssh_username)==0 or len(f.ssh_password)==0:
         logger.warn("ssh credentials not configured")
         return
 
     if session is None:
         # if user did not provide session object then create one
         session = get_apic_session(f)
-        if session is None:
+        if session is None: 
             logger.warn("failed to get apic session")
             return
 
@@ -383,7 +362,7 @@ def get_ssh_connection(fabric, pod_id, node_id, session=None):
         return
 
     # remove http/https and custom ports from hostname
-    ssh_hostname = re.sub("^http(s)://", "", f.apic_hostname)
+    ssh_hostname = re.sub("^http(s)://","", f.apic_hostname)
     ssh_hostname = re.sub("/.*$", "", ssh_hostname)
     ssh_hostname = re.sub(":[0-9]+$", "", ssh_hostname)
     logger.debug("hostname set from %s to %s", f.apic_hostname, ssh_hostname)
@@ -392,23 +371,22 @@ def get_ssh_connection(fabric, pod_id, node_id, session=None):
     c.username = f.ssh_username
     c.password = f.ssh_password
     if not c.login():
-        logger.warn("failed to login to apic: %s", ssh_hostname)
+        logger.warn("failed to login to apic: %s",ssh_hostname)
         return
-    logger.debug("ssh session to apic %s complete: %s", ssh_hostname, c.output)
+    logger.debug("ssh session to apic %s complete: %s",ssh_hostname,c.output)
 
     # request could have been ssh session to apic, check if node_id is for
     # remote switch or local apic
     if apic_id != node_id:
         opts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
         cmd = "ssh %s -b %s %s" % (opts, apic_tep, tep)
-        logger.debug("creating remote ssh session from %s: %s", apic_tep, cmd)
+        logger.debug("creating remote ssh session from %s: %s",apic_tep,cmd)
         if not c.remote_login(cmd):
             logger.warn("failed to login to node %s(%s)", node_id, tep)
             return
-        logger.debug("ssh session to node %s complete: %s", tep, c.output)
+        logger.debug("ssh session to node %s complete: %s",tep,c.output)
     logger.debug("successfully connected to %s node-%s", f.fabric, node_id)
-    return c
-
+    return c 
 
 def get_controller_version(session):
     # return list of controllers and current running version
@@ -418,7 +396,7 @@ def get_controller_version(session):
     if r is not None:
         for obj in r:
             if "firmwareCtrlrRunning" not in obj or \
-                    "attributes" not in obj["firmwareCtrlrRunning"]:
+                "attributes" not in obj["firmwareCtrlrRunning"]:
                 logger.warn("invalid firmwareCtrlrRunning object: %s" % obj)
                 continue
             attr = obj["firmwareCtrlrRunning"]["attributes"]
@@ -427,16 +405,15 @@ def get_controller_version(session):
                 continue
             r1 = re.search(reg, attr["dn"])
             if r1 is None:
-                logger.warn("invalid dn firmwareCtrlrRunning: %s" % attr["dn"])
+                logger.warn("invalid dn firmwareCtrlrRunning: %s"%attr["dn"])
                 continue
             # should never happen but let's double check
-            if attr["type"] != "controller":
-                logger.warn("invalid 'type' for firmwareCtrlrRunning: %s" % attr)
+            if attr["type"]!="controller":
+                logger.warn("invalid 'type' for firmwareCtrlrRunning: %s"%attr)
                 continue
-            ret.append({"node": r1.group("node"), "version": attr["version"]})
+            ret.append({"node":r1.group("node"), "version": attr["version"]})
 
     return ret
-
 
 def parse_apic_version(version):
     # receive string code version and return dict with major, minor, build, and patch
@@ -447,17 +424,15 @@ def parse_apic_version(version):
     #   patch: f
     # return None if unable to parse version string
 
-    reg = "(?P<M>[0-9]+)[\-\.](?P<m>[0-9]+)[\.\-\(](?P<p>[0-9]+)\.?(?P<pp>[a-z0-9]+)\)?"
+    reg ="(?P<M>[0-9]+)[\-\.](?P<m>[0-9]+)[\.\-\(](?P<p>[0-9]+)\.?(?P<pp>[a-z0-9]+)\)?"
     r1 = re.search(reg, version)
-    if r1 is None:
-        return None
+    if r1 is None: return None
     return {
         "major": r1.group("M"),
         "minor": r1.group("m"),
         "build": r1.group("p"),
         "patch": r1.group("pp"),
     }
-
 
 ###############################################################################
 #
@@ -483,9 +458,8 @@ def execute_worker(arg_str, background=True):
     p = os.path.abspath(os.path.join(p, os.pardir))
     p = os.path.abspath(os.path.join(p, os.pardir))
     os.chdir(p)
-    cmd = "python -m app.models.aci.worker %s >%s 2>%s" % (arg_str, stdout, stderr)
-    if background:
-        cmd = "%s &" % cmd
+    cmd = "python -m app.models.aci.worker %s >%s 2>%s" % (arg_str,stdout, stderr)
+    if background: cmd = "%s &" % cmd
     try:
         logger.debug("execute worker: %s", cmd)
         os.system(cmd)
@@ -497,13 +471,12 @@ def execute_worker(arg_str, background=True):
     # assume success
     return True
 
-
 def terminate_pid(p):
     """ send SIGKILL to process based on integer pid.
         return booelan success
     """
     if type(p) is not int:
-        logger.warn("terminate_pid requires int, received %s: %s", type(p), p)
+        logger.warn("terminate_pid requires int, received %s: %s", type(p),p)
         return False
     try:
         logger.debug("terminate pid %s", p)
@@ -512,7 +485,6 @@ def terminate_pid(p):
         logger.warn("error executing kill: %s", e)
         return False
     return True
-
 
 def terminate_process(p):
     """ send SIGTERM and if needed SIGKILL to process.  
@@ -526,13 +498,12 @@ def terminate_process(p):
         time.sleep(2.0)
         if p.is_alive():
             try:
-                logger.debug("sending SIGKILL to pid(%s)", p.pid)
+                logger.debug("sending SIGKILL to pid(%s)",  p.pid)
                 os.kill(p.pid, signal.SIGKILL)
             except OSError as e:
                 logger.warn("error occurred while sending kill: %s", e)
                 return False
     return True
-
 
 def run_command(cmd):
     """ use subprocess.check_output to execute command on shell
@@ -540,13 +511,12 @@ def run_command(cmd):
     """
     logger.debug("run cmd: \"%s\"", cmd)
     try:
-        out = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        out = subprocess.check_output(cmd,shell=True,stderr=subprocess.STDOUT)
         return out
     except subprocess.CalledProcessError as e:
         logger.warn("error executing command: %s", e)
         logger.warn("stderr:\n%s", e.output)
         return None
-
 
 def get_file_md5(path):
     """ use md5sum utility to calculate md5 for file at provided path
@@ -557,8 +527,7 @@ def get_file_md5(path):
         logger.debug("%s not found", path)
         return None
     out = run_command("md5sum %s | egrep -o \"^[0-9a-fA-F]+\"" % path)
-    if out is None:
-        return None
+    if out is None: return None
     # expect 32-bit hex (128-bit number)
     out = out.strip()
     if re.search("^[0-9a-f]{32}$", out, re.IGNORECASE) is not None:
@@ -566,16 +535,15 @@ def get_file_md5(path):
         return out
     logger.warn("unexpected md5sum result: %s, returning None", out)
     return None
-
-
+    
 ###############################################################################
 #
 # notification functions
 #
 ###############################################################################
 
-def syslog(msg, server="localhost", server_port=514, severity="info", process="EPT",
-           facility=logging.handlers.SysLogHandler.LOG_LOCAL7):
+def syslog(msg, server="localhost", server_port=514, severity="info", process="EPT", 
+        facility=logging.handlers.SysLogHandler.LOG_LOCAL7):
     """ send a syslog message to remote server.  return boolean success
         for acceptible facilities see:
             https://docs.python.org/2/library/logging.handlers.html
@@ -588,7 +556,7 @@ def syslog(msg, server="localhost", server_port=514, severity="info", process="E
         logger.error("unable to send syslog: no server provided")
         return False
     try:
-        if (isinstance(server_port, int)):
+        if(isinstance(server_port, int)):
             port = int(server_port)
         else:
             port = 514
@@ -596,25 +564,24 @@ def syslog(msg, server="localhost", server_port=514, severity="info", process="E
         logger.error("unable to send syslog: invalid port number %s", port)
         return False
 
-    if isinstance(severity, str):
-        severity = severity.lower()
+    if isinstance(severity, str): severity = severity.lower()
     severity = {
-        "alert": logging.handlers.SysLogHandler.LOG_ALERT,
-        "crit": logging.handlers.SysLogHandler.LOG_CRIT,
-        "debug": logging.handlers.SysLogHandler.LOG_DEBUG,
-        "emerg": logging.handlers.SysLogHandler.LOG_EMERG,
-        "err": logging.handlers.SysLogHandler.LOG_ERR,
-        "info": logging.handlers.SysLogHandler.LOG_INFO,
-        "notice": logging.handlers.SysLogHandler.LOG_NOTICE,
-        "warning": logging.handlers.SysLogHandler.LOG_WARNING,
-        0: logging.handlers.SysLogHandler.LOG_EMERG,
-        1: logging.handlers.SysLogHandler.LOG_ALERT,
-        2: logging.handlers.SysLogHandler.LOG_CRIT,
-        3: logging.handlers.SysLogHandler.LOG_ERR,
-        4: logging.handlers.SysLogHandler.LOG_WARNING,
-        5: logging.handlers.SysLogHandler.LOG_NOTICE,
-        6: logging.handlers.SysLogHandler.LOG_INFO,
-        7: logging.handlers.SysLogHandler.LOG_DEBUG,
+        "alert"     : logging.handlers.SysLogHandler.LOG_ALERT,
+        "crit"      : logging.handlers.SysLogHandler.LOG_CRIT,
+        "debug"     : logging.handlers.SysLogHandler.LOG_DEBUG,
+        "emerg"     : logging.handlers.SysLogHandler.LOG_EMERG,
+        "err"       : logging.handlers.SysLogHandler.LOG_ERR,
+        "info"      : logging.handlers.SysLogHandler.LOG_INFO,
+        "notice"    : logging.handlers.SysLogHandler.LOG_NOTICE,
+        "warning"   : logging.handlers.SysLogHandler.LOG_WARNING,
+        0           : logging.handlers.SysLogHandler.LOG_EMERG,
+        1           : logging.handlers.SysLogHandler.LOG_ALERT,
+        2           : logging.handlers.SysLogHandler.LOG_CRIT,
+        3           : logging.handlers.SysLogHandler.LOG_ERR,
+        4           : logging.handlers.SysLogHandler.LOG_WARNING,
+        5           : logging.handlers.SysLogHandler.LOG_NOTICE,
+        6           : logging.handlers.SysLogHandler.LOG_INFO,
+        7           : logging.handlers.SysLogHandler.LOG_DEBUG,
     }.get(severity, logging.handlers.SysLogHandler.LOG_INFO)
 
     facility_name = {
@@ -650,8 +617,8 @@ def syslog(msg, server="localhost", server_port=514, severity="info", process="E
     syslogger = logging.getLogger("syslog")
     syslogger.setLevel(logging.DEBUG)
     fmt = "%(asctime)s %(message)s"
-    remote_syslog = logging.handlers.SysLogHandler(address=(server, port), facility=facility)
-    remote_syslog.setFormatter(logging.Formatter(fmt=fmt, datefmt=": %Y %b %d %H:%M:%S %Z:"))
+    remote_syslog = logging.handlers.SysLogHandler(address=(server,port),facility=facility)
+    remote_syslog.setFormatter(logging.Formatter(fmt=fmt,datefmt=": %Y %b %d %H:%M:%S %Z:"))
     syslogger.addHandler(remote_syslog)
 
     # send syslog (only supporting native python priorities for now)
@@ -670,11 +637,9 @@ def syslog(msg, server="localhost", server_port=514, severity="info", process="E
     method(s)
     # remove syslogger from handler and restore old loggers
     syslogger.removeHandler(remote_syslog)
-    for h in old_handlers:
-        logger.addHandler(h)
+    for h in old_handlers: logger.addHandler(h)
     # return success
     return True
-
 
 def email(receiver=None, subject=None, msg=None, sender=None):
     """ send an email and return boolean success """
@@ -682,13 +647,13 @@ def email(receiver=None, subject=None, msg=None, sender=None):
         logger.error("email recipient not specified")
         return False
     # build sendmail command
-    if subject is not None:
+    if subject is not None: 
         subject = re.sub("\"", "\\\"", subject)
         cmd = ["mail", "-s", subject]
     else:
         cmd = ["mail"]
-    if sender is not None and len(sender) > 0:
-        cmd += ["-r", sender]
+    if sender is not None and len(sender)>0:
+        cmd+= ["-r", sender]
 
     cmd.append(receiver)
     try:
@@ -705,7 +670,6 @@ def email(receiver=None, subject=None, msg=None, sender=None):
         logger.error("unknown error occurred: %s", e)
         return False
 
-
 ###############################################################################
 #
 # clear ept endpoint (triggered by worker or via api)
@@ -717,15 +681,13 @@ def clear_endpoint(fabric, pod, node, vnid, addr, addr_type="ip", vrf_name=""):
         is a mac, then vnid is remapped to FD vlan before clear is executed.
         return bool success
     """
-    from .fabric import Fabric
-    from .ept.common import parse_vrf_name
-    from .ept.common import get_mac_string
-    from .ept.common import get_mac_value
-    from .ept.ept_vnid import eptVnid
-    if isinstance(fabric, Fabric):
-        f = fabric
-    else:
-        f = Fabric.load(fabric=fabric)
+    from . fabric import Fabric
+    from . ept.common import parse_vrf_name
+    from . ept.common import get_mac_string
+    from . ept.common import get_mac_value
+    from . ept.ept_vnid import eptVnid
+    if isinstance(fabric, Fabric): f = fabric
+    else: f = Fabric.load(fabric=fabric)
 
     logger.debug("clear endpoint [%s, node:%s, vnid:%s, addr:%s]", f.fabric, node, vnid, addr)
     if not f.exists():
@@ -751,9 +713,9 @@ def clear_endpoint(fabric, pod, node, vnid, addr, addr_type="ip", vrf_name=""):
                     logger.warn("failed to parse vrf name from ept vnid_name: %s", v.name)
                     return False
             else:
-                logger.warn("failed to determine vnid_name for fabric: %s, vnid: %s", f.fabric, vnid)
+                logger.warn("failed to determine vnid_name for fabric: %s, vnid: %s",f.fabric,vnid)
                 return False
-        cmd = "vsh -c 'clear system internal epm endpoint key vrf %s %s %s'" % (vrf_name, ctype, addr)
+        cmd = "vsh -c 'clear system internal epm endpoint key vrf %s %s %s'" % (vrf_name,ctype,addr)
         if ssh.cmd(cmd) == "prompt":
             logger.debug("successfully cleared endpoint: %s", cmd)
             return True
@@ -762,16 +724,16 @@ def clear_endpoint(fabric, pod, node, vnid, addr, addr_type="ip", vrf_name=""):
             return False
     else:
         # first cast mac into correct format
-        addr = get_mac_string(get_mac_value(addr), fmt="std")
-
+        addr = get_mac_string(get_mac_value(addr),fmt="std")
+        
         # to determine mac FD need to first verify mac exists and then use parent dn to query
         # l2BD, vlanCktEp, vxlanCktEp object (good thing here is that we don't care which object 
         # type, each will have id attribute that is the PI vlan)
         # here we have two choices, first is APIC epmMacEp query which hits all nodes or, since ssh
         # session is already up, we can execute directly on the leaf. For that later case, it will
         # be easier to use moquery with grep then parsing json with extra terminal characters...
-        cmd = "moquery -c epmMacEp -f 'epm.MacEp.addr==\"%s\"' | egrep '^dn' | egrep 'vxlan-%s'" % (
-            addr, vnid)
+        cmd = "moquery -c epmMacEp -f 'epm.MacEp.addr==\"%s\"' | egrep '^dn' | egrep 'vxlan-%s'"%(
+                addr, vnid)
         if ssh.cmd(cmd) == "prompt":
             r1 = re.search("dn[ ]*:[ ]*(?P<dn>sys/.+)/db-ep", ssh.output)
             if r1 is not None:
@@ -788,15 +750,16 @@ def clear_endpoint(fabric, pod, node, vnid, addr, addr_type="ip", vrf_name=""):
                             logger.warn("failed to execute clear cmd: %s", cmd)
                             return False
                     else:
-                        logger.warn("failed to extract pi-vlan id from %s: %s", r1.group("dn"),
-                                    ssh.output)
+                        logger.warn("failed to extract pi-vlan id from %s: %s", r1.group("dn"), 
+                            ssh.output)
                         return False
                 else:
                     logger.warn("failed to execute command: %s", cmd)
             else:
-                logger.debug("failed to parse bd/cktEp from dn or endpoint not found: %s", ssh.output)
+                logger.debug("failed to parse bd/cktEp from dn or endpoint not found: %s",ssh.output)
                 # assume parsing was fine and that endpoint is no longer present (so cleared!)
                 return True
         else:
             logger.warn("failed to execute moquery command to determine mac fd on leaf")
             return False
+        

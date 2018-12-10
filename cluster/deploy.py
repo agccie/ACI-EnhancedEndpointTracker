@@ -1,5 +1,5 @@
 """
-Script to deploy app on Docker swarm or create kron config
+Script to deploy app on Docker swarm
 """
 import argparse
 import logging
@@ -10,8 +10,8 @@ import traceback
 # update path to allow for semi-relatively imports
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
-from pkg.cluster_config import ClusterConfig
-from pkg.swarmer import Swarmer
+from swarm.create_config import ClusterConfig
+from swarm.swarmer import Swarmer
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ def setup_logger(logger, loglevel="debug", logfile=None):
 
 if __name__ == "__main__":
 
-    default_config = "%s/config.yml" %os.path.dirname(os.path.realpath(__file__))
+    default_config = "%s/swarm/swarm_config.yml" %os.path.dirname(os.path.realpath(__file__))
     desc = __doc__
     parser = argparse.ArgumentParser(description=desc, 
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -80,8 +80,8 @@ if __name__ == "__main__":
 
     # setup logging
     logger = setup_logger(logger, loglevel=args.debug, logfile=args.logfile)
-    setup_logger(logging.getLogger("pkg"), loglevel=args.debug, logfile=args.logfile)
-    setup_logger(logging.getLogger("pkg.connection"), loglevel="info", logfile=None)
+    setup_logger(logging.getLogger("swarm"), loglevel=args.debug, logfile=args.logfile)
+    setup_logger(logging.getLogger("swarm.connection"), loglevel="info", logfile=None)
     logger.info("Logfile: %s", args.logfile)
 
     # validate config file
@@ -90,9 +90,8 @@ if __name__ == "__main__":
         config.import_config(args.config)
         config.build_compose()
         swarm = Swarmer(config, username=args.username, password=args.password)
-        swarm.init_swarm()
-        swarm.deploy_service()
-        swarm.init_db()
+        #swarm.init_swarm()
+        #swarm.deploy_service()
         logger.info("deployment complete")
     except Exception as e:
         logger.debug("Traceback:\n%s", traceback.format_exc())

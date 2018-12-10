@@ -80,7 +80,6 @@ class DependencyNode(object):
                 self.ept_key = "name"
             else:
                 self.ept_key = key
-            logger.debug("setting %s ept_key to: %s", self.classname, self.ept_key)
             if self.ept_key not in self.ept_attributes:
                 self.ept_attributes[self.ept_key] = self.ept_key
             if callback is not None:

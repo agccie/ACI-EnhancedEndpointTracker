@@ -118,6 +118,15 @@ export class BackendService {
         return this.http.delete(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address + '/delete');
     }
 
+    clearDatabase(fabricName: string, vnid = 0) {
+        return this.http.delete(this.baseUrl + '/ept/endpoint/delete', {
+            body: {
+                fabric: fabricName,
+                vnid: vnid
+            }
+        });
+    }
+
     login(username, password) {
         return this.http.post(this.baseUrl + '/user/login', {
             username: username,

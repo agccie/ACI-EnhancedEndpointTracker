@@ -144,7 +144,7 @@ export class EndpointHistoryComponent implements OnInit {
                     const is_stale = data[0]['objects'][0]['ept.endpoint'];
                     this.endpoint.is_stale = is_stale;
                     if (is_stale) {
-                        for (let item of data[1]['objects']) {
+                        for (const item of data[1]['objects']) {
                             this.staleList.push(item['ept.history'].node);
                         }
                     }
@@ -159,11 +159,12 @@ export class EndpointHistoryComponent implements OnInit {
         if (status === 'deleted') {
             this.endpointStatus = 'Not currently present in the fabric';
         } else {
-            this.endpointStatus = `Local on node <strong>${node}</strong>`;
+            const pod = this.getEventProperties('pod') ;
+            this.endpointStatus = `Local on pod <strong>${pod}</strong> node <strong>${node}</strong>`;
             if (node > 0xffff) {
                 const nodeA = (node & 0xffff0000) >> 16;
                 const nodeB = (node & 0x0000ffff);
-                this.endpointStatus = `Local on node <strong>(${nodeA},${nodeB})</strong>`;
+                this.endpointStatus = `Local on pod <strong>${pod}</strong> node <strong>(${nodeA},${nodeB})</strong>`;
             }
             if (intf !== '') {
                 this.endpointStatus += `, interface <strong>${intf}</strong>`;
@@ -313,11 +314,11 @@ export class EndpointHistoryComponent implements OnInit {
             (data) => {
             this.counts = [
                 {prop: 'Moves', ct: data[0]['count']},
-                {prop: 'offsubnet', ct: data[1]['count']},
-                {prop: 'stale', ct: data[2]['count']},
-                {prop: 'rapid', ct: data[3]['count']}
+                {prop: 'Offsubnet', ct: data[1]['count']},
+                {prop: 'Stale', ct: data[2]['count']},
+                {prop: 'Rapid', ct: data[3]['count']}
                 ] ;
-            this.counts.push({prop: 'XR Nodes', ct: data[4]['count']}) ;
+            this.counts.push({prop: 'XR nodes', ct: data[4]['count']}) ;
             },
             (error) => {
                 const msg = 'Could not fetch counts! ' + error['error']['error'] ;

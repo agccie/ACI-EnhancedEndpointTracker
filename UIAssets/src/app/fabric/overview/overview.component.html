@@ -1,3 +1,18 @@
+<div class="row half-margin-bottom" *ngIf="fabric?.status === 'stopped'">
+        <div class="col-md-12">
+                <div class="alert alert--warning">
+                    <div class="alert__icon icon-warning-outline"></div>
+                    <div class="alert__message"><b>Warning!</b> The fabric is not running !</div>
+                </div>
+            </div>
+</div>
+<div class="row qtr-margin-top qtr-margin-bottom">
+<div class="col-md-12">
+    <div class="text-huge">
+        Fabric {{ fabric?.fabric}}
+    </div>
+</div>
+</div>
 <div class="row">
     <div class="col-md-4">
         <div class="card">

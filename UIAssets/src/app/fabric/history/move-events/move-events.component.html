@@ -18,48 +18,42 @@
             pagerNext: 'icon-step-forward'
           }"
 >
-    <ngx-datatable-column prop="ts" name="Timestamp" [sortable]="true" [flexGrow]='0.2'>
+    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [flexGrow]='0.125'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>{{ (row.src.ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}</div>
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column name="Direction" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column name="Direction" [sortable]="true" [flexGrow]='0.07'>
         <ng-template ngx-datatable-cell-template>
             <div>Source</div>
             <div>Destination</div>
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column name="Node" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column name="Local Node" prop="node" [sortable]="true" [flexGrow]='0.09'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>{{ row.src.node | localNode }}</div>
             <div>{{ row.dst.node | localNode }}</div>
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column name="EPG" [sortable]="true" [flexGrow]='0.15'>
-        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-            <div>{{ row.src.epg_name !== '' ? row.src.epg_name : '&mdash;'}}</div>
-            <div>{{ row.dst.epg_name !== '' ? row.dst.epg_name : '&mdash;'}}</div>
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column name="Interface" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column name="Interface" [sortable]="true" [flexGrow]='0.11'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>{{ row.src.intf_name !== '' ? row.src.intf_name : '&mdash;'}}</div>
             <div>{{ row.dst.intf_name !== '' ? row.dst.intf_name : '&mdash;'}}</div>
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column name="Encap" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column name="Encap" [sortable]="true" [flexGrow]='0.11'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>{{ row.src.encap !== '' ? row.src.encap : '&mdash;'}}</div>
             <div>{{ row.dst.encap !== '' ? row.dst.encap : '&mdash;'}}</div>
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column name="PCTAG" [sortable]="true" [flexGrow]='0.05'>
+    <ngx-datatable-column name="pcTAG" [sortable]="true" [flexGrow]='0.11'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>{{ row.src.pctag !== '' ? row.src.pctag : '&mdash;'}}</div>
             <div>{{ row.dst.pctag !== '' ? row.dst.pctag : '&mdash;'}}</div>
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.2'>
+    <ngx-datatable-column *ngIf="endpoint?.type !== 'mac'" prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.125'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>
                 <a *ngIf="value !== ''"
@@ -73,6 +67,12 @@
             </div>
         </ng-template>
     </ngx-datatable-column>
+    <ngx-datatable-column name="EPG" [sortable]="true" [flexGrow]='0.185'>
+            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                <div>{{ row.src.epg_name !== '' ? row.src.epg_name : '&mdash;'}}</div>
+                <div>{{ row.dst.epg_name !== '' ? row.dst.epg_name : '&mdash;'}}</div>
+            </ng-template>
+        </ngx-datatable-column>
 </ngx-datatable>
 <ng-template #errorMsg>
     <div class="modal__body">

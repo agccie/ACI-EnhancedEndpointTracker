@@ -1,127 +1,132 @@
-<nav class="sidebar" [class.sidebar--mini]="sidebarCollapsed" *ngIf="menuVisible">
-    <div class="sidebar__header">
-        <a id="sidebar-toggle" class="sidebar-toggle hidden-xs hidden-sm"
-           (click)="sidebarCollapsed = !sidebarCollapsed">
-            <span [class.icon-toggle-menu]="sidebarCollapsed" [class.icon-list-menu]="!sidebarCollapsed"></span>
-        </a>
-        <div class="sidebar__header-title">{{ fabricName }}</div>
-    </div>
-    <ul>
-        <li class="sidebar__item">
-            <a [routerLink]="['fabric', fabricName]">
-                <span class="icon-eye"></span>
-                <span>Overview</span>
+<div class="content-fluid">
+    <nav class="sidebar" [class.sidebar--mini]="sidebarCollapsed" *ngIf="menuVisible">
+        <div class="sidebar__header">
+            <a id="sidebar-toggle" class="sidebar-toggle hidden-xs hidden-sm"
+               (click)="sidebarCollapsed = !sidebarCollapsed">
+                <span [class.icon-toggle-menu]="sidebarCollapsed" [class.icon-list-menu]="!sidebarCollapsed"></span>
             </a>
-        </li>
-        <li class="sidebar__item">
-            <a [routerLink]="['fabric', fabricName,'moves']">
-                <span class="icon-move-page"></span>
-                <span>Moves</span>
-            </a>
-        </li>
-        <li class="sidebar__drawer" [class.sidebar__drawer--opened]="endpointExpanded"
-            (click)="endpointExpanded = !endpointExpanded; configurationExpanded = false">
-            <a>
-                <span class="icon-virtual-machine"></span>
-                <span>Endpoints</span>
-            </a>
-            <ul>
-                <li class="sidebar__item">
-                    <a [routerLink]="['fabric', fabricName,'endpoints']">All</a>
-                </li>
-                <li class="sidebar__item">
-                    <a [routerLink]="['fabric', fabricName,'offsubnet-endpoints']">OffSubnet</a>
-                </li>
-                <li class="sidebar__item">
-                    <a [routerLink]="['fabric', fabricName,'stale-endpoints']">Stale</a>
-                </li>
-                <li class="sidebar__item">
-                    <a [routerLink]="['fabric', fabricName,'rapid-endpoints']">Rapid</a>
-                </li>
-                <li class="sidebar__item">
-                    <a [routerLink]="['fabric', fabricName,'cleared-endpoints']">Cleared</a>
-                </li>
-            </ul>
-        </li>
-        <li class="sidebar__drawer" [class.sidebar__drawer--opened]="configurationExpanded"
-            (click)="configurationExpanded = !configurationExpanded; endpointExpanded=false">
-            <a>
-                <span class="icon-cog"></span>
-                <span>Settings</span>
-            </a>
-            <ul>
-                <li class="sidebar__item">
-                    <a [routerLink]="['fabric', fabricName,'settings','connectivity']">Connectivity</a>
-                </li>
-                <li class="sidebar__item">
-                    <a [routerLink]="['fabric', fabricName,'settings','notification']">Notification</a>
-                </li>
-                <li class="sidebar__item">
-                    <a [routerLink]="['fabric', fabricName,'settings','remediation']">Remediation</a>
-                </li>
-                <li class="sidebar__item">
-                    <a [routerLink]="['fabric', fabricName,'settings','advanced']">Advanced</a>
-                </li>
-            </ul>
-        </li>
-    </ul>
-</nav>
-<main>
-    <header class="header header--compressed" *ngIf="ls.getItem('isLoggedIn') === 'true'">
-        <div class="header-bar container">
-            <a class="header-bar__logo">
-                <span class="icon-cisco"></span>
-            </a>
-            <div class="header-bar__main">
-                <div class="header-heading">
-                    <h1 class="page-title">Endpoint Tracker</h1>
-                </div>
-            </div>
-            <div class="header-toolbar">
-                <a class="btn btn--small btn--icon" title="Welcome" [routerLink]="['/']">
-            <span data-balloon="Welcome" data-balloon-pos="left">
-              <span class="icon-home"></span>
-            </span>
+            <div class="sidebar__header-title">{{ fabricName }}</div>
+        </div>
+        <ul>
+            <li class="sidebar__item">
+                <a [routerLink]="['fabric', fabricName]">
+                    <span class="icon-eye"></span>
+                    <span>Overview</span>
                 </a>
-                <a class="btn btn--small btn--icon" title="Users" [routerLink]="['/users']">
+            </li>
+            <li class="sidebar__item">
+                <a [routerLink]="['fabric', fabricName,'moves']">
+                    <span class="icon-move-page"></span>
+                    <span>Moves</span>
+                </a>
+            </li>
+            <li class="sidebar__drawer" [class.sidebar__drawer--opened]="endpointExpanded"
+                (click)="endpointExpanded = !endpointExpanded; configurationExpanded = false">
+                <a>
+                    <span class="icon-virtual-machine"></span>
+                    <span>Endpoints</span>
+                </a>
+                <ul>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'endpoints']">All</a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'offsubnet-endpoints']">OffSubnet</a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'stale-endpoints']">Stale</a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'rapid-endpoints']">Rapid</a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'cleared-endpoints']">Cleared</a>
+                    </li>
+                </ul>
+            </li>
+            <li class="sidebar__drawer" [class.sidebar__drawer--opened]="configurationExpanded"
+                (click)="configurationExpanded = !configurationExpanded; endpointExpanded=false">
+                <a>
+                    <span class="icon-cog"></span>
+                    <span>Settings</span>
+                </a>
+                <ul>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'settings','connectivity']">Connectivity</a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'settings','notification']">Notification</a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'settings','remediation']">Remediation</a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'settings','advanced']">Advanced</a>
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+    <main>
+        <header class="header header--compressed" *ngIf="ls.getItem('isLoggedIn') === 'true'">
+            <div class="header-bar container">
+                <a class="header-bar__logo">
+                    <span class="icon-cisco"></span>
+                </a>
+                <div class="header-bar__main">
+                    <div class="header-heading">
+                        <h1 class="page-title">Endpoint Tracker</h1>
+                    </div>
+                </div>
+                <div class="header-toolbar">
+                    <a class="btn btn--small btn--icon" title="Welcome" [routerLink]="['/']">
+                        <span data-balloon="Welcome" data-balloon-pos="left">
+                            <span class="icon-home"></span>
+                        </span>
+                    </a>
+                    <a class="btn btn--small btn--icon" title="Users" [routerLink]="['/users']">
             <span data-balloon="Users" data-balloon-pos="left">
               <span class="icon-user"></span>
             </span>
-                </a>
-                <a class="btn btn--small btn--icon" title="About" (click)='openModal(abouttemplate)'>
-            <span data-balloon="About" data-balloon-pos="left">
-              <span class="icon-info"></span>
-            </span>
-                </a>
-                <a *ngIf="!app_mode" class="btn btn--small btn--icon" title="Logout" (click)="logout()">
-              <span data-balloon="Logout" data-balloon-pos="left">
-                <span class="icon-sign-out"></span>
-              </span>
-                </a>
+                    </a>
+                    <a class="btn btn--small btn--icon" title="About" (click)='openModal(abouttemplate)'>
+                        <span data-balloon="About" data-balloon-pos="left">
+                            <span class="icon-info"></span>
+                        </span>
+                    </a>
+                    <a *ngIf="!app_mode" class="btn btn--small btn--icon" title="Logout" (click)="logout()">
+                        <span data-balloon="Logout" data-balloon-pos="left">
+                            <span class="icon-sign-out"></span>
+                        </span>
+                    </a>
+                </div>
             </div>
-        </div>
-    </header>
-    <div class="content">
-        <div class="container-fluid center-xs">
-            <div class="row qtr-margin-bottom">
-            </div>
-            <div *ngIf="konami">
-                <h4>
-                    <button class="btn btn--icon btn--primary" (click)='noKonami()'>
-                        <span class="icon-back"></span>
-                    </button>
-                    Credits
-                </h4>
-            </div>
-            <div *ngIf="!konami">
-                <router-outlet>
-                </router-outlet>
-            </div>
-            <div class="row">
-                <div class="col-md-12">
-                    &nbsp;
+        </header>
+        <div class="content">
+            <div class="container-fluid center-xs">
+                <div class="row">
+                    <div class="col-md-12">
+                        &nbsp;
+                    </div>
+                </div>
+                <div *ngIf="konami">
+                    <h4>
+                        <button class="btn btn--icon btn--primary" (click)='noKonami()'>
+                            <span class="icon-back"></span>
+                        </button>
+                        Credits
+                    </h4>
+                </div>
+                <div *ngIf="!konami">
+                    <router-outlet>
+                    </router-outlet>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        &nbsp;
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-</main>
+    </main>
+</div>

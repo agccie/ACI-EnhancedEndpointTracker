@@ -32,7 +32,6 @@
             {{ value }}
         </ng-template>
     </ngx-datatable-column>
-    
     <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-value="value" ngx-datatable-cell-template>
             {{ value !== '' ? value : '&mdash;'}}

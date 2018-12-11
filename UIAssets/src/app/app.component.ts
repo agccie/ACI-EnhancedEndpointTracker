@@ -12,7 +12,7 @@ import {filter} from "rxjs/operators";
 
 export class AppComponent implements OnInit, OnDestroy {
     ls = localStorage;
-    app_mode : boolean ;
+    app_mode: boolean;
     konami: boolean;
     login_required: boolean;
     menuVisible: boolean;
@@ -26,7 +26,7 @@ export class AppComponent implements OnInit, OnDestroy {
         this.endpointExpanded = false;
         this.configurationExpanded = false;
         this.sidebarCollapsed = true;
-        this.app_mode = environment.app_mode ;
+        this.app_mode = environment.app_mode;
     }
 
     ngOnInit() {

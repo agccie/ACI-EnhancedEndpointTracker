@@ -2,7 +2,6 @@ import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
 import {ModalService} from '../../../_service/modal.service';
-import {ActivatedRoute} from '@angular/router';
 
 @Component({
     selector: 'app-rapid',

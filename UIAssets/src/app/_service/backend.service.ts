@@ -1,12 +1,12 @@
 import {Injectable} from '@angular/core';
-import {HttpClient, HttpParams} from '@angular/common/http';
+import {HttpClient, HttpHeaders, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {map} from 'rxjs/operators';
 import {environment} from '../../environments/environment';
 import {FabricSettings} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
 import {Fabric, FabricList} from "../_model/fabric";
-import {EndpointList, Endpoint} from "../_model/endpoint";
+import {EndpointList} from "../_model/endpoint";
 import {QueueList} from "../_model/queue";
 
 
@@ -89,11 +89,10 @@ export class BackendService {
         } else if (count === 1) {
             conditions = 'and(' + fabricFilter + conditions + ')';
         } else {
-            conditions = fabricFilter ;
+            conditions = fabricFilter;
         }
         if (sorts.length > 0) {
             sortsStr = '&sort=' + this.getSortsArrayAsString(sorts);
-
         }
         let url = this.baseUrl + '/ept/' + tab + '?page-size=' + pageSize + '&page=' + pageOffset + '&filter=' + conditions + sortsStr;
         return this.http.get<EndpointList>(url);
@@ -119,6 +118,18 @@ export class BackendService {
         return this.http.delete(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address + '/delete');
     }
 
+    clearDatabase(fabricName: string, vnid = 0) {
+        return this.http.request('DELETE', this.baseUrl + '/ept/endpoint/delete', {
+            headers: new HttpHeaders({
+                'Content-Type': 'application/json',
+            }),
+            body: {
+                fabric: fabricName,
+                vnid: vnid
+            }
+        });
+    }
+
     login(username, password) {
         return this.http.post(this.baseUrl + '/user/login', {
             username: username,
@@ -130,8 +141,8 @@ export class BackendService {
         return this.http.post(this.baseUrl + '/user/logout', {});
     }
 
-    getSearchResults(address) {
-        return this.http.get(this.baseUrl + '/ept/endpoint?filter=regex("addr","' + address + '")&page-size=15').pipe(
+    searchEndpoint(address) {
+        return this.http.get(this.baseUrl + '/ept/endpoint?filter=regex("addr","(?i)' + address + '")&include=fabric,addr,vnid,type,first_learn&page-size=20&sort=addr').pipe(
             map((res: Response) => {
                 return res['objects'];
             })
@@ -267,9 +278,8 @@ export class BackendService {
     }
 
     offsubnetStaleEndpointHistory(fabric, vnid, address, endpointState, table) {
-
-        return this.http.get(this.baseUrl + '/ept/' + table + 
-        '?filter=and(eq("' + endpointState + '",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))');
+        return this.http.get(this.baseUrl + '/ept/' + table +
+            '?filter=and(eq("' + endpointState + '",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))');
     }
 
     testEmailNotifications(type: String, fabricName: String) {
@@ -281,30 +291,30 @@ export class BackendService {
     }
 
     getRapidEndpoints(fabricName: String, vnid: String, address: String): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + 
+        return this.http.get<EndpointList>(this.baseUrl +
             `/ept/rapid?filter=and(eq("fabric","${fabricName}"),eq("vnid",${vnid}),eq("addr","${address}"))`)
     }
 
     getClearedEndpoints(fabricName: String, vnid: String, address: String): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + 
+        return this.http.get<EndpointList>(this.baseUrl +
             `/ept/remediate?filter=and(eq("fabric","${fabricName}"),eq("vnid",${vnid}),eq("addr","${address}"))`)
     }
 
     getAllOffsubnetStaleEndpoints(fabric: String, vnid: String, address: String, table: String): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + 
+        return this.http.get<EndpointList>(this.baseUrl +
             `/ept/${table}?filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
     }
 
     clearNodes(fabric: String, vnid: String, addr: String, nodeList: Array<Number>) {
-        return this.http.post(this.baseUrl + `/uni/fb-${fabric}/endpoint/vnid-${vnid}/addr-${addr}/clear`, nodeList) ;
+        return this.http.post(this.baseUrl + `/uni/fb-${fabric}/endpoint/vnid-${vnid}/addr-${addr}/clear`, nodeList);
     }
 
-    getCountsForEndpointDetails(fabric, vnid, address,table): Observable<EndpointList> {
-    return this.http.get<EndpointList>(this.baseUrl + `/ept/${table}?count=1&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`) ;
+    getCountsForEndpointDetails(fabric, vnid, address, table): Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + `/ept/${table}?count=1&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
     }
 
-    getXrNodesCount(fabric, vnid, address):Observable<EndpointList> {
-    return this.http.get<EndpointList>(this.baseUrl + `/ept/history?count=1&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"),or(eq("events.0.status","created"),eq("events.0.status","modified")),gt("events.0.remote",0))`) ;
+    getXrNodesCount(fabric, vnid, address): Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + `/ept/history?count=1&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"),or(eq("events.0.status","created"),eq("events.0.status","modified")),gt("events.0.remote",0))`);
     }
 
 }

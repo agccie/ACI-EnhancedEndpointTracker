@@ -1,17 +1,36 @@
-<div class="row half-margin-bottom" *ngIf="fabric?.status === 'stopped'">
+<div *ngIf="!fabricRunning">
+    <div class="alert alert--warning">
+        <div class="alert__icon icon-warning-outline"></div>
+        <div class="alert__message text-left">
+            Warning: Endpoint Tracker is not currently running for this fabric
+        </div>
+    </div>
+    <div class="row">
         <div class="col-md-12">
-                <div class="alert alert--warning">
-                    <div class="alert__icon icon-warning-outline"></div>
-                    <div class="alert__message"><b>Warning!</b> The fabric is not running !</div>
-                </div>
-            </div>
-</div>
-<div class="row qtr-margin-top qtr-margin-bottom">
-<div class="col-md-12">
-    <div class="text-huge">
-        Fabric {{ fabric?.fabric}}
+            &nbsp;
+        </div>
     </div>
 </div>
+<div class="row">
+    <div class="col-md-12">
+        <span class="text-xlarge"> {{ fabric?.fabric }}</span>
+        <div class="dropdown" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
+            <button class="btn btn--small btn--primary">Actions</button>
+            <div class="dropdown__menu">
+                <a (click)="fabricRunning?onStopFabric():onStartFabric()">
+                    {{ fabricRunning?'Stop tracking':'Start tracking'}}
+                </a>
+                <a (click)="onClickOfClearDatabase()">Clear database</a>
+                <a [routerLink]="'/queues'">Display processes</a>
+                <a (click)='getFabric()'>Reload fabric data</a>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        &nbsp;
+    </div>
 </div>
 <div class="row">
     <div class="col-md-4">
@@ -38,12 +57,52 @@
 </div>
 <div class="row">
     <div class="col-md-12">
+        <div class="form-group">
+            <ng-select
+                    [items]="endpoints$ | async"
+                    bindLabel="name"
+                    [typeahead]="endpointInput$"
+                    [(ngModel)]="selectedEp"
+                    (change)="onEndPointChange($event)"
+                    autofocus
+            >
+                <ng-template ng-option-tmp let-item="item" let-index="index" let-search="searchTerm">
+                    <div class="row">
+                        <div class="col-md-2">
+                            {{ item['ept.endpoint'].addr }}
+                        </div>
+                        <div class="col-md-1">
+                            <span class="label label--raised"
+                                  [ngClass]="{
+                                      'label--success':item['ept.endpoint'].type==='ipv4',
+                                      'label--warning':item['ept.endpoint'].type==='mac',
+                                      'label--info':item['ept.endpoint'].type==='ipv6'
+                                  }">
+                                {{ item['ept.endpoint'].type.toUpperCase() }}
+                            </span>
+                        </div>
+                        <div class="col-md-1">
+                            {{ item['ept.endpoint'].first_learn.encap }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ item['ept.endpoint'].first_learn.vnid_name }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ item['ept.endpoint'].first_learn.epg_name }}
+                        </div>
+                    </div>
+                </ng-template>
+            </ng-select>
+        </div>
+    </div>
+</div>
+<div class="row">
+    &nbsp;
+</div>
+<div class="row">
+    <div class="col-md-12">
         <div class="panel panel--raised">
-            <h4>Fabric Events
-                <button class="btn btn--icon btn--small btn--primary" (click)='getFabric()'>
-                    <span class="icon-refresh"></span>
-                </button>
-            </h4>
+            <h4>Fabric Events</h4>
             <ngx-datatable
                     [columnMode]="'flex'"
                     [headerHeight]="25"
@@ -113,12 +172,19 @@
                 <div>{{ modalService.modalBody }}</div>
             </div>
         </div>
+        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'danger'">
+            <div class="alert__icon icon-warning-outline"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div>{{ modalService.modalBody }}</div>
+            </div>
+        </div>
         <div class="modal__footer" *ngIf="!modalService.decisionBox">
-            <button class="btn" (click)="modalService.hideModal()">Ok</button>
+            <button class="btn btn--primary" (click)="modalService.hideModal()">Ok</button>
         </div>
         <div class="modal__footer" *ngIf="modalService.decisionBox">
-            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
-            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
+            <button class="btn btn--secondary" (click)="modalService.runCallback()">Proceed</button>
+            <button class="btn btn--primary" (click)="modalService.hideModal()">Cancel</button>
         </div>
     </div>
 </ng-template>

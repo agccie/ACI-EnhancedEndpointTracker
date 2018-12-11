@@ -209,11 +209,11 @@ if __name__ == "__main__":
                 sys.exit(1)
         elif args.add_rs:
             if not db_init_replica_set(args.add_rs, configsvr=args.configsvr, primary=True):
-                logger.error("failed to initialize replica set: %s", args.rs)
+                logger.error("failed to initialize replica set: %s", args.add_rs)
                 sys.exit(1)
         elif args.add_shard:
             if not db_add_shard(args.add_shard):
-                logger.error("failed to add shard: %s"< args.add_shard)
+                logger.error("failed to add shard: %s", args.add_shard)
                 sys.exit(1)
         else:
             if not db_setup(

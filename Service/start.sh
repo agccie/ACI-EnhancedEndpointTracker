@@ -606,9 +606,11 @@ function main(){
         log "sleeping..."
         sleep infinity 
     elif [ "$role" == "web" ] ; then
-        if ! update_apache ; then
-            log "error: failed to update apache config"
-            exit_script
+        if [ "$HOSTED_PLATFORM" == "APIC" ] ; then
+            if ! update_apache ; then
+                log "error: failed to update apache config"
+                exit_script
+            fi
         fi
         if ! start_service "apache2" ; then
             log "error: failed to start apache"

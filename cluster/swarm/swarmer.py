@@ -242,8 +242,8 @@ class Swarmer(object):
                 if "Name" in js and js["Name"] == self.config.app_name:
                     err = "%s stack already running\n" % self.config.app_name
                     err+= "If you want to redeploy the stack, first remove it via "
-                    err+= "'docker stack rm %s', wait 5 minutes, "
-                    err+= "and then rerun this script" % self.config.app_name
+                    err+= "'docker stack rm %s', wait 5 minutes, " % self.config.app_name
+                    err+= "and then rerun this script."
                     raise Exception(err)
             except (ValueError,KeyError) as e:
                 logger.warn("failed to parse docker service line: %s", l)

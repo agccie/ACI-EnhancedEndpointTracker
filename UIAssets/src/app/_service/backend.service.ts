@@ -5,9 +5,10 @@ import {map} from 'rxjs/operators';
 import {environment} from '../../environments/environment';
 import {FabricSettings} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
-import {Fabric, FabricList} from "../_model/fabric";
-import {EndpointList} from "../_model/endpoint";
-import {QueueList} from "../_model/queue";
+import {Fabric, FabricList} from '../_model/fabric' ;
+import {EndpointList} from '../_model/endpoint' ;
+import {QueueList} from '../_model/queue' ;
+import {Version} from '../_model/version' ;
 
 
 @Injectable({
@@ -197,6 +198,7 @@ export class BackendService {
         delete toSave.mac;
         delete toSave.ipv4;
         delete toSave.ipv6;
+        delete toSave.uptime;
         return this.http.post(this.baseUrl + '/fabric', toSave);
     }
 
@@ -241,11 +243,11 @@ export class BackendService {
         if (toSave.password === '') {
             delete toSave.password;
         }
-        return this.http.patch(this.baseUrl + '/user/' + toSave.username, toSave);
+        return this.http.patch(this.baseUrl + '/uni/username-' + toSave.username, toSave);
     }
 
     deleteUser(user: User): Observable<any> {
-        return this.http.delete(this.baseUrl + '/user/' + user.username);
+        return this.http.delete(this.baseUrl + '/uni/username-' + user.username);
     }
 
     getUsers(): Observable<UserList> {
@@ -316,5 +318,10 @@ export class BackendService {
     getXrNodesCount(fabric, vnid, address): Observable<EndpointList> {
         return this.http.get<EndpointList>(this.baseUrl + `/ept/history?count=1&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"),or(eq("events.0.status","created"),eq("events.0.status","modified")),gt("events.0.remote",0))`);
     }
+
+    getVersion(): Observable<Version> {
+        const url = this.baseUrl + '/app-status/version';
+        return this.http.get<Version>(url);
+      }
 
 }

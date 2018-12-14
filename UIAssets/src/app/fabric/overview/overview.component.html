@@ -14,7 +14,7 @@
 <div class="row">
     <div class="col-md-12">
         <span class="text-xlarge" style="vertical-align: middle;"> {{ fabric?.fabric }}</span>
-        <div class="dropdown" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
+        <div class="dropdown pull-right" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
             <button class="btn btn--small btn--primary">Actions</button>
             <div class="dropdown__menu">
                 <a (click)="fabricRunning?onStopFabric():onStartFabric()">

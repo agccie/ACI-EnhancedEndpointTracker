@@ -10,8 +10,8 @@
         <ul>
             <li class="sidebar__item">
                 <a [routerLink]="['fabric', fabricName]">
-                    <span class="icon-eye"></span>
-                    <span>Overview</span>
+                    <span class="icon-computer"></span>
+                    <span>Dashboard</span>
                 </a>
             </li>
             <li class="sidebar__item">
@@ -28,7 +28,7 @@
                 </a>
                 <ul>
                     <li class="sidebar__item">
-                        <a [routerLink]="['fabric', fabricName,'endpoints']">All</a>
+                        <a [routerLink]="['fabric', fabricName,'endpoints']">Browse</a>
                     </li>
                     <li class="sidebar__item">
                         <a [routerLink]="['fabric', fabricName,'offsubnet-endpoints']">OffSubnet</a>
@@ -47,7 +47,7 @@
             <li class="sidebar__drawer" [class.sidebar__drawer--opened]="configurationExpanded"
                 (click)="configurationExpanded = !configurationExpanded; endpointExpanded=false">
                 <a>
-                    <span class="icon-cog"></span>
+                    <span class="icon-tools"></span>
                     <span>Settings</span>
                 </a>
                 <ul>
@@ -67,7 +67,7 @@
             </li>
             <li class="sidebar__drawer">
                 <a (click)='getVersion()'>
-                        <span class="icon-info"></span>
+                        <span class="icon-help"></span>
                         <span>About</span>
                 </a>
             </li>
@@ -86,17 +86,17 @@
                 </div>
                 <div class="header-toolbar">
                     <a class="btn btn--small btn--icon" title="Welcome" [routerLink]="['/']">
-                        <span data-balloon="Welcome" data-balloon-pos="left">
+                        <span data-balloon="Welcome" data-balloon-pos="down">
                             <span class="icon-home"></span>
                         </span>
                     </a>
                     <a class="btn btn--small btn--icon" title="Users" [routerLink]="['/users']">
-            <span data-balloon="Users" data-balloon-pos="left">
+            <span data-balloon="Users" data-balloon-pos="down">
               <span class="icon-user"></span>
             </span>
                     </a>
                     <a *ngIf="!app_mode" class="btn btn--small btn--icon" title="Logout" (click)="logout()">
-                        <span data-balloon="Logout" data-balloon-pos="left">
+                        <span data-balloon="Logout" data-balloon-pos="down">
                             <span class="icon-sign-out"></span>
                         </span>
                     </a>
@@ -138,13 +138,13 @@
       <div class="panel panel--vibblue panel--raised">
         <div class="row">
           <div class="col-md-4">Documentation</div>
-          <div class="col-md-8"><a target="_blank" href="http://statechecker.readthedocs.io/en/latest/">https://statechecker.readthedocs.io/en/latest/</a>
+          <div class="col-md-8"><a target="_blank" href="https://aci-enhancedendpointtracker.readthedocs.io/en/latest/">https://aci-enhancedendpointtracker.readthedocs.io/en/latest/</a>
           </div>
         </div>
         <div class="row text-left">
           <div class="col-md-4">Feedback</div>
           <div class="col-md-8"><a
-            href="mailto:aciappcenter-support@external.cisco.com?Subject=Feedback for Statechecker app">aciappcenter-support@external.cisco.com</a>
+            href="mailto:aciappcenter-support@external.cisco.com?Subject=Feedback for Enhanced Endpoint Tracker app">aciappcenter-support@external.cisco.com</a>
           </div>
         </div>
         <div class="row">
@@ -160,10 +160,6 @@
         <div class="row text-left">
           <div class="col-md-4">Commit id</div>
           <div class="col-md-8">{{ version.commit }}</div>
-        </div>
-        <div class="row text-left">
-          <div class="col-md-4">Authors</div>
-          <div class="col-md-8">{{ authors }}</div>
         </div>
       </div>
     </div>

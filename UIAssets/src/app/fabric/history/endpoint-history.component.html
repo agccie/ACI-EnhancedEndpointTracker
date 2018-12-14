@@ -62,7 +62,7 @@
             <div class="row qtr-margin-top">
                 <div class="col-md-12">
                     <span [innerHTML]='endpointStatus'></span>
-                    <span *ngIf="rw_mac !== ''">, mac
+                    <span *ngIf="rw_mac !== '' && endpoint?.type !== 'mac'">, mac
                         <a [routerLink]="['/fabric',this.endpoint.fabric,'history',rw_bd,rw_mac]">{{ rw_mac }}</a>
                     </span>
                 </div>

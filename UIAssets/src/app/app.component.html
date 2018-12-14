@@ -14,12 +14,6 @@
                     <span>Dashboard</span>
                 </a>
             </li>
-            <li class="sidebar__item">
-                <a [routerLink]="['fabric', fabricName,'moves']">
-                    <span class="icon-move-page"></span>
-                    <span>Moves</span>
-                </a>
-            </li>
             <li class="sidebar__drawer" [class.sidebar__drawer--opened]="endpointExpanded"
                 (click)="endpointExpanded = !endpointExpanded; configurationExpanded = false">
                 <a>
@@ -28,19 +22,52 @@
                 </a>
                 <ul>
                     <li class="sidebar__item">
-                        <a [routerLink]="['fabric', fabricName,'endpoints']">Browse</a>
+                        <a [routerLink]="['fabric', fabricName,'endpoints']">
+                            <div class="row">
+                                <span class="icon-browser"></span>
+                                <span class="qtr-margin-left text-medium">Browse</span>
+                            </div>   
+                        </a>
                     </li>
                     <li class="sidebar__item">
-                        <a [routerLink]="['fabric', fabricName,'offsubnet-endpoints']">OffSubnet</a>
+                        <a [routerLink]="['fabric', fabricName,'moves']">
+                            <div class="row">
+                                <span class="icon-panel-shift-right"></span>
+                                <span class="qtr-margin-left text-medium">Moves</span>
+                            </div>    
+                        </a>
                     </li>
                     <li class="sidebar__item">
-                        <a [routerLink]="['fabric', fabricName,'stale-endpoints']">Stale</a>
+                        <a [routerLink]="['fabric', fabricName,'rapid-endpoints']">
+                            <div class="row">
+                                <span class="icon-too-fast"></span>
+                                <span class="qtr-margin-left text-medium">Rapid</span>
+                            </div>
+                        </a>
                     </li>
                     <li class="sidebar__item">
-                        <a [routerLink]="['fabric', fabricName,'rapid-endpoints']">Rapid</a>
+                        <a [routerLink]="['fabric', fabricName,'offsubnet-endpoints']">
+                            <div class="row">
+                                <span class="icon-jump-out"></span>
+                                <span class="qtr-margin-left text-medium">OffSubnet</span>
+                            </div>   
+                        </a>
                     </li>
                     <li class="sidebar__item">
-                        <a [routerLink]="['fabric', fabricName,'cleared-endpoints']">Cleared</a>
+                        <a [routerLink]="['fabric', fabricName,'stale-endpoints']">
+                            <div class="row">
+                                <span class="icon-warning"></span>
+                                <span class="qtr-margin-left text-medium">Stale</span>
+                            </div>      
+                        </a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'cleared-endpoints']">
+                            <div class="row">
+                                <span class="icon-delete"></span>
+                                <span class="qtr-margin-left text-medium">Cleared</span>
+                            </div>
+                        </a>
                     </li>
                 </ul>
             </li>

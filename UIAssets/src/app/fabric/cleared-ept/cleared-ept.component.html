@@ -38,14 +38,14 @@
                         {{ (row['ept.remediate'].events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.2">
+                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.1">
                         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                             <span class="label label--raised" [ngClass]="{'label--success':row['ept.remediate']['type']==='ipv4','label--warning':row['ept.remediate']['type']==='mac','label--info':row['ept.remediate']['type']==='ipv6'}">
                                 {{row['ept.remediate']['type'].toUpperCase()}}
                             </span>
                         </ng-template>
                     </ngx-datatable-column>
-                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
+                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.13">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         <a [routerLink]="['../history', row['ept.remediate'].vnid, row['ept.remediate'].addr]">
                             {{ row['ept.remediate'].addr }}
@@ -62,17 +62,17 @@
                         {{ row['ept.remediate'].count }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="action" name="Action" [sortable]="true" [flexGrow]="0.1">
+                <ngx-datatable-column prop="action" name="Action" [sortable]="true" [flexGrow]="0.13">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         {{ row['ept.remediate'].action }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="reason" name="Reason" [sortable]="true" [flexGrow]="0.1">
+                <ngx-datatable-column prop="reason" name="Reason" [sortable]="true" [flexGrow]="0.13">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         {{ row['ept.remediate'].reason }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.4">
+                <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.31">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         {{ row['ept.remediate'].events[0].vnid_name}}
                     </ng-template>

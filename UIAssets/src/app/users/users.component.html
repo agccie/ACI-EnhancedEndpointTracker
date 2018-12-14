@@ -80,7 +80,7 @@
                                     <span class="icon-pencil"></span>
                                 </a>
                                 <a class="btn btn--small btn--icon btn--negative"
-                                   *ngIf="row.username === userName || userRole === 0"
+                                   *ngIf="userRole === 0"
                                    (click)='openModal(deletetemplate, row)'>
                                     <span class="icon-trash"></span>
                                 </a>

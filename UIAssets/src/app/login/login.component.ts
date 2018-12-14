@@ -1,7 +1,6 @@
 import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {Router} from '@angular/router';
 import {BackendService} from '../_service/backend.service';
-import {PreferencesService} from '../_service/preferences.service';
 import {environment} from "../../environments/environment";
 import {ModalService} from '../_service/modal.service';
 
@@ -10,21 +9,19 @@ import {ModalService} from '../_service/modal.service';
     templateUrl: './login.component.html',
     styleUrls: ['./login.component.css']
 })
+
 export class LoginComponent implements OnInit {
     title: string;
     username = '';
     password = '';
-    showModal = false;
     modalTitle = '';
     modalBody = '';
     version = 'Not Available';
     loading = false;
-    ls: Storage;
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(private router: Router, private bs: BackendService, private prefs: PreferencesService, public modalService: ModalService) {
+    constructor(private router: Router, private backendService: BackendService, public modalService: ModalService) {
         this.title = 'Endpoint Tracker';
-        this.ls = localStorage;
         if (environment.app_mode) {
             localStorage.setItem('isLoggedIn', 'true');
             this.router.navigate(['/']);
@@ -35,7 +32,7 @@ export class LoginComponent implements OnInit {
         if (localStorage.getItem('isLoggedIn') === 'true') {
             this.router.navigate(['/']);
         } else {
-            this.bs.getAppVersion().subscribe(
+            this.backendService.getAppVersion().subscribe(
                 (data) => {
                     this.version = data['version'];
                 },
@@ -48,12 +45,12 @@ export class LoginComponent implements OnInit {
     }
 
     onSubmit() {
-        this.bs.login(this.username, this.password).subscribe(
+        this.backendService.login(this.username, this.password).subscribe(
             (data) => {
                 if (data['success'] === true) {
                     localStorage.setItem('isLoggedIn', 'true');
                     localStorage.setItem('userName', this.username);
-                    this.bs.getUserDetails(this.username).subscribe((response) => {
+                    this.backendService.getUserDetails(this.username).subscribe((response) => {
                         const userDetails = response['objects'][0]['user'];
                         localStorage.setItem('userRole', userDetails['role']);
                     }, (error) => {

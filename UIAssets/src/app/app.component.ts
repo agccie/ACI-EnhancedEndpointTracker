@@ -1,9 +1,12 @@
-import {Component, OnDestroy, OnInit} from '@angular/core';
+import {Component, OnDestroy, OnInit, ViewChild, TemplateRef} from '@angular/core';
 import {ActivatedRoute, NavigationEnd, Router} from '@angular/router';
 import {BackendService} from './_service/backend.service';
 import {PreferencesService} from './_service/preferences.service';
 import {environment} from '../environments/environment';
 import {filter} from "rxjs/operators";
+import { ModalService } from './_service/modal.service';
+import { Version } from './_model/version';
+import { BsModalRef } from '../../node_modules/ngx-bootstrap';
 
 @Component({
     selector: 'app-root',
@@ -12,7 +15,7 @@ import {filter} from "rxjs/operators";
 
 export class AppComponent implements OnInit, OnDestroy {
     ls = localStorage;
-    app_mode : boolean ;
+    app_mode: boolean;
     konami: boolean;
     login_required: boolean;
     menuVisible: boolean;
@@ -21,12 +24,16 @@ export class AppComponent implements OnInit, OnDestroy {
     configurationExpanded: boolean;
     sidebarCollapsed: boolean;
     private stopListening: () => void;
+    @ViewChild('abouttemplate') msgModal: TemplateRef<any> ;
+    authors = ['Andy Gossett', 'Axel Bodart', 'Hrishikesh Deshpande'];
+    version: Version ;
 
-    constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService, private activatedRoute: ActivatedRoute) {
+    constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService,
+        private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.endpointExpanded = false;
         this.configurationExpanded = false;
         this.sidebarCollapsed = true;
-        this.app_mode = environment.app_mode ;
+        this.app_mode = environment.app_mode;
     }
 
     ngOnInit() {
@@ -64,4 +71,24 @@ export class AppComponent implements OnInit, OnDestroy {
     noKonami() {
         this.konami = false;
     }
+
+    shuffleAuthor() {
+        let j, x, i;
+        for (i = this.authors.length - 1; i > 0; i--) {
+          j = Math.floor(Math.random() * (i + 1));
+          x = this.authors[i];
+          this.authors[i] = this.authors[j];
+          this.authors[j] = x;
+        }
+      }
+
+      getVersion() {
+          this.backendService.getVersion().subscribe(
+            (results) => {
+                this.version = results;
+                this.shuffleAuthor();
+                this.modalService.openModal(this.msgModal) ;
+            }
+          ) ;
+      }
 }

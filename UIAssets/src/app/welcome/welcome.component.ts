@@ -22,7 +22,7 @@ export class WelcomeComponent implements OnInit {
     fabrics: Fabric[];
     fabricName: string;
     pageSize: number;
-    loading = true;
+    loading = false;
     sorts = [{prop: 'fabric', dir: 'asc'}];
     fabric: Fabric;
     selectedFabric: Fabric;
@@ -71,6 +71,7 @@ export class WelcomeComponent implements OnInit {
                         this.localModalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                     });
                 }
+                this.loading = false ;
             },
             (error) => {
                 this.loading = false;

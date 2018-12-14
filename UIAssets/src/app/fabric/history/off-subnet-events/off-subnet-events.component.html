@@ -18,29 +18,14 @@
             pagerNext: 'icon-step-forward'
           }"
 >
-    <ngx-datatable-column prop="ts" name="Timestamp" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [flexGrow]='0.15'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="status" name="Status" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]='0.05'>
         <ng-template let-value="value" ngx-datatable-cell-template>
             {{ value }}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value }}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '&mdash;'}}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.1'>
@@ -53,28 +38,16 @@
             {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="pctag" name="PCTAG" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '&mdash;'}}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="flags" name="Flags" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '&mdash;'}}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" let-row='row' ngx-datatable-cell-template>
-            <a *ngIf="value !== ''"
-               [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value }}</a>
-            <span *ngIf="value === ''">'&mdash;'</span>
-        </ng-template>
-    </ngx-datatable-column>
     <ngx-datatable-column prop="remote" name="Remote Node" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '&mdash;'}}
+            {{ value | localNode }}
         </ng-template>
     </ngx-datatable-column>
+    <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.5'>
+            <ng-template let-value="value" ngx-datatable-cell-template>
+                {{ value !== '' ? value : '&mdash;'}}
+            </ng-template>
+        </ngx-datatable-column>
 </ngx-datatable>
 <ng-template #errorMsg>
     <div class="modal__body">

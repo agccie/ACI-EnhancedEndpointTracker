@@ -1,30 +1,34 @@
 <div class="row">
-    <div class="col-md-6">
-        <span class="text-xlarge">History for {{ endpoint?.addr }}</span>&nbsp;
-        <span class="label" [ngClass]="{
-                'label--success': endpoint?.type === 'ipv4',
-                'label--info': endpoint?.type==='ipv6',
-                'label--warning':endpoint?.type === 'mac'
-            }">{{ endpoint?.type.toUpperCase() }}</span>&nbsp;
-        <div class="dropdown" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
-            <button class="btn btn--small btn--primary">Actions</button>
-            <div class="dropdown__menu">
-                <a (click)="onClickOfRefresh()">Refresh events</a>
-                <a (click)="onClickOfDelete()">Clear events</a>
-                <a (click)="onClickOfClear()">Clear endpoint</a>
-            </div>
-        </div>
-    </div>
-</div>
-<div class="row">
     <div class="col-md-12">
         &nbsp;
     </div>
 </div>
 <div *ngIf="!loading">
     <div class="panel panel--bordered">
-        <div *ngIf="endpoint?.is_offsubnet">
             <div class="row">
+                    <div class="col-md-12">
+                        <span class="label" [ngClass]="{
+                                'label--success': endpoint?.type === 'ipv4',
+                                'label--info': endpoint?.type==='ipv6',
+                                'label--warning':endpoint?.type === 'mac'
+                            }">{{ endpoint?.type.toUpperCase() }}</span>&nbsp;
+                            <span class="text-xlarge" style="vertical-align: middle">{{ endpoint?.addr }}</span>&nbsp;
+                        <span *ngIf="['external','psvi','loopback'].includes(endpoint?.learn_type)">
+                            <span class="label label--ltgray">{{endpoint?.learn_type}}</span>
+                            &nbsp;
+                        </span>
+                        <div class="dropdown pull-right" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
+                            <button class="btn btn--small btn--primary">Actions</button>
+                            <div class="dropdown__menu">
+                                <a (click)="onClickOfRefresh()">Refresh events</a>
+                                <a (click)="onClickOfDelete()">Clear events</a>
+                                <a (click)="onClickOfClear()">Clear endpoint</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        <div *ngIf="endpoint?.is_offsubnet">
+            <div class="row qtr-margin-top">
                 <div class="col-md-12">
                     <span class="label label--danger">offsubnet</span>
                     <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
@@ -33,7 +37,7 @@
             </div>
         </div>
         <div *ngIf="endpoint?.is_stale">
-            <div class="row">
+            <div class="row qtr-margin-top">
                 <div class="col-md-12">
                     <span class="label label--danger">Stale</span>
                     <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
@@ -42,30 +46,20 @@
             </div>
         </div>
         <div *ngIf="endpoint?.is_rapid">
-            <div class="row">
+            <div class="row qtr-margin-top">
                 <div class="col-md-12">
                     <span class="label label--danger">Rapid</span>
                 </div>
             </div>
         </div>
-        <div class="row">
-            <div class="col-md-12">
-                &nbsp;
-            </div>
-        </div>
         <div *ngIf="fabricDetails != ''">
-            <div class="row">
+            <div class="row qtr-margin-top">
                 <div class="col-md-12" [innerHTML]='fabricDetails'>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-12">
-                    &nbsp;
                 </div>
             </div>
         </div>
         <div *ngIf="endpointStatus != ''">
-            <div class="row">
+            <div class="row qtr-margin-top">
                 <div class="col-md-12">
                     <span [innerHTML]='endpointStatus'></span>
                     <span *ngIf="rw_mac !== ''">, mac
@@ -74,11 +68,11 @@
                 </div>
             </div>
         </div>
-        <div class="row">
+        <div class="row qtr-margin-top">
             <div class="col-md-12">
                 <span *ngFor='let c of counts'>
-                <span class="label label--ltgray">{{c['ct']}}</span>
-                <span style="vertical-align: middle; margin-left:0.5% ; margin-right:0.5%"> {{c['prop']}} </span>
+                <span class="label label--ltgray">{{ c['ct']}}</span>
+                <span style="vertical-align: middle; margin-left:0.5% ; margin-right:0.5%"> {{ c['prop']}} </span>
             </span>
             </div>
         </div>

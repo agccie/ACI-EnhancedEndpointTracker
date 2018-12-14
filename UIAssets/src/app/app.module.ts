@@ -15,7 +15,6 @@ import {PerNodeHistoryComponent} from './fabric/history/per-node-history/per-nod
 import {AuthGuardService} from './_service/auth-guard.service';
 import {AccordionModule, ModalModule} from 'ngx-bootstrap';
 import {EndpointsComponent} from './fabric/endpoint/endpoints.component';
-import {EventComponent} from './fabric/event/event.component';
 import {MovesComponent} from './fabric/moves/moves.component';
 import {StaleEptComponent} from './fabric/stale-ept/stale-ept.component';
 import {OffsubnetEptComponent} from './fabric/offsubnet-ept/offsubnet-ept.component';
@@ -45,6 +44,7 @@ import {RapidComponent} from './fabric/history/rapid/rapid.component';
 import {ClearedComponent} from './fabric/history/cleared/cleared.component';
 import {UptimeDaysPipe} from './_pipes/uptime-days.pipe';
 import {LocalNodePipe} from './_pipes/local-node.pipe';
+import {CommonService} from './_service/common.service';
 
 const appRoutes: Routes = [
     {
@@ -65,7 +65,6 @@ const appRoutes: Routes = [
         children: [
             {path: '', component: OverviewComponent},
             {path: 'endpoints', component: EndpointsComponent},
-            {path: 'events', component: EventComponent},
             {path: 'moves', component: MovesComponent},
             {path: 'stale-endpoints', component: StaleEptComponent},
             {path: 'offsubnet-endpoints', component: OffsubnetEptComponent},
@@ -127,7 +126,6 @@ const appRoutes: Routes = [
         OffSubnetEventsComponent,
         StaleEventsComponent,
         EndpointsComponent,
-        EventComponent,
         MovesComponent,
         StaleEptComponent,
         OffsubnetEptComponent,
@@ -167,6 +165,7 @@ const appRoutes: Routes = [
     providers: [
         BackendService,
         CookieService,
+        CommonService,
         {provide: HTTP_INTERCEPTORS, useClass: BackendInterceptorService, multi: true},
         {provide: LocationStrategy, useClass: HashLocationStrategy}
     ],

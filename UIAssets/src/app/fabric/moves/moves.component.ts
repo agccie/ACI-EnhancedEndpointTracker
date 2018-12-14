@@ -3,6 +3,8 @@ import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {ModalService} from '../../_service/modal.service';
+import {EndpointList} from 'src/app/_model/endpoint';
+import {CommonService} from 'src/app/_service/common.service';
 
 @Component({
     selector: 'app-moves',
@@ -19,7 +21,8 @@ export class MovesComponent implements OnInit {
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
-                private activatedRoute: ActivatedRoute, public modalService: ModalService) {
+                private activatedRoute: ActivatedRoute, public modalService: ModalService,
+                public commonService: CommonService) {
         this.pageSize = this.prefs.pageSize;
     }
 
@@ -34,8 +37,9 @@ export class MovesComponent implements OnInit {
             if (fabricName != null) {
                 this.backendService.getFabricsOverviewTabData(fabricName, pageOffset, sorts, 'move').subscribe(
                     (data) => {
-                        this.count = data['count'];
-                        this.rows = data['objects'];
+                        let endpoint_list = new EndpointList(data);
+                        this.count = endpoint_list.count;
+                        this.rows = endpoint_list.objects;
                         this.loading = false;
                     }, (error) => {
                         this.loading = false;

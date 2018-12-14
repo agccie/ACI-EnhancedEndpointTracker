@@ -35,47 +35,38 @@
                     }">
                 <ngx-datatable-column prop="events.0.ts" name="Time" [sortable]="true" [flexGrow]="0.2">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ (row['ept.remediate'].events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                        {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
                     </ng-template>
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.1">
                         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                            <span class="label label--raised" [ngClass]="{'label--success':row['ept.remediate']['type']==='ipv4','label--warning':row['ept.remediate']['type']==='mac','label--info':row['ept.remediate']['type']==='ipv6'}">
-                                {{row['ept.remediate']['type'].toUpperCase()}}
+                            <span [ngClass]="commonService.getEndpointTypeLabel(value)">
+                                {{ value }}
                             </span>
                         </ng-template>
                     </ngx-datatable-column>
                 <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.13">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        <a [routerLink]="['../history', row['ept.remediate'].vnid, row['ept.remediate'].addr]">
-                            {{ row['ept.remediate'].addr }}
+                        <a [routerLink]="['../history', row.vnid, row.addr]">
+                            {{ value }}
                         </a>
                     </ng-template>
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]="0.1">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row['ept.remediate'].node }}
+                        {{ value }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="event_count" name="Event Count" [sortable]="true" [flexGrow]="0.1">
+                <ngx-datatable-column prop="count" name="Event Count" [sortable]="true" [flexGrow]="0.1">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row['ept.remediate'].count }}
+                        {{ value | number }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="action" name="Action" [sortable]="true" [flexGrow]="0.13">
-                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row['ept.remediate'].action }}
-                    </ng-template>
+                <ngx-datatable-column prop="events.0.action" name="Action" [sortable]="true" [flexGrow]="0.13">
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="reason" name="Reason" [sortable]="true" [flexGrow]="0.13">
-                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row['ept.remediate'].reason }}
-                    </ng-template>
+                <ngx-datatable-column prop="events.0.reason" name="Reason" [sortable]="true" [flexGrow]="0.13">
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.31">
-                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row['ept.remediate'].events[0].vnid_name}}
-                    </ng-template>
+                <ngx-datatable-column prop="events.0.vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.31">
                 </ngx-datatable-column>
             </ngx-datatable>
         </div>

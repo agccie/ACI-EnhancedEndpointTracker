@@ -3,6 +3,8 @@ import {BackendService} from '../../_service/backend.service';
 import {ActivatedRoute} from '@angular/router';
 import {PagingService} from '../../_service/paging.service';
 import {ModalService} from '../../_service/modal.service';
+import {EndpointList} from 'src/app/_model/endpoint';
+import {CommonService} from 'src/app/_service/common.service';
 
 @Component({
     selector: 'app-rapid-ept',
@@ -15,7 +17,12 @@ export class RapidEptComponent implements OnInit {
     sorts = [];
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(private backendService: BackendService, private activatedRoute: ActivatedRoute, public pagingService: PagingService, public modalService: ModalService) {
+    constructor(
+        private backendService: BackendService, 
+        private activatedRoute: ActivatedRoute, 
+        public pagingService: PagingService, 
+        public modalService: ModalService,
+        public commonService: CommonService) {
 
     }
 
@@ -32,8 +39,9 @@ export class RapidEptComponent implements OnInit {
     getRapidEndpoints() {
         this.backendService.getFilteredEndpoints(this.pagingService.fabricName, this.sorts, false, false, false, false, 'rapid', this.pagingService.pageOffset, this.pagingService.pageSize).subscribe(
             (data) => {
+                let endpoint_list = new EndpointList(data);
                 this.pagingService.count = data['count'];
-                this.rows = data['objects'];
+                this.rows = endpoint_list.objects;
                 this.loading = false;
             }, (error) => {
                 this.loading = false;

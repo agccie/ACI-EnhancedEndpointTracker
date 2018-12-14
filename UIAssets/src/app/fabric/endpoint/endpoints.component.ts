@@ -5,6 +5,8 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Endpoint} from "../../_model/endpoint";
 import {PagingService} from '../../_service/paging.service';
 import {ModalService} from '../../_service/modal.service';
+import {EndpointList} from 'src/app/_model/endpoint';
+import {CommonService} from 'src/app/_service/common.service';
 
 @Component({
     selector: 'app-endpoints',
@@ -27,7 +29,8 @@ export class EndpointsComponent implements OnInit {
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
-                private activatedRoute: ActivatedRoute, public pagingService: PagingService, public modalService: ModalService) {
+                private activatedRoute: ActivatedRoute, public pagingService: PagingService, 
+                public modalService: ModalService, public commonService: CommonService) {
         this.rows = [];
         this.endpoints = [];
         this.pageSize = this.prefs.pageSize;
@@ -49,14 +52,9 @@ export class EndpointsComponent implements OnInit {
             if (this.fabricName != null) {
                 this.backendService.getFilteredEndpoints(this.pagingService.fabricName, this.sorts, this.osFilter, this.stFilter, this.activeFilter, this.rapidFilter, 'endpoint', this.pagingService.pageOffset, this.pagingService.pageSize).subscribe(
                     (data) => {
-                        this.endpoints = [];
-                        this.rows = [];
-                        for (let object of data.objects) {
-                            const endpoint = object["ept.endpoint"];
-                            this.endpoints.push(endpoint);
-                            this.rows.push(endpoint);
-                        }
-                        this.pagingService.count = data['count'];
+                        let endpoint_list = new EndpointList(data);
+                        this.rows = endpoint_list.objects;
+                        this.pagingService.count = endpoint_list.count;
                         this.loading = false;
                     }, (error) => {
                         this.loading = false;

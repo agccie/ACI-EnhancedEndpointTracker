@@ -3,15 +3,24 @@ export class EndpointObject {
     'ept.stale': Endpoint;
     'ept.offsubnet': Endpoint;
     'ept.history': Endpoint;
+    'ept.rapid': Endpoint;
 }
 
 export class EndpointList {
     count: number;
     objects: EndpointObject[];
 
-    public constructor() {
+    public constructor(data) {
         this.count = 0;
         this.objects = [];
+        if("count" in data){
+            this.count = data["count"];
+        }
+        if("objects" in data){
+            data["objects"].forEach(ept => {
+                this.objects.push(ept[Object.keys(ept)[0]]);
+            });
+        }
     }
 }
 
@@ -33,8 +42,11 @@ export class Endpoint {
     rapid_lts: any;
     type: any;
     vnid: any;
+    node: any;
 
-    constructor(addr: any, addr_byte: any, count: any, dn: any, events: any, fabric: any, first_learn: any, is_offsubnet: any, is_rapid: any, is_rapid_ts: any, is_stale: any, rapid_count: any, rapid_icount: any, rapid_lcount: any, rapid_lts: any, type: any, vnid: any) {
+    constructor(addr: any, addr_byte: any, count: any, dn: any, events: any, fabric: any, first_learn: any, 
+        is_offsubnet: any, is_rapid: any, is_rapid_ts: any, is_stale: any, rapid_count: any, rapid_icount: any, 
+        rapid_lcount: any, rapid_lts: any, type: any, vnid: any, node:any) {
         this.addr = addr;
         this.addr_byte = addr_byte;
         this.count = count;
@@ -52,5 +64,6 @@ export class Endpoint {
         this.rapid_lts = rapid_lts;
         this.type = type;
         this.vnid = vnid;
+        this.node = node;
     }
 }

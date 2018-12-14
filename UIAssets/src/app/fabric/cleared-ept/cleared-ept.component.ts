@@ -3,6 +3,8 @@ import {BackendService} from '../../_service/backend.service';
 import {ActivatedRoute} from '@angular/router';
 import {PagingService} from '../../_service/paging.service';
 import {ModalService} from '../../_service/modal.service';
+import {EndpointList} from 'src/app/_model/endpoint';
+import {CommonService} from 'src/app/_service/common.service';
 
 @Component({
     selector: 'app-cleared-ept',
@@ -16,7 +18,7 @@ export class ClearedEptComponent implements OnInit {
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(private backendService: BackendService, private activatedRoute: ActivatedRoute, public pagingService: PagingService,
-                public modalService: ModalService) {
+                public modalService: ModalService, public commonService: CommonService) {
     }
 
     ngOnInit() {
@@ -32,8 +34,9 @@ export class ClearedEptComponent implements OnInit {
     getClearedEndpoints() {
         this.backendService.getFilteredEndpoints(this.pagingService.fabricName, this.sorts, false, false, false, false, 'remediate', this.pagingService.pageOffset, this.pagingService.pageSize).subscribe(
             (data) => {
-                this.pagingService.count = data['count'];
-                this.rows = data['objects'];
+                let endpoint_list = new EndpointList(data);
+                this.rows = endpoint_list.objects;
+                this.pagingService.count = endpoint_list.count;
                 this.loading = false;
             }, (error) => {
                 this.loading = false;

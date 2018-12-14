@@ -4,6 +4,8 @@ import {BackendService} from '../../_service/backend.service';
 import {ActivatedRoute} from '@angular/router';
 import {forkJoin} from 'rxjs';
 import {ModalService} from '../../_service/modal.service';
+import {EndpointList} from 'src/app/_model/endpoint';
+import {CommonService} from 'src/app/_service/common.service';
 
 @Component({
     selector: 'app-endpoint-history',
@@ -37,7 +39,8 @@ export class EndpointHistoryComponent implements OnInit {
     };
 
     constructor(private prefs: PreferencesService, private backendService: BackendService,
-                private activatedRoute: ActivatedRoute, public modalService: ModalService) {
+                private activatedRoute: ActivatedRoute, public modalService: ModalService,
+                public commonService: CommonService) {
         this.clearEndpointOptions = [
             {label: 'Select all', value: 0},
             {label: 'Offsubnet endpoints', value: 1},

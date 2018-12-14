@@ -4,6 +4,8 @@ import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Endpoint} from "../../_model/endpoint";
 import {ModalService} from '../../_service/modal.service';
+import {EndpointList} from 'src/app/_model/endpoint';
+import {CommonService} from 'src/app/_service/common.service';
 
 @Component({
     selector: 'app-offsubnet-ept',
@@ -21,7 +23,8 @@ export class OffsubnetEptComponent implements OnInit {
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
-                private activatedRoute: ActivatedRoute, public modalService: ModalService) {
+                private activatedRoute: ActivatedRoute, public modalService: ModalService,
+                public commonService: CommonService) {
         this.pageSize = this.prefs.pageSize;
     }
 
@@ -36,14 +39,9 @@ export class OffsubnetEptComponent implements OnInit {
             if (fabricName != null) {
                 this.backendService.getFabricsOverviewTabData(fabricName, pageOffset, sorts, 'offsubnet').subscribe(
                     (data) => {
-                        this.endpoints = [];
-                        this.rows = [];
-                        for (let object of data.objects) {
-                            const endpoint = object["ept.offsubnet"];
-                            this.endpoints.push(endpoint);
-                            this.rows.push(endpoint);
-                        }
-                        this.count = data['count'];
+                        let endpoint_list = new EndpointList(data);
+                        this.count = endpoint_list.count;
+                        this.rows = endpoint_list.objects;
                         this.loading = false;
                     }, (error) => {
                         this.loading = false;

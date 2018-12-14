@@ -40,37 +40,34 @@
                     }">
                 <ngx-datatable-column prop="events.0.ts" name="Time" [sortable]="true" [flexGrow]="0.2">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ (row['ept.rapid'].events[0].ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                        {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
                     </ng-template>
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.1">
                         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                            <span class="label label--raised" [ngClass]="{'label--success':value==='ipv4','label--warning':value==='mac','label--info':value==='ipv6'}">
-                                {{value.toUpperCase()}}
+                            <span [ngClass]="commonService.getEndpointTypeLabel(value)">
+                                {{value}}
                             </span>
                         </ng-template>
                     </ngx-datatable-column>
                 <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.13">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        <a [routerLink]="['../history', row['ept.rapid'].vnid, row['ept.rapid'].addr]">
-                            {{ row['ept.rapid'].addr }}
+                        <a [routerLink]="['../history', row.vnid, row.addr]">
+                            {{ value }}
                         </a>
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="event_count" name="Event Count" [sortable]="true" [flexGrow]="0.1">
+                <ngx-datatable-column prop="count" name="Event Count" [sortable]="true" [flexGrow]="0.1">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row['ept.rapid'].count }}
+                        {{ value | number }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="rate_per_minute" name="Rate(/minute)" [sortable]="true" [flexGrow]="0.1">
+                <ngx-datatable-column prop="events.0.rate" name="Rate(/minute)" [sortable]="true" [flexGrow]="0.1">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row['ept.rapid'].events[0].rate | number : '1.0-0' }}
+                        {{ value | number : '1.0-0' }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.37">
-                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ row['ept.rapid'].events[0].vnid_name}}
-                    </ng-template>
+                <ngx-datatable-column prop="events.0.vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.37">
                 </ngx-datatable-column>
             </ngx-datatable>
         </div>

@@ -3,7 +3,7 @@ import {HttpClient, HttpHeaders, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {map} from 'rxjs/operators';
 import {environment} from '../../environments/environment';
-import {FabricSettings} from '../_model/fabric-settings';
+import {FabricSettings,FabricSettingsList} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
 import {Fabric, FabricList} from '../_model/fabric' ;
 import {EndpointList} from '../_model/endpoint' ;
@@ -179,11 +179,8 @@ export class BackendService {
         return this.http.delete(this.baseUrl + '/uni/fb-' + fabric.fabric);
     }
 
-    updateFabric(fabric: Fabric) {
-        return this.http.patch(this.baseUrl + '/uni/fb-' + fabric.fabric, fabric);
-    }
-
     createFabric(fabric: Fabric) {
+        /*
         const toSave = new Fabric(
             fabric.fabric,
             fabric.apic_hostname,
@@ -200,19 +197,25 @@ export class BackendService {
         delete toSave.ipv6;
         delete toSave.uptime;
         return this.http.post(this.baseUrl + '/fabric', toSave);
-    }
-
-    getFabricSettings(fabricName: string, settings) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabricName + '/settings-' + settings);
-    }
-
-    getFabricByName(fabricName: string): Observable<FabricList> {
-        return this.http.get<FabricList>(this.baseUrl + '/uni/fb-' + fabricName);
+        */
     }
 
     updateFabricSettings(fabricSettings: FabricSettings) {
         const fabric = fabricSettings.fabric;
-        return this.http.patch(this.baseUrl + '/uni/fb-' + fabric + '/settings-default', fabricSettings);
+        return this.http.patch(this.baseUrl + '/uni/fb-' + fabric + '/settings-default', fabricSettings.get_save_json());
+    }
+
+    updateFabric(fabric: Fabric) {
+        return this.http.patch(this.baseUrl + '/uni/fb-' + fabric.fabric, fabric.get_save_json());
+    }
+
+
+    getFabricSettings(fabricName: string, settings) {
+        return this.http.get<FabricSettingsList>(this.baseUrl + '/uni/fb-' + fabricName + '/settings-' + settings);
+    }
+
+    getFabricByName(fabricName: string): Observable<FabricList> {
+        return this.http.get<FabricList>(this.baseUrl + '/uni/fb-' + fabricName);
     }
 
     getFabricStatus(fabric: Fabric) {

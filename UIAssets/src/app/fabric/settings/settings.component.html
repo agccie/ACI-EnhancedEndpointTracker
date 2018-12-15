@@ -1,10 +1,36 @@
 <div class="panel panel--raised">
-    <router-outlet>
-    </router-outlet>
-    <br>
-    <div class="pull-center">
-        <button class="btn btn--small btn--primary" (click)="onSubmit()">Submit</button>
-        <button class="btn btn--small btn--secondary" (click)="reset()" type="reset">Reset</button>
+    <div class="row" >
+        <div class="col-md-2">
+            <button class="btn btn--small btn--icon btn--primary" data-balloon="Save" data-balloon-pos="down"
+                (click)="save()">
+                <span class="icon-save"></span>
+            </button>
+            <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete Endpoint History" data-balloon-pos="down">
+                <span class="icon-virtual-machine"></span>
+            </button>
+            <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete Fabric" data-balloon-pos="down">
+                <span class="icon-trash"></span>
+            </button>
+        </div>
+        <div class="col-md-10">
+            <h3>{{ fabricService.fabric.fabric }}</h3>
+        </div>
+    </div>
+    <div class="row half-margin-top">
+        <div class="col-md-2">
+            <ul class="tabs tabs--vertical">
+                <li *ngFor="let tab of tabs ; let i=index" id="i" class="tab" routerLinkActive="active">
+                    <a tabindex="i" [routerLink]="[tab.path]">
+                        <div class="tab__heading">{{ tab.name }}</div>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        <div class="col-md-10">
+            <div class="tab-content">
+                <router-outlet></router-outlet>
+            </div>
+        </div>
     </div>
 </div>
 <ng-template #errorMessage>

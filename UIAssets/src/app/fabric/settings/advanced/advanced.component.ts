@@ -1,17 +1,12 @@
-import {Component, OnInit} from '@angular/core';
-import {PreferencesService} from "../../../_service/preferences.service";
+import {Component} from '@angular/core';
+import {FabricService} from "../../../_service/fabric.service";
 
 @Component({
     selector: 'app-advanced',
     templateUrl: './advanced.component.html',
 })
 
-export class AdvancedComponent implements OnInit {
+export class AdvancedComponent {
 
-    constructor(public prefs: PreferencesService) {
-    }
-
-    ngOnInit() {
-    }
-
+    constructor(public service: FabricService) {}
 }

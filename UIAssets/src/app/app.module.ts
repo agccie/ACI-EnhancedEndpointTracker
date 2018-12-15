@@ -27,11 +27,6 @@ import {CookieService} from 'ngx-cookie-service';
 import {HashLocationStrategy, LocationStrategy} from '@angular/common';
 import {LocalLearnsComponent} from './fabric/history/local-learns/local-learns.component';
 import {WelcomeComponent} from "./welcome/welcome.component";
-import {SettingsComponent} from "./fabric/settings/settings.component";
-import {ConnectivityComponent} from "./fabric/settings/connectivity/connectivity.component";
-import {NotificationComponent} from "./fabric/settings/notification/notification.component";
-import {RemediationComponent} from "./fabric/settings/remediation/remediation.component";
-import {AdvancedComponent} from "./fabric/settings/advanced/advanced.component";
 import {OverviewComponent} from "./fabric/overview/overview.component";
 import {NotFoundComponent} from "./notfound/notfound.component";
 import {QueueComponent} from "./queue/queue.component";
@@ -45,6 +40,14 @@ import {ClearedComponent} from './fabric/history/cleared/cleared.component';
 import {UptimeDaysPipe} from './_pipes/uptime-days.pipe';
 import {LocalNodePipe} from './_pipes/local-node.pipe';
 import {CommonService} from './_service/common.service';
+import {FabricService} from './_service/fabric.service';
+
+// settings components
+import {SettingsComponent} from "./fabric/settings/settings.component";
+import {ConnectivityComponent} from "./fabric/settings/connectivity/connectivity.component";
+import {NotificationComponent} from "./fabric/settings/notification/notification.component";
+import {RemediationComponent} from "./fabric/settings/remediation/remediation.component";
+import {AdvancedComponent} from "./fabric/settings/advanced/advanced.component";
 
 const appRoutes: Routes = [
     {
@@ -75,8 +78,8 @@ const appRoutes: Routes = [
                 component: SettingsComponent,
                 children: [
                     {path: 'connectivity', component: ConnectivityComponent},
-                    {path: 'notification', component: NotificationComponent},
-                    {path: 'remediation', component: RemediationComponent},
+                    {path: 'notifications', component: NotificationComponent},
+                    {path: 'remediate', component: RemediationComponent},
                     {path: 'advanced', component: AdvancedComponent}
                 ]
             },
@@ -166,6 +169,7 @@ const appRoutes: Routes = [
         BackendService,
         CookieService,
         CommonService,
+        FabricService,
         {provide: HTTP_INTERCEPTORS, useClass: BackendInterceptorService, multi: true},
         {provide: LocationStrategy, useClass: HashLocationStrategy}
     ],

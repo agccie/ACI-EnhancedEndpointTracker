@@ -40,6 +40,7 @@ export class OverviewComponent implements OnInit {
 
     getFabric() {
         this.loading = true;
+        /*
         this.activatedRoute.paramMap.subscribe(params => {
             const fabricName = params.get('fabric');
             if (fabricName != null) {
@@ -66,6 +67,7 @@ export class OverviewComponent implements OnInit {
                 });
             }
         });
+        */
     }
 
     onClickOfClearDatabase() {

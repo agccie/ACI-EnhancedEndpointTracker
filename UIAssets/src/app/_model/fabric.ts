@@ -1,16 +1,20 @@
-import {environment} from "../../environments/environment";
-
-export class FabricObject {
-    fabric: Fabric;
-}
-
 export class FabricList {
     count: number;
-    objects: FabricObject[];
+    objects: Fabric[];
 
-    public constructor() {
+    public constructor(data) {
         this.count = 0;
         this.objects = [];
+        if("count" in data){
+            this.count = data["count"];
+        }
+        if("objects" in data){
+            data["objects"].forEach(obj => {
+                if('fabric' in obj){
+                    this.objects.push(new Fabric(obj['fabric']));
+                }
+            });
+        }
     }
 }
 
@@ -30,23 +34,68 @@ export class Fabric {
     events: any[];
     uptime: number;
 
-    constructor(fabric: string = '', apic_hostname: string = '', apic_username: string = '', apic_password: string = '', apic_cert: string = '', ssh_username: string = '', ssh_password: string = '', max_events: number = 5) {
-        if (environment.app_mode) {
-            this.apic_cert = '';
-        } else {
-            this.apic_cert = apic_cert;
-        }
-        this.apic_hostname = apic_hostname;
-        this.apic_password = apic_password;
-        this.apic_username = apic_username;
-        this.fabric = fabric;
-        this.max_events = max_events;
-        this.ssh_password = ssh_password;
-        this.ssh_username = ssh_username;
+    constructor(data: any = {}) {
+        this.init();
+        this.sync(data);
+    }
+
+    //initialize or re-initialize all attributes to default values
+    init(){
+        this.apic_hostname = '';
+        this.apic_username = '';
+        this.apic_password = '';
+        this.apic_cert = '';
+        this.fabric = '';
+        this.max_events = 25;
+        this.ssh_password = '';
+        this.ssh_username = '';
         this.status = 'stopped';
         this.mac = 0;
         this.ipv4 = 0;
         this.ipv6 = 0;
         this.uptime = 0;
+    }
+
+    // sync Fabric object to provided JSON
+    sync(data: any={}){
+        for(let attr in data){
+            if(attr in this){
+                this[attr] = data[attr];
+            }
+        }
+    }
+
+    // not all attributes of this object are used for create/update operatons, this function
+    // will return a JSON object with writeable attributes only. Additionally, only attributes
+    // that are set (non-emptry string) are returned.
+    get_save_json():object{
+        let attr = [
+            "fabric",
+            "apic_hostname",
+            "apic_password",
+            "apic_username",
+            "apic_cert",
+            "max_events",
+            "ssh_username",
+            "ssh_password"
+        ];
+        let json = {};
+        console.log("save fabric: ")
+        console.log(this)
+        for(let i=0; i<attr.length; i++){
+            let a = attr[i];
+            if(a in this){
+                if(typeof this[a] === 'string' && this[a].length == 0){
+                    //skip string attributes that are not set
+                    continue;
+                }
+                json[a] = this[a];
+            } else {
+                console.log("unknown fabricSettings attribute to save: "+a);
+            }
+        }
+        console.log("retruning: ")
+        console.log(json)
+        return json;
     }
 }

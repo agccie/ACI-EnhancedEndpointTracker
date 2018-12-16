@@ -47,61 +47,59 @@ export class ModalService {
             this.callbackContext.callback();
         }
     }
-    
-    public setModalError(content : object = {}) {
-        this.modalAlertClass='alert alert--danger';
-        this.modalIconClass='alert__icon icon-error-outline';
-        if(!("title" in content)){
+
+    public setModalError(content: object = {}) {
+        this.modalAlertClass = 'alert alert--danger';
+        this.modalIconClass = 'alert__icon icon-error-outline';
+        if (!("title" in content)) {
             content["title"] = "Error";
         }
         this._openModal(content);
     }
-    
-    public setModalSuccess(content : object = {}){
-        this.modalAlertClass='alert alert--success';
-        this.modalIconClass='alert__icon icon-check-outline';
-        if(!("title" in content)){
+
+    public setModalSuccess(content: object = {}) {
+        this.modalAlertClass = 'alert alert--success';
+        this.modalIconClass = 'alert__icon icon-check-outline';
+        if (!("title" in content)) {
             content["title"] = "Success";
         }
         this._openModal(content);
     }
-    
-    public setModalInfo(content : object = {}){
-        this.modalAlertClass='alert';
-        this.modalIconClass='alert__icon icon-info-outline';
-        if(!("title" in content)){
+
+    public setModalInfo(content: object = {}) {
+        this.modalAlertClass = 'alert';
+        this.modalIconClass = 'alert__icon icon-info-outline';
+        if (!("title" in content)) {
             content["title"] = "Info";
         }
         this._openModal(content);
     }
-    
-    public setModalConfirm(content : object = {}){
-        this.modalConfirmCallback = function(){
-            this.hideModal();
-            if("callback" in content){
+
+    public setModalConfirm(content: object = {}) {
+        const self = this;
+        this.modalConfirmCallback = function () {
+            self.hideModal();
+            if ("callback" in content) {
                 content["callback"]();
             }
-        }
-        if(!("modalType" in content)){
+        };
+        if (!("modalType" in content)) {
             content["modalType"] = "info";
         }
-        switch(content["modalType"]){
-            case "success": this.setModalSuccess(content);
-                            break;
-            case "info": this.setModalInfo(content); 
-                        break;
-            case "error": this.setModalError(content);
-                        break;
-            default: this.setModalInfo(content);
+        switch (content["modalType"]) {
+            case "success":
+                this.setModalSuccess(content);
+                break;
+            case "info":
+                this.setModalInfo(content);
+                break;
+            case "error":
+                this.setModalError(content);
+                break;
+            default:
+                this.setModalInfo(content);
         }
         this.modalConfirm = true;
-    }
-
-    private _openModal(content: object = {}){
-        this.modalConfirm = false;
-        this.modalTitle = content["title"];
-        this.modalBody = content["body"];
-        this.openModal(this.generalModal);
     }
 
     public openModal(template: TemplateRef<any>) {
@@ -116,5 +114,12 @@ export class ModalService {
 
     public hideModal() {
         this.modalRef.hide();
+    }
+
+    private _openModal(content: object = {}) {
+        this.modalConfirm = false;
+        this.modalTitle = content["title"];
+        this.modalBody = content["body"];
+        this.openModal(this.generalModal);
     }
 }

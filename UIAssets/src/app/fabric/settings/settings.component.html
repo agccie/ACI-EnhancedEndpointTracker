@@ -1,19 +1,22 @@
 <div class="panel panel--raised">
-    <div class="row" >
+    <div class="row">
         <div class="col-md-2">
             <button class="btn btn--small btn--icon btn--primary" data-balloon="Save" data-balloon-pos="down"
-                (click)="saveFabric()">
+                    (click)="saveFabric()">
                 <span class="icon-save"></span>
             </button>
-            <a [routerLink]="'/queues'" class="btn btn--small btn--icon btn--secondary" data-balloon="Process Queues" data-balloon-pos="down">
+            <a [routerLink]="'/queues'" class="btn btn--small btn--icon btn--secondary" data-balloon="Process Queues"
+               data-balloon-pos="down">
                 <span class="icon-analysis"></span>
             </a>
-            <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete Endpoint History" data-balloon-pos="down"
-                (click)="deleteAllEndpoints()">
+            <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete Endpoint History"
+                    data-balloon-pos="down"
+                    (click)="deleteAllEndpoints()">
                 <span class="icon-virtual-machine"></span>
             </button>
-            <button *ngIf="!app_mode" class="btn btn--small btn--icon btn--negative" data-balloon="Delete Fabric" data-balloon-pos="down"
-                (click)="deleteFabric()">
+            <button *ngIf="!app_mode" class="btn btn--small btn--icon btn--negative" data-balloon="Delete Fabric"
+                    data-balloon-pos="down"
+                    (click)="deleteFabric()">
                 <span class="icon-trash"></span>
             </button>
         </div>
@@ -32,7 +35,7 @@
             </ul>
         </div>
         <div class="col-md-10">
-            <div *ngIf="isLoading" [innerHTML]="commonService.getLoadingHtml()"></div>
+            <loading-dots *ngIf="isLoading"></loading-dots>
             <div *ngIf="!isLoading" class="tab-content">
                 <router-outlet></router-outlet>
             </div>

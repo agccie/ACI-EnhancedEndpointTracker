@@ -39,15 +39,14 @@ import {RapidComponent} from './fabric/history/rapid/rapid.component';
 import {ClearedComponent} from './fabric/history/cleared/cleared.component';
 import {UptimeDaysPipe} from './_pipes/uptime-days.pipe';
 import {LocalNodePipe} from './_pipes/local-node.pipe';
-import {CommonService} from './_service/common.service';
 import {FabricService} from './_service/fabric.service';
-
-// settings components
 import {SettingsComponent} from "./fabric/settings/settings.component";
 import {ConnectivityComponent} from "./fabric/settings/connectivity/connectivity.component";
 import {NotificationComponent} from "./fabric/settings/notification/notification.component";
 import {RemediationComponent} from "./fabric/settings/remediation/remediation.component";
 import {AdvancedComponent} from "./fabric/settings/advanced/advanced.component";
+import {LoadingDotsComponent} from "./common/loading-dots.component";
+import {EndpointLabelComponent} from "./common/endpoint-label.component";
 
 const appRoutes: Routes = [
     {
@@ -149,7 +148,9 @@ const appRoutes: Routes = [
         RapidComponent,
         ClearedComponent,
         UptimeDaysPipe,
-        LocalNodePipe
+        LocalNodePipe,
+        LoadingDotsComponent,
+        EndpointLabelComponent,
     ],
     imports: [
         BrowserModule,
@@ -168,7 +169,6 @@ const appRoutes: Routes = [
     providers: [
         BackendService,
         CookieService,
-        CommonService,
         FabricService,
         {provide: HTTP_INTERCEPTORS, useClass: BackendInterceptorService, multi: true},
         {provide: LocationStrategy, useClass: HashLocationStrategy}

@@ -1,4 +1,4 @@
-import {Component, OnDestroy, OnInit, ViewChild, TemplateRef} from '@angular/core';
+import {Component, OnDestroy, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {ActivatedRoute, NavigationEnd, Router} from '@angular/router';
 import {BackendService} from './_service/backend.service';
 import {PreferencesService} from './_service/preferences.service';
@@ -22,14 +22,14 @@ export class AppComponent implements OnInit, OnDestroy {
     endpointExpanded: boolean;
     configurationExpanded: boolean;
     sidebarCollapsed: boolean;
-    private stopListening: () => void;
-    @ViewChild('abouttemplate') aboutModal: TemplateRef<any> ;
+    @ViewChild('abouttemplate') aboutModal: TemplateRef<any>;
     @ViewChild('generalModal') generalModal: TemplateRef<any>;
     authors = ['Andy Gossett', 'Axel Bodart', 'Hrishikesh Deshpande'];
-    version: Version ;
+    version: Version;
+    private stopListening: () => void;
 
     constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService,
-        private activatedRoute: ActivatedRoute, public modalService: ModalService) {
+                private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.endpointExpanded = false;
         this.configurationExpanded = false;
         this.sidebarCollapsed = true;
@@ -76,20 +76,20 @@ export class AppComponent implements OnInit, OnDestroy {
     shuffleAuthor() {
         let j, x, i;
         for (i = this.authors.length - 1; i > 0; i--) {
-          j = Math.floor(Math.random() * (i + 1));
-          x = this.authors[i];
-          this.authors[i] = this.authors[j];
-          this.authors[j] = x;
+            j = Math.floor(Math.random() * (i + 1));
+            x = this.authors[i];
+            this.authors[i] = this.authors[j];
+            this.authors[j] = x;
         }
-      }
+    }
 
-      getVersion() {
-          this.backendService.getVersion().subscribe(
+    getVersion() {
+        this.backendService.getVersion().subscribe(
             (results) => {
                 this.version = results;
                 this.shuffleAuthor();
-                this.modalService.openModal(this.aboutModal) ;
+                this.modalService.openModal(this.aboutModal);
             }
-          ) ;
-      }
+        );
+    }
 }

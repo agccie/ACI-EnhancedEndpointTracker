@@ -1,11 +1,10 @@
-import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Fabric, FabricList} from "../../_model/fabric";
 import {concat, forkJoin, Observable, of, Subject} from "rxjs";
 import {ModalService} from '../../_service/modal.service';
-import {CommonService} from '../../_service/common.service';
 import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
 
 @Component({
@@ -24,13 +23,13 @@ export class OverviewComponent implements OnInit {
     fabricName: string;
     endpoints$: Observable<any[]>;
     endpointInput$ = new Subject<string>();
-    dropdownActive = false ;
+    dropdownActive = false;
     selectedEp: any;
     endpointLoading: boolean;
     fabricRunning: boolean;
 
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, 
-        private activatedRoute: ActivatedRoute, public modalService: ModalService, public commonService: CommonService) {
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
+                private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.pageSize = this.prefs.pageSize;
         this.rows = [];
         this.fabricRunning = true;
@@ -50,7 +49,7 @@ export class OverviewComponent implements OnInit {
                 this.backendService.getFabricByName(this.fabricName).subscribe(
                     (data) => {
                         let fabric_list = new FabricList(data);
-                        if(fabric_list.objects.length>0){
+                        if (fabric_list.objects.length > 0) {
                             this.fabricFound = true;
                             this.fabric = fabric_list.objects[0];
                             this.rows = this.fabric.events;
@@ -78,7 +77,7 @@ export class OverviewComponent implements OnInit {
                         } else {
                             this.loading = false;
                             this.modalService.setModalError({
-                                "body": 'Failed to load fabric, invalid results returned.' 
+                                "body": 'Failed to load fabric, invalid results returned.'
                             });
                         }
                     }, (error) => {

@@ -8,7 +8,8 @@ export class PreferencesService {
     pageSize = 25;
     selectedEndpoint: any;
 
-    constructor() {}
+    constructor() {
+    }
 
     getEndpointParams(context, callback) {
         context.activatedRoute.parent.parent.paramMap.subscribe(params => {

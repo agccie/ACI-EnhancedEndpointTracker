@@ -1,4 +1,4 @@
-<div *ngIf="isLoading" [innerHTML]="commonService.getLoadingHtml()"></div>
+<loading-dots *ngIf="isLoading"></loading-dots>
 <div *ngIf="!isLoading"> 
     <div class="row half-margin-bottom">
         <div class="col-md-4">

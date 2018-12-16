@@ -11,7 +11,7 @@ export class FabricService {
     fabric: Fabric;
 
     constructor() {
-        this.fabric = new Fabric()
+        this.fabric = new Fabric();
         this.fabricSettings = new FabricSettings()
     }
 }

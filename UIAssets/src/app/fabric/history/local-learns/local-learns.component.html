@@ -29,10 +29,10 @@
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.1'>
-            <ng-template let-value="value" ngx-datatable-cell-template>
-                {{ value !== '' ? value : '&mdash;'}}
-            </ng-template>
-        </ngx-datatable-column>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value !== '' ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
     <ngx-datatable-column prop="encap" name="Encap" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-value="value" ngx-datatable-cell-template>
             {{ value !== '' ? value : '&mdash;'}}
@@ -46,8 +46,8 @@
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.3'>
-            <ng-template let-value="value" ngx-datatable-cell-template>
-                <span>{{ value !== '' ? value : '&mdash;'}}</span>
-            </ng-template>
-        </ngx-datatable-column>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            <span>{{ value !== '' ? value : '&mdash;'}}</span>
+        </ng-template>
+    </ngx-datatable-column>
 </ngx-datatable>

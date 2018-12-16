@@ -53,7 +53,8 @@
             <div>{{ row.dst.pctag !== '' ? row.dst.pctag : '&mdash;'}}</div>
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column *ngIf="endpoint?.type !== 'mac'" prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.125'>
+    <ngx-datatable-column *ngIf="endpoint?.type !== 'mac'" prop="rw_mac" name="MAC" [sortable]="true"
+                          [flexGrow]='0.125'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             <div>
                 <a *ngIf="value !== ''"
@@ -68,11 +69,11 @@
         </ng-template>
     </ngx-datatable-column>
     <ngx-datatable-column name="EPG" [sortable]="true" [flexGrow]='0.185'>
-            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                <div>{{ row.src.epg_name !== '' ? row.src.epg_name : '&mdash;'}}</div>
-                <div>{{ row.dst.epg_name !== '' ? row.dst.epg_name : '&mdash;'}}</div>
-            </ng-template>
-        </ngx-datatable-column>
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ row.src.epg_name !== '' ? row.src.epg_name : '&mdash;'}}</div>
+            <div>{{ row.dst.epg_name !== '' ? row.dst.epg_name : '&mdash;'}}</div>
+        </ng-template>
+    </ngx-datatable-column>
 </ngx-datatable>
 <ng-template #errorMsg>
     <div class="modal__body">

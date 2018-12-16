@@ -3,10 +3,10 @@ import {Router} from '@angular/router';
 import {environment} from '../../environments/environment';
 import {BackendService} from "../_service/backend.service";
 import {PreferencesService} from "../_service/preferences.service";
-import {forkJoin} from "rxjs";
-import {Fabric} from "../_model/fabric";
+import {Fabric, FabricList} from "../_model/fabric";
 import {BsModalRef, BsModalService} from "ngx-bootstrap";
 import {ModalService} from '../_service/modal.service';
+import {forkJoin} from "rxjs";
 
 
 @Component({
@@ -31,7 +31,7 @@ export class WelcomeComponent implements OnInit {
     @ViewChild('myTable') table: any;
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, 
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
                 private modalService: BsModalService, public localModalService: ModalService) {
         this.rows = [];
         this.showFabricModal = false;
@@ -46,13 +46,12 @@ export class WelcomeComponent implements OnInit {
 
     getFabrics(sorts = this.sorts) {
         this.loading = true;
-        /** 
         this.backendService.getFabrics(sorts).subscribe(
             (data) => {
+                let fabric_list = new FabricList(data);
                 this.fabrics = [];
                 this.rows = [];
-                for (let object of data.objects) {
-                    const fabric = object.fabric;
+                for (const fabric of fabric_list.objects) {
                     this.fabrics.push(fabric);
                     this.rows.push(fabric);
                     const fabricStatusObservable = this.backendService.getFabricStatus(fabric);
@@ -72,13 +71,12 @@ export class WelcomeComponent implements OnInit {
                         this.localModalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                     });
                 }
-                this.loading = false ;
+                this.loading = false;
             },
             (error) => {
                 this.loading = false;
             }
         )
-        */
     }
 
     toggleFabric(fabric: Fabric) {
@@ -121,7 +119,6 @@ export class WelcomeComponent implements OnInit {
     }
 
     public onSubmit() {
-        /*
         this.backendService.createFabric(this.fabric).subscribe(
             (data) => {
                 this.hideModal();
@@ -133,7 +130,6 @@ export class WelcomeComponent implements OnInit {
                 this.localModalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         );
-        */
     }
 
     public deleteFabric() {
@@ -142,7 +138,7 @@ export class WelcomeComponent implements OnInit {
             this.hideModal();
             this.getFabrics();
         }, (err) => {
-            let msg = 'Failed to delete fabric!'
+            let msg = 'Failed to delete fabric!';
             this.hideModal();
             if (err['error'] !== undefined && err['error']['error'] !== undefined) {
                 msg += ' ' + err['error']['error'];

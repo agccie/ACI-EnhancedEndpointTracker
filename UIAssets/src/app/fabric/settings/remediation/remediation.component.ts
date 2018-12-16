@@ -6,6 +6,7 @@ import {FabricService} from "../../../_service/fabric.service";
     templateUrl: './remediation.component.html',
 })
 export class RemediationComponent {
-    constructor(public service: FabricService) {}
+    constructor(public service: FabricService) {
+    }
 
 }

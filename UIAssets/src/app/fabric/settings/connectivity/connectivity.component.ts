@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component} from '@angular/core';
 import {environment} from '../../../../environments/environment.standalone';
 import {FabricService} from "../../../_service/fabric.service";
 
@@ -9,5 +9,7 @@ import {FabricService} from "../../../_service/fabric.service";
 
 export class ConnectivityComponent {
     app_mode = environment.app_mode;
-    constructor(public service: FabricService) {}
+
+    constructor(public service: FabricService) {
+    }
 }

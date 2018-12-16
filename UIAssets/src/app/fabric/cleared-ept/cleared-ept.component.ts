@@ -4,7 +4,6 @@ import {ActivatedRoute} from '@angular/router';
 import {PagingService} from '../../_service/paging.service';
 import {ModalService} from '../../_service/modal.service';
 import {EndpointList} from 'src/app/_model/endpoint';
-import {CommonService} from 'src/app/_service/common.service';
 
 @Component({
     selector: 'app-cleared-ept',
@@ -18,7 +17,7 @@ export class ClearedEptComponent implements OnInit {
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(private backendService: BackendService, private activatedRoute: ActivatedRoute, public pagingService: PagingService,
-                public modalService: ModalService, public commonService: CommonService) {
+                public modalService: ModalService) {
     }
 
     ngOnInit() {

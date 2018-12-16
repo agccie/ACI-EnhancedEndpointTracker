@@ -3,7 +3,7 @@ import {HttpClient, HttpHeaders, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {map} from 'rxjs/operators';
 import {environment} from '../../environments/environment';
-import {FabricSettings,FabricSettingsList} from '../_model/fabric-settings';
+import {FabricSettings, FabricSettingsList} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
 import {Fabric, FabricList} from '../_model/fabric';
 import {EndpointList} from '../_model/endpoint';
@@ -180,24 +180,7 @@ export class BackendService {
     }
 
     createFabric(fabric: Fabric) {
-        /*
-        const toSave = new Fabric(
-            fabric.fabric,
-            fabric.apic_hostname,
-            fabric.apic_username,
-            fabric.apic_password,
-            fabric.apic_cert,
-            fabric.ssh_username,
-            fabric.ssh_password,
-            fabric.max_events,
-        );
-        delete toSave.status;
-        delete toSave.mac;
-        delete toSave.ipv4;
-        delete toSave.ipv6;
-        delete toSave.uptime;
-        return this.http.post(this.baseUrl + '/fabric', toSave);
-        */
+        return this.http.post(this.baseUrl + '/fabric', fabric);
     }
 
     updateFabricSettings(fabricSettings: FabricSettings) {

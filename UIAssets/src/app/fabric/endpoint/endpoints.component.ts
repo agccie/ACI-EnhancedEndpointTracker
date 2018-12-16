@@ -6,7 +6,6 @@ import {Endpoint} from "../../_model/endpoint";
 import {PagingService} from '../../_service/paging.service';
 import {ModalService} from '../../_service/modal.service';
 import {EndpointList} from 'src/app/_model/endpoint';
-import {CommonService} from 'src/app/_service/common.service';
 
 @Component({
     selector: 'app-endpoints',
@@ -30,7 +29,7 @@ export class EndpointsComponent implements OnInit {
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
                 private activatedRoute: ActivatedRoute, public pagingService: PagingService,
-                public modalService: ModalService, public commonService: CommonService) {
+                public modalService: ModalService) {
         this.rows = [];
         this.endpoints = [];
         this.pageSize = this.prefs.pageSize;

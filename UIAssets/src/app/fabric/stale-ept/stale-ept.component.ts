@@ -5,12 +5,12 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Endpoint} from "../../_model/endpoint";
 import {ModalService} from '../../_service/modal.service';
 import {EndpointList} from 'src/app/_model/endpoint';
-import {CommonService} from 'src/app/_service/common.service';
 
 @Component({
     selector: 'app-stale-ept',
     templateUrl: './stale-ept.component.html',
 })
+
 export class StaleEptComponent implements OnInit {
     rows: any;
     pageSize: number;
@@ -22,8 +22,7 @@ export class StaleEptComponent implements OnInit {
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
-                private activatedRoute: ActivatedRoute, public modalService: ModalService,
-                public commonService: CommonService) {
+                private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.pageSize = this.prefs.pageSize;
     }
 

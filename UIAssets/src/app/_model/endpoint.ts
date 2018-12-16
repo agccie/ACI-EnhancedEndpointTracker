@@ -17,9 +17,9 @@ export class EndpointList {
             this.count = data["count"];
         }
         if ("objects" in data) {
-            data["objects"].forEach(ept => {
+            for (const ept of data["objects"]) {
                 this.objects.push(ept[Object.keys(ept)[0]]);
-            });
+            }
         }
     }
 }

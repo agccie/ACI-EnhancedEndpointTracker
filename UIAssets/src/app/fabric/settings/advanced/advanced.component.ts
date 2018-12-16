@@ -8,5 +8,6 @@ import {FabricService} from "../../../_service/fabric.service";
 
 export class AdvancedComponent {
 
-    constructor(public service: FabricService) {}
+    constructor(public service: FabricService) {
+    }
 }

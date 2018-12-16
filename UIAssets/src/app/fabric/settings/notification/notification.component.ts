@@ -8,7 +8,8 @@ import {FabricService} from "../../../_service/fabric.service";
 })
 export class NotificationComponent {
 
-    constructor(public service: FabricService, private backendService: BackendService) {}
+    constructor(public service: FabricService, private backendService: BackendService) {
+    }
 
     testEmailNotifications(type: String, fabricName: String) {
         //todo

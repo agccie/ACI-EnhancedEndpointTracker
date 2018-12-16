@@ -7,7 +7,7 @@
     <div class="panel panel--bordered">
         <div class="row">
             <div class="col-md-12">
-                <span [ngClass]="commonService.getEndpointTypeLabel(endpoint.type)">{{ endpoint.type }}</span>&nbsp;
+                <endpoint-label [type]="endpoint.type"></endpoint-label>&nbsp;
                 <span class="text-xlarge" style="vertical-align: middle">{{ endpoint?.addr }}</span>&nbsp;
                 <span *ngIf="['external','psvi','loopback'].includes(endpoint?.learn_type)">
                             <span class="label label--ltgray">{{ endpoint?.learn_type}}</span>

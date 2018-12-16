@@ -1,19 +1,21 @@
+export class FabricObject {
+    'fabric': Fabric;
+}
+
 export class FabricList {
     count: number;
-    objects: Fabric[];
+    objects: FabricObject[];
 
     public constructor(data) {
         this.count = 0;
         this.objects = [];
-        if("count" in data){
+        if ("count" in data) {
             this.count = data["count"];
         }
-        if("objects" in data){
-            data["objects"].forEach(obj => {
-                if('fabric' in obj){
-                    this.objects.push(new Fabric(obj['fabric']));
-                }
-            });
+        if ("objects" in data) {
+            for (const ept of data["objects"]) {
+                this.objects.push(ept[Object.keys(ept)[0]]);
+            }
         }
     }
 }
@@ -40,7 +42,7 @@ export class Fabric {
     }
 
     //initialize or re-initialize all attributes to default values
-    init(){
+    init() {
         this.apic_hostname = '';
         this.apic_username = '';
         this.apic_password = '';
@@ -57,9 +59,9 @@ export class Fabric {
     }
 
     // sync Fabric object to provided JSON
-    sync(data: any={}){
-        for(let attr in data){
-            if(attr in this){
+    sync(data: any = {}) {
+        for (let attr in data) {
+            if (attr in this) {
                 this[attr] = data[attr];
             }
         }
@@ -68,7 +70,7 @@ export class Fabric {
     // not all attributes of this object are used for create/update operatons, this function
     // will return a JSON object with writeable attributes only. Additionally, only attributes
     // that are set (non-emptry string) are returned.
-    get_save_json():object{
+    get_save_json(): object {
         let attr = [
             "fabric",
             "apic_hostname",
@@ -80,16 +82,16 @@ export class Fabric {
             "ssh_password"
         ];
         let json = {};
-        for(let i=0; i<attr.length; i++){
+        for (let i = 0; i < attr.length; i++) {
             let a = attr[i];
-            if(a in this){
-                if(typeof this[a] === 'string' && this[a].length == 0){
+            if (a in this) {
+                if (typeof this[a] === 'string' && this[a].length == 0) {
                     //skip string attributes that are not set
                     continue;
                 }
                 json[a] = this[a];
             } else {
-                console.log("unknown fabricSettings attribute to save: "+a);
+                console.log("unknown fabricSettings attribute to save: " + a);
             }
         }
         return json;

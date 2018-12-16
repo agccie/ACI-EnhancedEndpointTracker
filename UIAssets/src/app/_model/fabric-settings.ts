@@ -5,15 +5,15 @@ export class FabricSettingsList {
     public constructor(data) {
         this.count = 0;
         this.objects = [];
-        if("count" in data){
+        if ("count" in data) {
             this.count = data["count"];
         }
-        if("objects" in data){
-            data["objects"].forEach(obj => {
-                if('ept.settings' in obj){
+        if ("objects" in data) {
+            for (const obj of data["objects"]) {
+                if ('ept.settings' in obj) {
                     this.objects.push(new FabricSettings(obj['ept.settings']));
                 }
-            });
+            }
         }
     }
 }
@@ -54,9 +54,9 @@ export class FabricSettings {
         this.init();
         this.sync(data);
     }
-     
+
     //initialize or re-initialize all attributes to default values
-    init(){
+    init() {
         this.fabric = '';
         this.settings = 'default';
         this.analyze_move = false;
@@ -80,19 +80,19 @@ export class FabricSettings {
         this.notify_clear_syslog = false;
         this.queue_init_epm_events = false;
         this.queue_init_events = false;
-        this.rapid_holdtime = 0; 
+        this.rapid_holdtime = 0;
         this.rapid_threshold = 0;
         this.refresh_rapid = false;
         this.stale_multiple_local = false;
         this.stale_no_local = false;
         this.syslog_port = 0;
-        this.syslog_server = '';    
-    }   
+        this.syslog_server = '';
+    }
 
     // sync Fabric object to provided JSON
-    sync(data: any={}){
-        for(let attr in data){
-            if(attr in this){
+    sync(data: any = {}) {
+        for (let attr in data) {
+            if (attr in this) {
                 this[attr] = data[attr];
             }
         }
@@ -100,9 +100,9 @@ export class FabricSettings {
 
     // not all attributes of this object are used for create/update operatons, this function
     // will return a JSON object with writeable attributes only
-    get_save_json():object{
+    get_save_json(): object {
         let attr = [
-            "analyze_move", 
+            "analyze_move",
             "analyze_offsubnet",
             "analyze_stale",
             "analyze_rapid",
@@ -132,12 +132,12 @@ export class FabricSettings {
             "syslog_server",
         ];
         let json = {};
-        for(let i=0; i<attr.length; i++){
+        for (let i = 0; i < attr.length; i++) {
             let a = attr[i];
-            if(a in this){
+            if (a in this) {
                 json[a] = this[a];
             } else {
-                console.log("unknown fabricSettings attribute to save: "+a);
+                console.log("unknown fabricSettings attribute to save: " + a);
             }
         }
         return json;

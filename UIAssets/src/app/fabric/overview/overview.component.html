@@ -1,11 +1,11 @@
-<div *ngIf="loading" [innerHTML]="commonService.getLoadingHtml()"></div>
+<loading-dots *ngIf="loading"></loading-dots>
 <div *ngIf="!loading && !fabricFound">
-        <div class="alert alert--warning">
-            <div class="alert__icon icon-warning-outline"></div>
-            <div class="alert__message text-left">
-                Fabric {{ fabricName }} not found.
-            </div>
+    <div class="alert alert--warning">
+        <div class="alert__icon icon-warning-outline"></div>
+        <div class="alert__message text-left">
+            Fabric {{ fabricName }} not found.
         </div>
+    </div>
 </div>
 <div *ngIf="!loading && fabricFound">
     <div *ngIf="!fabricRunning">

@@ -1,7 +1,4 @@
 @import '../src/cui/css/cui-standard.min.css';
-@import '~@swimlane/ngx-datatable/release/index.css';
-@import '~@swimlane/ngx-datatable/release/themes/material.css';
-@import '~@swimlane/ngx-datatable/release/assets/icons.css';
 @import "~@ng-select/ng-select/themes/default.theme.css";
 
 body {
@@ -136,21 +133,23 @@ del {
     display: none
 }
 
-    .cui .fixed-header{
-      padding-top:10px;
-    }
+.cui .fixed-header {
+    padding-top: 10px;
+}
 
-    .ng-select .ng-arrow-wrapper { display:none }
+.ng-select .ng-arrow-wrapper {
+    display: none
+}
 
-    #loginBg {
-        background: rgba(100, 187, 227, 1);
-        background: -moz-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
-        background: -webkit-gradient(radial, center center, 0px, center center, 100%, color-stop(0%, rgba(100, 187, 227, 1)), color-stop(100%, rgba(0, 81, 115, 1)));
-        background: -webkit-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
-        background: -o-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
-        background: -ms-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
-        background: radial-gradient(ellipse at center, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
-        filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#64bbe3', endColorstr='#005173', GradientType=1);
-    }
+#loginBg {
+    background: rgba(100, 187, 227, 1);
+    background: -moz-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
+    background: -webkit-gradient(radial, center center, 0px, center center, 100%, color-stop(0%, rgba(100, 187, 227, 1)), color-stop(100%, rgba(0, 81, 115, 1)));
+    background: -webkit-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
+    background: -o-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
+    background: -ms-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
+    background: radial-gradient(ellipse at center, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#64bbe3', endColorstr='#005173', GradientType=1);
+}
 
     

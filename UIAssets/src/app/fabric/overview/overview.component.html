@@ -76,7 +76,8 @@
                                 {{ item['ept.endpoint'].addr }}
                             </div>
                             <div class="col-md-1">
-                                <endpoint-label [type]="item['ept.endpoint'].type"></endpoint-label>lo
+                                <endpoint-label [type]="item['ept.endpoint'].type"></endpoint-label>
+                                lo
                             </div>
                             <div class="col-md-1">
                                 {{ item['ept.endpoint'].first_learn.encap }}
@@ -101,7 +102,7 @@
             <div class="panel panel--raised">
                 <h4>Fabric Events</h4>
                 <ngx-datatable
-                        [columnMode]="'flex'"
+                        [columnMode]="'force'"
                         [headerHeight]="25"
                         [footerHeight]="50"
                         [rowHeight]="'auto'"

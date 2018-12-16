@@ -39,7 +39,7 @@
         </div>
     </div>
 </div>
-<ng-template #errorMessage>
+<ng-template #generalModal>
     <div class="modal__body">
         <div [ngClass]="modalAlertClass">
             <div [ngClass]="modalIconClass"></div>
@@ -49,7 +49,7 @@
             </div>
         </div>
         <div *ngIf="!modalConfirm" class="modal__footer">
-            <button class="btn" (click)="modalService.hideModal()">Close</button>
+            <button class="btn btn--primary" (click)="modalService.hideModal()">Close</button>
         </div>
         <div *ngIf="modalConfirm" class="modal__footer">
             <button class="btn btn--gray-ghost" (click)="modalConfirmCallback()">Yes</button>

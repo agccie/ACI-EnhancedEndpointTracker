@@ -180,4 +180,22 @@
     <div class="modal-footer">
       <button type="reset" class="btn btn--primary btn--small" (click)="modalService.hideModal()">Close</button>
     </div>
-  </ng-template>
+</ng-template>
+<ng-template #generalModal>
+    <div class="modal__body">
+        <div [ngClass]="modalService.modalAlertClass">
+            <div [ngClass]="modalService.modalIconClass"></div>
+            <div class="alert__message text-left">
+                <h4>{{ modalService.modalTitle }}</h4>
+                <div class="qtr-margin-top" [innerHtml]="modalService.modalBody"></div>
+            </div>
+        </div>
+        <div *ngIf="!modalService.modalConfirm" class="modal__footer">
+            <button class="btn btn--primary" (click)="modalService.hideModal()">Close</button>
+        </div>
+        <div *ngIf="modalService.modalConfirm" class="modal__footer">
+            <button class="btn btn--gray-ghost" (click)="modalService.modalConfirmCallback()">Yes</button>
+            <button class="btn btn--primary" (click)="modalService.hideModal()">No</button>
+        </div>
+    </div>
+</ng-template>

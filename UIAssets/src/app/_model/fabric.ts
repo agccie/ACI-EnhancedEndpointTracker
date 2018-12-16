@@ -50,6 +50,7 @@ export class Fabric {
         this.ssh_password = '';
         this.ssh_username = '';
         this.status = 'stopped';
+        this.events = [];
         this.mac = 0;
         this.ipv4 = 0;
         this.ipv6 = 0;

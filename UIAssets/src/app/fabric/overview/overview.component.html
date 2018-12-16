@@ -1,8 +1,34 @@
-<div *ngIf="!fabricRunning">
-    <div class="alert alert--warning">
-        <div class="alert__icon icon-warning-outline"></div>
-        <div class="alert__message text-left">
-            Warning: Endpoint Tracker is not currently running for this fabric
+<div *ngIf="loading" [innerHTML]="commonService.getLoadingHtml()"></div>
+<div *ngIf="!loading && !fabricFound">
+        <div class="alert alert--warning">
+            <div class="alert__icon icon-warning-outline"></div>
+            <div class="alert__message text-left">
+                Fabric {{ fabricName }} not found.
+            </div>
+        </div>
+</div>
+<div *ngIf="!loading && fabricFound">
+    <div *ngIf="!fabricRunning">
+        <div class="base-margin-bottom alert alert--warning">
+            <div class="alert__icon icon-warning-outline"></div>
+            <div class="alert__message text-left">
+                <strong>Warning</strong> Endpoint Tracker is not currently running for this fabric
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <span class="text-xlarge" style="vertical-align: middle;"> {{ fabric?.fabric }}</span>
+            <div class="dropdown pull-right" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
+                <button class="btn btn--small btn--primary">Actions</button>
+                <div class="dropdown__menu">
+                    <a (click)="startFabric()">Start Monitor</a>
+                    <a (click)="stopFabric()">Stop Monitor</a>
+                    <a (click)="onClickOfClearDatabase()">Clear database</a>
+                    <a [routerLink]="'/queues'">Display processes</a>
+                    <a (click)='getFabric()'>Reload fabric data</a>
+                </div>
+            </div>
         </div>
     </div>
     <div class="row">
@@ -10,181 +36,119 @@
             &nbsp;
         </div>
     </div>
-</div>
-<div class="row">
-    <div class="col-md-12">
-        <span class="text-xlarge" style="vertical-align: middle;"> {{ fabric?.fabric }}</span>
-        <div class="dropdown pull-right" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
-            <button class="btn btn--small btn--primary">Actions</button>
-            <div class="dropdown__menu">
-                <a (click)="fabricRunning?onStopFabric():onStartFabric()">
-                    {{ fabricRunning?'Stop tracking':'Start tracking'}}
-                </a>
-                <a (click)="onClickOfClearDatabase()">Clear database</a>
-                <a [routerLink]="'/queues'">Display processes</a>
-                <a (click)='getFabric()'>Reload fabric data</a>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card__header text-huge text-center text--success">{{ fabric?.ipv4 | number }}</div>
+                <div class="card__body text-large text-center">IPv4</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card__header text-huge text-center text--success">{{ fabric?.ipv6 | number }}</div>
+                <div class="card__body text-large text-center">IPv6</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card__header text-huge text-center text--success">{{ fabric?.mac | number }}</div>
+                <div class="card__body text-large text-center">Mac</div>
             </div>
         </div>
     </div>
-</div>
-<div class="row">
-    <div class="col-md-12">
+    <div class="row">
         &nbsp;
     </div>
-</div>
-<div class="row">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card__header text-huge text-center text--success">{{ fabric?.ipv4 | number }}</div>
-            <div class="card__body text-large text-center">IPv4</div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card__header text-huge text-center text--success">{{ fabric?.ipv6 | number }}</div>
-            <div class="card__body text-large text-center">IPv6</div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card__header text-huge text-center text--success">{{ fabric?.mac | number }}</div>
-            <div class="card__body text-large text-center">Mac</div>
-        </div>
-    </div>
-</div>
-<div class="row">
-    &nbsp;
-</div>
-<div class="row">
-    <div class="col-md-12">
-        <div class="form-group">
-            <ng-select
-                    [items]="endpoints$ | async"
-                    bindLabel="name"
-                    [typeahead]="endpointInput$"
-                    [(ngModel)]="selectedEp"
-                    (change)="onEndPointChange($event)"
-                    autofocus
-            >
-                <ng-template ng-option-tmp let-item="item" let-index="index" let-search="searchTerm">
-                    <div class="row">
-                        <div class="col-md-2">
-                            {{ item['ept.endpoint'].addr }}
-                        </div>
-                        <div class="col-md-1">
-                            <span class="label label--raised"
-                                  [ngClass]="{
-                                      'label--success':item['ept.endpoint'].type==='ipv4',
-                                      'label--warning':item['ept.endpoint'].type==='mac',
-                                      'label--info':item['ept.endpoint'].type==='ipv6'
-                                  }">
-                                {{ item['ept.endpoint'].type.toUpperCase() }}
-                            </span>
-                        </div>
-                        <div class="col-md-1">
-                            {{ item['ept.endpoint'].first_learn.encap }}
-                        </div>
-                        <div class="col-md-3">
-                            {{ item['ept.endpoint'].first_learn.vnid_name }}
-                        </div>
-                        <div class="col-md-3">
-                            {{ item['ept.endpoint'].first_learn.epg_name }}
-                        </div>
-                    </div>
-                </ng-template>
-            </ng-select>
-        </div>
-    </div>
-</div>
-<div class="row">
-    &nbsp;
-</div>
-<div class="row">
-    <div class="col-md-12">
-        <div class="panel panel--raised">
-            <h4>Fabric Events</h4>
-            <ngx-datatable
-                    [columnMode]="'flex'"
-                    [headerHeight]="25"
-                    [footerHeight]="50"
-                    [rowHeight]="'auto'"
-                    [limit]="pageSize"
-                    [loadingIndicator]="loading"
-                    [rows]="rows"
-                    [sorts]="sorts"
-                    [cssClasses]="{
-                    sortAscending: 'icon-chevron-down',
-                    sortDescending: 'icon-chevron-up',
-                    pagerLeftArrow: 'icon-step-prev',
-                    pagerRightArrow: 'icon-step-next',
-                    pagerPrevious: 'icon-step-backward',
-                    pagerNext: 'icon-step-forward'
-                    }">
-                <ngx-datatable-column prop="timestamp" name="Timestamp" [sortable]="true" [flexGrow]="0.2">
-                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
-                    </ng-template>
-                </ngx-datatable-column>
-                <ngx-datatable-column prop="status" name="Status" [sortable]="true" [flexGrow]="0.2">
-                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                            <span class="label label--raised"
-                                  [ngClass]="{
-                                     'label--success':value === 'running',
-                                     'label--warning': value === 'stopped',
-                                     'label--blue': value === 'initializing',
-                                     'label--vibblue': value === 'starting',
-                                     'label--danger': value === 'failed'
-                                  }">
-                                <span>
-                                   {{ value }}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="form-group">
+                <ng-select
+                        [items]="endpoints$ | async"
+                        bindLabel="name"
+                        [typeahead]="endpointInput$"
+                        [(ngModel)]="selectedEp"
+                        (change)="onEndPointChange($event)"
+                        autofocus
+                >
+                    <ng-template ng-option-tmp let-item="item" let-index="index" let-search="searchTerm">
+                        <div class="row">
+                            <div class="col-md-2">
+                                {{ item['ept.endpoint'].addr }}
+                            </div>
+                            <div class="col-md-1">
+                                <span class="label label--raised"
+                                      [ngClass]="{
+                                          'label--success':item['ept.endpoint'].type==='ipv4',
+                                          'label--warning':item['ept.endpoint'].type==='mac',
+                                          'label--info':item['ept.endpoint'].type==='ipv6'
+                                      }">
+                                    {{ item['ept.endpoint'].type.toUpperCase() }}
                                 </span>
-                            </span>
+                            </div>
+                            <div class="col-md-1">
+                                {{ item['ept.endpoint'].first_learn.encap }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ item['ept.endpoint'].first_learn.vnid_name }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ item['ept.endpoint'].first_learn.epg_name }}
+                            </div>
+                        </div>
                     </ng-template>
-                </ngx-datatable-column>
-                <ngx-datatable-column prop="description" name="Description" [sortable]="true" [flexGrow]="0.6">
-                </ngx-datatable-column>
-            </ngx-datatable>
+                </ng-select>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        &nbsp;
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="panel panel--raised">
+                <h4>Fabric Events</h4>
+                <ngx-datatable
+                        [columnMode]="'flex'"
+                        [headerHeight]="25"
+                        [footerHeight]="50"
+                        [rowHeight]="'auto'"
+                        [limit]="pageSize"
+                        [loadingIndicator]="loading"
+                        [rows]="rows"
+                        [sorts]="sorts"
+                        [cssClasses]="{
+                        sortAscending: 'icon-chevron-down',
+                        sortDescending: 'icon-chevron-up',
+                        pagerLeftArrow: 'icon-step-prev',
+                        pagerRightArrow: 'icon-step-next',
+                        pagerPrevious: 'icon-step-backward',
+                        pagerNext: 'icon-step-forward'
+                        }">
+                    <ngx-datatable-column prop="timestamp" name="Timestamp" [sortable]="true" [flexGrow]="0.2">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                            {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                        </ng-template>
+                    </ngx-datatable-column>
+                    <ngx-datatable-column prop="status" name="Status" [sortable]="true" [flexGrow]="0.2">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <span class="label label--raised"
+                                      [ngClass]="{
+                                         'label--success':value === 'running',
+                                         'label--warning': value === 'stopped',
+                                         'label--blue': value === 'initializing',
+                                         'label--vibblue': value === 'starting',
+                                         'label--danger': value === 'failed'
+                                      }">
+                                    <span>
+                                       {{ value }}
+                                    </span>
+                                </span>
+                        </ng-template>
+                    </ngx-datatable-column>
+                    <ngx-datatable-column prop="description" name="Description" [sortable]="true" [flexGrow]="0.6">
+                    </ngx-datatable-column>
+                </ngx-datatable>
+            </div>
         </div>
     </div>
 </div>
-<ng-template #errorMsg>
-    <div class="modal__body">
-        <div class="col-xl-12">
-            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
-                <div class="alert__icon icon-check-outline"></div>
-                <div class="alert__message text-left">
-                    <h4>{{ modalService.modalTitle }}</h4>
-                    <div>{{ modalService.modalBody }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
-            <div class="alert__icon icon-error-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
-            <div class="alert__icon icon-info-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'danger'">
-            <div class="alert__icon icon-warning-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="modal__footer" *ngIf="!modalService.decisionBox">
-            <button class="btn btn--primary" (click)="modalService.hideModal()">Ok</button>
-        </div>
-        <div class="modal__footer" *ngIf="modalService.decisionBox">
-            <button class="btn btn--secondary" (click)="modalService.runCallback()">Proceed</button>
-            <button class="btn btn--primary" (click)="modalService.hideModal()">Cancel</button>
-        </div>
-    </div>
-</ng-template>

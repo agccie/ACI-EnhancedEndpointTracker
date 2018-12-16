@@ -138,22 +138,3 @@
         </div>
     </div>
 </div>
-
-<ng-template #generalModal>
-        <div class="modal__body">
-            <div [ngClass]="modalAlertClass">
-                <div [ngClass]="modalIconClass"></div>
-                <div class="alert__message text-left">
-                    <h4>{{ modalTitle }}</h4>
-                    <div class="qtr-margin-top" [innerHtml]="modalBody"></div>
-                </div>
-            </div>
-            <div *ngIf="!modalConfirm" class="modal__footer">
-                <button class="btn btn--primary" (click)="modalService.hideModal()">Close</button>
-            </div>
-            <div *ngIf="modalConfirm" class="modal__footer">
-                <button class="btn btn--gray-ghost" (click)="modalConfirmCallback()">Yes</button>
-                <button class="btn btn--primary" (click)="modalService.hideModal()">No</button>
-            </div>
-        </div>
-    </ng-template>

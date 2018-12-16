@@ -82,7 +82,18 @@ export class ModalService {
                 content["callback"]();
             }
         }
-        this.setModalInfo(content);
+        if(!("modalType" in content)){
+            content["modalType"] = "info";
+        }
+        switch(content["modalType"]){
+            case "success": this.setModalSuccess(content);
+                            break;
+            case "info": this.setModalInfo(content); 
+                        break;
+            case "error": this.setModalError(content);
+                        break;
+            default: this.setModalInfo(content);
+        }
         this.modalConfirm = true;
     }
 

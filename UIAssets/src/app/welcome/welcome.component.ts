@@ -3,7 +3,7 @@ import {Router} from '@angular/router';
 import {environment} from '../../environments/environment';
 import {BackendService} from "../_service/backend.service";
 import {PreferencesService} from "../_service/preferences.service";
-import {Fabric} from "../_model/fabric";
+import {Fabric, FabricList} from "../_model/fabric";
 import {BsModalRef, BsModalService} from "ngx-bootstrap";
 import {ModalService} from '../_service/modal.service';
 import {forkJoin} from "rxjs";
@@ -48,10 +48,10 @@ export class WelcomeComponent implements OnInit {
         this.loading = true;
         this.backendService.getFabrics(sorts).subscribe(
             (data) => {
+                let fabric_list = new FabricList(data);
                 this.fabrics = [];
                 this.rows = [];
-                for (const object of data.objects) {
-                    const fabric = object.fabric;
+                for (const fabric of fabric_list.objects) {
                     this.fabrics.push(fabric);
                     this.rows.push(fabric);
                     const fabricStatusObservable = this.backendService.getFabricStatus(fabric);

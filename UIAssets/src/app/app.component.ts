@@ -22,7 +22,8 @@ export class AppComponent implements OnInit, OnDestroy {
     endpointExpanded: boolean;
     configurationExpanded: boolean;
     sidebarCollapsed: boolean;
-    @ViewChild('abouttemplate') msgModal: TemplateRef<any>;
+    @ViewChild('abouttemplate') aboutModal: TemplateRef<any>;
+    @ViewChild('generalModal') generalModal: TemplateRef<any>;
     authors = ['Andy Gossett', 'Axel Bodart', 'Hrishikesh Deshpande'];
     version: Version;
     private stopListening: () => void;
@@ -45,6 +46,7 @@ export class AppComponent implements OnInit, OnDestroy {
                 this.fabricName = params.get('fabric');
             });
         });
+        this.modalService.generalModal = this.generalModal;
     }
 
     ngOnDestroy() {
@@ -86,7 +88,7 @@ export class AppComponent implements OnInit, OnDestroy {
             (results) => {
                 this.version = results;
                 this.shuffleAuthor();
-                this.modalService.openModal(this.msgModal);
+                this.modalService.openModal(this.aboutModal);
             }
         );
     }

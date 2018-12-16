@@ -1,10 +1,6 @@
-export class FabricObject {
-    'fabric': Fabric;
-}
-
 export class FabricList {
     count: number;
-    objects: FabricObject[];
+    objects: Fabric[];
 
     public constructor(data) {
         this.count = 0;
@@ -13,9 +9,11 @@ export class FabricList {
             this.count = data["count"];
         }
         if ("objects" in data) {
-            for (const ept of data["objects"]) {
-                this.objects.push(ept[Object.keys(ept)[0]]);
-            }
+            data["objects"].forEach(obj => {
+                if ('fabric' in obj) {
+                    this.objects.push(new Fabric(obj['fabric']));
+                }
+            });
         }
     }
 }
@@ -52,6 +50,7 @@ export class Fabric {
         this.ssh_password = '';
         this.ssh_username = '';
         this.status = 'stopped';
+        this.events = [];
         this.mac = 0;
         this.ipv4 = 0;
         this.ipv6 = 0;

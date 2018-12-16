@@ -270,7 +270,7 @@ export class BackendService {
             '?filter=and(eq("' + endpointState + '",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))');
     }
 
-    testEmailNotifications(type: String, fabricName: String) {
+    testNotification(fabricName: String, type: String) {
         return this.http.post(this.baseUrl + '/uni/fb-' + fabricName + '/settings-default/test/' + type, {});
     }
 

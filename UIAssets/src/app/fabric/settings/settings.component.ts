@@ -1,10 +1,12 @@
-import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {environment} from '../../../environments/environment';
 import {BackendService} from "../../_service/backend.service";
 import {FabricService} from "../../_service/fabric.service";
 import {ActivatedRoute, Router} from "@angular/router";
 import {ModalService} from '../../_service/modal.service';
 import {concat, forkJoin} from 'rxjs';
+import {FabricList} from '../../_model/fabric';
+import {FabricSettingsList} from '../../_model/fabric-settings';
 
 @Component({
     selector: 'app-settings',
@@ -15,13 +17,6 @@ export class SettingsComponent implements OnInit {
     app_mode = environment.app_mode;
     tabs = [];
     isLoading = false;
-    @ViewChild('errorMessage') msgModal: TemplateRef<any>;
-    modalIconClass = '';
-    modalAlertClass = '';
-    modalTitle = '';
-    modalBody = '';
-    modalConfirm = false;
-    modalConfirmCallback = undefined;
 
     constructor(private backendService: BackendService, private activatedRoute: ActivatedRoute, private router: Router,
                 public modalService: ModalService, public fabricService: FabricService) {
@@ -45,21 +40,24 @@ export class SettingsComponent implements OnInit {
                 forkJoin(getFabricObservable, getFabricSettingsObservable).subscribe(
                     ([fabricData, settingsData]) => {
                         this.isLoading = false;
-                        if ("objects" in settingsData && settingsData.objects.length > 0 && "ept.settings" in settingsData.objects[0]) {
-                            this.fabricService.fabricSettings.init();
-                            this.fabricService.fabricSettings.sync(settingsData.objects[0]['ept.settings']);
-                        }
-                        if ("objects" in fabricData && fabricData.objects.length > 0 && "fabric" in fabricData.objects[0]) {
+                        let fabric_list = new FabricList(fabricData);
+                        let settings_list = new FabricSettingsList(settingsData);
+                        if (fabric_list.objects.length > 0 && settings_list.objects.length > 0) {
                             this.fabricService.fabric.init();
-                            this.fabricService.fabric.sync(fabricData.objects[0]['fabric']);
+                            this.fabricService.fabricSettings.init();
+                            this.fabricService.fabric.sync(fabric_list.objects[0]);
+                            this.fabricService.fabricSettings.sync(settings_list.objects[0]);
+                        } else {
+                            this.modalService.setModalError({
+                                "body": 'Could not fetch fabric settings, invalid results returned.'
+                            });
                         }
                     },
                     (error) => {
                         this.isLoading = false;
-                        this.setModalError();
-                        this.modalTitle = 'Error';
-                        this.modalBody = 'Could not fetch fabric settings. ' + error['error']['error'];
-                        this.modalService.openModal(this.msgModal);
+                        this.modalService.setModalError({
+                            "body": 'Could not fetch fabric settings. ' + error['error']['error']
+                        });
                     }
                 );
             }
@@ -71,7 +69,7 @@ export class SettingsComponent implements OnInit {
         let that = this;
         let body = 'Are you sure you want to delete all endpoint history for <strong>' + this.fabricService.fabric.fabric + '</strong>? ' +
             'This action cannot be undone.';
-        this.setModalConfirm({
+        this.modalService.setModalConfirm({
             "title": "Wait",
             "body": body,
             "callback": function () {
@@ -85,7 +83,7 @@ export class SettingsComponent implements OnInit {
                     },
                     (error) => {
                         that.isLoading = false;
-                        that.setModalError({
+                        that.modalService.setModalError({
                             "body": 'Failed to update delete fabric endpoints. ' + error['error']['error']
                         });
                     }
@@ -99,7 +97,8 @@ export class SettingsComponent implements OnInit {
         let that = this;
         let body = 'Are you sure you want to delete fabric <strong>' + this.fabricService.fabric.fabric + '</strong>? ' +
             'This operation will delete all historical data for this fabric. This action cannot be undone.';
-        this.setModalConfirm({
+        this.modalService.setModalConfirm({
+            "modalType": "error",
             "title": "Wait",
             "body": body,
             "callback": function () {
@@ -114,7 +113,7 @@ export class SettingsComponent implements OnInit {
                     },
                     (error) => {
                         that.isLoading = false;
-                        that.setModalError({
+                        that.modalService.setModalError({
                             "body": 'Failed to update delete fabric. ' + error['error']['error']
                         });
                     }
@@ -139,7 +138,7 @@ export class SettingsComponent implements OnInit {
                         this.isLoading = false;
                         if ("success" in verifyData && verifyData["success"]) {
                             let that = this;
-                            this.setModalConfirm({
+                            this.modalService.setModalConfirm({
                                 "title": "Success",
                                 "body": "Changes successfully applied. You must restart the fabric monitor for your changes to take effect." +
                                     " Would you like to restart now?",
@@ -154,7 +153,7 @@ export class SettingsComponent implements OnInit {
                                         },
                                         (restartError) => {
                                             that.isLoading = false;
-                                            that.setModalError({
+                                            that.modalService.setModalError({
                                                 "body": "Failed to restart fabric. " + restartError['error']['error']
                                             });
                                         }
@@ -184,7 +183,7 @@ export class SettingsComponent implements OnInit {
                                 '<div class="col-md-2"><span class="label ' + ssh_label_class + '">' + ssh_label_text + '</span></div>' +
                                 '<div class="col-md-7">' + ssh_text + '</div>' +
                                 '</div>';
-                            this.setModalInfo({
+                            this.modalService.setModalInfo({
                                 "title": "Credentials verification failed",
                                 "body": msg
                             })
@@ -192,7 +191,7 @@ export class SettingsComponent implements OnInit {
                     },
                     (verifyError) => {
                         this.isLoading = false;
-                        this.setModalError({
+                        this.modalService.setModalError({
                             "body": 'Failed to update verify fabric settings. ' + verifyError['error']['error']
                         });
                     }
@@ -200,56 +199,10 @@ export class SettingsComponent implements OnInit {
             },
             (error) => {
                 this.isLoading = false;
-                this.setModalError({
+                this.modalService.setModalError({
                     "body": 'Failed to update fabric settings. ' + error['error']['error']
                 });
             }
         )
-    }
-
-    openModal(content: object = {}) {
-        this.modalConfirm = false;
-        this.modalTitle = content["title"];
-        this.modalBody = content["body"];
-        this.modalService.openModal(this.msgModal);
-    }
-
-    setModalError(content: object = {}) {
-        this.modalAlertClass = 'alert alert--danger';
-        this.modalIconClass = 'alert__icon icon-error-outline';
-        if (!("title" in content)) {
-            content["title"] = "Error";
-        }
-        this.openModal(content);
-    }
-
-    setModalSuccess(content: object = {}) {
-        this.modalAlertClass = 'alert alert--success';
-        this.modalIconClass = 'alert__icon icon-check-outline';
-        if (!("title" in content)) {
-            content["title"] = "Success";
-        }
-        this.openModal(content);
-    }
-
-    setModalInfo(content: object = {}) {
-        this.modalAlertClass = 'alert';
-        this.modalIconClass = 'alert__icon icon-info-outline';
-        if (!("title" in content)) {
-            content["title"] = "Info";
-        }
-        this.openModal(content);
-    }
-
-    setModalConfirm(content: object = {}) {
-        const self = this;
-        this.modalConfirmCallback = function () {
-            self.modalService.hideModal();
-            if ("callback" in content) {
-                content["callback"]();
-            }
-        };
-        this.setModalInfo(content);
-        this.modalConfirm = true;
     }
 } 

@@ -40,6 +40,7 @@ export class OverviewComponent implements OnInit {
 
     getFabric() {
         this.loading = true;
+        /*
         this.activatedRoute.paramMap.subscribe(params => {
             const fabricName = params.get('fabric');
             if (fabricName != null) {
@@ -66,13 +67,7 @@ export class OverviewComponent implements OnInit {
                 });
             }
         });
-    }
-
-    onClickOfClearDatabase() {
-        const msg =
-            'Are you sure you want to clear all endpoints in ' + this.fabric.fabric + '?' +
-            ' It may take a few moments for the updates to be seen.';
-        this.modalService.setAndOpenModal('danger', 'Wait', msg, this.msgModal, true, this.clearDatabase, this);
+        */
     }
 
     public onStartFabric() {
@@ -93,25 +88,6 @@ export class OverviewComponent implements OnInit {
         const addr = endpoint['ept.endpoint'].addr;
         const vnid = endpoint['ept.endpoint'].vnid;
         this.router.navigate(['/fabric', this.fabric.fabric, 'history', vnid, addr]);
-    }
-
-    private clearDatabase() {
-        this.modalService.hideModal();
-        this.backendService.clearDatabase(this.fabric.fabric).subscribe(
-            (data) => {
-                if (data['success']) {
-                    const msg = 'Clear successful';
-                    this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
-                } else {
-                    const msg = 'Database clearing failed';
-                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
-                }
-            },
-            (error) => {
-                const msg = 'Database clearing failed: ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
-            }
-        );
     }
 
     private startFabric() {

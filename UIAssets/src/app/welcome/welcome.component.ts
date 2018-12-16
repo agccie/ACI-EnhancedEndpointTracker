@@ -31,8 +31,8 @@ export class WelcomeComponent implements OnInit {
     @ViewChild('myTable') table: any;
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private modalService: BsModalService,
-                public localModalService: ModalService) {
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, 
+                private modalService: BsModalService, public localModalService: ModalService) {
         this.rows = [];
         this.showFabricModal = false;
         this.fabrics = [];
@@ -46,6 +46,7 @@ export class WelcomeComponent implements OnInit {
 
     getFabrics(sorts = this.sorts) {
         this.loading = true;
+        /** 
         this.backendService.getFabrics(sorts).subscribe(
             (data) => {
                 this.fabrics = [];
@@ -77,6 +78,7 @@ export class WelcomeComponent implements OnInit {
                 this.loading = false;
             }
         )
+        */
     }
 
     toggleFabric(fabric: Fabric) {
@@ -119,6 +121,7 @@ export class WelcomeComponent implements OnInit {
     }
 
     public onSubmit() {
+        /*
         this.backendService.createFabric(this.fabric).subscribe(
             (data) => {
                 this.hideModal();
@@ -130,6 +133,7 @@ export class WelcomeComponent implements OnInit {
                 this.localModalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         );
+        */
     }
 
     public deleteFabric() {

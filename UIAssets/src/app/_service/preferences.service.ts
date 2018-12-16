@@ -1,21 +1,14 @@
 import {Injectable} from '@angular/core';
-import {FabricSettings} from '../_model/fabric-settings';
-import {Fabric} from '../_model/fabric';
 
 @Injectable({
     providedIn: 'root'
 })
 
 export class PreferencesService {
-    pageSize = 10;
+    pageSize = 25;
     selectedEndpoint: any;
-    fabricSettings: FabricSettings;
-    fabric: Fabric;
 
-    constructor() {
-        this.fabricSettings = new FabricSettings();
-        this.fabric = new Fabric();
-    }
+    constructor() {}
 
     getEndpointParams(context, callback) {
         context.activatedRoute.parent.parent.paramMap.subscribe(params => {

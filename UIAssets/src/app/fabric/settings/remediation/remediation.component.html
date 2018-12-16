@@ -1,9 +1,22 @@
-<h3>Remediation</h3><br>
+<div class="row base-margin-bottom">
+    <div class="col-md-12">
+        <div class="alert">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message"><strong>Note</strong> valid ssh credentials are required for remediation actions.</div>
+        </div>
+    </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-12">
+        When an endpoint is detected as offsubnet or stale, this application can be
+        configured to automatically clear the endpoint. 
+    </div>
+</div>
 <div class="row half-margin-bottom">
     <div class="col-md-12">
         <div class="form-group">
             <label class="switch">
-                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['auto_clear_offsubnet']">
+                <input type="checkbox" [(ngModel)]="service.fabricSettings.auto_clear_offsubnet">
                 <span class="switch__input"></span>
                 <span class="switch__label">Auto Clear OffSubnet Endpoints</span>
             </label>
@@ -14,7 +27,7 @@
     <div class="col-md-12">
         <div class="form-group">
             <label class="switch">
-                <input type="checkbox" [(ngModel)]="prefs['fabricSettings']['auto_clear_stale']">
+                <input type="checkbox" [(ngModel)]="service.fabricSettings.auto_clear_stale">
                 <span class="switch__input"></span>
                 <span class="switch__label">Auto Clear Stale Endpoints</span>
             </label>

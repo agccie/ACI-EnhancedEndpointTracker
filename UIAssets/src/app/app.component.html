@@ -1,3 +1,4 @@
+
 <div class="content-fluid">
     <nav class="sidebar" [class.sidebar--mini]="sidebarCollapsed" *ngIf="menuVisible">
         <div class="sidebar__header">
@@ -71,26 +72,11 @@
                     </li>
                 </ul>
             </li>
-            <li class="sidebar__drawer" [class.sidebar__drawer--opened]="configurationExpanded"
-                (click)="configurationExpanded = !configurationExpanded; endpointExpanded=false">
-                <a>
+            <li class="sidebar__item">
+                <a [routerLink]="['fabric', fabricName,'settings','connectivity']">
                     <span class="icon-tools"></span>
                     <span>Settings</span>
                 </a>
-                <ul>
-                    <li class="sidebar__item">
-                        <a [routerLink]="['fabric', fabricName,'settings','connectivity']">Connectivity</a>
-                    </li>
-                    <li class="sidebar__item">
-                        <a [routerLink]="['fabric', fabricName,'settings','notification']">Notification</a>
-                    </li>
-                    <li class="sidebar__item">
-                        <a [routerLink]="['fabric', fabricName,'settings','remediation']">Remediation</a>
-                    </li>
-                    <li class="sidebar__item">
-                        <a [routerLink]="['fabric', fabricName,'settings','advanced']">Advanced</a>
-                    </li>
-                </ul>
             </li>
             <li class="sidebar__drawer">
                 <a (click)='getVersion()'>

@@ -77,6 +77,7 @@ export class SettingsComponent implements OnInit {
             "title": "Wait",
             "body": body,
             "callback": function(){
+                if(that.isLoading){return;}
                 that.isLoading = true;
                 that.backendService.deleteAllEndpoints(that.fabricService.fabric.fabric).subscribe(
                     (data) => {
@@ -102,6 +103,7 @@ export class SettingsComponent implements OnInit {
             "title": "Wait",
             "body": body,
             "callback": function(){
+                if(that.isLoading){return;}
                 that.isLoading = true;
                 that.backendService.deleteFabric(that.fabricService.fabric).subscribe(
                     (data) => {

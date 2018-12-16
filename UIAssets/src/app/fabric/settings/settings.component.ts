@@ -5,7 +5,7 @@ import {PreferencesService} from "../../_service/preferences.service";
 import {ActivatedRoute} from "@angular/router";
 import {Fabric} from '../../_model/fabric';
 import {ModalService} from '../../_service/modal.service';
-import {forkJoin} from '../../../../node_modules/rxjs';
+import {forkJoin} from 'rxjs';
 
 @Component({
     selector: 'app-settings',

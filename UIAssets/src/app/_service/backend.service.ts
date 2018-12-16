@@ -5,10 +5,10 @@ import {map} from 'rxjs/operators';
 import {environment} from '../../environments/environment';
 import {FabricSettings} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
-import {Fabric, FabricList} from '../_model/fabric' ;
-import {EndpointList} from '../_model/endpoint' ;
-import {QueueList} from '../_model/queue' ;
-import {Version} from '../_model/version' ;
+import {Fabric, FabricList} from '../_model/fabric';
+import {EndpointList} from '../_model/endpoint';
+import {QueueList} from '../_model/queue';
+import {Version} from '../_model/version';
 
 
 @Injectable({
@@ -322,6 +322,6 @@ export class BackendService {
     getVersion(): Observable<Version> {
         const url = this.baseUrl + '/app-status/version';
         return this.http.get<Version>(url);
-      }
+    }
 
 }

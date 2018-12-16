@@ -4,25 +4,25 @@ import {Injectable} from '@angular/core';
     providedIn: 'root'
 })
 
-export class CommonService{
+export class CommonService {
 
     /**
      * return cisco-ui class label for endpoint type
      */
-    public getEndpointTypeLabel(type:string) : string{
-        let label = "label label--raised "
-        switch(type){
-            case "mac": 
-                label+="label--warning-alt";
-                break
-            case "ipv4": 
-                label+="label--vibblue";
+    public getEndpointTypeLabel(type: string): string {
+        let label = "label label--raised ";
+        switch (type) {
+            case "mac":
+                label += "label--warning-alt";
                 break;
-            case "ipv6": 
-                label+="label--indigo";
+            case "ipv4":
+                label += "label--vibblue";
                 break;
-            default: 
-                label+="label--info";
+            case "ipv6":
+                label += "label--indigo";
+                break;
+            default:
+                label += "label--info";
         }
         return label
     }

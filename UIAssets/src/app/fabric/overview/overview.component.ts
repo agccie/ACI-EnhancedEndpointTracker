@@ -21,7 +21,7 @@ export class OverviewComponent implements OnInit {
     fabric: Fabric;
     endpoints$: Observable<any[]>;
     endpointInput$ = new Subject<string>();
-    dropdownActive = false ;
+    dropdownActive = false;
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
     selectedEp: any;
     endpointLoading: boolean;

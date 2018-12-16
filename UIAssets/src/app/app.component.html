@@ -26,7 +26,7 @@
                             <div class="row">
                                 <span class="icon-browser"></span>
                                 <span class="qtr-margin-left text-medium">Browse</span>
-                            </div>   
+                            </div>
                         </a>
                     </li>
                     <li class="sidebar__item">
@@ -34,7 +34,7 @@
                             <div class="row">
                                 <span class="icon-panel-shift-right"></span>
                                 <span class="qtr-margin-left text-medium">Moves</span>
-                            </div>    
+                            </div>
                         </a>
                     </li>
                     <li class="sidebar__item">
@@ -50,7 +50,7 @@
                             <div class="row">
                                 <span class="icon-jump-out"></span>
                                 <span class="qtr-margin-left text-medium">OffSubnet</span>
-                            </div>   
+                            </div>
                         </a>
                     </li>
                     <li class="sidebar__item">
@@ -58,7 +58,7 @@
                             <div class="row">
                                 <span class="icon-warning"></span>
                                 <span class="qtr-margin-left text-medium">Stale</span>
-                            </div>      
+                            </div>
                         </a>
                     </li>
                     <li class="sidebar__item">
@@ -94,8 +94,8 @@
             </li>
             <li class="sidebar__drawer">
                 <a (click)='getVersion()'>
-                        <span class="icon-help"></span>
-                        <span>About</span>
+                    <span class="icon-help"></span>
+                    <span>About</span>
                 </a>
             </li>
         </ul>
@@ -160,38 +160,39 @@
 </div>
 <ng-template #abouttemplate>
     <div class="modal-body text-left">
-      <h5 class="text-center">Enhanced Endpoint Tracker {{ version.version }}</h5>
-      <br>
-      <div class="panel panel--vibblue panel--raised">
-        <div class="row">
-          <div class="col-md-4">Documentation</div>
-          <div class="col-md-8"><a target="_blank" href="https://aci-enhancedendpointtracker.readthedocs.io/en/latest/">https://aci-enhancedendpointtracker.readthedocs.io/en/latest/</a>
-          </div>
+        <h5 class="text-center">Enhanced Endpoint Tracker {{ version.version }}</h5>
+        <br>
+        <div class="panel panel--vibblue panel--raised">
+            <div class="row">
+                <div class="col-md-4">Documentation</div>
+                <div class="col-md-8"><a target="_blank"
+                                         href="https://aci-enhancedendpointtracker.readthedocs.io/en/latest/">https://aci-enhancedendpointtracker.readthedocs.io/en/latest/</a>
+                </div>
+            </div>
+            <div class="row text-left">
+                <div class="col-md-4">Feedback</div>
+                <div class="col-md-8"><a
+                        href="mailto:aciappcenter-support@external.cisco.com?Subject=Feedback for Enhanced Endpoint Tracker app">aciappcenter-support@external.cisco.com</a>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4">Build date</div>
+                <div class="col-md-8">{{ (version.timestamp | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                    ({{ (version.timestamp | amFromUnix) | amTimeAgo }})
+                </div>
+            </div>
+            <div class="row text-left">
+                <div class="col-md-4">Branch</div>
+                <div class="col-md-8">{{ version.branch }}</div>
+            </div>
+            <div class="row text-left">
+                <div class="col-md-4">Commit id</div>
+                <div class="col-md-8">{{ version.commit }}</div>
+            </div>
         </div>
-        <div class="row text-left">
-          <div class="col-md-4">Feedback</div>
-          <div class="col-md-8"><a
-            href="mailto:aciappcenter-support@external.cisco.com?Subject=Feedback for Enhanced Endpoint Tracker app">aciappcenter-support@external.cisco.com</a>
-          </div>
-        </div>
-        <div class="row">
-          <div class="col-md-4">Build date</div>
-          <div class="col-md-8">{{ (version.timestamp | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
-            ({{ (version.timestamp | amFromUnix) | amTimeAgo }})
-          </div>
-        </div>
-        <div class="row text-left">
-          <div class="col-md-4">Branch</div>
-          <div class="col-md-8">{{ version.branch }}</div>
-        </div>
-        <div class="row text-left">
-          <div class="col-md-4">Commit id</div>
-          <div class="col-md-8">{{ version.commit }}</div>
-        </div>
-      </div>
     </div>
     <br>
     <div class="modal-footer">
-      <button type="reset" class="btn btn--primary btn--small" (click)="modalService.hideModal()">Close</button>
+        <button type="reset" class="btn btn--primary btn--small" (click)="modalService.hideModal()">Close</button>
     </div>
-  </ng-template>
+</ng-template>

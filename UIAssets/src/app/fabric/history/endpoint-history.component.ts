@@ -4,7 +4,6 @@ import {BackendService} from '../../_service/backend.service';
 import {ActivatedRoute} from '@angular/router';
 import {forkJoin} from 'rxjs';
 import {ModalService} from '../../_service/modal.service';
-import {EndpointList} from 'src/app/_model/endpoint';
 import {CommonService} from 'src/app/_service/common.service';
 
 @Component({
@@ -162,7 +161,7 @@ export class EndpointHistoryComponent implements OnInit {
         if (status === 'deleted') {
             this.endpointStatus = 'Not currently present in the fabric';
         } else {
-            const pod = this.getEventProperties('pod') ;
+            const pod = this.getEventProperties('pod');
             this.endpointStatus = `Local on pod <strong>${pod}</strong> node <strong>${node}</strong>`;
             if (node > 0xffff) {
                 const nodeA = (node & 0xffff0000) >> 16;
@@ -315,13 +314,13 @@ export class EndpointHistoryComponent implements OnInit {
         obsList.push(this.backendService.getXrNodesCount(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr));
         forkJoin(obsList).subscribe(
             (data) => {
-            this.counts = [
-                {prop: 'Moves', ct: data[0]['count']},
-                {prop: 'Offsubnet', ct: data[1]['count']},
-                {prop: 'Stale', ct: data[2]['count']},
-                {prop: 'Rapid', ct: data[3]['count']}
-                ] ;
-            this.counts.push({prop: 'XR nodes', ct: data[4]['count']}) ;
+                this.counts = [
+                    {prop: 'Moves', ct: data[0]['count']},
+                    {prop: 'Offsubnet', ct: data[1]['count']},
+                    {prop: 'Stale', ct: data[2]['count']},
+                    {prop: 'Rapid', ct: data[3]['count']}
+                ];
+                this.counts.push({prop: 'XR nodes', ct: data[4]['count']});
             },
             (error) => {
                 const msg = 'Could not fetch counts! ' + error['error']['error'];

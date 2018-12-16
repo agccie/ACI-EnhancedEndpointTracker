@@ -29,7 +29,7 @@ export class EndpointsComponent implements OnInit {
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
-                private activatedRoute: ActivatedRoute, public pagingService: PagingService, 
+                private activatedRoute: ActivatedRoute, public pagingService: PagingService,
                 public modalService: ModalService, public commonService: CommonService) {
         this.rows = [];
         this.endpoints = [];

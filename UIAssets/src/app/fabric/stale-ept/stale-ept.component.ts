@@ -22,7 +22,7 @@ export class StaleEptComponent implements OnInit {
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
-                private activatedRoute: ActivatedRoute, public modalService: ModalService, 
+                private activatedRoute: ActivatedRoute, public modalService: ModalService,
                 public commonService: CommonService) {
         this.pageSize = this.prefs.pageSize;
     }

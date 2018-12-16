@@ -71,7 +71,7 @@ export class WelcomeComponent implements OnInit {
                         this.localModalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                     });
                 }
-                this.loading = false ;
+                this.loading = false;
             },
             (error) => {
                 this.loading = false;
@@ -138,7 +138,7 @@ export class WelcomeComponent implements OnInit {
             this.hideModal();
             this.getFabrics();
         }, (err) => {
-            let msg = 'Failed to delete fabric!'
+            let msg = 'Failed to delete fabric!';
             this.hideModal();
             if (err['error'] !== undefined && err['error']['error'] !== undefined) {
                 msg += ' ' + err['error']['error'];

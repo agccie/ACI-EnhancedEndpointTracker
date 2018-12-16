@@ -5,24 +5,25 @@
 </div>
 <div *ngIf="!loading">
     <div class="panel panel--bordered">
-            <div class="row">
-                    <div class="col-md-12">
-                        <span [ngClass]="commonService.getEndpointTypeLabel(endpoint.type)">{{ endpoint.type }}</span>&nbsp;
-                            <span class="text-xlarge" style="vertical-align: middle">{{ endpoint?.addr }}</span>&nbsp;
-                        <span *ngIf="['external','psvi','loopback'].includes(endpoint?.learn_type)">
-                            <span class="label label--ltgray">{{endpoint?.learn_type}}</span>
+        <div class="row">
+            <div class="col-md-12">
+                <span [ngClass]="commonService.getEndpointTypeLabel(endpoint.type)">{{ endpoint.type }}</span>&nbsp;
+                <span class="text-xlarge" style="vertical-align: middle">{{ endpoint?.addr }}</span>&nbsp;
+                <span *ngIf="['external','psvi','loopback'].includes(endpoint?.learn_type)">
+                            <span class="label label--ltgray">{{ endpoint?.learn_type}}</span>
                             &nbsp;
                         </span>
-                        <div class="dropdown pull-right" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
-                            <button class="btn btn--small btn--primary">Actions</button>
-                            <div class="dropdown__menu">
-                                <a (click)="onClickOfRefresh()">Refresh events</a>
-                                <a (click)="onClickOfDelete()">Clear events</a>
-                                <a (click)="onClickOfClear()">Clear endpoint</a>
-                            </div>
-                        </div>
+                <div class="dropdown pull-right" [class.active]="dropdownActive"
+                     (click)="dropdownActive = !dropdownActive">
+                    <button class="btn btn--small btn--primary">Actions</button>
+                    <div class="dropdown__menu">
+                        <a (click)="onClickOfRefresh()">Refresh events</a>
+                        <a (click)="onClickOfDelete()">Clear events</a>
+                        <a (click)="onClickOfClear()">Clear endpoint</a>
                     </div>
                 </div>
+            </div>
+        </div>
         <div *ngIf="endpoint?.is_offsubnet">
             <div class="row qtr-margin-top">
                 <div class="col-md-12">

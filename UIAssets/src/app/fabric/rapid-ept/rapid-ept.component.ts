@@ -18,9 +18,9 @@ export class RapidEptComponent implements OnInit {
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(
-        private backendService: BackendService, 
-        private activatedRoute: ActivatedRoute, 
-        public pagingService: PagingService, 
+        private backendService: BackendService,
+        private activatedRoute: ActivatedRoute,
+        public pagingService: PagingService,
         public modalService: ModalService,
         public commonService: CommonService) {
 

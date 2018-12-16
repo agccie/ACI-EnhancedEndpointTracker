@@ -13,10 +13,10 @@ export class EndpointList {
     public constructor(data) {
         this.count = 0;
         this.objects = [];
-        if("count" in data){
+        if ("count" in data) {
             this.count = data["count"];
         }
-        if("objects" in data){
+        if ("objects" in data) {
             data["objects"].forEach(ept => {
                 this.objects.push(ept[Object.keys(ept)[0]]);
             });
@@ -44,9 +44,9 @@ export class Endpoint {
     vnid: any;
     node: any;
 
-    constructor(addr: any, addr_byte: any, count: any, dn: any, events: any, fabric: any, first_learn: any, 
-        is_offsubnet: any, is_rapid: any, is_rapid_ts: any, is_stale: any, rapid_count: any, rapid_icount: any, 
-        rapid_lcount: any, rapid_lts: any, type: any, vnid: any, node:any) {
+    constructor(addr: any, addr_byte: any, count: any, dn: any, events: any, fabric: any, first_learn: any,
+                is_offsubnet: any, is_rapid: any, is_rapid_ts: any, is_stale: any, rapid_count: any, rapid_icount: any,
+                rapid_lcount: any, rapid_lts: any, type: any, vnid: any, node: any) {
         this.addr = addr;
         this.addr_byte = addr_byte;
         this.count = count;

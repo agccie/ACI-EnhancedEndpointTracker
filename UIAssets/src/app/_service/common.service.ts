@@ -6,9 +6,14 @@ import {Injectable} from '@angular/core';
 
 export class CommonService{
 
-    /**
-     * return cisco-ui class label for endpoint type
-     */
+    //common loader html
+    public getLoadingHtml() : string{
+        return '<div class="loading-dots loading-dots--info">'+
+                    '<span></span><span></span><span></span>' +
+                '</div>';
+    }
+
+    //return cisco-ui class label for endpoint type
     public getEndpointTypeLabel(type:string) : string{
         let label = "label label--raised "
         switch(type){

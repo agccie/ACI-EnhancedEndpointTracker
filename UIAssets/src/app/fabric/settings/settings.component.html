@@ -2,13 +2,18 @@
     <div class="row" >
         <div class="col-md-2">
             <button class="btn btn--small btn--icon btn--primary" data-balloon="Save" data-balloon-pos="down"
-                (click)="save()">
+                (click)="saveFabric()">
                 <span class="icon-save"></span>
             </button>
-            <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete Endpoint History" data-balloon-pos="down">
+            <a [routerLink]="'/queues'" class="btn btn--small btn--icon btn--secondary" data-balloon="Process Queues" data-balloon-pos="down">
+                <span class="icon-analysis"></span>
+            </a>
+            <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete Endpoint History" data-balloon-pos="down"
+                (click)="deleteAllEndpoints()">
                 <span class="icon-virtual-machine"></span>
             </button>
-            <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete Fabric" data-balloon-pos="down">
+            <button *ngIf="!app_mode" class="btn btn--small btn--icon btn--negative" data-balloon="Delete Fabric" data-balloon-pos="down"
+                (click)="deleteFabric()">
                 <span class="icon-trash"></span>
             </button>
         </div>
@@ -27,7 +32,8 @@
             </ul>
         </div>
         <div class="col-md-10">
-            <div class="tab-content">
+            <div *ngIf="isLoading" [innerHTML]="commonService.getLoadingHtml()"></div>
+            <div *ngIf="!isLoading" class="tab-content">
                 <router-outlet></router-outlet>
             </div>
         </div>
@@ -35,22 +41,19 @@
 </div>
 <ng-template #errorMessage>
     <div class="modal__body">
-        <div class="col-xl-12">
-            <div class="alert alert--success" *ngIf="modalIcon !== 'error'">
-                <div class="alert__icon icon-check-outline"></div>
-                <div class="alert__message text-left">
-                    <h4>{{ modalBody }}</h4>
-                </div>
-            </div>
-        </div>
-        <div class="alert alert--danger" *ngIf="modalIcon === 'error'">
-            <div class="alert__icon icon-error-outline"></div>
+        <div [ngClass]="modalAlertClass">
+            <div [ngClass]="modalIconClass"></div>
             <div class="alert__message text-left">
-                <h4>{{ modalBody }}</h4>
+                <h4>{{ modalTitle }}</h4>
+                <div class="qtr-margin-top" [innerHtml]="modalBody"></div>
             </div>
         </div>
-        <div class="modal__footer">
-            <button class="btn" (click)="modalService.hideModal()">Ok</button>
+        <div *ngIf="!modalConfirm" class="modal__footer">
+            <button class="btn" (click)="modalService.hideModal()">Close</button>
+        </div>
+        <div *ngIf="modalConfirm" class="modal__footer">
+            <button class="btn btn--gray-ghost" (click)="modalConfirmCallback()">Yes</button>
+            <button class="btn btn--primary" (click)="modalService.hideModal()">No</button>
         </div>
     </div>
 </ng-template>

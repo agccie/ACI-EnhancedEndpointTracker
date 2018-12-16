@@ -4,9 +4,8 @@ import {BackendService} from './_service/backend.service';
 import {PreferencesService} from './_service/preferences.service';
 import {environment} from '../environments/environment';
 import {filter} from "rxjs/operators";
-import { ModalService } from './_service/modal.service';
-import { Version } from './_model/version';
-import { BsModalRef } from '../../node_modules/ngx-bootstrap';
+import {ModalService} from './_service/modal.service';
+import {Version} from './_model/version';
 
 @Component({
     selector: 'app-root',

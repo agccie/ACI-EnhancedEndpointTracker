@@ -80,8 +80,6 @@ export class Fabric {
             "ssh_password"
         ];
         let json = {};
-        console.log("save fabric: ")
-        console.log(this)
         for(let i=0; i<attr.length; i++){
             let a = attr[i];
             if(a in this){
@@ -94,8 +92,6 @@ export class Fabric {
                 console.log("unknown fabricSettings attribute to save: "+a);
             }
         }
-        console.log("retruning: ")
-        console.log(json)
         return json;
     }
 }

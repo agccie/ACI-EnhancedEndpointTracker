@@ -119,7 +119,7 @@ export class BackendService {
         return this.http.delete(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address + '/delete');
     }
 
-    clearDatabase(fabricName: string, vnid = 0) {
+    deleteAllEndpoints(fabricName: string, vnid = 0) {
         return this.http.request('DELETE', this.baseUrl + '/ept/endpoint/delete', {
             headers: new HttpHeaders({
                 'Content-Type': 'application/json',
@@ -172,7 +172,7 @@ export class BackendService {
     }
 
     verifyFabric(fabric: Fabric) {
-        return this.http.get(this.baseUrl + '/uni/fb-' + fabric.fabric + '/verify');
+        return this.http.post(this.baseUrl + '/uni/fb-' + fabric.fabric + '/verify', {});
     }
 
     deleteFabric(fabric: Fabric) {

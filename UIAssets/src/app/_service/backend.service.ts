@@ -45,21 +45,21 @@ export class BackendService {
         return this.http.get(this.baseUrl + '/ept/endpoint?filter=' + filterString + '&count=1');
     }
 
-    getFabricsOverviewTabData(fabricName, pageOffset, sorts, tab = 'endpoint'): Observable<EndpointList> {
+    getFabricsOverviewTabData(fabricName, pageOffset, sorts, tab = 'endpoint', pageSize = 25): Observable<EndpointList> {
         if (sorts.length === 0) {
-            return this.http.get<EndpointList>(this.baseUrl + '/ept/' + tab + '?filter=eq("fabric","' + fabricName + '")&sort=fabric&page-size=25&page=' + pageOffset);
+            return this.http.get<EndpointList>(this.baseUrl + '/ept/' + tab + '?filter=eq("fabric","' + fabricName + '")&sort=fabric&page-size=' + pageSize + '&page=' + pageOffset);
         } else {
             const sortsStr = this.getSortsArrayAsString(sorts);
-            return this.http.get<EndpointList>(this.baseUrl + '/ept/' + tab + '?filter=eq("fabric","' + fabricName + '")&sort=' + sortsStr + '&page-size=25&page=' + pageOffset);
+            return this.http.get<EndpointList>(this.baseUrl + '/ept/' + tab + '?filter=eq("fabric","' + fabricName + '")&sort=' + sortsStr + '&page-size=' + pageSize + '&page=' + pageOffset);
         }
     }
 
-    getEndpoints(fabricName, pageOffset, sorts): Observable<EndpointList> {
+    getEndpoints(fabricName, pageOffset, sorts, pageSize = 25): Observable<EndpointList> {
         if (sorts.length === 0) {
-            return this.http.get<EndpointList>(this.baseUrl + '/ept/endpoint?filter=eq("fabric","' + fabricName + '")&sort=fabric&page-size=25&page=' + pageOffset);
+            return this.http.get<EndpointList>(this.baseUrl + '/ept/endpoint?filter=eq("fabric","' + fabricName + '")&sort=fabric&page-size=' + pageSize + '&page=' + pageOffset);
         } else {
             const sortsStr = this.getSortsArrayAsString(sorts);
-            return this.http.get<EndpointList>(this.baseUrl + '/ept/endpoint?filter=eq("fabric","' + fabricName + '")&sort=' + sortsStr + '&page-size=25&page=' + pageOffset);
+            return this.http.get<EndpointList>(this.baseUrl + '/ept/endpoint?filter=eq("fabric","' + fabricName + '")&sort=' + sortsStr + '&page-size=' + pageSize + '&page=' + pageOffset);
         }
     }
 

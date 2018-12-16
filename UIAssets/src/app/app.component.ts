@@ -20,7 +20,6 @@ export class AppComponent implements OnInit, OnDestroy {
     menuVisible: boolean;
     fabricName: string;
     endpointExpanded: boolean;
-    configurationExpanded: boolean;
     sidebarCollapsed: boolean;
     @ViewChild('abouttemplate') aboutModal: TemplateRef<any>;
     @ViewChild('generalModal') generalModal: TemplateRef<any>;
@@ -31,7 +30,6 @@ export class AppComponent implements OnInit, OnDestroy {
     constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService,
                 private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.endpointExpanded = false;
-        this.configurationExpanded = false;
         this.sidebarCollapsed = true;
         this.app_mode = environment.app_mode;
     }
@@ -91,5 +89,18 @@ export class AppComponent implements OnInit, OnDestroy {
                 this.modalService.openModal(this.aboutModal);
             }
         );
+    }
+
+    onSidebarClicked($event: MouseEvent) {
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+    }
+
+    onContentClicked($event: MouseEvent) {
+        this.endpointExpanded = false;
+    }
+
+    onEndpointExpand($event: MouseEvent) {
+        this.endpointExpanded = !this.endpointExpanded;
+        $event.stopPropagation();
     }
 }

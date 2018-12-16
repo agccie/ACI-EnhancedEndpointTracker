@@ -49,7 +49,7 @@
                         <endpoint-label [type]="value"></endpoint-label>
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.13">
+                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         <a [routerLink]="['../history', row.vnid, row.addr]">
                             {{ value }}
@@ -66,7 +66,7 @@
                         {{ value | number : '1.0-0' }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="events.0.vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.37">
+                <ngx-datatable-column prop="events.0.vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.3">
                 </ngx-datatable-column>
             </ngx-datatable>
         </div>

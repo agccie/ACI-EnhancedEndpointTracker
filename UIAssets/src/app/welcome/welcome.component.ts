@@ -5,6 +5,8 @@ import {BackendService} from "../_service/backend.service";
 import {PreferencesService} from "../_service/preferences.service";
 import {Fabric, FabricList} from "../_model/fabric";
 import {ModalService} from '../_service/modal.service';
+import {concat, Observable, of, Subject} from "rxjs";
+import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
 
 
 @Component({
@@ -22,6 +24,11 @@ export class WelcomeComponent implements OnInit {
     loadingCount = 0;
     sorts = [{prop: 'fabric', dir: 'asc'}];
     @ViewChild('addFabric') addFabricModal: TemplateRef<any>;
+    endpoints$: Observable<any[]>;
+    endpointInput$ = new Subject<string>();
+    endpointLoading: boolean = false;
+    endpointList = [];
+    endpointMatchCount: number = 0;
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
                 public modalService: ModalService) {
@@ -32,6 +39,7 @@ export class WelcomeComponent implements OnInit {
 
     ngOnInit() {
         this.getFabrics();
+        this.searchEndpoint();
     }
 
     getFabricStatus(fabric:Fabric){
@@ -99,13 +107,6 @@ export class WelcomeComponent implements OnInit {
         )
     }
 
-    public updateFilter(event) {
-        const val = event.target.value.toLowerCase();
-        this.rows = this.fabrics.filter(function (d) {
-            return d.fabric.toLowerCase().indexOf(val) !== -1 || !val;
-        });
-    }
-
     public showAddFabric(){
         this.modalService.openModal(this.addFabricModal)
     }
@@ -123,6 +124,46 @@ export class WelcomeComponent implements OnInit {
                 this.modalService.setModalError({
                     "body": 'Failed to create fabric. ' + error['error']['error']
                 })
+            }
+        );
+    }
+
+    public onEndPointChange(endpoint) {
+        if('ept.endpoint' in endpoint){
+            const addr = endpoint['ept.endpoint'].addr;
+            const vnid = endpoint['ept.endpoint'].vnid;
+            const fabric = endpoint['ept.endpoint'].fabric;
+            this.router.navigate(['/fabric', fabric, 'history', vnid, addr]);
+        }
+    }
+
+    private searchEndpoint() {
+        this.endpoints$ = concat(
+            of([]), // default items
+            this.endpointInput$.pipe(
+                debounceTime(200),
+                distinctUntilChanged(),
+                tap(() => {
+                    this.endpointLoading = true;
+                    this.endpointMatchCount = 0;
+                    this.endpointList = [];
+                }),
+                switchMap(term => this.backendService.searchEndpoint(term).pipe(
+                    catchError(() => of([])), // empty list on error
+                    tap(() => {
+                        this.endpointLoading = false;
+                    })
+                ))
+            )
+        );
+        this.endpoints$.subscribe(
+            (data) => {
+                if("objects" in data && "count" in data){
+                    this.endpointList = data["objects"];
+                    // add dummy shim entry at index 0 
+                    this.endpointList.unshift("");
+                    this.endpointMatchCount = data["count"];
+                }
             }
         );
     }

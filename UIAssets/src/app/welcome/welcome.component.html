@@ -1,38 +1,70 @@
 <h4 class="base-margin-bottom">
-    Available fabrics
-    <button class="btn btn--icon btn--small btn--primary" (click)='getFabrics()' [disabled]='loadingCount>0'>
-        <span class="icon-refresh"></span>
-    </button>
-    <button class="btn btn--icon btn--small btn--success" (click)='showAddFabric()' [disabled]='loadingCount>0'>
-        <span class="icon-add"></span>
-    </button>
+    Fabrics
 </h4>
 
-<loading-dots *ngIf="loadingCount>0"></loading-dots>
-<div *ngIf="loadingCount<=0" class="row">
+<div class="row half-margin-bottom">
+   <div class="col-md-12">
+        <div class="form-group">
+                
+            <ng-select 
+                placeholder="Search MAC or IP Address. I.e., 00:50:56:01:BB:12, 10.1.1.101, or 2001:a:b::65"
+                typeToSearchText="Type 4 or more characters"
+                notFoundText="Type 4 or more characters"
+                [items]="endpointList"
+                bindLabel="name"
+                [typeahead]="endpointInput$"
+                [(ngModel)]="selectedEp"
+                (change)="onEndPointChange($event)"
+                [loading] = "endpointLoading"
+
+                autofocus
+                >
+                <ng-template ng-option-tmp let-item="item" let-index="index" let-search="searchTerm">
+                    <div class="row" *ngIf="index==0">
+                        <div class="col-md-12">
+                            Matched: <strong>{{ endpointMatchCount | number }}</strong>
+                        </div>
+                    </div>
+                    <div class="row" *ngIf="index>0">
+                        <div class="col-md-2">
+                            <strong>{{ item['ept.endpoint'].fabric }}</strong>
+                        </div>
+                        <div class="col-md-2">
+                            {{ item['ept.endpoint'].addr }}
+                        </div>
+                        <div class="col-md-1">
+                            <endpoint-label [type]="item['ept.endpoint'].type"></endpoint-label>
+                        </div>
+                        <div class="col-md-1">
+                            {{ item['ept.endpoint'].first_learn.encap }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ item['ept.endpoint'].first_learn.vnid_name }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ item['ept.endpoint'].first_learn.epg_name }}
+                        </div>
+                    </div>
+                </ng-template>
+            </ng-select>
+        </div>
+   </div>
+</div>
+
+<div class="row">
     <div class="col-md-12">
         <div class="panel panel--raised">
-            <div class="row">
+            <div class="row half-margin-bottom">
                 <div class="col-md-12">
-                    <form>
-                        <div class="form-group input--icon">
-                            <div class="form-group__text">
-                                <input id="search" type="search" placeholder="Search fabric"
-                                       (keyup)='updateFilter($event)' required>
-                                <button type="button" class="link">
-                                    <span class="icon-search"></span>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+                    <button class="btn btn--icon btn--small btn--default" (click)='getFabrics()' [disabled]='loadingCount>0'>
+                            <span class="icon-refresh"></span>
+                    </button><button class="btn btn--icon btn--small btn--primary" (click)='showAddFabric()' [disabled]='loadingCount>0'>
+                            <span class="icon-add"></span>
+                    </button>
                 </div>
             </div>
-            <div class="row">
-                <div class="col-md-12">
-                    &nbsp;
-                </div>
-            </div>
-            <div class="row">
+            <loading-dots *ngIf="loadingCount>0"></loading-dots>
+            <div clas="row" *ngIf="loadingCount<=0" >
                 <div class="col-md-12">
                     <ngx-datatable
                             [columnMode]="'force'"

@@ -9,6 +9,7 @@ import {Fabric, FabricList} from '../_model/fabric';
 import {EndpointList} from '../_model/endpoint';
 import {QueueList} from '../_model/queue';
 import {Version} from '../_model/version';
+import { templateRefExtractor } from '@angular/core/src/render3';
 
 
 @Injectable({
@@ -142,8 +143,28 @@ export class BackendService {
         return this.http.post(this.baseUrl + '/user/logout', {});
     }
 
-    searchEndpoint(address) {
-        return this.http.get(this.baseUrl + '/ept/endpoint?filter=regex("addr","(?i)' + address + '")&include=fabric,addr,vnid,type,first_learn&page-size=20&sort=addr').pipe(
+    searchEndpoint(term:string="", fabric:string="") {
+        // do not perform query if search term is under minimum characters
+        if(term.length<=4){
+            return new Observable((observer) => {
+                const {next, error, complete} = observer;
+                next({})
+            });
+        }
+
+        let filter = ""
+        if(term.substr(0,1)=="/"){
+            filter='regex("addr","'+term+'")';
+        } else {
+            term = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
+            filter='regex("addr","(?i)'+term+'")'
+        }
+        if(fabric.length>0){
+            filter='and(eq("fabric","'+fabric+'"),'+filter+')';
+        }
+        return this.http.get(this.baseUrl + '/ept/endpoint?filter='+filter+'&include=fabric,addr,vnid,type,first_learn&page-size=20&sort=addr')
+        
+        return this.http.get(this.baseUrl + '/ept/endpoint?filter='+filter+'&include=fabric,addr,vnid,type,first_learn&page-size=20&sort=addr').pipe(
             map((res: Response) => {
                 return res['objects'];
             })

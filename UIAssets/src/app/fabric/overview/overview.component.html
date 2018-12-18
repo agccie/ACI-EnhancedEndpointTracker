@@ -76,14 +76,8 @@
                                 {{ item['ept.endpoint'].addr }}
                             </div>
                             <div class="col-md-1">
-                                <span class="label label--raised"
-                                      [ngClass]="{
-                                          'label--success':item['ept.endpoint'].type==='ipv4',
-                                          'label--warning':item['ept.endpoint'].type==='mac',
-                                          'label--info':item['ept.endpoint'].type==='ipv6'
-                                      }">
-                                    {{ item['ept.endpoint'].type.toUpperCase() }}
-                                </span>
+                                <endpoint-label [type]="item['ept.endpoint'].type"></endpoint-label>
+                                lo
                             </div>
                             <div class="col-md-1">
                                 {{ item['ept.endpoint'].first_learn.encap }}
@@ -108,7 +102,7 @@
             <div class="panel panel--raised">
                 <h4>Fabric Events</h4>
                 <ngx-datatable
-                        [columnMode]="'flex'"
+                        [columnMode]="'force'"
                         [headerHeight]="25"
                         [footerHeight]="50"
                         [rowHeight]="'auto'"

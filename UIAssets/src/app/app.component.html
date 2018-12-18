@@ -1,8 +1,8 @@
-<div class="content-fluid">
+<div class="content-fluid" (click)="onContentClicked($event)">
     <nav class="sidebar" [class.sidebar--mini]="sidebarCollapsed" *ngIf="menuVisible">
         <div class="sidebar__header">
             <a id="sidebar-toggle" class="sidebar-toggle hidden-xs hidden-sm"
-               (click)="sidebarCollapsed = !sidebarCollapsed">
+               (click)="onSidebarClicked($event)">
                 <span [class.icon-toggle-menu]="sidebarCollapsed" [class.icon-list-menu]="!sidebarCollapsed"></span>
             </a>
             <div class="sidebar__header-title">{{ fabricName }}</div>
@@ -15,7 +15,7 @@
                 </a>
             </li>
             <li class="sidebar__drawer" [class.sidebar__drawer--opened]="endpointExpanded"
-                (click)="endpointExpanded = !endpointExpanded; configurationExpanded = false">
+                (click)="onEndpointExpand($event)">
                 <a>
                     <span class="icon-virtual-machine"></span>
                     <span>Endpoints</span>
@@ -77,7 +77,7 @@
                     <span>Settings</span>
                 </a>
             </li>
-            <li class="sidebar__drawer">
+            <li class="sidebar__item">
                 <a (click)='getVersion()'>
                     <span class="icon-help"></span>
                     <span>About</span>

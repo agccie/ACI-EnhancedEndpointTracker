@@ -10,9 +10,9 @@
                 <endpoint-label [type]="endpoint.type"></endpoint-label>&nbsp;
                 <span class="text-xlarge" style="vertical-align: middle">{{ endpoint?.addr }}</span>&nbsp;
                 <span *ngIf="['external','psvi','loopback'].includes(endpoint?.learn_type)">
-                            <span class="label label--ltgray">{{ endpoint?.learn_type}}</span>
-                            &nbsp;
-                        </span>
+                    <span class="label label--ltgray">{{ endpoint?.learn_type}}</span>
+                    &nbsp;
+                </span>
                 <div class="dropdown pull-right" [class.active]="dropdownActive"
                      (click)="dropdownActive = !dropdownActive">
                     <button class="btn btn--small btn--primary">Actions</button>

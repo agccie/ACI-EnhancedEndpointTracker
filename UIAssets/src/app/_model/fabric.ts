@@ -46,7 +46,7 @@ export class Fabric {
         this.apic_password = '';
         this.apic_cert = '';
         this.fabric = '';
-        this.max_events = 25;
+        this.max_events = 0;
         this.ssh_password = '';
         this.ssh_username = '';
         this.status = 'stopped';
@@ -84,7 +84,8 @@ export class Fabric {
         for (let i = 0; i < attr.length; i++) {
             let a = attr[i];
             if (a in this) {
-                if (typeof this[a] === 'string' && this[a].length == 0) {
+                if ((typeof this[a] === 'string' && this[a].length == 0)|| 
+                    (typeof this[a] === 'number' && this[a]==0)) {
                     //skip string attributes that are not set
                     continue;
                 }

@@ -1,14 +1,15 @@
-<h4>
+<h4 class="base-margin-bottom">
     Available fabrics
-    <button class="btn btn--icon btn--small btn--primary" (click)='getFabrics()'>
+    <button class="btn btn--icon btn--small btn--primary" (click)='getFabrics()' [disabled]='loadingCount>0'>
         <span class="icon-refresh"></span>
     </button>
-    <button class="btn btn--icon btn--small btn--success" (click)='openAddModal(addtemplate)'>
+    <button class="btn btn--icon btn--small btn--success" (click)='showAddFabric()' [disabled]='loadingCount>0'>
         <span class="icon-add"></span>
     </button>
 </h4>
-<br>
-<div class="row">
+
+<loading-dots *ngIf="loadingCount>0"></loading-dots>
+<div *ngIf="loadingCount<=0" class="row">
     <div class="col-md-12">
         <div class="panel panel--raised">
             <div class="row">
@@ -37,8 +38,6 @@
                             [columnMode]="'force'"
                             [footerHeight]="50"
                             [rowHeight]="'auto'"
-                            [loadingIndicator]="loading"
-                            [limit]="pageSize"
                             [rows]="rows"
                             [sorts]="sorts"
                             [cssClasses]="{
@@ -52,7 +51,7 @@
                     >
                         <ngx-datatable-column prop="fabric" name="Name" [sortable]="true" [flexGrow]="0.4">
                             <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                {{ row.fabric }}
+                                <a [routerLink]="['fabric', row.fabric]" >{{ row.fabric }}</a>
                             </ng-template>
                         </ngx-datatable-column>
                         <ngx-datatable-column prop="status" name="Status" [sortable]="true" [flexGrow]="0.1">
@@ -88,129 +87,31 @@
                                 {{ row.ipv6 !== '' ? (row.ipv6 | number) : '&mdash;'}}
                             </ng-template>
                         </ngx-datatable-column>
-                        <ngx-datatable-column name="Actions" [flexGrow]="0.1">
-                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                <a class="btn btn--small btn--icon btn--primary"
-                                   [routerLink]="['fabric', row.fabric]">
-                                    <span class="icon-zoom-in"></span>
-                                </a>
-                                <a class="btn btn--small btn--icon btn--secondary"
-                                   *ngIf="row.status !== 'running' "
-                                   (click)="toggleFabric(row)" data-balloon='Start'
-                                   data-balloon-pos='right'>
-                                    <span tabindex="0" class="icon-play"></span>
-                                </a>
-                                <a class="btn btn--small btn--icon btn--secondary"
-                                   *ngIf="row.status === 'running' "
-                                   (click)="toggleFabric(row)" data-balloon='Stop'
-                                   data-balloon-pos='right'>
-                                    <span tabindex="0" class="icon-stop"></span>
-                                </a>
-                                <a class="btn btn--small btn--icon btn--negative"
-                                   (click)='openModal(deletetemplate, row)'>
-                                    <span class="icon-trash"></span>
-                                </a>
-                            </ng-template>
-                        </ngx-datatable-column>
                     </ngx-datatable>
                 </div>
             </div>
         </div>
     </div>
 </div>
-<ng-template #deletetemplate>
-    <div class="modal-body">
-        <p>
-            Are you sure you want to delete fabric {{ selectedFabric.fabric }}?
-        </p>
-    </div>
-    <br>
-    <div class="modal-footer">
-        <button class="btn btn--small btn--negative" (click)="deleteFabric()">Delete</button>
-        <button class="btn btn--small" (click)="hideModal()">Cancel</button>
-    </div>
-</ng-template>
-<ng-template #addtemplate>
-    <form #fabricForm="ngForm" (ngSubmit)="onSubmit()">
+<ng-template #addFabric>
+    <form #fabricForm="ngForm" (ngSubmit)="submitFabric()">
         <div class="modal-body">
             <h6> Add a new fabric </h6>
             <div class="row">
                 <div class="col-md-12">
                     <div class="form-group">
                         <div class="form-group__text">
-                            <input id="fabric" type="text" required [(ngModel)]="fabric.fabric" name="name">
+                            <input id="fabric" type="text" required [(ngModel)]="fabricName" name="name">
                             <label for="fabric">Name</label>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <div class="form-group__text">
-                            <input id="apic_hostname" type="text" required [(ngModel)]="fabric.apic_hostname"
-                                   name="apic_hostname">
-                            <label for="apic_hostname">Hostname</label>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <div class="form-group__text">
-                            <input id="apic_username" type="text" required [(ngModel)]="fabric.apic_username"
-                                   name="apic_username">
-                            <label for="apic_username">Username</label>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <div class="form-group__text">
-                            <input id="apic_password" type="password" required [(ngModel)]="fabric.apic_password"
-                                   name="apic_password">
-                            <label for="apic_password">Password</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-12">
-                    &nbsp;
                 </div>
             </div>
         </div>
         <br>
         <div class="modal-footer">
-            <button type="submit" class="btn btn--small btn--primary" [disabled]="!fabricForm.form.valid">
-                Add
-            </button>
-            <button type="reset" class="btn btn--small" (click)="hideModal()">Cancel</button>
+            <button type="reset" class="btn btn--gray-ghost" (click)="modalService.hideModal()">Cancel</button>
+            <button type="submit" class="btn btn--primary">Submit</button>
         </div>
     </form>
-</ng-template>
-<ng-template #errorMsg>
-    <div class="modal__body">
-        <div class="col-xl-12">
-            <div class="alert alert--success" *ngIf="localModalService.modalIcon === 'success'">
-                <div class="alert__icon icon-check-outline"></div>
-                <div class="alert__message text-left">
-                    <h4>{{ localModalService.modalTitle }}</h4>
-                    <div>{{ localModalService.modalBody }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="alert alert--danger" *ngIf="localModalService.modalIcon === 'error'">
-            <div class="alert__icon icon-error-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ localModalService.modalTitle }}</h4>
-                <div>{{ localModalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="alert alert--info" *ngIf="localModalService.modalIcon === 'info'">
-            <div class="alert__icon icon-info-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ localModalService.modalTitle }}</h4>
-                <div>{{ localModalService.modalBody }}</div>
-            </div>
-        </div>
-
-        <div class="modal__footer" *ngIf="!localModalService.decisionBox">
-            <button class="btn" (click)="localModalService.hideModal()">Ok</button>
-        </div>
-        <div class="modal__footer" *ngIf="localModalService.decisionBox">
-            <button class="btn btn--primary" (click)="localModalService.runCallback()">Proceed</button>
-            <button class="btn btn--secondary" (click)="localModalService.hideModal()">Cancel</button>
-        </div>
-
-    </div>
 </ng-template>

@@ -1,7 +1,6 @@
 import {Injectable} from '@angular/core';
 import {HttpClient, HttpHeaders, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
-import {map} from 'rxjs/operators';
 import {environment} from '../../environments/environment';
 import {FabricSettings, FabricSettingsList} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
@@ -9,7 +8,6 @@ import {Fabric, FabricList} from '../_model/fabric';
 import {EndpointList} from '../_model/endpoint';
 import {QueueList} from '../_model/queue';
 import {Version} from '../_model/version';
-import { templateRefExtractor } from '@angular/core/src/render3';
 
 
 @Injectable({

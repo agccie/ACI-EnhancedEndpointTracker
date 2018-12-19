@@ -100,12 +100,12 @@
     <div class="base-margin-bottom row">
         <div class="col-md-12">
             <div class="panel panel--raised">
-                <div class="row" *ngIf="loading">
+                <div class="row" *ngIf="loading || restartLoading">
                     <div class="col-md-12">
                         <loading-dots></loading-dots>
                     </div>
                 </div>
-                <div class="row" *ngIf="!loading">
+                <div class="row" *ngIf="!loading && !restartLoading">
                     <div class="col-md-4">
                         <button class="btn btn--icon btn--small btn--default" 
                                 data-balloon="Refresh" data-balloon-pos="down"
@@ -125,7 +125,7 @@
                         <h4>{{ fabric.fabric }}</h4>
                     </div>
                 </div>
-                <ngx-datatable *ngIf="!loading"
+                <ngx-datatable *ngIf="!loading && !restartLoading"
                         [columnMode]="'force'"
                         [headerHeight]="25"
                         [footerHeight]="50"
@@ -152,10 +152,10 @@
                                 <span class="label label--raised"
                                       [ngClass]="{
                                          'label--success':value === 'running',
-                                         'label--warning': value === 'stopped',
-                                         'label--blue': value === 'initializing',
-                                         'label--vibblue': value === 'starting',
-                                         'label--danger': value === 'failed'
+                                         'label--dkgray': value === 'stopped',
+                                         'label--default': value === 'initializing',
+                                         'label--info': value === 'starting',
+                                         'label--warning': value === 'failed'
                                       }">
                                     <span>
                                        {{ value }}

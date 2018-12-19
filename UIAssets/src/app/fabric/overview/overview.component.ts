@@ -3,9 +3,9 @@ import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Fabric, FabricList} from "../../_model/fabric";
-import {concat, forkJoin, Observable, of, Subject} from "rxjs";
+import {concat, forkJoin, Observable, of, Subject, interval} from "rxjs";
 import {ModalService} from '../../_service/modal.service';
-import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
+import {catchError, debounceTime, distinctUntilChanged, switchMap, map, tap} from "rxjs/operators";
 
 @Component({
     selector: 'app-overview',
@@ -18,6 +18,7 @@ export class OverviewComponent implements OnInit {
     pageNumber = 0;
     sorts = [{prop: 'timestamp', dir: 'desc'}];
     loading = true;
+    restartLoading = false;
     fabric: Fabric;
     fabricFound: boolean;
     fabricName: string;
@@ -111,15 +112,38 @@ export class OverviewComponent implements OnInit {
         });
     }
 
+    public pollStatus() {
+        return interval(1000).pipe(switchMap(() =>
+            this.backendService.getFabricStatus(this.fabric).pipe(map(
+                (data) => data
+            ))
+        ))
+    }
+
+    // start fabric and poll status until we're at the desired status or max polls exceeded
     public startFabric() {
-        this.modalService.setModalInfo({
-            "title": "Staring monitor"
-        })
+        let desiredStatus = "running";
+        let maxRetries = 5 ; 
+        this.restartLoading = true;
         this.backendService.startFabric(this.fabric).subscribe(
             (data) => {
-                // TODO stop loading
+                const poller = this.pollStatus().subscribe(
+                    (data) => {
+                        maxRetries--;
+                        if(maxRetries<=0 || ("status" in data && data["status"]==desiredStatus)){
+                            this.restartLoading = false;
+                            poller.unsubscribe();
+                            this.getFabric();
+                        }
+                    }, 
+                    (error) => {
+                        //some poller problem
+                        poller.unsubscribe();
+                    }
+                )
             },
             (error) => {
+                this.restartLoading = false;
                 this.modalService.setModalError({
                     "body": 'Failed to start monitor. ' + error['error']['error']
                 });
@@ -139,11 +163,28 @@ export class OverviewComponent implements OnInit {
     }
 
     public stopFabric() {
+        let desiredStatus = "stopped"
+        let maxRetries = 5 ; 
+        this.restartLoading = true;
         this.backendService.stopFabric(this.fabric).subscribe(
             (data) => {
-                // TODO stop loading
+                const poller = this.pollStatus().subscribe(
+                    (data) => {
+                        maxRetries--;
+                        if(maxRetries<=0 || ("status" in data && data["status"]==desiredStatus)){
+                            this.restartLoading = false;
+                            poller.unsubscribe();
+                            this.getFabric();
+                        }
+                    }, 
+                    (error) => {
+                        //some poller problem
+                        poller.unsubscribe();
+                    }
+                )
             },
             (error) => {
+                this.restartLoading = false;
                 this.modalService.setModalError({
                     "body": 'Failed to stop monitor. ' + error['error']['error']
                 });

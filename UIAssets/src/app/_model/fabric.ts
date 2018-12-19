@@ -18,6 +18,36 @@ export class FabricList {
     }
 }
 
+export class FabricEvent {
+    description: string = '-';
+    status: string = '-';
+    timestamp: number = 0;
+    
+    constructor(data: any = {}) {
+        this.init();
+        this.sync(data);
+    }
+
+    //initialize or re-initialize all attributes to default values
+    init() {
+        this.description = '-';
+        this.status = '-';
+        this.timestamp = 0;
+    }
+
+    // sync Fabric object to provided JSON
+    sync(data: any = {}) {
+        for (let attr in data) {
+            if (attr in this) {
+                if(typeof(data[attr])==="string" && data[attr].length==0){
+                    continue;
+                }
+                this[attr] = data[attr];
+            }
+        }
+    }
+}
+
 export class Fabric {
     apic_cert: string;
     apic_hostname: string;
@@ -31,7 +61,7 @@ export class Fabric {
     mac: number;
     ipv4: number;
     ipv6: number;
-    events: any[];
+    events: FabricEvent[];
     uptime: number;
 
     constructor(data: any = {}) {
@@ -60,7 +90,16 @@ export class Fabric {
     // sync Fabric object to provided JSON
     sync(data: any = {}) {
         for (let attr in data) {
-            if (attr in this) {
+            if(attr == "events"){
+                if(Array.isArray(data.events)){
+                    let events = [];
+                    data.events.forEach(function(elem){
+                        events.push(new FabricEvent(elem));
+                    });
+                    this.events = events;
+                }
+            }
+            else if (attr in this) {
                 this[attr] = data[attr];
             }
         }

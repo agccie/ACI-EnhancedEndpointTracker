@@ -21,6 +21,7 @@ export class OverviewComponent implements OnInit {
     fabric: Fabric;
     fabricFound: boolean;
     fabricName: string;
+    managerRunning: boolean = true;
     dropdownActive = false;
     selectedEp: any;
     fabricRunning: boolean;
@@ -111,6 +112,9 @@ export class OverviewComponent implements OnInit {
     }
 
     public startFabric() {
+        this.modalService.setModalInfo({
+            "title": "Staring monitor"
+        })
         this.backendService.startFabric(this.fabric).subscribe(
             (data) => {
                 // TODO stop loading
@@ -121,6 +125,17 @@ export class OverviewComponent implements OnInit {
                 });
             }
         );
+    }
+
+    //confirm user wants to stop fabric monitoring
+    public onStopFabric() {
+        let that = this;
+        this.modalService.setModalConfirm({
+            "callback": function(){ that.stopFabric()}, 
+            "modalType": "info",
+            "title": "Wait!",
+            "subtitle": "Are you sure you want to stop monitoring "+this.fabricName+"?"
+        });
     }
 
     public stopFabric() {

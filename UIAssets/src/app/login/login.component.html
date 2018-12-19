@@ -11,17 +11,15 @@
                         </div>
                         <div class="col-md-2"></div>
                     </div>
-                    <div class="row">&nbsp;</div>
-                    <div class="row">
+                    <div class="row base-margin">
                         <div class="col-md-1"></div>
                         <div class="col-md-10">
                             <h2>{{ title }}</h2>
                         </div>
                         <div class="col-md-1"></div>
                     </div>
-                    <div class="row">&nbsp;</div>
                     <form #loginForm="ngForm" (ngSubmit)="onSubmit()">
-                        <div class="row">
+                        <div class="row base-margin-bottom">
                             <div class="col-md-2"></div>
                             <div class="col-md-8">
                                 <div class="form-group">
@@ -39,19 +37,18 @@
                             </div>
                             <div class="col-md-2"></div>
                         </div>
-                        <div class="row">&nbsp;</div>
-                        <div class="row">
+                        <div class="row base-margin-bottom">
                             <div class="col-md-2"></div>
                             <div class="col-md-8">
-                                <button type="submit" class="btn btn--primary"
-                                        [disabled]="!loginForm.form.valid || loading">
-                                    Log In
+                                <loading-dots *ngIf="loading"></loading-dots>
+                                <button *ngIf="!loading" type="submit" class="btn btn--primary"
+                                        [disabled]="!loginForm.form.valid">
+                                    Login
                                 </button>
                             </div>
                             <div class="col-md-2"></div>
                         </div>
                     </form>
-                    <div class="row">&nbsp;</div>
                     <div class="row">
                         <div class="col-md-2"></div>
                         <div class="col-md-8">Version <b>{{ version }}</b></div>
@@ -63,38 +60,4 @@
         </div>
     </div>
 </div>
-<ng-template #errorMsg>
-    <div class="modal__body">
-        <div class="col-xl-12">
-            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
-                <div class="alert__icon icon-check-outline"></div>
-                <div class="alert__message text-left">
-                    <h4>{{ modalService.modalTitle }}</h4>
-                    <div>{{ modalService.modalBody }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
-            <div class="alert__icon icon-error-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
-            <div class="alert__icon icon-info-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="modal__footer" *ngIf="!modalService.decisionBox">
-            <button class="btn" (click)="modalService.hideModal()">Ok</button>
-        </div>
-        <div class="modal__footer" *ngIf="modalService.decisionBox">
-            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
-            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
-        </div>
-    </div>
-</ng-template>
   

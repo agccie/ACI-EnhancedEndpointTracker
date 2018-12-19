@@ -187,17 +187,20 @@
 </ng-template>
 <ng-template #generalModal>
     <div class="modal__body">
-        <div [ngClass]="modalService.modalAlertClass">
-            <div [ngClass]="modalService.modalIconClass"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div class="qtr-margin-top" [innerHtml]="modalService.modalBody"></div>
-            </div>
+        <h4 class="text-left">
+            <span class="text-bold" [ngClass]="modalService.modalHeaderClass">{{modalService.modalTitle}}</span>
+            <span class="text-large half-margin-left" *ngIf="modalService.modalSubTitle.length>0"> {{modalService.modalSubTitle}}</span>
+        </h4>
+        <div class="text-left text-large base-margin-top base-margin-right base-margin-left" *ngIf="modalService.modalBody.length>0">
+            <div [innerHtml]="modalService.modalBody"></div>
         </div>
-        <div *ngIf="!modalService.modalConfirm" class="modal__footer">
-            <button class="btn btn--primary" (click)="modalService.hideModal()">Close</button>
+        <div class="text-center" *ngIf="modalService.modalLoading">
+            <loading-dots></loading-dots>
         </div>
-        <div *ngIf="modalService.modalConfirm" class="modal__footer">
+        <div *ngIf="!modalService.modalConfirm && !modalService.modalLoading" class="modal__footer">
+            <button class="btn btn--gray-ghost" (click)="modalService.hideModal()">Close</button>
+        </div>
+        <div *ngIf="modalService.modalConfirm && !modalService.modalLoading" class="modal__footer">
             <button class="btn btn--gray-ghost" (click)="modalService.modalConfirmCallback()">Yes</button>
             <button class="btn btn--primary" (click)="modalService.hideModal()">No</button>
         </div>

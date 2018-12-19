@@ -54,13 +54,13 @@ export class PerNodeHistoryComponent implements OnInit {
                     },
                     (error) => {
                         const msg = 'Could not fetch nodes for endpoint! ' + error['error']['error'];
-                        this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
+                        //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
                     }
                 )
             },
             (error) => {
                 const msg = 'Could not fetch nodes for endpoint! ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
+                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
             }
         );
     }

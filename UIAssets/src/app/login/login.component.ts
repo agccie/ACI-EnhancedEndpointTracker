@@ -11,17 +11,16 @@ import {ModalService} from '../_service/modal.service';
 })
 
 export class LoginComponent implements OnInit {
-    title: string;
+    title: string = 'Endpoint Tracker';
     username = '';
     password = '';
     modalTitle = '';
     modalBody = '';
-    version = 'Not Available';
+    version = '-';
     loading = false;
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(private router: Router, private backendService: BackendService, public modalService: ModalService) {
-        this.title = 'Endpoint Tracker';
         if (environment.app_mode) {
             localStorage.setItem('isLoggedIn', 'true');
             this.router.navigate(['/']);
@@ -32,19 +31,21 @@ export class LoginComponent implements OnInit {
         if (localStorage.getItem('isLoggedIn') === 'true') {
             this.router.navigate(['/']);
         } else {
+            this.loading = true;
             this.backendService.getAppVersion().subscribe(
                 (data) => {
+                    this.loading = false;
                     this.version = data['version'];
                 },
                 (error) => {
-                    const msg = 'Failed to fetch app version! ' + error['error']['error'];
-                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                    this.loading = false;
                 }
             )
         }
     }
 
     onSubmit() {
+        this.loading = true;
         this.backendService.login(this.username, this.password).subscribe(
             (data) => {
                 if (data['success'] === true) {
@@ -53,14 +54,26 @@ export class LoginComponent implements OnInit {
                     this.backendService.getUserDetails(this.username).subscribe((response) => {
                         const userDetails = response['objects'][0]['user'];
                         localStorage.setItem('userRole', userDetails['role']);
+                        this.router.navigate(['/']);
                     }, (error) => {
+                        this.router.navigate(['/']);
                     });
-                    this.router.navigate(['/']);
+                } else {
+                    this.loading = false;
                 }
             },
             (error) => {
-                const msg = 'Failed to login! ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                this.loading = false;
+                if("status" in error && error["status"]==401){
+                    this.modalService.setModalInfo({
+                        "title": "Login Failed",
+                        "subtitle": 'User credentials incorrect'
+                    });
+                } else {
+                    this.modalService.setModalError({
+                        "body": 'Error during login. ' + error['error']['error']
+                    }); 
+                }
             }
         )
     }

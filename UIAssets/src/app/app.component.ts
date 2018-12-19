@@ -6,6 +6,7 @@ import {environment} from '../environments/environment';
 import {filter} from "rxjs/operators";
 import {ModalService} from './_service/modal.service';
 import {Version} from './_model/version';
+import { convertToR3QueryMetadata } from '@angular/core/src/render3/jit/directive';
 
 @Component({
     selector: 'app-root',
@@ -15,7 +16,6 @@ import {Version} from './_model/version';
 export class AppComponent implements OnInit, OnDestroy {
     ls = localStorage;
     app_mode: boolean;
-    konami: boolean;
     login_required: boolean;
     menuVisible: boolean;
     fabricName: string;
@@ -57,35 +57,28 @@ export class AppComponent implements OnInit, OnDestroy {
     }
 
     logout() {
+        this.modalService.setModalInfo({
+            "title": "Logging out",
+            "loading": true,
+        })
         localStorage.removeItem('isLoggedIn');
-        this.backendService.logout().subscribe(() => {
-            this.router.navigate(['login']);
-        });
-    }
-
-    onKonami() {
-        this.konami = true;
-    }
-
-    noKonami() {
-        this.konami = false;
-    }
-
-    shuffleAuthor() {
-        let j, x, i;
-        for (i = this.authors.length - 1; i > 0; i--) {
-            j = Math.floor(Math.random() * (i + 1));
-            x = this.authors[i];
-            this.authors[i] = this.authors[j];
-            this.authors[j] = x;
-        }
+        this.backendService.logout().subscribe(
+            (data) => {
+                this.modalService.hideModal();
+                this.router.navigate(['login']);
+            }, 
+            (error) => {
+                this.modalService.setModalError({
+                    "subtitle": "failed to logout."
+                });
+            }
+        )
     }
 
     getVersion() {
         this.backendService.getVersion().subscribe(
             (results) => {
                 this.version = results;
-                this.shuffleAuthor();
                 this.modalService.openModal(this.aboutModal);
             }
         );

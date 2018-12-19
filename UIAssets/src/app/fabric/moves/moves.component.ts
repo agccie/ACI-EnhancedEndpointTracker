@@ -42,7 +42,7 @@ export class MovesComponent implements OnInit {
                     }, (error) => {
                         this.loading = false;
                         const msg = 'Could not fetch moves! ' + error['error']['error'];
-                        this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                        //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                     }
                 );
             }

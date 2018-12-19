@@ -29,7 +29,7 @@ export class BackendService {
     }
 
     getAppManagerStatus() {
-        return this.http.get(this.baseUrl + '/app-status/manager', {withCredentials: true});
+        return this.http.get(this.baseUrl + '/app-status/manager');
     }
 
     getFabrics(sorts = []): Observable<FabricList> {
@@ -136,7 +136,7 @@ export class BackendService {
         return this.http.post(this.baseUrl + '/user/login', {
             username: username,
             password: password
-        }, {withCredentials: true});
+        });
     }
 
     logout() {

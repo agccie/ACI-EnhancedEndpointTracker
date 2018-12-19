@@ -86,7 +86,7 @@ export class EndpointHistoryComponent implements OnInit {
             (error) => {
                 this.loading = false;
                 const msg = 'Failed to load endpoint! ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         );
     }
@@ -131,7 +131,7 @@ export class EndpointHistoryComponent implements OnInit {
                 },
                 (error) => {
                     const msg = 'Could not check if the endpoint has offsubnet nodes! ' + error['error']['error'];
-                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
+                    //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
                 }
             )
         }
@@ -151,7 +151,7 @@ export class EndpointHistoryComponent implements OnInit {
                 },
                 (error) => {
                     const msg = 'Could not check if the endpoint has stale nodes! ' + error['error']['error'];
-                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
+                    //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
                 }
             )
 
@@ -186,7 +186,7 @@ export class EndpointHistoryComponent implements OnInit {
 
     onClickOfDelete() {
         const msg = 'Are you sure you want to delete all information for ' + this.endpoint.addr + ' from the local database? Note, this will not affect the endpoint state within the fabric.'
-        this.modalService.setAndOpenModal('info', 'Wait', msg, this.msgModal, true, this.deleteEndpoint, this);
+        //this.modalService.setAndOpenModal('info', 'Wait', msg, this.msgModal, true, this.deleteEndpoint, this);
     }
 
     deleteEndpoint() {
@@ -194,12 +194,12 @@ export class EndpointHistoryComponent implements OnInit {
             (data) => {
                 this.modalService.hideModal();
                 const msg = 'Endpoint deleted successfully';
-                this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
+                //this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
             },
             (error) => {
                 this.modalService.hideModal();
                 const msg = 'Could not delete endpoint! ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         )
     }
@@ -210,15 +210,15 @@ export class EndpointHistoryComponent implements OnInit {
                 if (data['success']) {
                     this.modalService.hideModal();
                     const msg = 'Refresh successful';
-                    this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
+                    //this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
                 } else {
                     const msg = 'Failed to refresh endpoint';
-                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                    //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                 }
             },
             (error) => {
                 const msg = 'Failed to refresh endpoint';
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         );
     }
@@ -228,7 +228,7 @@ export class EndpointHistoryComponent implements OnInit {
             'Are you sure you want to force a refresh of ' + this.address +
             '? This operation will query the APIC for the most recent state of the endpoint and then update the local database.' +
             'It may take a few moments for the updates to be seen.';
-        this.modalService.setAndOpenModal('info', 'Wait', msg, this.msgModal, true, this.refresh, this);
+        //this.modalService.setAndOpenModal('info', 'Wait', msg, this.msgModal, true, this.refresh, this);
     }
 
     public clearEndpoints() {
@@ -244,15 +244,15 @@ export class EndpointHistoryComponent implements OnInit {
             (data) => {
                 if (data['success']) {
                     const msg = 'Refresh successful';
-                    this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
+                    //this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
                 } else {
                     const msg = 'Failed to refresh endpoint';
-                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                    //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                 }
             },
             (error) => {
                 const msg = 'Failed to clear nodes! ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         )
     }
@@ -262,7 +262,7 @@ export class EndpointHistoryComponent implements OnInit {
     }
 
     onClickOfClear() {
-        this.modalService.setAndOpenModal('', '', '', this.clearModal);
+        //this.modalService.setAndOpenModal('', '', '', this.clearModal);
     }
 
     public filterNodes(nodes): any[] {
@@ -322,7 +322,7 @@ export class EndpointHistoryComponent implements OnInit {
             },
             (error) => {
                 const msg = 'Could not fetch counts! ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         );
     }

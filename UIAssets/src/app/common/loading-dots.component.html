@@ -1,8 +1,9 @@
 <br>
-<h4 *ngIf="text != ''" class="text-center">{{ text }}</h4>
+<div *ngIf="text!=undefined">
+    <h4 class="text-center">{{ text }}</h4>
+</div>
 <div class="loading-dots loading-dots--info">
     <span></span>
     <span></span>
     <span></span>
 </div>
-<br>

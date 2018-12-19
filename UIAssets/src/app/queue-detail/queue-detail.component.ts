@@ -99,7 +99,7 @@ export class QueueDetailComponent implements OnInit {
                 }, (err) => {
                     this.loading = false;
                     const msg = 'Failed to load queue! ' + err['error']['error'];
-                    this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                    //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
                 });
             }
         });

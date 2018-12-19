@@ -47,7 +47,7 @@ export class ClearedComponent implements OnInit {
             (error) => {
                 this.loading = false;
                 const msg = 'Failed to load cleared endpoints! ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
             }
         )
     }

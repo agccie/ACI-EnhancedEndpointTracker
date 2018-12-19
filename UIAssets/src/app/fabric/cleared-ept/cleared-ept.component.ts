@@ -40,7 +40,7 @@ export class ClearedEptComponent implements OnInit {
             }, (error) => {
                 this.loading = false;
                 const msg = 'Could not fetch cleared endpoints! ' + error['error']['error'];
-                this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
+                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
             }
         );
     }

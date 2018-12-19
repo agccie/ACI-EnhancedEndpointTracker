@@ -1,4 +1,5 @@
 import {Component, Input} from "@angular/core";
+import { text } from "@angular/core/src/render3";
 
 @Component({
     selector: 'loading-dots',

@@ -151,7 +151,6 @@ export class BackendService {
                 next({})
             });
         }
-
         let filter = ""
         if(term.substr(0,1)=="/"){
             filter='regex("addr","'+term+'")';
@@ -161,14 +160,8 @@ export class BackendService {
         }
         if(fabric.length>0){
             filter='and(eq("fabric","'+fabric+'"),'+filter+')';
-        }
-        return this.http.get(this.baseUrl + '/ept/endpoint?filter='+filter+'&include=fabric,addr,vnid,type,first_learn&page-size=20&sort=addr')
-        
-        return this.http.get(this.baseUrl + '/ept/endpoint?filter='+filter+'&include=fabric,addr,vnid,type,first_learn&page-size=20&sort=addr').pipe(
-            map((res: Response) => {
-                return res['objects'];
-            })
-        );
+        }       
+        return this.http.get(this.baseUrl + '/ept/endpoint?filter='+filter+'&include=fabric,addr,vnid,type,first_learn&page-size=20&sort=addr');
     }
 
     getAppVersion() {

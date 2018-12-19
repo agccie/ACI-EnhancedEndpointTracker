@@ -117,26 +117,9 @@
         </header>
         <div class="content">
             <div class="container-fluid center-xs">
-                <div class="row">
-                    <div class="col-md-12">
-                        &nbsp;
-                    </div>
-                </div>
-                <div *ngIf="konami">
-                    <h4>
-                        <button class="btn btn--icon btn--primary" (click)='noKonami()'>
-                            <span class="icon-back"></span>
-                        </button>
-                        Credits
-                    </h4>
-                </div>
-                <div *ngIf="!konami">
-                    <router-outlet>
-                    </router-outlet>
-                </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        &nbsp;
+                <div class="row half-margin-bottom half-margin-top">
+                    <div class="col-md-12 ">
+                        <router-outlet></router-outlet>
                     </div>
                 </div>
             </div>

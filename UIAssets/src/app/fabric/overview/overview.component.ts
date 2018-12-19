@@ -25,7 +25,7 @@ export class OverviewComponent implements OnInit {
     selectedEp: any;
     fabricRunning: boolean;
     // search bar variables
-    endpoints$: Observable<any[]>;
+    endpoints$: Observable<any>;
     endpointInput$ = new Subject<string>();
     endpointLoading: boolean = false;
     endpointList = [];
@@ -42,6 +42,22 @@ export class OverviewComponent implements OnInit {
     ngOnInit() {
         this.getFabric();
         this.searchEndpoint();
+        this.getManagerStatus();
+    }
+
+    getManagerStatus(){
+        this.backendService.getAppManagerStatus().subscribe(
+            (data) => {
+                if("manager" in data && "status" in data["manager"] && data["manager"]["status"] == "running"){
+                    this.managerRunning = true;
+                } else {
+                    this.managerRunning = false;
+                }
+            }, 
+            (error) => {
+                this.managerRunning = false;
+            }
+        );
     }
 
     getFabric() {

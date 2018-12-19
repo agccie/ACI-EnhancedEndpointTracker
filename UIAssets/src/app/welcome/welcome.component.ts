@@ -21,10 +21,11 @@ export class WelcomeComponent implements OnInit {
     showFabricModal: boolean;
     fabrics: Fabric[];
     fabricName: string;
+    managerRunning: boolean = true;
     loadingCount = 0;
     sorts = [{prop: 'fabric', dir: 'asc'}];
     @ViewChild('addFabric') addFabricModal: TemplateRef<any>;
-    endpoints$: Observable<any[]>;
+    endpoints$: Observable<any>;
     endpointInput$ = new Subject<string>();
     endpointLoading: boolean = false;
     endpointList = [];
@@ -40,6 +41,22 @@ export class WelcomeComponent implements OnInit {
     ngOnInit() {
         this.getFabrics();
         this.searchEndpoint();
+        this.getManagerStatus();
+    }
+
+    getManagerStatus(){
+        this.backendService.getAppManagerStatus().subscribe(
+            (data) => {
+                if("manager" in data && "status" in data["manager"] && data["manager"]["status"] == "running"){
+                    this.managerRunning = true;
+                } else {
+                    this.managerRunning = false;
+                }
+            }, 
+            (error) => {
+                this.managerRunning = false;
+            }
+        );
     }
 
     getFabricStatus(fabric:Fabric){

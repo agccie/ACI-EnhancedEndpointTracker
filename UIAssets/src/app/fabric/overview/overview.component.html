@@ -16,62 +16,29 @@
             </div>
         </div>
     </div>
-    <div class="row">
-        <div class="col-md-12">
-            <span class="text-xlarge" style="vertical-align: middle;"> {{ fabric?.fabric }}</span>
-            <div class="dropdown pull-right" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
-                <button class="btn btn--small btn--primary">Actions</button>
-                <div class="dropdown__menu">
-                    <a (click)="startFabric()">Start Monitor</a>
-                    <a (click)="stopFabric()">Stop Monitor</a>
-                    <a (click)="onClickOfClearDatabase()">Clear database</a>
-                    <a [routerLink]="'/queues'">Display processes</a>
-                    <a (click)='getFabric()'>Reload fabric data</a>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-md-12">
-            &nbsp;
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card__header text-huge text-center text--success">{{ fabric?.ipv4 | number }}</div>
-                <div class="card__body text-large text-center">IPv4</div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card__header text-huge text-center text--success">{{ fabric?.ipv6 | number }}</div>
-                <div class="card__body text-large text-center">IPv6</div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card__header text-huge text-center text--success">{{ fabric?.mac | number }}</div>
-                <div class="card__body text-large text-center">Mac</div>
-            </div>
-        </div>
-    </div>
-    <div class="row">
-        &nbsp;
-    </div>
-    <div class="row">
+
+    <div class="base-margin-bottom row">
         <div class="col-md-12">
             <div class="form-group">
-                <ng-select
-                        [items]="endpoints$ | async"
-                        bindLabel="name"
-                        [typeahead]="endpointInput$"
-                        [(ngModel)]="selectedEp"
-                        (change)="onEndPointChange($event)"
-                        autofocus
-                >
+                    <ng-select 
+                    placeholder="Search MAC or IP for this fabric. I.e., 00:50:56:01:BB:12, 10.1.1.101, or 2001:a:b::65"
+                    typeToSearchText="Type 4 or more characters"
+                    notFoundText="Type 4 or more characters"
+                    [items]="endpointList"
+                    bindLabel="name"
+                    [typeahead]="endpointInput$"
+                    [(ngModel)]="selectedEp"
+                    (change)="onEndPointChange($event)"
+                    [loading] = "endpointLoading"
+                    autofocus
+                    >
                     <ng-template ng-option-tmp let-item="item" let-index="index" let-search="searchTerm">
-                        <div class="row">
+                        <div class="row" *ngIf="index==0">
+                            <div class="col-md-12">
+                                Matched: <strong>{{ endpointMatchCount | number }}</strong>
+                            </div>
+                        </div>
+                        <div class="row" *ngIf="index>0">
                             <div class="col-md-2">
                                 {{ item['ept.endpoint'].addr }}
                             </div>
@@ -93,13 +60,49 @@
             </div>
         </div>
     </div>
-    <div class="row">
-        &nbsp;
+    <div class="base-margin-bottom row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card__header text-huge text-center text--success">{{ fabric?.ipv4 | number }}</div>
+                <div class="card__body text-large text-center">IPv4</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card__header text-huge text-center text--success">{{ fabric?.ipv6 | number }}</div>
+                <div class="card__body text-large text-center">IPv6</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card__header text-huge text-center text--success">{{ fabric?.mac | number }}</div>
+                <div class="card__body text-large text-center">Mac</div>
+            </div>
+        </div>
     </div>
-    <div class="row">
+    <div class="base-margin-bottom row">
         <div class="col-md-12">
             <div class="panel panel--raised">
-                <h4>Fabric Events</h4>
+                <div class="row">
+                    <div class="col-md-4">
+                        <button class="btn btn--icon btn--small btn--default" 
+                                data-balloon="Refresh" data-balloon-pos="down"
+                                (click)='getFabric()'>
+                                <span class="icon-refresh"></span>
+                        </button><button class="btn btn--icon btn--small btn--primary" 
+                                data-balloon="Start Monitor" data-balloon-pos="down"
+                                (click)='startFabric()'>
+                                <span class="icon-right-arrow-contained"></span>
+                        </button><button class="btn btn--icon btn--small btn--negative" 
+                                data-balloon="Stop Monitor" data-balloon-pos="down"
+                                (click)='stopFabric()'>
+                                <span class="icon-stop"></span>
+                        </button>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h4>{{ fabric.fabric }}</h4>
+                    </div>
+                </div>
                 <ngx-datatable
                         [columnMode]="'force'"
                         [headerHeight]="25"

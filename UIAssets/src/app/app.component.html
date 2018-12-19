@@ -78,7 +78,7 @@
                 </a>
             </li>
             <li class="sidebar__item">
-                <a (click)='getVersion()'>
+                <a (click)='showAbout()'>
                     <span class="icon-help"></span>
                     <span>About</span>
                 </a>
@@ -127,45 +127,64 @@
     </main>
 </div>
 <ng-template #abouttemplate>
-    <div class="modal-body text-left">
-        <h5 class="text-center">Enhanced Endpoint Tracker {{ version.version }}</h5>
-        <br>
-        <div class="panel panel--vibblue panel--raised">
-            <div class="row">
-                <div class="col-md-4">Documentation</div>
-                <div class="col-md-8">
-                    <a target="_blank" href="https://aci-enhancedendpointtracker.readthedocs.io/en/latest/">
-                        https://aci-enhancedendpointtracker.readthedocs.io/en/latest/
-                    </a>
-                </div>
-            </div>
-            <div class="row text-left">
-                <div class="col-md-4">Feedback</div>
-                <div class="col-md-8">
-                    <a href="mailto:aciappcenter-support@external.cisco.com?Subject=Feedback for Enhanced Endpoint Tracker app">
-                        aciappcenter-support@external.cisco.com
-                    </a>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-4">Build date</div>
-                <div class="col-md-8">{{ (version.timestamp | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
-                    ({{ (version.timestamp | amFromUnix) | amTimeAgo }})
-                </div>
-            </div>
-            <div class="row text-left">
-                <div class="col-md-4">Branch</div>
-                <div class="col-md-8">{{ version.branch }}</div>
-            </div>
-            <div class="row text-left">
-                <div class="col-md-4">Commit id</div>
-                <div class="col-md-8">{{ version.commit }}</div>
-            </div>
+    <div class="row" *ngIf="loadingAbout">
+        <div class="col-md-12">
+            <loading-dots [text]="Loading"></loading-dots>
         </div>
     </div>
-    <br>
+    <div class="row" *ngIf="!loadingAbout">
+        <div class="col-md-12 text-left">
+            <h5 class="text-center">
+                <span class="text-bold">Enhanced Endpoint Tracker</span>
+                <br>v{{ version.version }}
+            </h5>
+            <table class="table table--highlight base-margin">
+                <tbody>
+                    <tr *ngIf="!app_mode">
+                        <td class="text-bold">API</td>
+                        <td>
+                            <a target="_blank" href="./docs/">
+                                Swagger Docs
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-bold">Documentation</td>
+                        <td>
+                            <a target="_blank" href="https://aci-enhancedendpointtracker.readthedocs.io/en/latest/">
+                                https://aci-enhancedendpointtracker.readthedocs.io/en/latest/
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-bold">Feedback</td>
+                        <td>
+                            <a href="mailto:aciappcenter-support@external.cisco.com?Subject=Feedback for Enhanced Endpoint Tracker app">
+                                 aciappcenter-support@external.cisco.com
+                             </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-bold">Build Date</td>
+                        <td>
+                            {{ (version.timestamp | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                            ({{ (version.timestamp | amFromUnix) | amTimeAgo }})
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-bold">Branch</td>
+                        <td> {{ version.branch }} </td>
+                    </tr>
+                    <tr>
+                        <td class="text-bold">Commit</td>
+                        <td> {{ version.commit }} </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
     <div class="modal-footer">
-        <button type="reset" class="btn btn--primary btn--small" (click)="modalService.hideModal()">Close</button>
+        <button class="btn btn--gray-ghost" (click)="modalService.hideModal()">Close</button>
     </div>
 </ng-template>
 <ng-template #generalModal>

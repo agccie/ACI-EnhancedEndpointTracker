@@ -21,6 +21,7 @@ export class AppComponent implements OnInit, OnDestroy {
     fabricName: string;
     endpointExpanded: boolean;
     sidebarCollapsed: boolean;
+    loadingAbout: boolean = false;
     @ViewChild('abouttemplate') aboutModal: TemplateRef<any>;
     @ViewChild('generalModal') generalModal: TemplateRef<any>;
     authors = ['Andy Gossett', 'Axel Bodart', 'Hrishikesh Deshpande'];
@@ -75,11 +76,16 @@ export class AppComponent implements OnInit, OnDestroy {
         )
     }
 
-    getVersion() {
+    showAbout() {
+        this.loadingAbout = true;
+        this.modalService.openModal(this.aboutModal);
         this.backendService.getVersion().subscribe(
-            (results) => {
-                this.version = results;
-                this.modalService.openModal(this.aboutModal);
+            (data) => {
+                this.loadingAbout = false;
+                this.version = data;
+            }, 
+            (error) => {
+                this.loadingAbout = false;
             }
         );
     }

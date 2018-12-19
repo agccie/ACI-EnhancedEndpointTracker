@@ -10,7 +10,7 @@ import { convertToR3QueryMetadata } from '@angular/core/src/render3/jit/directiv
 
 @Component({
     selector: 'app-root',
-    templateUrl: './app.component.html',
+    templateUrl: './app.component.html'
 })
 
 export class AppComponent implements OnInit, OnDestroy {

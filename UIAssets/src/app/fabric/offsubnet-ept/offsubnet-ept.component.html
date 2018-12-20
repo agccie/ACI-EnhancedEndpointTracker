@@ -1,21 +1,23 @@
 <div class="row">
-    <div class="col-md-12">
+    <div class="col-md-12 base-margin-bottom">
         <div class="alert">
             <div class="alert__icon icon-info-outline"></div>
             <div class="alert__message">This is historic data. The endpoints shown may not be offsubnet anymore.</div>
         </div>
     </div>
     <div class="col-md-12">
-        &nbsp;
-    </div>
-    <div class="col-md-12">
         <div class="panel panel--raised">
-            <h4>
-                <button class="btn btn--icon btn--small btn--primary" (click)='getOffsubnetEndpoints()'>
-                    <span class="icon-refresh"></span>
-                </button>
-                OffSubnet Endpoints
-            </h4>
+            <div class="row base-margin-bottom">
+                <div class="col-md-2">
+                        <button class="btn btn--icon btn--small btn--default" (click)='getOffsubnetEndpoints()'>
+                            <span class="icon-refresh"></span>
+                        </button>
+                </div>
+                <div class="col-md-8 text-center">
+                        <h4>OffSubnet Endpoints</h4>
+                </div>
+                <div class="col-md-2"></div>
+            </div>
             <ngx-datatable
                     [columnMode]="'force'"
                     [headerHeight]="25"

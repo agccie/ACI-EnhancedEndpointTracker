@@ -10,12 +10,17 @@
     </div>
     <div class="col-md-12">
         <div class="panel panel--raised">
-            <h4>
-                <button class="btn btn--icon btn--small btn--primary" (click)='getStaleEndpoints()'>
-                    <span class="icon-refresh"></span>
-                </button>
-                Stale Endpoints
-            </h4>
+            <div class="row base-margin-bottom">
+                <div class="col-md-2">
+                        <button class="btn btn--icon btn--small btn--default" (click)='getStaleEndpoints()'>
+                            <span class="icon-refresh"></span>
+                        </button>
+                </div>
+                <div class="col-md-8 text-center">
+                        <h4>Stale Endpoints</h4>
+                </div>
+                <div class="col-md-2"></div>
+            </div>
             <ngx-datatable
                     [columnMode]="'force'"
                     [headerHeight]="25"

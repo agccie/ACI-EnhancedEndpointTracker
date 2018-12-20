@@ -70,6 +70,7 @@ export class SettingsComponent implements OnInit {
         let body = 'Are you sure you want to delete all endpoint history for <strong>' + this.fabricService.fabric.fabric + '</strong>? ' +
             'This action cannot be undone.';
         this.modalService.setModalConfirm({
+            "modalType": "error",
             "title": "Wait",
             "body": body,
             "callback": function () {

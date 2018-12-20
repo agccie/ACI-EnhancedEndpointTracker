@@ -18,7 +18,6 @@ export class EndpointsComponent implements OnInit {
     stFilter = false;
     activeFilter = false;
     rapidFilter = false;
-    endpoints: Endpoint[];
     pageSize: number;
     count: number;
     pageNumber = 0;
@@ -31,7 +30,6 @@ export class EndpointsComponent implements OnInit {
                 private activatedRoute: ActivatedRoute, public pagingService: PagingService,
                 public modalService: ModalService) {
         this.rows = [];
-        this.endpoints = [];
         this.pageSize = this.prefs.pageSize;
     }
 
@@ -57,8 +55,9 @@ export class EndpointsComponent implements OnInit {
                         this.loading = false;
                     }, (error) => {
                         this.loading = false;
-                        const msg = 'Could not fetch endpoints! ' + error['error']['error'];
-                        //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                        this.modalService.setModalError({
+                            "body": "Failed to get endpoint data. " + error['error']['error']
+                        });
                     }
                 );
             }
@@ -66,22 +65,21 @@ export class EndpointsComponent implements OnInit {
     }
 
     onFilterToggle() {
-        this.loading = false;
-        this.backendService.getFilteredEndpoints(this.fabricName, this.sorts, this.osFilter, this.stFilter, this.activeFilter, this.rapidFilter, 'endpoint', this.pagingService.pageOffset, this.pagingService.pageSize).subscribe(
+        this.loading = true;
+        this.backendService.getFilteredEndpoints(this.fabricName, this.sorts, this.osFilter, this.stFilter, 
+                                                this.activeFilter, this.rapidFilter, 'endpoint', this.pagingService.pageOffset, 
+                                                this.pagingService.pageSize).subscribe(
             (data) => {
-                this.endpoints = [];
-                this.rows = [];
-                for (let object of data.objects) {
-                    const endpoint = object["ept.endpoint"];
-                    this.endpoints.push(endpoint);
-                    this.rows.push(endpoint);
-                }
-                this.pagingService.count = data['count'];
+                this.loading = false;
+                let endpoint_list = new EndpointList(data);
+                this.rows = endpoint_list.objects;
+                this.pagingService.count = endpoint_list.count;
             },
             (error) => {
                 this.loading = false;
-                const msg = 'Could not fetch filtered endpoints! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                this.modalService.setModalError({
+                    "body": "Failed to get endpoint data. " + error['error']['error']
+                });
             }
         )
     }

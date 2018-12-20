@@ -6,7 +6,6 @@ import {environment} from '../environments/environment';
 import {filter} from "rxjs/operators";
 import {ModalService} from './_service/modal.service';
 import {Version} from './_model/version';
-import { convertToR3QueryMetadata } from '@angular/core/src/render3/jit/directive';
 
 @Component({
     selector: 'app-root',

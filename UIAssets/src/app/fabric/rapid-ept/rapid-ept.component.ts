@@ -34,6 +34,7 @@ export class RapidEptComponent implements OnInit {
     }
 
     getRapidEndpoints() {
+        this.loading = true;
         this.backendService.getFilteredEndpoints(this.pagingService.fabricName, this.sorts, false, false, false, false, 'rapid', this.pagingService.pageOffset, this.pagingService.pageSize).subscribe(
             (data) => {
                 let endpoint_list = new EndpointList(data);
@@ -42,9 +43,9 @@ export class RapidEptComponent implements OnInit {
                 this.loading = false;
             }, (error) => {
                 this.loading = false;
-                const msg = 'Failed to load rapid endpoints! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
-
+                this.modalService.setModalError({
+                    "body": "Failed to get endpoint data. " + error['error']['error']
+                });
             }
         );
     }

@@ -41,8 +41,9 @@ export class MovesComponent implements OnInit {
                         this.loading = false;
                     }, (error) => {
                         this.loading = false;
-                        const msg = 'Could not fetch moves! ' + error['error']['error'];
-                        //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                        this.modalService.setModalError({
+                            "body": "Failed to get endpoint data. " + error['error']['error']
+                        });
                     }
                 );
             }

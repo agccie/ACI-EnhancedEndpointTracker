@@ -31,6 +31,7 @@ export class ClearedEptComponent implements OnInit {
     }
 
     getClearedEndpoints() {
+        this.loading = true;
         this.backendService.getFilteredEndpoints(this.pagingService.fabricName, this.sorts, false, false, false, false, 'remediate', this.pagingService.pageOffset, this.pagingService.pageSize).subscribe(
             (data) => {
                 let endpoint_list = new EndpointList(data);
@@ -39,8 +40,9 @@ export class ClearedEptComponent implements OnInit {
                 this.loading = false;
             }, (error) => {
                 this.loading = false;
-                const msg = 'Could not fetch cleared endpoints! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
+                this.modalService.setModalError({
+                    "body": "Failed to get endpoint data. " + error['error']['error']
+                });
             }
         );
     }

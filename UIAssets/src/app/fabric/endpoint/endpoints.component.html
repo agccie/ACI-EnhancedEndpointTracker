@@ -8,7 +8,7 @@
                         </button>
                 </div>
                 <div class="col-md-8 text-center">
-                        <h4>All Endpoints</h4>
+                        <h4>Current Endpoint State</h4>
                 </div>
                 <div class="col-md-2"></div>
             </div>
@@ -23,7 +23,7 @@
                 <label class="switch">
                     <input type="checkbox" [(ngModel)]="osFilter" (change)="onFilterToggle()">
                     <span class="switch__input"></span>
-                    <span class="switch__label">Offsubnet Endpoints</span>
+                    <span class="switch__label">OffSubnet Endpoints</span>
                 </label>
             </div>
             <div class="form-group form-group--inline">
@@ -64,17 +64,13 @@
                   }">
                 <ngx-datatable-column prop="events[0].status" name="State" [sortable]="true" [flexGrow]="0.1">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                        <span *ngIf="(row.events.length > 0) && (row.events[0].status === 'created' || row.events[0].status === 'modified')"
-                              class="label label--vibblue">
-                                active
-                        </span>
-                        <span class="label label--dkgray"
-                              *ngIf="row.events.length === 0 || row.events[0].status === 'deleted'">
-                            inactive
-                        </span>
-                        <span class="label label--danger" *ngIf="row.is_offsubnet">offsubnet</span>
-                        <span class="label label--danger" *ngIf="row.is_stale">stale</span>
-                        <span class="label label--danger" *ngIf="row.is_rapid">rapid</span>
+                        <status-label *ngIf="row.is_active && !row.is_ctrl" [status]="'active'"></status-label>
+                        <status-label *ngIf="!row.is_active && !row.is_ctrl" [status]="'inactive'"></status-label>
+                        <status-label *ngIf="row.learn_type=='external'" [status]="'external'"></status-label>
+                        <status-label *ngIf="row.is_ctrl" [status]="row.learn_type"></status-label>
+                        <status-label *ngIf="row.is_offsubnet" [status]="'offsubnet'"></status-label>
+                        <status-label *ngIf="row.is_rapid" [status]="'rapid'"></status-label>
+                        <status-label *ngIf="row.is_stale" [status]="'stale'"></status-label>
                     </ng-template>
                 </ngx-datatable-column>
                 <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.1">
@@ -103,37 +99,3 @@
         </div>
     </div>
 </div>
-<ng-template #errorMsg>
-    <div class="modal__body">
-        <div class="col-xl-12">
-            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
-                <div class="alert__icon icon-check-outline"></div>
-                <div class="alert__message text-left">
-                    <h4>{{ modalService.modalTitle }}</h4>
-                    <div>{{ modalService.modalBody }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
-            <div class="alert__icon icon-error-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
-            <div class="alert__icon icon-info-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="modal__footer" *ngIf="!modalService.decisionBox">
-            <button class="btn" (click)="modalService.hideModal()">Ok</button>
-        </div>
-        <div class="modal__footer" *ngIf="modalService.decisionBox">
-            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
-            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
-        </div>
-    </div>
-</ng-template>

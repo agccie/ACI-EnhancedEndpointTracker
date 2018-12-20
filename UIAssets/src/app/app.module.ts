@@ -47,6 +47,7 @@ import {RemediationComponent} from "./fabric/settings/remediation/remediation.co
 import {AdvancedComponent} from "./fabric/settings/advanced/advanced.component";
 import {LoadingDotsComponent} from "./common/loading-dots.component";
 import {EndpointLabelComponent} from "./common/endpoint-label.component";
+import {StatusLabelComponent} from "./common/status-label.component";
 
 const appRoutes: Routes = [
     {
@@ -151,6 +152,7 @@ const appRoutes: Routes = [
         LocalNodePipe,
         LoadingDotsComponent,
         EndpointLabelComponent,
+        StatusLabelComponent,
     ],
     imports: [
         BrowserModule,

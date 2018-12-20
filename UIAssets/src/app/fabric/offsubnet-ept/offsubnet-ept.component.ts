@@ -43,8 +43,9 @@ export class OffsubnetEptComponent implements OnInit {
                         this.loading = false;
                     }, (error) => {
                         this.loading = false;
-                        const msg = 'Could not fetch offsubnet endpoints! ' + error['error']['error'];
-                        //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                        this.modalService.setModalError({
+                            "body": "Failed to get endpoint data. " + error['error']['error']
+                        });
                     }
                 );
             }

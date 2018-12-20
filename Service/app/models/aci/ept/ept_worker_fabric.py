@@ -59,6 +59,7 @@ class eptWorkerFabric(object):
         # based on provide vnid and flags return learn type for endpoint:
         #   loopback - if loopback in flags
         #   psvi - if psvi in flags
+        #   svi - represents an external SVI (should be set on all external svis)
         #   overlay if vnid is overlay vnid
         #   external if vnid is in eptVnid table with external set to true
         #   else returns 'epg' (default learn type)
@@ -66,6 +67,8 @@ class eptWorkerFabric(object):
             return "loopback"
         elif "psvi" in flags:
             return "psvi"
+        elif "svi" in flags:
+            return "external"
         elif vnid == self.settings.overlay_vnid:
             return "overlay"
         ept_vnid = self.cache.get_vnid_name(vnid, return_object=True)

@@ -994,14 +994,15 @@ class Rest(object):
                     #cls.logger.debug("op: [%s]", r1.group("op"))
                     op = delim+r1.group("op")
                     depth = 0
-                    for i, c in enumerate(fs[len(op):]):
+                    oplen = len(op)
+                    for i, c in enumerate(fs[oplen:]):
                         #cls.logger.debug("checking: [%s:%s]", i,c)
                         if c==")":
-                            if i>0 and fs[i-1]=="\\": continue
+                            if i>0 and fs[oplen+i-1]=="\\": continue
                             elif depth>0: depth-=1
                             else:  
                                 operands.append("%s%s"%(r1.group("op"),
-                                    fs[len(op):len(op)+i+1]))
+                                    fs[oplen:oplen+i+1]))
                                 delim+= operands[-1]
                                 #cls.logger.debug("op set:[%s]", operands[-1])
                                 break

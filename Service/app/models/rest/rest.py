@@ -1091,9 +1091,9 @@ class Rest(object):
         if params is None: params = get_user_params()
         user_filter = params.get("filter","").strip()
         if len(user_filter)>0:
-            cls.logger.debug("parse user filter: %s", user_filter)
+            #cls.logger.debug("parse user filter: %s", user_filter)
             r = parse_operator(user_filter)
-            if len(r)>0: cls.logger.debug("parsed filter: %s", r)
+            #if len(r)>0: cls.logger.debug("parsed filter: %s", r)
             for k in r: f[k] = r[k]
         return f
 

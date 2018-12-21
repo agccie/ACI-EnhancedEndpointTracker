@@ -133,7 +133,8 @@ def api_route(authenticated = True, keyed_url = False, methods = None, path = No
                     rbac role can also be enforced.  If provided value is an int within min/max 
                     Role, then that value will be used in rbac check.  The value can also be a string
                     (create_role, read_role, etc...) which will inherit the corresponding role
-                    defined in META_ACCESS for this class.
+                    defined in META_ACCESS for this class. If not specified, then will inherit the
+                    default_role defined for the class.
 
         summary     swagger doc summary for route. If not provided, then function docstring will be
                     used.

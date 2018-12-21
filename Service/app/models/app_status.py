@@ -5,6 +5,7 @@ from . aci.ept.common import MANAGER_CTRL_CHANNEL
 from . rest import api_register
 from . rest import api_route
 from . rest import Rest
+from . rest import Role
 from . utils import get_redis
 
 from flask import jsonify
@@ -43,6 +44,7 @@ class AppStatus(Rest):
         "create": False,
         "update": False,
         "delete": False,
+        "read_role": Role.USER,
     }
     META = {
         "version": {
@@ -217,7 +219,7 @@ class AppStatus(Rest):
         })
 
     @staticmethod
-    @api_route(path="/manager", methods=["GET"], swag_ret=["manager_status"])
+    @api_route(path="/manager", methods=["GET"], role="read_role", swag_ret=["manager_status"])
     def api_check_manager_status():
         """ check status of manager process including all active fabrics """
         try:

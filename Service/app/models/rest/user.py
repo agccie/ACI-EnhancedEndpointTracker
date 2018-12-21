@@ -227,6 +227,12 @@ class User(Rest):
             else:
                 # else add filter blocking updates to reserved usernames
                 filters["username"] = {"$nin":User.RESERVED}
+
+        # block role elevation
+        if filters["username"] == g.user.username:
+            if "role" in data and data["role"]!=g.user.role:
+                abort(403, "cannot modify local user role")
+
         return (filters, data)
 
     @classmethod

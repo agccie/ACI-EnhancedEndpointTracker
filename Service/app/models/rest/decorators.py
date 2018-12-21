@@ -577,7 +577,7 @@ class RouteInfo(object):
                         break
 
         # force role to a valid value
-        if isinstance(self.role, basestring) and self.role in RouteInfo.allowed_role:
+        if isinstance(self.role, basestring) and self.role in RouteInfo.allowed_roles:
             self.role = cls._access[self.role]
         elif not isinstance(self.role, int):
             self.role = cls._access["default_role"]

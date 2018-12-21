@@ -200,7 +200,9 @@ class eptSettings(Rest):
         },
         "rapid_threshold": {
             "type": int,
-            "default": 1000,
+            "default": 2048,
+            "min": 512,
+            "max": 65536,
             "description": "number of events per minute before endpoint is marked as rapid",
         },
         "rapid_holdtime": {

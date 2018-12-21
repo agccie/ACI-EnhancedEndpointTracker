@@ -114,6 +114,7 @@ export class Endpoint {
     is_rapid: boolean = false;
 
     //auto-calculated after sync
+    is_flagged: boolean = false;
     is_ctrl: boolean = false;   
     is_active: boolean = false;
 
@@ -135,6 +136,10 @@ export class Endpoint {
         this.is_offsubnet = false;
         this.is_stale = false;
         this.is_rapid = false;
+        // dynamically calculated
+        this.is_active = false;
+        this.is_ctrl = false;
+        this.is_flagged = false;
     }
     // sync Endpoint object to provided JSON
     sync(data: any = {}) {
@@ -156,8 +161,9 @@ export class Endpoint {
         }
 
         //update calculated values
-        this.is_ctrl = !(this.learn_type.length==0 || this.learn_type=="epg" || this.learn_type=="external")
-        this.is_active = this.is_ctrl || (this.events.length>0 && this.events[0].status!="deleted")
+        this.is_flagged = this.is_rapid || this.is_offsubnet || this.is_stale;
+        this.is_ctrl = !(this.learn_type.length==0 || this.learn_type=="epg" || this.learn_type=="external");
+        this.is_active = this.is_ctrl || this.is_flagged || (this.events.length>0 && this.events[0].status!="deleted");
     }
 }
 

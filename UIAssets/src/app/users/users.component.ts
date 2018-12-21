@@ -1,8 +1,8 @@
-import {Component, OnInit, TemplateRef} from '@angular/core';
+import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {BackendService} from '../_service/backend.service';
 import {PreferencesService} from '../_service/preferences.service';
-import {User, UserList} from '../_model/user';
-import {BsModalRef, BsModalService} from 'ngx-bootstrap';
+import {User, UserList, UserRoles} from '../_model/user';
+import {ModalService} from '../_service/modal.service';
 
 @Component({
     selector: 'app-users',
@@ -11,27 +11,21 @@ import {BsModalRef, BsModalService} from 'ngx-bootstrap';
 })
 export class UsersComponent implements OnInit {
     rows;
-    modalRef: BsModalRef;
+    allUserRoles: any[];
     loading: boolean;
-    loadingMessage: string;
-    selectedUser: User;
     users: User[];
-    user: User;
+    updateUser: User;
     usernameSort: any;
     userRole: number;
     userName: string;
-    roles: ({ id: number; name: string })[];
     pageSize: number;
+    @ViewChild('updateUserTemplate') updateUserModal: TemplateRef<any>;
 
-    constructor(private backendService: BackendService, private prefs: PreferencesService, private modalService: BsModalService) {
-        this.loadingMessage = 'Loading users';
-        this.roles = [
-            {'id': 0, name: 'Admin'},
-            {'id': 1, name: 'User'},
-        ];
-        this.userName = localStorage.getItem('userName');
-        this.userRole = parseInt(localStorage.getItem('userRole'));
+    constructor(private backendService: BackendService, private prefs: PreferencesService, private modalService: ModalService) {
+        this.userName = this.prefs.userName;
+        this.userRole = this.prefs.userRole;
         this.pageSize = this.prefs.pageSize;
+        this.allUserRoles = UserRoles;
     }
 
     ngOnInit(): void {
@@ -40,18 +34,20 @@ export class UsersComponent implements OnInit {
 
     getUsers() {
         this.loading = true;
-        this.backendService.getUsers().subscribe((results: UserList) => {
-            const objects = results.objects;
-            let tempRows = [];
-            for (let obj of objects) {
-                tempRows.push(obj['user'])
+        this.backendService.getUsers().subscribe(
+            (data) => {
+                let user_list = new UserList(data);
+                this.rows = user_list.objects;
+                this.users = user_list.objects;
+                this.loading = false;
+            }, 
+            (error) => {
+                this.loading = false;
+                this.modalService.setModalError({
+                    "body": 'Failed to get users. '+ error['error']['error']
+                });
             }
-            this.users = tempRows;
-            this.rows = tempRows;
-            this.loading = false;
-        }, (err) => {
-            this.loading = false;
-        });
+        );
     }
 
     updateFilter(event) {
@@ -61,65 +57,81 @@ export class UsersComponent implements OnInit {
         });
     }
 
-    deleteUser() {
-        this.modalRef.hide();
-        this.loading = true;
-        this.backendService.deleteUser(this.selectedUser).subscribe((results) => {
-            this.getUsers();
-        }, (err) => {
-            this.loading = false;
+    onAddUser(){
+        this.updateUser = new User();
+        this.updateUser.is_new = true;
+        this.modalService.openModal(this.updateUserModal);
+    }
+
+    onUpdateUser(user:User){
+        //for some reason on modal tear down it destroys the update user, let's clone it
+        this.updateUser = user.clone();
+        this.updateUser.is_new = false;
+        this.modalService.openModal(this.updateUserModal);
+    }
+
+    onDeleteUser(user:User){
+        let that = this;
+        this.updateUser = user.clone();
+        this.modalService.setModalConfirm({
+            "modalType": "info",
+            "title": "Wait",
+            "subtitle": "Are you sure you want to delete "+this.updateUser.username+"?",
+            "callback": function(){
+                that.loading = true;
+                that.modalService.setModalInfo({
+                    "title": "Wait",
+                    "subtitle": "Are you sure you want to delete "+that.updateUser.username+"?",
+                    "loading": that.loading,
+                });
+                that.backendService.deleteUser(that.updateUser).subscribe(
+                    (data) => {
+                        that.modalService.hideModal();
+                        that.loading = false;
+                        that.getUsers();
+                    }, 
+                    (error) => {
+                        that.modalService.hideModal();
+                        that.loading = false;
+                        that.modalService.setModalError({
+                            "body": 'Failed to delete user. '+ error['error']['error']
+                        });
+                    }
+                );
+            }
         });
     }
 
     public onSubmit() {
-        this.modalRef.hide();
         this.loading = true;
-        if (this.user.is_new) {
-            this.backendService.createUser(this.user).subscribe((results) => {
-                this.getUsers();
-            }, (err) => {
-                this.loading = false;
-            });
+        if (this.updateUser.is_new) {
+            this.backendService.createUser(this.updateUser).subscribe(
+                (data) => {
+                    this.modalService.hideModal();
+                    this.loading = false;
+                    this.getUsers();
+                }, (error) => {
+                    this.modalService.hideModal();
+                    this.loading = false;
+                    this.modalService.setModalError({
+                        "body": 'Failed create user. '+ error['error']['error']
+                    });
+                }
+            );
         } else {
-            this.backendService.updateUser(this.user).subscribe((results) => {
-                this.getUsers();
-            }, (err) => {
-                this.loading = false;
-            });
+            this.backendService.updateUser(this.updateUser).subscribe(
+                (data) => {
+                    this.modalService.hideModal();
+                    this.loading = false;
+                    this.getUsers();
+                }, (error) => {
+                    this.modalService.hideModal();
+                    this.loading = false;
+                    this.modalService.setModalError({
+                        "body": 'Failed create user. '+ error['error']['error']
+                    });
+                }
+            );
         }
     }
-
-    public openAddModal(template: TemplateRef<any>) {
-        this.user = new User();
-        this.modalRef = this.modalService.show(template, {
-            animated: true,
-            keyboard: true,
-            backdrop: true,
-            ignoreBackdropClick: false,
-            class: 'modal-lg',
-        });
-    }
-
-    public openModal(template: TemplateRef<any>, user: User) {
-        this.selectedUser = user;
-        this.user = new User(
-            user.username,
-            user.role,
-            user.password,
-            user.last_login,
-            false
-        );
-        this.modalRef = this.modalService.show(template, {
-            animated: true,
-            keyboard: true,
-            backdrop: true,
-            ignoreBackdropClick: false,
-            class: 'modal-lg',
-        });
-    }
-
-    public hideModal() {
-        this.modalRef.hide();
-    }
-
 }

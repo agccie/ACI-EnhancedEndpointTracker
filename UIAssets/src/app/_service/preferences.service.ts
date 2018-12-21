@@ -7,8 +7,12 @@ import {Injectable} from '@angular/core';
 export class PreferencesService {
     pageSize = 25;
     selectedEndpoint: any;
+    userRole: number = 0;
+    userName: string = "admin";
 
     constructor() {
+        this.userName = localStorage.getItem("userName") || "admin";
+        this.userRole = parseInt(localStorage.getItem('userRole')) || 0;
     }
 
     getEndpointParams(context, callback) {

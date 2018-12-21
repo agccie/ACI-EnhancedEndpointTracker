@@ -7,6 +7,7 @@ import {ModalService} from '../../_service/modal.service';
 import {concat, forkJoin} from 'rxjs';
 import {FabricList} from '../../_model/fabric';
 import {FabricSettingsList} from '../../_model/fabric-settings';
+import {PreferencesService} from "../../_service/preferences.service";
 
 @Component({
     selector: 'app-settings',
@@ -17,9 +18,11 @@ export class SettingsComponent implements OnInit {
     app_mode = environment.app_mode;
     tabs = [];
     isLoading = false;
+    userRole: number = 0;
 
     constructor(private backendService: BackendService, private activatedRoute: ActivatedRoute, private router: Router,
-                public modalService: ModalService, public fabricService: FabricService) {
+                public modalService: ModalService, public fabricService: FabricService, private pref: PreferencesService) {
+        this.userRole = this.pref.userRole;
         this.tabs = [
             {name: 'Connectivity', path: 'connectivity'},
             {name: 'Notifications', path: 'notifications'},

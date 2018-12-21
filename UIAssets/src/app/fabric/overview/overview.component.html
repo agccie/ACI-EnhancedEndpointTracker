@@ -113,10 +113,12 @@
                                 <span class="icon-refresh"></span>
                         </button><button class="btn btn--icon btn--small btn--primary" 
                                 data-balloon="Start Monitor" data-balloon-pos="down"
+                                [disabled]="userRole!=0"
                                 (click)='startFabric()'>
                                 <span class="icon-right-arrow-contained"></span>
                         </button><button class="btn btn--icon btn--small btn--negative" 
                                 data-balloon="Stop Monitor" data-balloon-pos="down"
+                                [disabled]="userRole!=0"
                                 (click)='onStopFabric()'>
                                 <span class="icon-stop"></span>
                         </button>

@@ -14,7 +14,7 @@
    <div class="col-md-12">
         <div class="form-group"> 
             <ng-select 
-                placeholder="Search MAC or IP Address. I.e., 00:50:56:01:BB:12, 10.1.1.101, or 2001:a:b::65"
+                placeholder="Search MAC or IP Address across all fabrics. I.e., 00:50:56:01:BB:12, 10.1.1.101, or 2001:a:b::65"
                 typeToSearchText="Type 4 or more characters"
                 notFoundText="Type 4 or more characters"
                 [items]="endpointList"
@@ -66,9 +66,10 @@
                             data-balloon="Refresh" data-balloon-pos="down"
                             (click)='getFabrics()' [disabled]='loadingCount>0'>
                             <span class="icon-refresh"></span>
-                    </button><button class="btn btn--icon btn--small btn--primary" 
+                    </button><button class="btn btn--icon btn--small btn--primary"  
+                            [disabled]="userRole!=0 || loadingCount>0"
                             data-balloon="Add Fabric" data-balloon-pos="down"
-                            (click)='showAddFabric()' [disabled]='loadingCount>0'>
+                            (click)='showAddFabric()'>
                             <span class="icon-add"></span>
                     </button>
                 </div>

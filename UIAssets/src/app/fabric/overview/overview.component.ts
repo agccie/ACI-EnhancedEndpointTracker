@@ -13,6 +13,7 @@ import {catchError, debounceTime, distinctUntilChanged, switchMap, map, tap} fro
 })
 
 export class OverviewComponent implements OnInit {
+    userRole: number = 0;
     rows: any;
     pageSize: number;
     pageNumber = 0;
@@ -35,6 +36,7 @@ export class OverviewComponent implements OnInit {
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
                 private activatedRoute: ActivatedRoute, public modalService: ModalService) {
+        this.userRole = this.prefs.userRole;
         this.pageSize = this.prefs.pageSize;
         this.rows = [];
         this.fabricRunning = true;

@@ -17,6 +17,7 @@ import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rx
 
 export class WelcomeComponent implements OnInit {
     app_mode = environment.app_mode;
+    userRole: number = 0;
     rows = [];
     showFabricModal: boolean;
     fabrics: Fabric[];
@@ -33,6 +34,7 @@ export class WelcomeComponent implements OnInit {
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
                 public modalService: ModalService) {
+        this.userRole = this.prefs.userRole;
         this.rows = [];
         this.fabrics = [];
         this.fabricName = '';

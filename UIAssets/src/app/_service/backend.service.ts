@@ -218,30 +218,11 @@ export class BackendService {
     }
 
     createUser(user: User): Observable<any> {
-        const toSave = new User(
-            user.username,
-            user.role,
-            user.password
-        );
-        delete toSave.last_login;
-        delete toSave.is_new;
-        delete toSave.password_confirm;
-        return this.http.post(this.baseUrl + '/user', toSave);
+        return this.http.post(this.baseUrl + '/user', user.get_save_json());
     }
 
     updateUser(user: User): Observable<any> {
-        const toSave = new User(
-            user.username,
-            user.role,
-            user.password
-        );
-        delete toSave.is_new;
-        delete toSave.password_confirm;
-        delete toSave.last_login;
-        if (toSave.password === '') {
-            delete toSave.password;
-        }
-        return this.http.patch(this.baseUrl + '/uni/username-' + toSave.username, toSave);
+        return this.http.patch(this.baseUrl + '/uni/username-' + user.username, user.get_save_json());
     }
 
     deleteUser(user: User): Observable<any> {

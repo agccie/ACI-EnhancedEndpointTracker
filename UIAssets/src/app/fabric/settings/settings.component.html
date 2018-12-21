@@ -2,6 +2,7 @@
     <div class="row">
         <div class="col-md-2">
             <button class="btn btn--small btn--icon btn--primary" data-balloon="Save" data-balloon-pos="down"
+                    [disabled]="userRole!=0 || isLoading"
                     (click)="saveFabric()">
                 <span class="icon-save"></span>
             </button>
@@ -11,11 +12,13 @@
             </a>
             <button class="btn btn--small btn--icon btn--negative" data-balloon="Delete Endpoint History"
                     data-balloon-pos="down"
+                    [disabled]="userRole!=0 || isLoading"
                     (click)="deleteAllEndpoints()">
                 <span class="icon-virtual-machine"></span>
             </button>
             <button *ngIf="!app_mode" class="btn btn--small btn--icon btn--negative" data-balloon="Delete Fabric"
                     data-balloon-pos="down"
+                    [disabled]="userRole!=0 || isLoading"
                     (click)="deleteFabric()">
                 <span class="icon-trash"></span>
             </button>

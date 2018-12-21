@@ -3,6 +3,8 @@ import {Router} from '@angular/router';
 import {BackendService} from '../_service/backend.service';
 import {environment} from "../../environments/environment";
 import {ModalService} from '../_service/modal.service';
+import {PreferencesService} from "../_service/preferences.service";
+import {UserList} from '../_model/user';
 
 @Component({
     selector: 'app-login',
@@ -19,7 +21,8 @@ export class LoginComponent implements OnInit {
     loading = false;
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(private router: Router, private backendService: BackendService, public modalService: ModalService) {
+    constructor(private router: Router, private backendService: BackendService, private pref: PreferencesService,
+                public modalService: ModalService) {
         if (environment.app_mode) {
             localStorage.setItem('isLoggedIn', 'true');
             this.router.navigate(['/']);
@@ -47,19 +50,21 @@ export class LoginComponent implements OnInit {
         this.loading = true;
         this.backendService.login(this.username, this.password).subscribe(
             (data) => {
-                if (data['success'] === true) {
-                    localStorage.setItem('isLoggedIn', 'true');
-                    localStorage.setItem('userName', this.username);
-                    this.backendService.getUserDetails(this.username).subscribe((response) => {
-                        const userDetails = response['objects'][0]['user'];
-                        localStorage.setItem('userRole', userDetails['role']);
+                localStorage.setItem('isLoggedIn', 'true');
+                localStorage.setItem('userName', this.username);
+                this.pref.userName = this.username;
+                this.backendService.getUserDetails(this.username).subscribe(
+                    (data) => {
+                        let user_list = new UserList(data);
+                        if(user_list.objects.length>0){
+                            localStorage.setItem('userRole', ""+user_list.objects[0].role);
+                            this.pref.userRole = user_list.objects[0].role;
+                        }
                         this.router.navigate(['/']);
                     }, (error) => {
                         this.router.navigate(['/']);
-                    });
-                } else {
-                    this.loading = false;
-                }
+                    }
+                );
             },
             (error) => {
                 this.loading = false;

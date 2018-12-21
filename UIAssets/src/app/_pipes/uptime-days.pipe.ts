@@ -5,14 +5,18 @@ import {Pipe, PipeTransform} from '@angular/core';
 })
 
 export class UptimeDaysPipe implements PipeTransform {
-    transform(value: any, args?: any): any {
-        let days = value / (24 * 3600);
-        let hours = (value % (24 * 3600)) / 3600;
-        let minutes = ((hours % 1) * 60);
-        let secondsStr = Math.trunc((minutes % 1) * 60).toString().padStart(2, '0');
-        let minutesStr = Math.trunc(minutes).toString().padStart(2, '0');
-        let hoursStr = Math.trunc(hours).toString().padStart(2, '0');
-        let daysStr = Math.trunc(days) > 1 ? Math.trunc(days) + 'days' : '1 day';
-        return `${daysStr}, ${hoursStr}:${minutesStr}:${secondsStr}`;
+    transform(value: string): string {
+        let ts = parseInt(value);
+        let d = Math.floor(ts/86400);
+        let s = ts%60;
+        let h = 0;
+        let m = 0;
+        if(ts-d*86400>0){
+            h = Math.floor((ts-d*86400)/3600);
+        }
+        if(ts-d*86400-h*3600 > 0){
+            m = Math.floor((ts-d*86400-h*3600)/60);
+        }
+        return d+" days, "+(""+h).padStart(2,'0')+":"+(""+m).padStart(2,'0')+":"+(""+s).padStart(2,'0')
     }
 }

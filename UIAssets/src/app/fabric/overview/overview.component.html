@@ -124,7 +124,13 @@
                         </button>
                     </div>
                     <div class="col-md-4 text-center">
-                        <h4>{{ fabric.fabric }}</h4>
+                        <h4 class="text-bold">{{ fabric.fabric }}</h4>
+                    </div>
+                    <div class="col-md-4 text-right">
+                        <h6>
+                            <span class="text-bold">Uptime</span>
+                            {{ fabric.uptime | uptimeDays }}
+                        </h6>
                     </div>
                 </div>
                 <ngx-datatable *ngIf="!loading && !restartLoading"
@@ -151,18 +157,7 @@
                     </ngx-datatable-column>
                     <ngx-datatable-column prop="status" name="Status" [sortable]="true" [flexGrow]="0.2">
                         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                <span class="label label--raised"
-                                      [ngClass]="{
-                                         'label--success':value === 'running',
-                                         'label--dkgray': value === 'stopped',
-                                         'label--default': value === 'initializing',
-                                         'label--info': value === 'starting',
-                                         'label--warning': value === 'failed'
-                                      }">
-                                    <span>
-                                       {{ value }}
-                                    </span>
-                                </span>
+                            <status-label [status]="value"></status-label>
                         </ng-template>
                     </ngx-datatable-column>
                     <ngx-datatable-column prop="description" name="Description" [sortable]="true" [flexGrow]="0.6">

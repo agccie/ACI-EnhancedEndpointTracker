@@ -20,6 +20,17 @@ export class StatusLabelComponent {
                 return "label--danger";
             case "stale": 
                 return "label--danger";
+            case "running":
+                return "label--success";
+            case "stopped":
+                return "label--dkgray";
+            case "initializing":
+                return "label--default";
+            case "starting":
+                return "label--info";
+            case "failed":
+                return "label--warning";
         }
+        return "label--default";
     }
 }

@@ -1,4 +1,5 @@
 import {Injectable} from '@angular/core';
+import {Endpoint} from "../_model/endpoint";
 
 @Injectable({
     providedIn: 'root'
@@ -6,7 +7,7 @@ import {Injectable} from '@angular/core';
 
 export class PreferencesService {
     pageSize = 25;
-    selectedEndpoint: any;
+    selectedEndpoint: Endpoint;
     userRole: number = 0;
     userName: string = "admin";
 

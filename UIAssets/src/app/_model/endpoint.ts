@@ -117,6 +117,15 @@ export class Endpoint {
     is_flagged: boolean = false;
     is_ctrl: boolean = false;   
     is_active: boolean = false;
+    vnid_name: string = "-";
+    epg_name: string = "-";
+    is_local: boolean = false;
+    local_node: number = 0;
+    local_pod: number = 0;
+    local_interface: string = "-";
+    local_encap: string = "-";
+    local_rw_mac: string = "-";
+    local_rw_bd: number = 0;
 
     constructor(data: any = {}) {
         this.init();
@@ -137,9 +146,17 @@ export class Endpoint {
         this.is_stale = false;
         this.is_rapid = false;
         // dynamically calculated
+        this.is_local = false;
         this.is_active = false;
         this.is_ctrl = false;
         this.is_flagged = false;
+        this.vnid_name = "-";
+        this.epg_name = "-";
+        this.local_node = 0;
+        this.local_pod = 0;
+        this.local_encap = "-";
+        this.local_rw_mac = "-";
+        this.local_rw_bd = 0;
     }
     // sync Endpoint object to provided JSON
     sync(data: any = {}) {
@@ -163,12 +180,34 @@ export class Endpoint {
         //update calculated values
         this.is_flagged = this.is_rapid || this.is_offsubnet || this.is_stale;
         this.is_ctrl = !(this.learn_type.length==0 || this.learn_type=="epg" || this.learn_type=="external");
-        this.is_active = this.is_ctrl || this.is_flagged || (this.events.length>0 && this.events[0].status!="deleted");
+        this.is_active = this.is_ctrl || this.is_flagged || (this.events.length>0 && 
+                                (this.events[0].status=="created"||this.events[0].status=="modified"));
+        // set vnid name and epg name based of lastest event or first_learn of no events are present
+        if(this.events.length>0){
+            this.vnid_name = this.events[0].vnid_name;
+            this.epg_name = this.events[0].epg_name;
+            if(this.events[0].status=="created" || this.events[0].status=="modified"){
+                this.is_local = true;
+                this.local_pod = this.events[0].pod;
+                this.local_node = this.events[0].node;
+                this.local_interface = this.events[0].intf_name;
+                this.local_encap = this.events[0].encap;
+                if(this.type!="mac" && this.events[0].rw_bd>0){
+                    this.local_rw_mac = this.events[0].rw_mac;
+                    this.local_rw_bd = this.events[0].rw_bd;
+                }
+            }
+        } else {
+            this.vnid_name = this.first_learn.vnid_name;
+            this.epg_name = this.first_learn.epg_name;
+        }
     }
 }
 
 export class EndpointEvent {
     ts: number = 0;
+    pod: number = 0;
+    node: number = 0;
     status: string = "";
     remote: number = 0;
     pctag: number = 0;
@@ -193,6 +232,8 @@ export class EndpointEvent {
 
     init() {
         this.ts = 0;
+        this.node = 0;
+        this.pod = 0;
         this.status = "";
         this.remote = 0;
         this.pctag = 0;

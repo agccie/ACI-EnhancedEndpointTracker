@@ -258,9 +258,14 @@ export class BackendService {
         return this.http.get(this.baseUrl + '/uni/fb-' + fabric + '/history/node-' + node + '/vnid-' + vnid + '/addr-' + address);
     }
 
-    offsubnetStaleEndpointHistory(fabric, vnid, address, endpointState, table) {
-        return this.http.get(this.baseUrl + '/ept/' + table +
-            '?filter=and(eq("' + endpointState + '",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))');
+    getCurrentlyOffsubnetNodes(fabric, vnid, address){
+        return this.http.get(this.baseUrl + '/ept/history' + 
+            '?include=node&filter=and(eq("is_offsubnet",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))');
+    }
+
+    getCurrentlyStaleNodes(fabric, vnid, address){
+        return this.http.get(this.baseUrl + '/ept/history' + 
+            '?include=node&filter=and(eq("is_stale",true),eq("fabric","' + fabric + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))');
     }
 
     testNotification(fabricName: String, type: String) {
@@ -291,7 +296,7 @@ export class BackendService {
     }
 
     getCountsForEndpointDetails(fabric, vnid, address, table): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + `/ept/${table}?count=1&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
+        return this.http.get<EndpointList>(this.baseUrl + `/ept/${table}?include=count&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
     }
 
     getXrNodesCount(fabric, vnid, address): Observable<EndpointList> {

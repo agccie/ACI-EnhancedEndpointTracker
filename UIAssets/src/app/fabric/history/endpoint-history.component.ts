@@ -4,6 +4,7 @@ import {BackendService} from '../../_service/backend.service';
 import {ActivatedRoute} from '@angular/router';
 import {forkJoin} from 'rxjs';
 import {ModalService} from '../../_service/modal.service';
+import {EndpointList, Endpoint} from '../../_model/endpoint';
 
 @Component({
     selector: 'app-endpoint-history',
@@ -11,26 +12,35 @@ import {ModalService} from '../../_service/modal.service';
 })
 
 export class EndpointHistoryComponent implements OnInit {
-    tabs: any;
-    endpoint: any;
+    loading = true;
+    tabs: any = [];
+    endpoint: Endpoint = new Endpoint;
+    vnid: number = 0;
+    address: string = "";
+    fabricName: string = "";
+    offsubnetNodeList = [];
+    staleNodeList = [];
+    total_moves: number = 0;
+    total_offsubnet: number = 0;
+    total_stale: number = 0;
+    total_rapid: number = 0;
+    total_xr: number = 0;
+
+
     endpointStatus = '';
     fabricDetails = '';
     staleoffsubnetDetails = '';
-    fabricName: string;
-    vnid: string;
-    address: string;
     rw_mac = '';
     rw_bd = '';
     clearEndpointOptions: any;
     clearNodes = [];
-    loading = true;
+
     dropdownActive = false;
     decisionBox = false;
     callback: any;
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
     @ViewChild('clearMsg') clearModal: TemplateRef<any>;
-    offsubnetList = [];
-    staleList = [];
+
     counts = [];
     addNodes = (term) => {
         return {label: term, value: term};
@@ -55,42 +65,108 @@ export class EndpointHistoryComponent implements OnInit {
     }
 
     ngOnInit() {
-        this.loading = true;
         this.activatedRoute.parent.paramMap.subscribe(params => {
             this.fabricName = params.get('fabric');
             if (this.fabricName !== undefined) {
                 this.activatedRoute.paramMap.subscribe(params => {
-                    this.vnid = params.get('vnid');
+                    this.vnid = parseInt(params.get('vnid')) || 0;
                     this.address = params.get('address');
                     this.getEndpoint(this.fabricName, this.vnid, this.address);
-                    this.loading = false;
-                }, error => {
-                    this.loading = false;
                 });
             }
-        }, error => {
-            this.loading = false;
         });
     }
 
     getEndpoint(fabric, vnid, address) {
         this.loading = true;
-        this.backendService.getEndpoint(fabric, vnid, address).subscribe(
-            (data) => {
-                this.endpoint = data.objects[0]['ept.endpoint'];
-                this.prefs.selectedEndpoint = this.endpoint;
-                this.setupStatusAndInfoStrings();
-                this.getCounts();
+        // need to get eptEndpoint info and merge in following other attributes:
+        //  1) eptEndpoint state for this endpoint
+        //  2) event counts (moves, offsubnet, stale, XR nodes)
+        //  3) currently stale nodes and currently offsubnet nodes
+
+        this.offsubnetNodeList = [];
+        this.staleNodeList = [];
+        this.total_moves = 0;
+        this.total_offsubnet = 0;
+        this.total_stale = 0;
+        this.total_rapid = 0;
+        this.total_xr = 0;
+
+        const getEndpointState = this.backendService.getEndpoint(fabric, vnid, address);
+        const getMoveCount = this.backendService.getCountsForEndpointDetails(fabric, vnid, address, 'move');
+        const getOffsubnetCount = this.backendService.getCountsForEndpointDetails(fabric, vnid, address, 'offsubnet');
+        const getStaleCount = this.backendService.getCountsForEndpointDetails(fabric, vnid, address, 'stale');
+        const getRapidCount = this.backendService.getCountsForEndpointDetails(fabric, vnid, address, 'rapid');
+        const getXRCount = this.backendService.getXrNodesCount(fabric, vnid, address);
+        const getOffsubnetNodes = this.backendService.getCurrentlyOffsubnetNodes(fabric, vnid, address);
+        const getStaleNodes = this.backendService.getCurrentlyStaleNodes(fabric, vnid, address);
+        
+        forkJoin(getEndpointState, getMoveCount, getOffsubnetCount, getStaleCount, getRapidCount, getXRCount, getOffsubnetNodes, getStaleNodes).subscribe(
+            ([endpointState, moveCount, offsubnetCount, staleCount, rapidCount, xrCount, offsubnetNodes, staleNodes]) =>{
+                let endpoint_list = new EndpointList(endpointState);
+                if(endpoint_list.objects.length>0){
+                    this.endpoint = endpoint_list.objects[0];
+                    this.prefs.selectedEndpoint = this.endpoint;
+                }
+                let move_count_list = new EndpointList(moveCount);
+                let offsubnet_count_list = new EndpointList(offsubnetCount);
+                let stale_count_list = new EndpointList(staleCount);
+                let rapid_count_list = new EndpointList(rapidCount);
+                let xr_count_list = new EndpointList(xrCount);
+                let offsubnet_node_list = new EndpointList(offsubnetNodes);
+                let stale_node_list = new EndpointList(staleNodes);
+                if(move_count_list.objects.length>0){
+                    this.total_moves = move_count_list.objects[0].count;
+                }
+                if(offsubnet_count_list.objects.length>0){
+                    this.total_offsubnet = 0;
+                    //need to sum event count across all nodes
+                    offsubnet_count_list.objects.forEach(element => {
+                        this.total_offsubnet+= element.count;
+                    });
+                }
+                if(stale_count_list.objects.length>0){
+                    this.total_stale = 0;
+                    //need to sum event count across all nodes
+                    stale_count_list.objects.forEach(element => {
+                        this.total_stale+= element.count;
+                    });
+                }
+                if(rapid_count_list.objects.length>0){
+                    this.total_rapid = rapid_count_list.objects[0].count;
+                }
+                //xr is simply count returned from query
+                this.total_xr = xr_count_list.count;
+                if(offsubnet_node_list.objects.length>0){
+                    //add each offsubnet node to offsubnetNodeList
+                    this.offsubnetNodeList = [];
+                    offsubnet_node_list.objects.forEach(element => {
+                        if(element.node>0){
+                            this.offsubnetNodeList.push(element.node);
+                        }
+                    })
+                }
+                if(stale_node_list.objects.length>0){
+                    //add each stale node to offsubnetNodeList
+                    this.staleNodeList = [];
+                    stale_node_list.objects.forEach(element => {
+                        if(element.node>0){
+                            this.staleNodeList.push(element.node);
+                        }
+                    })
+                }
                 this.loading = false;
-            },
+            }, 
             (error) => {
                 this.loading = false;
-                const msg = 'Failed to load endpoint! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                this.modalService.setModalError({
+                    "body": 'Failed to load endpoint. ' + error['error']['error']
+                })    
             }
         );
     }
 
+    /*
     getEventProperties(property) {
         if (this.endpoint.events.length > 0) {
             return this.endpoint.events[0][property];
@@ -183,6 +259,7 @@ export class EndpointHistoryComponent implements OnInit {
             this.fabricDetails += ', EPG <strong>' + epgname + '</strong>';
         }
     }
+
 
     onClickOfDelete() {
         const msg = 'Are you sure you want to delete all information for ' + this.endpoint.addr + ' from the local database? Note, this will not affect the endpoint state within the fabric.'
@@ -326,4 +403,5 @@ export class EndpointHistoryComponent implements OnInit {
             }
         );
     }
+    */
 }

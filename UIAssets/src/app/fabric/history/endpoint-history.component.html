@@ -3,17 +3,16 @@
         &nbsp;
     </div>
 </div>
-<div *ngIf="!loading">
-    <div class="panel panel--bordered">
+
+<div class="panel panel--bordered">
+    <loading-dots *ngIf="loading"></loading-dots>
+    <div *ngIf="!loading">
         <div class="row">
             <div class="col-md-12">
                 <endpoint-label [type]="endpoint.type"></endpoint-label>&nbsp;
-                <span class="text-xlarge" style="vertical-align: middle">{{ endpoint?.addr }}</span>&nbsp;
-                <span *ngIf="['external','psvi','loopback'].includes(endpoint?.learn_type)">
-                    <span class="label label--ltgray">{{ endpoint?.learn_type}}</span>
-                    &nbsp;
-                </span>
-                <div class="dropdown pull-right" [class.active]="dropdownActive"
+                <span class="text-xlarge" style="vertical-align: middle">{{ endpoint.addr }}</span>&nbsp;
+                <status-label *ngIf="endpoint.is_ctrl" [status]="endpoint.learn_type"></status-label>
+                <!--div class="dropdown pull-right" [class.active]="dropdownActive"
                      (click)="dropdownActive = !dropdownActive">
                     <button class="btn btn--small btn--primary">Actions</button>
                     <div class="dropdown__menu">
@@ -21,62 +20,93 @@
                         <a (click)="onClickOfDelete()">Clear events</a>
                         <a (click)="onClickOfClear()">Clear endpoint</a>
                     </div>
-                </div>
+                </div-->
             </div>
         </div>
-        <div *ngIf="endpoint?.is_offsubnet">
+        <div *ngIf="endpoint.is_offsubnet">
             <div class="row qtr-margin-top">
-                <div class="col-md-12">
-                    <span class="label label--danger">offsubnet</span>
+                <div class="col-md-1 text-left">
+                    <status-label [status]="'offsubnet'"></status-label>
+                </div>
+                <div class="col-md-11">
                     <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
-                    <span *ngFor='let node of offsubnetList' class="label label--dkgray">{{ node }}</span>
+                    <span *ngFor='let node of offsubnetNodeList' class="label label--dkgray">{{ node }}</span>
                 </div>
             </div>
         </div>
-        <div *ngIf="endpoint?.is_stale">
+        <div *ngIf="endpoint.is_stale">
             <div class="row qtr-margin-top">
-                <div class="col-md-12">
-                    <span class="label label--danger">Stale</span>
+                <div class="col-md-1 text-left">
+                    <status-label [status]="'stale'"></status-label>
+                </div>
+                <div class="col-md-11">
                     <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
-                    <span *ngFor='let node of staleList' class="label label--dkgray">{{ node }}</span>
+                    <span *ngFor='let node of staleNodeList' class="label label--dkgray">{{ node }}</span>
                 </div>
             </div>
         </div>
-        <div *ngIf="endpoint?.is_rapid">
+        <div *ngIf="endpoint.is_rapid">
             <div class="row qtr-margin-top">
                 <div class="col-md-12">
-                    <span class="label label--danger">Rapid</span>
+                    <status-label [status]="'rapid'"></status-label>
                 </div>
             </div>
         </div>
-        <div *ngIf="fabricDetails != ''">
-            <div class="row qtr-margin-top">
-                <div class="col-md-12" [innerHTML]='fabricDetails'>
-                </div>
-            </div>
-        </div>
-        <div *ngIf="endpointStatus != ''">
+        <div>
             <div class="row qtr-margin-top">
                 <div class="col-md-12">
-                    <span [innerHTML]='endpointStatus'></span>
-                    <span *ngIf="rw_mac !== '' && endpoint?.type !== 'mac'">, mac
-                        <a [routerLink]="['/fabric',this.endpoint.fabric,'history',rw_bd,rw_mac]">{{ rw_mac }}</a>
+                    Fabric <strong>{{ endpoint.fabric }}</strong>
+                    <span class="qtr-margin-left" *ngIf="endpoint.type=='mac'">
+                        BD <strong>{{ endpoint.vnid_name }}</strong>
+                    </span>
+                    <span class="qtr-margin-left" *ngIf="endpoint.type!='mac'">
+                        VRF <strong>{{ endpoint.vnid_name }}</strong> 
+                    </span>
+                    <span *ngIf="!endpoint?.is_ctrl" class="qtr-margin-left">
+                        EPG <strong>{{ endpoint.epg_name }} </strong>
                     </span>
                 </div>
             </div>
         </div>
-        <div class="row qtr-margin-top">
+        <div *ngIf="!endpoint.is_ctrl">
+            <div class="row qtr-margin-top">
+                <div class="col-md-12">
+                    <span *ngIf="endpoint.is_local">
+                        Local on pod <strong>{{ endpoint.local_pod }}</strong>  
+                        node <strong>{{ endpoint.local_node | localNode }}</strong> 
+                        interface <strong>{{ endpoint.local_interface }}</strong> 
+                        encap <strong>{{ endpoint.local_encap }} </strong>
+                        <span *ngIf="endpoint.type!=mac && endpoint.local_rw_bd>0">
+                            mac 
+                            <a [routerLink]="['/fabric',endpoint.fabric,'history',endpoint.local_rw_bd,endpoint.local_rw_mac]">
+                                {{ endpoint.local_rw_mac }}
+                            </a>
+                        </span>
+                    </span>
+                    <span *ngIf="!endpoint.is_local">
+                        Not local on any node.
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="row qtr-margin-top" *ngIf="!endpoint.is_ctrl">
             <div class="col-md-12">
-                <span *ngFor='let c of counts'>
-                <span class="label label--ltgray">{{ c['ct']}}</span>
-                <span style="vertical-align: middle; margin-left:0.5% ; margin-right:0.5%"> {{ c['prop']}} </span>
-            </span>
+                <span class="label">{{ total_moves | number }}</span>
+                <span class="half-margin-left half-margin-right">Moves</span>
+                <span class="label">{{ total_offsubnet | number}}</span>
+                <span class="half-margin-left half-margin-right">OffSubnet events</span>
+                <span class="label">{{ total_stale | number }}</span>
+                <span class="half-margin-left half-margin-right">Stale events</span>
+                <span class="label">{{ total_rapid | number }}</span>
+                <span class="half-margin-left half-margin-right">Rapid events</span>
+                <span class="label">{{ total_xr | number }}</span>
+                <span class="half-margin-left half-margin-right">XR Nodes</span>
             </div>
         </div>
     </div>
 </div>
-<br>
-<div class="panel">
+
+<div class="panel base-margin-top">
     <div class="row">
         <div class="col-md-12">
             <div class="secondary-tabs">
@@ -141,40 +171,6 @@
         <div class="modal__footer">
             <button class="btn btn--primary" (click)="modalService.hideModal()">Cancel</button>
             <button class="btn btn--secondary" (click)="clearEndpoints()">Proceed</button>
-        </div>
-    </div>
-</ng-template>
-<ng-template #errorMsg>
-    <div class="modal__body">
-        <div class="col-xl-12">
-            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
-                <div class="alert__icon icon-check-outline"></div>
-                <div class="alert__message text-left">
-                    <h4>{{ modalService.modalTitle }}</h4>
-                    <div>{{ modalService.modalBody }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
-            <div class="alert__icon icon-error-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
-            <div class="alert__icon icon-info-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="modal__footer" *ngIf="!modalService.decisionBox">
-            <button class="btn" (click)="modalService.hideModal()">Ok</button>
-        </div>
-        <div class="modal__footer" *ngIf="modalService.decisionBox">
-            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
-            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
         </div>
     </div>
 </ng-template>

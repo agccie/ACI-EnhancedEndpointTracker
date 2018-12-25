@@ -21,13 +21,16 @@ export class RapidComponent implements OnInit {
     }
 
     ngOnInit() {
+        /*
         if (this.endpoint === undefined) {
             this.prefs.getEndpointParams(this, 'getRapidEndpoints');
         } else {
             this.getRapidEndpoints();
         }
+        */
     }
 
+    /*
     getRapidEndpoints() {
         this.loading = true;
         this.backendService.getRapidEndpoints(this.endpoint.fabricName, this.endpoint.vnid, this.endpoint.addr).subscribe(
@@ -46,4 +49,5 @@ export class RapidComponent implements OnInit {
             }
         )
     }
+    */
 }

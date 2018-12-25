@@ -20,12 +20,13 @@ export class StaleEventsComponent implements OnInit {
         this.rows = [];
         this.pageSize = this.prefs.pageSize;
         this.endpoint = this.prefs.selectedEndpoint;
-        this.getNodesForStaleEndpoints();
+        //this.getNodesForStaleEndpoints();
     }
 
     ngOnInit() {
     }
 
+    /*
     getNodesForStaleEndpoints() {
         this.loading = true;
         this.backendService.getAllOffsubnetStaleEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, 'stale').subscribe(
@@ -47,4 +48,5 @@ export class StaleEventsComponent implements OnInit {
             }
         )
     }
+    */
 }

@@ -110,6 +110,10 @@ export class BackendService {
         return this.http.get<EndpointList>(this.baseUrl + '/ept/' + tab + '?filter=and(eq("fabric","' + fabricName + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))&include=node');
     }
 
+    getEndpointHistoryAllNodes(fabricName: string, vnid: number, address: string): Observable<EndpointList>{
+        return this.http.get<EndpointList>(this.baseUrl + '/ept/history?filter=and(eq("fabric","' + fabricName + '"),eq("vnid",' + vnid + '),eq("addr","' + address + '"))');
+    }
+
     getEndpointHistoryPerNode(fabricName: string, node, vnid, address): Observable<EndpointList> {
         return this.http.get<EndpointList>(this.baseUrl + '/uni/fb-' + fabricName + '/history/node-' + node + '/vnid-' + vnid + '/addr-' + address);
     }

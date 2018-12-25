@@ -4,35 +4,67 @@ import {PreferencesService} from '../../../_service/preferences.service';
 import {forkJoin} from 'rxjs';
 import {ModalService} from '../../../_service/modal.service';
 import {ActivatedRoute} from '@angular/router';
+import {EndpointList, Endpoint, EndpointEvent} from '../../../_model/endpoint';
 
 @Component({
     selector: 'app-per-node-history',
     templateUrl: './per-node-history.component.html',
 })
 export class PerNodeHistoryComponent implements OnInit {
-    rows: any;
-    endpoint: any;
-    loading = false;
-    sorts = [{prop: 'events[0].ts', dir: 'desc'}];
+    rows: EndpointEvent[] = [];
+    endpoint: Endpoint = new Endpoint();
+    loading: boolean = false;
+    sorts = [{prop: 'ts', dir: 'desc'}];
     pageSize: number;
-    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService: ModalService, private activatedRoute: ActivatedRoute) {
+    constructor(private backendService: BackendService, private prefs: PreferencesService, 
+                public modalService: ModalService, private activatedRoute: ActivatedRoute) {
         this.endpoint = this.prefs.selectedEndpoint;
         this.pageSize = this.prefs.pageSize;
         this.rows = [];
     }
 
     ngOnInit() {
-        if (!this.endpoint) {
-            this.prefs.getEndpointParams(this, () => {
-                this.getNodesForEndpoint();
-            });
+        if (this.endpoint.addr.length>0){
+            this.getPerNodeHistory()
         } else {
-            this.getNodesForEndpoint();
+            this.loading = true;
+            let that = this;
+            this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
+                that.endpoint.fabric = fabricName;
+                that.endpoint.vnid = vnid;
+                that.endpoint.addr = addr;
+                that.getPerNodeHistory();
+            })
         }
     }
 
+    getPerNodeHistory(){
+        this.loading = true;
+        this.backendService.getEndpointHistoryAllNodes(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
+            (data)=>{
+                let endpoint_list = new EndpointList(data);
+                //need to combine endpoint events from all nodes, merging 'node' into each event
+                let rows = []
+                endpoint_list.objects.forEach(element => {
+                    element.events.forEach(sub_element => {
+                        sub_element.node = element.node;
+                        rows.push(sub_element);
+                    })
+                })
+                this.rows = rows;
+                this.loading = false;
+            }, 
+            (error) =>{
+                this.loading = false;
+                this.modalService.setModalError({
+                    "body": 'Failed to load endpoint detailed history. ' + error['error']['error']
+                });             
+            }
+        );
+    }
+
+    /*
     getNodesForEndpoint() {
         let cumulativeEvents = [];
         let obsList = [];
@@ -64,4 +96,5 @@ export class PerNodeHistoryComponent implements OnInit {
             }
         );
     }
+    */
 }

@@ -7,7 +7,7 @@ import {Endpoint} from "../_model/endpoint";
 
 export class PreferencesService {
     pageSize = 25;
-    selectedEndpoint: Endpoint;
+    selectedEndpoint: Endpoint = new Endpoint();
     userRole: number = 0;
     userName: string = "admin";
 
@@ -16,38 +16,21 @@ export class PreferencesService {
         this.userRole = parseInt(localStorage.getItem('userRole')) || 0;
     }
 
+    // trigger callback with fabricName, vnid, and address
     getEndpointParams(context, callback) {
-        context.activatedRoute.parent.parent.paramMap.subscribe(params => {
-            const fabricName = params.get('fabric');
-            if (fabricName != undefined) {
-                context.activatedRoute.parent.paramMap.subscribe(params => {
-                    const vnid = params.get('vnid');
-                    const address = params.get('address');
-                    this.getEndpoint(fabricName, vnid, address, context, callback);
-                    context.loading = false;
-                }, error => {
-                    context.loading = false;
-                });
+        context.activatedRoute.parent.parent.paramMap.subscribe(
+            (params) => {
+                const fabricName = params.get('fabric');
+                if (fabricName != undefined) {
+                    context.activatedRoute.parent.paramMap.subscribe(
+                        (params) => {
+                            const vnid = params.get('vnid');
+                            const address = params.get('address');
+                            callback(fabricName, vnid, address);
+                        }
+                    )
+                } 
             }
-        }, error => {
-            context.loading = false;
-        });
-    }
-
-    getEndpoint(fabric, vnid, address, context, callback?) {
-        context.loading = true;
-        context.backendService.getEndpoint(fabric, vnid, address).subscribe(
-            (data) => {
-                this.selectedEndpoint = data.objects[0]['ept.endpoint'];
-                context.endpoint = this.selectedEndpoint;
-                if (callback !== undefined) {
-                    callback();
-                }
-                context.loading = false;
-            },
-            (error) => {
-                context.loading = false;
-            }
-        );
+        )
     }
 }

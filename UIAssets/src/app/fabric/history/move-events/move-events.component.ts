@@ -22,6 +22,7 @@ export class MoveEventsComponent implements OnInit {
     }
 
     ngOnInit() {
+        /*
         if (this.endpoint === undefined) {
             this.prefs.getEndpointParams(this, () => {
                 this.getMoveEventsForEndpoint();
@@ -29,8 +30,10 @@ export class MoveEventsComponent implements OnInit {
         } else {
             this.getMoveEventsForEndpoint();
         }
+        */
     }
 
+    /*
     getMoveEventsForEndpoint() {
         this.loading = true;
         this.backendService.getMoveEventsForEndpoint(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
@@ -47,4 +50,5 @@ export class MoveEventsComponent implements OnInit {
             }
         )
     }
+    */
 }

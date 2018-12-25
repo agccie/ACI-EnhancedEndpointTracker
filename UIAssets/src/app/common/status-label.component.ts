@@ -30,6 +30,10 @@ export class StatusLabelComponent {
                 return "label--info";
             case "failed":
                 return "label--warning";
+            case "created":
+                return "label--vibblue";
+            case "deleted":
+                return "label--dkgray";
         }
         return "label--default";
     }

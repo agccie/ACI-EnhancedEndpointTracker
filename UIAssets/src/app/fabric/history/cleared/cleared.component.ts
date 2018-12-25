@@ -24,6 +24,7 @@ export class ClearedComponent implements OnInit {
     }
 
     ngOnInit() {
+        /*
         if (this.endpoint === undefined) {
             this.prefs.getEndpointParams(this, () => {
                 this.getClearedEndpoints();
@@ -31,8 +32,10 @@ export class ClearedComponent implements OnInit {
         } else {
             this.getClearedEndpoints();
         }
+        */
     }
 
+    /*
     getClearedEndpoints() {
         this.loading = true;
         this.backendService.getClearedEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
@@ -51,4 +54,5 @@ export class ClearedComponent implements OnInit {
             }
         )
     }
+    */
 }

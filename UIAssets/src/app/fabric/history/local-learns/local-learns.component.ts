@@ -2,6 +2,8 @@ import {Component, OnInit} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
 import {ActivatedRoute} from '@angular/router';
+import { ModalService } from 'src/app/_service/modal.service';
+import {EndpointList, Endpoint, EndpointEvent} from '../../../_model/endpoint';
 
 @Component({
     selector: 'app-local-learns',
@@ -9,20 +11,52 @@ import {ActivatedRoute} from '@angular/router';
 })
 
 export class LocalLearnsComponent implements OnInit {
-    rows: any;
-    endpoint: any;
-    loading = false;
+    rows: EndpointEvent[] = [];
+    endpoint: Endpoint = new Endpoint();
+    loading: boolean = false;
     sorts = [{prop: 'ts', dir: 'desc'}];
     pageSize: number;
-    rw_bd = '';
-    rw_mac = '';
 
-    constructor(private backendService: BackendService, private prefs: PreferencesService, private activatedRoute: ActivatedRoute) {
+    constructor(private backendService: BackendService, private prefs: PreferencesService, 
+                private modalService: ModalService, private activatedRoute: ActivatedRoute) {
         this.pageSize = this.prefs.pageSize;
         this.endpoint = this.prefs.selectedEndpoint;
+        this.rows = [];
     }
 
     ngOnInit() {
-        this.prefs.getEndpointParams(this, undefined);
+        if (this.endpoint.addr.length>0){
+            this.getLocalLearn()
+        } else {
+            this.loading = true;
+            let that = this;
+            this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
+                that.endpoint.fabric = fabricName;
+                that.endpoint.vnid = vnid;
+                that.endpoint.addr = addr;
+                that.getLocalLearn();
+            })
+        }
+    }
+
+    getLocalLearn(){
+        this.loading = true;
+        this.rows = [];
+        this.backendService.getEndpoint(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
+            (data) => {
+                let endpoint_list = new EndpointList(data);
+                if(endpoint_list.objects.length>0){
+                    this.endpoint = endpoint_list.objects[0];
+                    this.rows = endpoint_list.objects[0].events;
+                }
+                this.loading = false;
+            },
+            (error) =>{
+                this.loading = false;
+                this.modalService.setModalError({
+                    "body": 'Failed to load endpoint. ' + error['error']['error']
+                });
+            }
+        );
     }
 }

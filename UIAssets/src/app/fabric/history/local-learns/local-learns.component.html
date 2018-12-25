@@ -7,7 +7,7 @@
         [rowHeight]="'auto'"
         [limit]="pageSize"
         [loadingIndicator]="loading"
-        [rows]="endpoint?.events"
+        [rows]="rows"
         [sorts]="sorts"
         [cssClasses]="{
             sortAscending: 'icon-chevron-down',
@@ -38,7 +38,7 @@
             {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column *ngIf="endpoint?.type !== 'mac'" prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column *ngIf="endpoint.type !== 'mac'" prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-value="value" let-row='row' ngx-datatable-cell-template>
             <a *ngIf="value !== ''"
                [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value }}</a>

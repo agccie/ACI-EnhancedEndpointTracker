@@ -3,6 +3,7 @@ import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
 import {ModalService} from '../../../_service/modal.service';
 import {ActivatedRoute} from '@angular/router';
+import {EndpointList, Endpoint, EndpointEvent} from '../../../_model/endpoint';
 
 @Component({
     selector: 'app-cleared',
@@ -10,49 +11,57 @@ import {ActivatedRoute} from '@angular/router';
 })
 
 export class ClearedComponent implements OnInit {
-    endpoint: any;
-    rows: any;
-    loading = false;
-    pageSize = 25;
-    sorts = [{prop: 'events[0].ts', dir: 'desc'}];
-    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
+    rows: EndpointEvent[] = [];
+    endpoint: Endpoint = new Endpoint();
+    loading: boolean = false;
+    sorts = [{prop: 'ts', dir: 'desc'}];
+    pageSize: number;
 
-    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService: ModalService, private activatedRoute: ActivatedRoute) {
-        this.endpoint = this.prefs.selectedEndpoint;
+    constructor(private backendService: BackendService, private prefs: PreferencesService, private activatedRoute: ActivatedRoute,
+                public modalService: ModalService, ) {
         this.rows = [];
-
+        this.pageSize = this.prefs.pageSize;
+        this.endpoint = this.prefs.selectedEndpoint;
     }
 
     ngOnInit() {
-        /*
-        if (this.endpoint === undefined) {
-            this.prefs.getEndpointParams(this, () => {
-                this.getClearedEndpoints();
-            });
+        if (this.endpoint.addr.length>0){
+            this.getClearEvents();
         } else {
-            this.getClearedEndpoints();
+            this.loading = true;
+            let that = this;
+            this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
+                that.endpoint.fabric = fabricName;
+                that.endpoint.vnid = vnid;
+                that.endpoint.addr = addr;
+                that.getClearEvents();
+            })
         }
-        */
     }
 
-    /*
-    getClearedEndpoints() {
+    getClearEvents() {
         this.loading = true;
         this.backendService.getClearedEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
             (data) => {
                 this.rows = [];
-                for (let object of data.objects) {
-                    const endpoint = object["ept.remediate"];
-                    this.rows.push(endpoint);
-                }
+                let endpoint_list = new EndpointList(data);
+                //need to combine endpoint events from all nodes, merging 'node' into each event
+                let rows = []
+                endpoint_list.objects.forEach(element => {
+                    element.events.forEach(sub_element => {
+                        sub_element.node = element.node;
+                        rows.push(sub_element);
+                    })
+                })
+                this.rows = rows;
                 this.loading = false;
             },
             (error) => {
                 this.loading = false;
-                const msg = 'Failed to load cleared endpoints! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                this.modalService.setModalError({
+                    "body": 'Failed to load endpoint clear history. ' + error['error']['error']
+                });      
             }
         )
     }
-    */
 }

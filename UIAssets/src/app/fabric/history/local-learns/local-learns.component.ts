@@ -26,7 +26,7 @@ export class LocalLearnsComponent implements OnInit {
 
     ngOnInit() {
         if (this.endpoint.addr.length>0){
-            this.getLocalLearn()
+            this.getLocalLearn();
         } else {
             this.loading = true;
             let that = this;

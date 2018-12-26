@@ -2,52 +2,59 @@ import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
 import {ModalService} from '../../../_service/modal.service';
+import {ActivatedRoute} from '@angular/router';
+import {EndpointList, Endpoint, EndpointEvent} from '../../../_model/endpoint';
 
 @Component({
     selector: 'app-rapid',
     templateUrl: './rapid.component.html',
 })
 export class RapidComponent implements OnInit {
-    endpoint: any;
-    rows: any;
-    loading = true;
-    pageSize = 25;
-    sorts = [{prop: 'events[0].ts', dir: 'desc'}];
-    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
+    rows: EndpointEvent[] = [];
+    endpoint: Endpoint = new Endpoint();
+    loading: boolean = false;
+    sorts = [{prop: 'ts', dir: 'desc'}];
+    pageSize: number;
 
-    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService: ModalService) {
+    constructor(private backendService: BackendService, private prefs: PreferencesService, private activatedRoute: ActivatedRoute,
+                public modalService: ModalService) {
         this.endpoint = this.prefs.selectedEndpoint;
+        this.pageSize = this.prefs.pageSize;
         this.rows = [];
     }
 
     ngOnInit() {
-        /*
-        if (this.endpoint === undefined) {
-            this.prefs.getEndpointParams(this, 'getRapidEndpoints');
+        if (this.endpoint.addr.length>0){
+            this.getRapidEvents();
         } else {
-            this.getRapidEndpoints();
+            this.loading = true;
+            let that = this;
+            this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
+                that.endpoint.fabric = fabricName;
+                that.endpoint.vnid = vnid;
+                that.endpoint.addr = addr;
+                that.getRapidEvents();
+            })
         }
-        */
     }
 
-    /*
-    getRapidEndpoints() {
+    getRapidEvents() {
         this.loading = true;
-        this.backendService.getRapidEndpoints(this.endpoint.fabricName, this.endpoint.vnid, this.endpoint.addr).subscribe(
+        this.backendService.getRapidEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
             (data) => {
                 this.rows = [];
-                for (let object of data.objects) {
-                    const endpoint = object["ept.rapid"];
-                    this.rows.push(endpoint);
+                let endpoint_list = new EndpointList(data);
+                if(endpoint_list.objects.length>0){
+                    this.rows = endpoint_list.objects[0].events;
                 }
                 this.loading = false;
             },
             (error) => {
                 this.loading = false;
-                const msg = 'Failed to load rapid endpoints! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                this.modalService.setModalError({
+                    "body": 'Failed to load endpoint rapid history. ' + error['error']['error']
+                });  
             }
         )
     }
-    */
 }

@@ -1,52 +1,66 @@
-import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
 import {ModalService} from '../../../_service/modal.service';
+import {ActivatedRoute} from '@angular/router';
+import {EndpointList, Endpoint, EndpointEvent} from '../../../_model/endpoint';
 
 @Component({
     selector: 'app-stale-events',
     templateUrl: './stale-events.component.html',
 })
 export class StaleEventsComponent implements OnInit {
-    rows: any;
-    endpoint: any;
-    nodes = [];
-    loading = false;
+    rows: EndpointEvent[] = [];
+    endpoint: Endpoint = new Endpoint();
+    loading: boolean = false;
     sorts = [{prop: 'ts', dir: 'desc'}];
     pageSize: number;
-    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(private backendService: BackendService, private prefs: PreferencesService, public modalService: ModalService) {
+    constructor(private backendService: BackendService, private prefs: PreferencesService, private activatedRoute: ActivatedRoute,
+        public modalService: ModalService) {
         this.rows = [];
         this.pageSize = this.prefs.pageSize;
         this.endpoint = this.prefs.selectedEndpoint;
-        //this.getNodesForStaleEndpoints();
     }
 
     ngOnInit() {
+        if (this.endpoint.addr.length>0){
+            this.getStaleEvents();
+        } else {
+            this.loading = true;
+            let that = this;
+            this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
+                that.endpoint.fabric = fabricName;
+                that.endpoint.vnid = vnid;
+                that.endpoint.addr = addr;
+                that.getStaleEvents();
+            })
+        }
     }
 
-    /*
-    getNodesForStaleEndpoints() {
+    getStaleEvents() {
         this.loading = true;
-        this.backendService.getAllOffsubnetStaleEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, 'stale').subscribe(
+        this.backendService.getStaleEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
             (data) => {
                 this.rows = [];
-                for (let object of data.objects) {
-                    const endpoint = object["ept.stale"];
-                    for (let event of endpoint.events) {
-                        event.node = endpoint['node'];
-                        this.rows.push(event);
-                    }
-                }
+                let endpoint_list = new EndpointList(data);
+                //need to combine endpoint events from all nodes, merging 'node' into each event
+                let rows = []
+                endpoint_list.objects.forEach(element => {
+                    element.events.forEach(sub_element => {
+                        sub_element.node = element.node;
+                        rows.push(sub_element);
+                    })
+                })
+                this.rows = rows;
                 this.loading = false;
             },
             (error) => {
                 this.loading = false;
-                const msg = 'Failed to load offsubnet endpoints! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                this.modalService.setModalError({
+                    "body": 'Failed to load endpoint stale history. ' + error['error']['error']
+                });      
             }
         )
     }
-    */
 }

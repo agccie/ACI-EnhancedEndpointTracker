@@ -1,7 +1,6 @@
-import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {BackendService} from '../../../_service/backend.service';
 import {PreferencesService} from '../../../_service/preferences.service';
-import {forkJoin} from 'rxjs';
 import {ModalService} from '../../../_service/modal.service';
 import {ActivatedRoute} from '@angular/router';
 import {EndpointList, Endpoint, EndpointEvent} from '../../../_model/endpoint';
@@ -26,7 +25,7 @@ export class PerNodeHistoryComponent implements OnInit {
 
     ngOnInit() {
         if (this.endpoint.addr.length>0){
-            this.getPerNodeHistory()
+            this.getPerNodeHistory();
         } else {
             this.loading = true;
             let that = this;

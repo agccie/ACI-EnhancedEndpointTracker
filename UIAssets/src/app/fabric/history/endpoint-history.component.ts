@@ -27,18 +27,12 @@ export class EndpointHistoryComponent implements OnInit {
     total_xr: number = 0;
 
 
-    endpointStatus = '';
-    fabricDetails = '';
-    staleoffsubnetDetails = '';
-    rw_mac = '';
-    rw_bd = '';
     clearEndpointOptions: any;
     clearNodes = [];
 
     dropdownActive = false;
     decisionBox = false;
     callback: any;
-    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
     @ViewChild('clearMsg') clearModal: TemplateRef<any>;
 
     counts = [];
@@ -57,9 +51,9 @@ export class EndpointHistoryComponent implements OnInit {
             {name: ' History', icon: 'icon-computer', path: 'locallearns'},
             {name: ' Detailed', icon: 'icon-clock', path: 'pernodehistory'},
             {name: ' Move', path: 'moveevents', icon: 'icon-panel-shift-right'},
+            {name: ' Rapid', path: 'rapid', icon: 'icon-too-fast'},
             {name: ' Off-Subnet', path: 'offsubnetevents', icon: 'icon-jump-out'},
             {name: ' Stale', path: 'staleevents', icon: 'icon-warning'},
-            {name: ' Rapid', path: 'rapid', icon: 'icon-too-fast'},
             {name: ' Cleared', path: 'cleared', icon: 'icon-delete'}
         ];
     }
@@ -106,7 +100,8 @@ export class EndpointHistoryComponent implements OnInit {
                 let endpoint_list = new EndpointList(endpointState);
                 if(endpoint_list.objects.length>0){
                     this.endpoint = endpoint_list.objects[0];
-                    this.prefs.selectedEndpoint = this.endpoint;
+                    this.prefs.selectedEndpoint.init()
+                    this.prefs.selectedEndpoint.sync(this.endpoint);
                 }
                 let move_count_list = new EndpointList(moveCount);
                 let offsubnet_count_list = new EndpointList(offsubnetCount);

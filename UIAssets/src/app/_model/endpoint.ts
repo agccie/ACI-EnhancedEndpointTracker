@@ -210,6 +210,7 @@ export class EndpointEvent {
     node: number = 0;
     status: string = "";
     remote: number = 0;
+    expected_remote: number = 0;
     pctag: number = 0;
     flags: string[] = [];
     encap: string = "-";
@@ -236,6 +237,7 @@ export class EndpointEvent {
         this.pod = 0;
         this.status = "";
         this.remote = 0;
+        this.expected_remote = 0;
         this.pctag = 0;
         this.flags = [];
         this.encap = "-";
@@ -262,5 +264,7 @@ export class EndpointEvent {
                 this[attr] = data[attr];
             }
         }
+        // force rate to integer
+        this.rate = Math.floor(this.rate);
     }
 }

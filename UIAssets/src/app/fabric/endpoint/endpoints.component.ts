@@ -66,6 +66,7 @@ export class EndpointsComponent implements OnInit {
 
     onFilterToggle() {
         this.loading = true;
+        this.rows = [];
         this.backendService.getFilteredEndpoints(this.fabricName, this.sorts, this.osFilter, this.stFilter, 
                                                 this.activeFilter, this.rapidFilter, 'endpoint', this.pagingService.pageOffset, 
                                                 this.pagingService.pageSize).subscribe(

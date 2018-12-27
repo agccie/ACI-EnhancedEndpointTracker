@@ -9,18 +9,27 @@
     <div *ngIf="!loading">
         <div class="row">
             <div class="col-md-12">
+                <button class="btn btn--icon btn--small btn--default half-margin-right" (click)='getEndpoint()'>
+                    <span class="icon-refresh"></span>
+                </button>
                 <endpoint-label [type]="endpoint.type"></endpoint-label>&nbsp;
                 <span class="text-xlarge" style="vertical-align: middle">{{ endpoint.addr }}</span>&nbsp;
                 <status-label *ngIf="endpoint.is_ctrl" [status]="endpoint.learn_type"></status-label>
-                <!--div class="dropdown pull-right" [class.active]="dropdownActive"
+                <div class="dropdown dropdown--left pull-right" [class.active]="dropdownActive"
                      (click)="dropdownActive = !dropdownActive">
                     <button class="btn btn--small btn--primary">Actions</button>
                     <div class="dropdown__menu">
-                        <a (click)="onClickOfRefresh()">Refresh events</a>
-                        <a (click)="onClickOfDelete()">Clear events</a>
-                        <a (click)="onClickOfClear()">Clear endpoint</a>
+                        <a (click)="onDataplaneRefreshEndpoint()" class="icon icon-refresh">
+                            <span class="qtr-margin-left">Dataplane Refresh</span>
+                        </a>
+                        <a (click)="onDeleteEndpoint()" class="icon icon-trash">
+                            <span class="qtr-margin-left">Delete Events</span>
+                        </a>
+                        <a  class="icon icon-exclamation-triangle">
+                            <span class="qtr-margin-left">Clear Endpoint</span>
+                        </a>
                     </div>
-                </div-->
+                </div>
             </div>
         </div>
         <div *ngIf="endpoint.is_offsubnet">

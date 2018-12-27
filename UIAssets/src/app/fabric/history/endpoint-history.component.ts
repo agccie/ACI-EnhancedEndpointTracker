@@ -1,7 +1,7 @@
 import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
 import {PreferencesService} from '../../_service/preferences.service';
 import {BackendService} from '../../_service/backend.service';
-import {ActivatedRoute} from '@angular/router';
+import {ActivatedRoute, Router} from '@angular/router';
 import {forkJoin} from 'rxjs';
 import {ModalService} from '../../_service/modal.service';
 import {EndpointList, Endpoint} from '../../_model/endpoint';
@@ -39,20 +39,20 @@ export class EndpointHistoryComponent implements OnInit {
         return {label: term, value: term};
     };
 
-    constructor(private prefs: PreferencesService, private backendService: BackendService,
+    constructor(private prefs: PreferencesService, private router: Router, private backendService: BackendService,
                 private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.clearEndpointOptions = [
             {label: 'Select all', value: 0},
-            {label: 'Offsubnet endpoints', value: 1},
+            {label: 'OffSubnet endpoints', value: 1},
             {label: 'Stale Endpoints', value: 2}
         ];
         this.tabs = [
-            {name: ' History', icon: 'icon-computer', path: 'locallearns'},
-            {name: ' Detailed', icon: 'icon-clock', path: 'pernodehistory'},
-            {name: ' Move', path: 'moveevents', icon: 'icon-panel-shift-right'},
+            {name: ' History', icon: 'icon-computer', path: 'history'},
+            {name: ' Detailed', icon: 'icon-clock', path: 'detailed'},
+            {name: ' Move', path: 'moves', icon: 'icon-panel-shift-right'},
             {name: ' Rapid', path: 'rapid', icon: 'icon-too-fast'},
-            {name: ' Off-Subnet', path: 'offsubnetevents', icon: 'icon-jump-out'},
-            {name: ' Stale', path: 'staleevents', icon: 'icon-warning'},
+            {name: ' OffSubnet', path: 'offsubnet', icon: 'icon-jump-out'},
+            {name: ' Stale', path: 'stale', icon: 'icon-warning'},
             {name: ' Cleared', path: 'cleared', icon: 'icon-delete'}
         ];
     }
@@ -64,18 +64,22 @@ export class EndpointHistoryComponent implements OnInit {
                 this.activatedRoute.paramMap.subscribe(params => {
                     this.vnid = parseInt(params.get('vnid')) || 0;
                     this.address = params.get('address');
-                    this.getEndpoint(this.fabricName, this.vnid, this.address);
+                    this.getEndpoint();
                 });
             }
         });
     }
 
-    getEndpoint(fabric, vnid, address) {
+    getEndpoint() {
         this.loading = true;
         // need to get eptEndpoint info and merge in following other attributes:
         //  1) eptEndpoint state for this endpoint
         //  2) event counts (moves, offsubnet, stale, XR nodes)
         //  3) currently stale nodes and currently offsubnet nodes
+
+        let fabric = this.fabricName;
+        let vnid = this.vnid;
+        let address = this.address;
 
         this.offsubnetNodeList = [];
         this.staleNodeList = [];
@@ -182,53 +186,84 @@ export class EndpointHistoryComponent implements OnInit {
         this.prefs.displayXrNodes = !this.prefs.displayXrNodes;
     }
 
-    /*
-    onClickOfDelete() {
-        const msg = 'Are you sure you want to delete all information for ' + this.endpoint.addr + ' from the local database? Note, this will not affect the endpoint state within the fabric.'
-        //this.modalService.setAndOpenModal('info', 'Wait', msg, this.msgModal, true, this.deleteEndpoint, this);
+    disableDropDown(){
+        //need to tie this to blur (off-focus event)
+        this.dropdownActive = false;
     }
 
-    deleteEndpoint() {
-        this.backendService.deleteEndpoint(this.fabricName, this.vnid, this.address).subscribe(
-            (data) => {
-                this.modalService.hideModal();
-                const msg = 'Endpoint deleted successfully';
-                //this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
-            },
-            (error) => {
-                this.modalService.hideModal();
-                const msg = 'Could not delete endpoint! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
-            }
-        )
+
+    onDataplaneRefreshEndpoint(){
+        // request to dataplane refresh of endpoint
+        let that = this;
+        const msg =
+        'Are you sure you want to force a refresh of <strong>' + this.address +'</strong>? ' +
+        'This operation will query the APIC for the most recent state of the endpoint and then update the local database. ' +
+        'It may take a few moments for the updates to be seen.';
+        this.modalService.setModalConfirm({
+            "title": "Wait",
+            "body": msg,
+            "callback": function(){ that.dataplaneRefreshEndpoint();}
+        });
     }
 
-    public refresh() {
-        this.backendService.dataplaneRefresh(this.fabricName, this.endpoint.vnid, this.endpoint.addr).subscribe(
+    dataplaneRefreshEndpoint(){
+        const msg =
+        'Are you sure you want to force a refresh of <strong>' + this.address +'</strong>? ' +
+        'This operation will query the APIC for the most recent state of the endpoint and then update the local database. ' +
+        'It may take a few moments for the updates to be seen.';   
+        this.modalService.setModalConfirm({
+            "title": "Wait",
+            "body": msg,
+            "loading": true
+        });
+        this.backendService.dataplaneRefresh(this.fabricName, this.vnid, this.address).subscribe(
             (data) => {
-                if (data['success']) {
-                    this.modalService.hideModal();
-                    const msg = 'Refresh successful';
-                    //this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
-                } else {
-                    const msg = 'Failed to refresh endpoint';
-                    //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
-                }
+                this.modalService.hideModal();
+                this.getEndpoint();
             },
             (error) => {
-                const msg = 'Failed to refresh endpoint';
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                this.modalService.setModalError({
+                    "body": 'Failed to refresh endpoint. ' + error['error']['error']
+                }) 
             }
         );
     }
 
-    onClickOfRefresh() {
-        const msg =
-            'Are you sure you want to force a refresh of ' + this.address +
-            '? This operation will query the APIC for the most recent state of the endpoint and then update the local database.' +
-            'It may take a few moments for the updates to be seen.';
-        //this.modalService.setAndOpenModal('info', 'Wait', msg, this.msgModal, true, this.refresh, this);
+    onDeleteEndpoint(){
+        // request to delete endpoint events
+        let that = this;
+        const msg = 'Are you sure you want to delete all information for <strong>' + this.endpoint.addr + '</strong>' +
+                    ' from the local database? Note, this will not affect the endpoint state within the fabric.'
+        this.modalService.setModalConfirm({
+            "title": "Wait",
+            "body": msg,
+            "callback": function(){ that.deleteEndpoint();}
+        });
     }
+
+    deleteEndpoint() {
+        const msg = 'Are you sure you want to delete all information for <strong>' + this.endpoint.addr + '</strong>' +
+        ' from the local database? Note, this will not affect the endpoint state within the fabric.'
+        this.modalService.setModalInfo({
+            "title": "Wait",
+            "body": msg,
+            "loading": true
+        })
+        this.backendService.deleteEndpoint(this.fabricName, this.vnid, this.address).subscribe(
+            (data) => {
+                this.modalService.hideModal();
+                this.router.navigate(['/fabric', this.fabricName]);
+            },
+            (error) => {
+                this.modalService.setModalError({
+                    "body": 'Failed to delete endpoint. ' + error['error']['error']
+                }) 
+            }
+        )
+    }
+
+    /*
+
 
     public clearEndpoints() {
         let nodesList = this.filterNodes(this.clearNodes);

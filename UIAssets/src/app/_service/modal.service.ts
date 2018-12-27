@@ -99,10 +99,14 @@ export class ModalService {
     }
 
     public hideModal() {
-        this.modalRef.hide();
+        try{
+            this.modalRef.hide();
+        }
+        catch(error){}
     }
 
     private _openModal(content: object = {}) {
+        this.hideModal();
         this.modalConfirm = false;
         ["title", "subtitle", "body", "loading"].forEach(function(attr){
             if(!(attr in content) || typeof(content[attr])==="undefined"){

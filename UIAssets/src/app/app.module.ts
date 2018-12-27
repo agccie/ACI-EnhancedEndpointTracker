@@ -87,12 +87,12 @@ const appRoutes: Routes = [
                 path: 'history/:vnid/:address',
                 component: EndpointHistoryComponent,
                 children: [
-                    {path: '', redirectTo: 'locallearns', pathMatch: 'full'},
-                    {path: 'locallearns', component: LocalLearnsComponent},
-                    {path: 'pernodehistory', component: PerNodeHistoryComponent},
-                    {path: 'moveevents', component: MoveEventsComponent},
-                    {path: 'offsubnetevents', component: OffSubnetEventsComponent},
-                    {path: 'staleevents', component: StaleEventsComponent},
+                    {path: '', redirectTo: 'history', pathMatch: 'full'},
+                    {path: 'history', component: LocalLearnsComponent},
+                    {path: 'detailed', component: PerNodeHistoryComponent},
+                    {path: 'moves', component: MoveEventsComponent},
+                    {path: 'offsubnet', component: OffSubnetEventsComponent},
+                    {path: 'stale', component: StaleEventsComponent},
                     {path: 'rapid', component: RapidComponent},
                     {path: 'cleared', component: ClearedComponent}
                 ]

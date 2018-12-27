@@ -276,7 +276,7 @@ export class BackendService {
         return this.http.post(this.baseUrl + '/uni/fb-' + fabricName + '/settings-default/test/' + type, {});
     }
 
-    dataplaneRefresh(fabricName: String, vnid: String, address: String) {
+    dataplaneRefresh(fabricName: String, vnid: number, address: String) {
         return this.http.post(this.baseUrl + '/uni/fb-' + fabricName + '/endpoint/vnid-' + vnid + '/addr-' + address + '/refresh', {});
     }
 

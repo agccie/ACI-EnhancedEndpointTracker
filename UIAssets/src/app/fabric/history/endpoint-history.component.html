@@ -72,7 +72,7 @@
             <div class="row qtr-margin-top">
                 <div class="col-md-12">
                     <span *ngIf="endpoint.is_local">
-                        Local on pod <strong>{{ endpoint.local_pod }}</strong>  
+                        Local on <strong>pod-{{ endpoint.local_pod }}</strong>  
                         node <strong>{{ endpoint.local_node | localNode }}</strong> 
                         interface <strong>{{ endpoint.local_interface }}</strong> 
                         encap <strong>{{ endpoint.local_encap }} </strong>
@@ -87,20 +87,39 @@
                         Not local on any node.
                     </span>
                 </div>
+                <div class="qtr-margin-top col-md-12">
+                    <span *ngIf="xrNodeList.length>0">
+                        Remotely learned on 
+                        <strong>{{ xrNodeList.length | number}}</strong>
+                        {{ xrNodeList.length == 1 ? "node": "nodes"}}.
+                        <span style="vertical-align: middle;">
+                            <a (click)="toggleXrNodeList()" [attr.data-balloon]="prefs.displayXrNodes?'hide nodes':'show all remote nodes'" 
+                                data-balloon-pos="down">
+                                <span class="icon-xsmall" [ngClass]="prefs.displayXrNodes?'icon-chevron-up':'icon-chevron-down'"></span>
+                            </a>
+                        </span>
+                    </span>
+                    <span *ngIf="xrNodeList.length==0">
+                        Not remotely learned on any node.
+                    </span>
+                </div>
+                <div class="qtr-margin-top col-md-12" *ngIf="xrNodeList.length>0 && prefs.displayXrNodes">
+                    <span *ngFor='let node of xrNodeList' class="label label--dkgray">{{ node }}</span>
+                </div>
             </div>
         </div>
         <div class="row qtr-margin-top" *ngIf="!endpoint.is_ctrl">
             <div class="col-md-12">
                 <span class="label">{{ total_moves | number }}</span>
                 <span class="half-margin-left half-margin-right">Moves</span>
+                <span class="label">{{ total_rapid | number }}</span>
+                <span class="half-margin-left half-margin-right">Rapid events</span>
                 <span class="label">{{ total_offsubnet | number}}</span>
                 <span class="half-margin-left half-margin-right">OffSubnet events</span>
                 <span class="label">{{ total_stale | number }}</span>
                 <span class="half-margin-left half-margin-right">Stale events</span>
-                <span class="label">{{ total_rapid | number }}</span>
-                <span class="half-margin-left half-margin-right">Rapid events</span>
-                <span class="label">{{ total_xr | number }}</span>
-                <span class="half-margin-left half-margin-right">XR Nodes</span>
+                <span class="label">{{ total_remediate | number }}</span>
+                <span class="half-margin-left half-margin-right">Clear events</span>
             </div>
         </div>
     </div>
@@ -113,7 +132,7 @@
                 <ul class="tabs">
                     <li *ngFor="let tab of tabs ; let i=index" id="i" class="tab" routerLinkActive="active">
                         <a tabindex="i" [routerLink]="[tab.path]">
-                            <div class="tab__heading" title="tab.name">
+                            <div class="tab__heading">
                                 <a class="btn btn--icon btn--small"><span [attr.class]=tab.icon></span></a>
                                 {{ tab.name }}
                             </div>

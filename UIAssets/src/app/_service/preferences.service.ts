@@ -7,6 +7,7 @@ import {Endpoint} from "../_model/endpoint";
 
 export class PreferencesService {
     pageSize = 25;
+    displayXrNodes: boolean = false;
     selectedEndpoint: Endpoint = new Endpoint();
     userRole: number = 0;
     userName: string = "admin";

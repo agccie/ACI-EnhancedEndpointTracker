@@ -20,12 +20,12 @@ export class EndpointHistoryComponent implements OnInit {
     fabricName: string = "";
     offsubnetNodeList = [];
     staleNodeList = [];
+    xrNodeList = [];
     total_moves: number = 0;
     total_offsubnet: number = 0;
     total_stale: number = 0;
     total_rapid: number = 0;
-    total_xr: number = 0;
-
+    total_remediate: number = 0;
 
     clearEndpointOptions: any;
     clearNodes = [];
@@ -35,7 +35,6 @@ export class EndpointHistoryComponent implements OnInit {
     callback: any;
     @ViewChild('clearMsg') clearModal: TemplateRef<any>;
 
-    counts = [];
     addNodes = (term) => {
         return {label: term, value: term};
     };
@@ -80,23 +79,25 @@ export class EndpointHistoryComponent implements OnInit {
 
         this.offsubnetNodeList = [];
         this.staleNodeList = [];
+        this.xrNodeList = [];
         this.total_moves = 0;
         this.total_offsubnet = 0;
         this.total_stale = 0;
         this.total_rapid = 0;
-        this.total_xr = 0;
+        this.total_remediate = 0;
 
         const getEndpointState = this.backendService.getEndpoint(fabric, vnid, address);
         const getMoveCount = this.backendService.getCountsForEndpointDetails(fabric, vnid, address, 'move');
         const getOffsubnetCount = this.backendService.getCountsForEndpointDetails(fabric, vnid, address, 'offsubnet');
         const getStaleCount = this.backendService.getCountsForEndpointDetails(fabric, vnid, address, 'stale');
         const getRapidCount = this.backendService.getCountsForEndpointDetails(fabric, vnid, address, 'rapid');
-        const getXRCount = this.backendService.getXrNodesCount(fabric, vnid, address);
+        const getRemediateCount = this.backendService.getCountsForEndpointDetails(fabric, vnid, address, 'remediate');
         const getOffsubnetNodes = this.backendService.getCurrentlyOffsubnetNodes(fabric, vnid, address);
         const getStaleNodes = this.backendService.getCurrentlyStaleNodes(fabric, vnid, address);
+        const getXrNodes = this.backendService.getActiveXrNodes(fabric, vnid, address);
         
-        forkJoin(getEndpointState, getMoveCount, getOffsubnetCount, getStaleCount, getRapidCount, getXRCount, getOffsubnetNodes, getStaleNodes).subscribe(
-            ([endpointState, moveCount, offsubnetCount, staleCount, rapidCount, xrCount, offsubnetNodes, staleNodes]) =>{
+        forkJoin(getEndpointState, getMoveCount, getOffsubnetCount, getStaleCount, getRapidCount, getRemediateCount, getOffsubnetNodes, getStaleNodes, getXrNodes).subscribe(
+            ([endpointState, moveCount, offsubnetCount, staleCount, rapidCount, remediateCount, offsubnetNodes, staleNodes, xrNodes]) =>{
                 let endpoint_list = new EndpointList(endpointState);
                 if(endpoint_list.objects.length>0){
                     this.endpoint = endpoint_list.objects[0];
@@ -107,9 +108,10 @@ export class EndpointHistoryComponent implements OnInit {
                 let offsubnet_count_list = new EndpointList(offsubnetCount);
                 let stale_count_list = new EndpointList(staleCount);
                 let rapid_count_list = new EndpointList(rapidCount);
-                let xr_count_list = new EndpointList(xrCount);
+                let remediate_count_list = new EndpointList(remediateCount);
                 let offsubnet_node_list = new EndpointList(offsubnetNodes);
                 let stale_node_list = new EndpointList(staleNodes);
+                let xr_node_list = new EndpointList(xrNodes);
                 if(move_count_list.objects.length>0){
                     this.total_moves = move_count_list.objects[0].count;
                 }
@@ -130,8 +132,13 @@ export class EndpointHistoryComponent implements OnInit {
                 if(rapid_count_list.objects.length>0){
                     this.total_rapid = rapid_count_list.objects[0].count;
                 }
-                //xr is simply count returned from query
-                this.total_xr = xr_count_list.count;
+                if(remediate_count_list.objects.length>0){
+                    this.total_remediate = 0;
+                    //need to sum event count across all nodes
+                    remediate_count_list.objects.forEach(element => {
+                        this.total_remediate+= element.count;
+                    })
+                }
                 if(offsubnet_node_list.objects.length>0){
                     //add each offsubnet node to offsubnetNodeList
                     this.offsubnetNodeList = [];
@@ -150,6 +157,15 @@ export class EndpointHistoryComponent implements OnInit {
                         }
                     })
                 }
+                if(xr_node_list.objects.length>0){
+                    //add each xr node to xrNodeList
+                    this.xrNodeList = [];
+                    xr_node_list.objects.forEach(element => {
+                        if(element.node>0){
+                            this.xrNodeList.push(element.node);
+                        }
+                    })
+                }
                 this.loading = false;
             }, 
             (error) => {
@@ -161,101 +177,12 @@ export class EndpointHistoryComponent implements OnInit {
         );
     }
 
+    toggleXrNodeList(){
+        //toggle displayXrNodes between true/false 
+        this.prefs.displayXrNodes = !this.prefs.displayXrNodes;
+    }
+
     /*
-    getEventProperties(property) {
-        if (this.endpoint.events.length > 0) {
-            return this.endpoint.events[0][property];
-        } else if (this.endpoint.hasOwnProperty('first_learn')) {
-            return this.endpoint.first_learn[property];
-        } else {
-            return '';
-        }
-    }
-
-    setupStatusAndInfoStrings() {
-        const status = this.getEventProperties('status');
-        const node = this.getEventProperties('node');
-        const intf = this.getEventProperties('intf_name');
-        const encap = this.getEventProperties('encap');
-        const epgname = this.getEventProperties('epg_name');
-        const vrfbd = this.getEventProperties('vnid_name');
-        const mac = this.getEventProperties('rw_mac');
-        const mac_bd = this.getEventProperties('rw_bd');
-        if (mac != '' && mac_bd != '') {
-            this.rw_mac = mac;
-            this.rw_bd = mac_bd;
-        }
-        this.staleoffsubnetDetails = '';
-        if (this.endpoint.is_offsubnet) {
-            this.staleoffsubnetDetails += 'Currently offsubnet on node ' + node + '\n';
-            const currentlyOffsubnet = this.backendService.offsubnetStaleEndpointHistory(this.fabricName, this.vnid, this.address, 'is_offsubnet', 'endpoint');
-            const offsubnetHistory = this.backendService.offsubnetStaleEndpointHistory(this.fabricName, this.vnid, this.address, 'is_offsubnet', 'history');
-            forkJoin(currentlyOffsubnet, offsubnetHistory).subscribe(
-                (data) => {
-                    const is_offsubnet = data[0]['objects'][0]['ept.endpoint']['is_offsubnet'];
-                    this.endpoint.is_offsubnet = is_offsubnet;
-                    if (is_offsubnet) {
-                        for (let item of data[1]['objects']) {
-                            this.offsubnetList.push(item['ept.history'].node);
-                        }
-                    }
-                },
-                (error) => {
-                    const msg = 'Could not check if the endpoint has offsubnet nodes! ' + error['error']['error'];
-                    //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
-                }
-            )
-        }
-        if (this.endpoint.is_stale) {
-            this.staleoffsubnetDetails += 'Currently stale on node ' + node;
-            const currentlyStale = this.backendService.offsubnetStaleEndpointHistory(this.fabricName, this.vnid, this.address, 'is_stale', 'endpoint');
-            const staleHistory = this.backendService.offsubnetStaleEndpointHistory(this.fabricName, this.vnid, this.address, 'is_stale', 'history');
-            forkJoin([currentlyStale, staleHistory]).subscribe(
-                (data) => {
-                    const is_stale = data[0]['objects'][0]['ept.endpoint'];
-                    this.endpoint.is_stale = is_stale;
-                    if (is_stale) {
-                        for (const item of data[1]['objects']) {
-                            this.staleList.push(item['ept.history'].node);
-                        }
-                    }
-                },
-                (error) => {
-                    const msg = 'Could not check if the endpoint has stale nodes! ' + error['error']['error'];
-                    //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
-                }
-            )
-
-        }
-        if (status === 'deleted') {
-            this.endpointStatus = 'Not currently present in the fabric';
-        } else {
-            const pod = this.getEventProperties('pod');
-            this.endpointStatus = `Local on pod <strong>${pod}</strong> node <strong>${node}</strong>`;
-            if (node > 0xffff) {
-                const nodeA = (node & 0xffff0000) >> 16;
-                const nodeB = (node & 0x0000ffff);
-                this.endpointStatus = `Local on pod <strong>${pod}</strong> node <strong>(${nodeA},${nodeB})</strong>`;
-            }
-            if (intf !== '') {
-                this.endpointStatus += `, interface <strong>${intf}</strong>`;
-            }
-            if (encap !== '') {
-                this.endpointStatus += `, encap <strong>${encap}</strong>`;
-            }
-        }
-        this.fabricDetails = 'Fabric <strong>' + this.endpoint.fabric + '</strong>';
-        if (this.endpoint.type === 'ipv4' || this.endpoint.type === 'ipv6') {
-            this.fabricDetails += ', VRF <strong>' + vrfbd + '</strong>';
-        } else {
-            this.fabricDetails += ', BD <strong>' + vrfbd + '</strong>';
-        }
-        if (epgname !== '') {
-            this.fabricDetails += ', EPG <strong>' + epgname + '</strong>';
-        }
-    }
-
-
     onClickOfDelete() {
         const msg = 'Are you sure you want to delete all information for ' + this.endpoint.addr + ' from the local database? Note, this will not affect the endpoint state within the fabric.'
         //this.modalService.setAndOpenModal('info', 'Wait', msg, this.msgModal, true, this.deleteEndpoint, this);

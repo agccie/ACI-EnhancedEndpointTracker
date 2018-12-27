@@ -305,11 +305,13 @@ export class BackendService {
     }
 
     getCountsForEndpointDetails(fabric, vnid, address, table): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + `/ept/${table}?include=count&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
+        return this.http.get<EndpointList>(this.baseUrl + 
+            `/ept/${table}?include=count&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
     }
 
-    getXrNodesCount(fabric, vnid, address): Observable<EndpointList> {
-        return this.http.get<EndpointList>(this.baseUrl + `/ept/history?count=1&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"),or(eq("events.0.status","created"),eq("events.0.status","modified")),gt("events.0.remote",0))`);
+    getActiveXrNodes(fabric: String, vnid: number, address: String): Observable<EndpointList> {
+        return this.http.get<EndpointList>(this.baseUrl + 
+            `/ept/history?include=node&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"),or(eq("events.0.status","created"),eq("events.0.status","modified")),gt("events.0.remote",0))`);
     }
 
     getVersion(): Observable<Version> {

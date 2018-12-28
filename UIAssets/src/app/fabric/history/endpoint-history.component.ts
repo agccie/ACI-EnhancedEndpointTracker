@@ -27,25 +27,14 @@ export class EndpointHistoryComponent implements OnInit {
     total_rapid: number = 0;
     total_remediate: number = 0;
 
-    clearEndpointOptions: any;
     clearNodes = [];
+    clearNodesLoading: boolean = false;
 
-    dropdownActive = false;
-    decisionBox = false;
-    callback: any;
-    @ViewChild('clearMsg') clearModal: TemplateRef<any>;
-
-    addNodes = (term) => {
-        return {label: term, value: term};
-    };
+    dropdownActive: boolean = false;
+    @ViewChild('clearModal') clearModal: TemplateRef<any>;
 
     constructor(private prefs: PreferencesService, private router: Router, private backendService: BackendService,
                 private activatedRoute: ActivatedRoute, public modalService: ModalService) {
-        this.clearEndpointOptions = [
-            {label: 'Select all', value: 0},
-            {label: 'OffSubnet endpoints', value: 1},
-            {label: 'Stale Endpoints', value: 2}
-        ];
         this.tabs = [
             {name: ' History', icon: 'icon-computer', path: 'history'},
             {name: ' Detailed', icon: 'icon-clock', path: 'detailed'},
@@ -262,6 +251,79 @@ export class EndpointHistoryComponent implements OnInit {
         )
     }
 
+    addClearNodes = (term) => {
+        //add whatever user inputs for now, validation performed on submit.
+        return {label: term, value: term};
+    }
+
+    onClearEndpoint() {
+        this.clearNodes = [];
+        this.clearNodesLoading = false;
+        this.modalService.openModal(this.clearModal);
+    }
+
+    clearEndpoint(){
+        let nodes = this.parseClearNodes();
+        if(nodes.length>0){
+            this.clearNodesLoading = true;
+            this.backendService.clearEndpoint(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, nodes).subscribe(
+                (data)=>{
+                    this.clearNodesLoading = false;
+                    this.modalService.hideModal();
+                    this.getEndpoint();
+                },
+                (error)=>{
+                    this.clearNodesLoading = false;
+                    this.modalService.setModalError({
+                        "body": 'Failed to clear endpoint. ' + error['error']['error']
+                    }) 
+                }
+            );
+         
+        }
+    }
+
+    private parseClearNodes(): number[]{
+        const minNode = 101;
+        const maxNode = 4096;
+        let nodes = [];
+        this.clearNodes.forEach(element => {
+            element.split(",").forEach( val => {
+                val = val.replace(/^[ ]*/g, "")
+                val = val.replace(/[ ]*$/g, "")
+                if(val.match(/^[0-9]+$/)!=null){
+                    val = parseInt(val)
+                    if(!nodes.includes(val)){ 
+                        if(val>=minNode && val<=maxNode){
+                            nodes.push(val) 
+                        }
+                    }
+                } else if(val.match(/^[0-9]+[ ]*-[ ]*[0-9]+$/)!=null){
+                    var val1 = parseInt(val.split("-")[0])
+                    var val2 = parseInt(val.split("-")[1])
+                    if(val1 > val2){
+                        for(var i=val2; i<=val1; i++){ 
+                            if(!nodes.includes(i)){ 
+                                if(i>=minNode && i<=maxNode){
+                                    nodes.push(i);
+                                }
+                            } 
+                        }
+                    } else {
+                        for(var i=val1; i<=val2; i++){ 
+                            if(!nodes.includes(i)){
+                                if(i>=minNode && i<=maxNode){
+                                    nodes.push(i);
+                                }
+                            } 
+                        }
+                    }
+                }
+            })
+        })
+        return nodes;
+    }
+
     /*
 
 
@@ -299,66 +361,7 @@ export class EndpointHistoryComponent implements OnInit {
         //this.modalService.setAndOpenModal('', '', '', this.clearModal);
     }
 
-    public filterNodes(nodes): any[] {
-        let newarr: any[] = [];
-        if (nodes !== undefined) {
-            for (let i = 0; i < nodes.length; i++) {
-                if (typeof(nodes[i]) === 'string') {
-                    if (nodes[i].includes(',')) {
-                        nodes[i] = nodes[i].replace(/\s/g, '');
-                        const csv = nodes[i].split(',');
-                        for (let j = 0; j < csv.length; j++) {
-                            if (csv[j].includes('-')) {
-                                newarr = newarr.concat(this.getArrayForRange(csv[j]));
-                            } else {
-                                const node = parseInt(csv[j], 10);
-                                if (!isNaN(node)) {
-                                    newarr.push(node);
-                                }
-                            }
-                        }
-                    } else if (nodes[i].includes('-')) {
-                        newarr = newarr.concat(this.getArrayForRange(nodes[i]));
-                    } else {
-                        newarr.push(nodes[i]);
-                    }
-                }
-            }
-        }
-        return newarr;
-    }
 
-    public getArrayForRange(range: string) {
-        const r = range.split('-');
-        const arr = [];
-        r.sort();
-        for (let i = parseInt(r[0], 10); i <= parseInt(r[1], 10); i++) {
-            arr.push(i);
-        }
-        return arr;
-    }
 
-    public getCounts() {
-        const obsList = [];
-        for (const table of ['move', 'offsubnet', 'stale', 'rapid']) {
-            obsList.push(this.backendService.getCountsForEndpointDetails(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, table));
-        }
-        obsList.push(this.backendService.getXrNodesCount(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr));
-        forkJoin(obsList).subscribe(
-            (data) => {
-                this.counts = [
-                    {prop: 'Moves', ct: data[0]['count']},
-                    {prop: 'Offsubnet', ct: data[1]['count']},
-                    {prop: 'Stale', ct: data[2]['count']},
-                    {prop: 'Rapid', ct: data[3]['count']}
-                ];
-                this.counts.push({prop: 'XR nodes', ct: data[4]['count']});
-            },
-            (error) => {
-                const msg = 'Could not fetch counts! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
-            }
-        );
-    }
     */
 }

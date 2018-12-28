@@ -16,7 +16,9 @@
                 <span class="text-xlarge" style="vertical-align: middle">{{ endpoint.addr }}</span>&nbsp;
                 <status-label *ngIf="endpoint.is_ctrl" [status]="endpoint.learn_type"></status-label>
                 <div class="dropdown dropdown--left pull-right" [class.active]="dropdownActive"
-                     (click)="dropdownActive = !dropdownActive">
+                     (click)="dropdownActive = !dropdownActive"
+                     (blur)="disableDropDown()"
+                     >
                     <button class="btn btn--small btn--primary">Actions</button>
                     <div class="dropdown__menu">
                         <a (click)="onDataplaneRefreshEndpoint()" class="icon icon-refresh">
@@ -25,7 +27,7 @@
                         <a (click)="onDeleteEndpoint()" class="icon icon-trash">
                             <span class="qtr-margin-left">Delete Events</span>
                         </a>
-                        <a  class="icon icon-exclamation-triangle">
+                        <a  (click)="onClearEndpoint()" class="icon icon-exclamation-triangle">
                             <span class="qtr-margin-left">Clear Endpoint</span>
                         </a>
                     </div>
@@ -157,7 +159,7 @@
         </div>
     </div>
 </div>
-<ng-template #clearMsg>
+<ng-template #clearModal>
     <div class="modal__header">
         <h2>Clear Endpoint</h2>
     </div>
@@ -165,40 +167,24 @@
         <div class="form-group">
             <label for="endpoints">Nodes</label>
             <ng-select
-                    class="text-left"
-                    id="endpoints"
-                    name="endpoints"
+                    class="override"
                     bindLabel="label"
                     bindValue="value"
-                    placeholder="Enter range or comma seperated nodes to be cleared here (e.g. 100-150, 101,102,105)"
+                    placeholder="Enter range or comma seperated nodes to be cleared (e.g. 100-106, 301, 303)"
                     [isOpen]="false"
                     [multiple]="true"
-                    [hideSelected]="true"
-                    [addTag]="addNodes"
+                    [addTag]="addClearNodes"
+                    [items]="[]"
                     [(ngModel)]="clearNodes"
-                    [items]="clearEndpointOptions">
+                >
             </ng-select>
         </div>
-        <div align="left" style="margin-top:2%">
-            <span style="vertical-align:top">Presets&nbsp;&nbsp;</span>
-            <div class="form-group form-group--inline form-group--loose">
-                <label class="checkbox" [ngClass]="{'disabled':!endpoint?.is_offsubnet}">
-                    <input type="checkbox" [disabled]="!endpoint?.is_offsubnet">
-                    <span class="checkbox__input"></span>
-                    <span class="checkbox__label">Offsubnet Nodes</span>
-                </label>
-            </div>
-            <div class="form-group form-group--inline form-group--loose">
-                <label class="checkbox" [ngClass]="{'disabled':!endpoint?.is_stale}">
-                    <input type="checkbox">
-                    <span class="checkbox__input"></span>
-                    <span class="checkbox__label">Stale Nodes</span>
-                </label>
-            </div>
+        <div class="text-center" *ngIf="clearNodesLoading">
+            <loading-dots></loading-dots>
         </div>
-        <div class="modal__footer">
-            <button class="btn btn--primary" (click)="modalService.hideModal()">Cancel</button>
-            <button class="btn btn--secondary" (click)="clearEndpoints()">Proceed</button>
+        <div class="modal__footer" *ngIf="!clearNodesLoading">
+            <button class="btn btn--gray-ghost" (click)="modalService.hideModal()">Cancel</button>
+            <button class="btn btn--primary" [disabled]="clearNodes.length==0" (click)="clearEndpoint()">Submit</button>
         </div>
     </div>
 </ng-template>

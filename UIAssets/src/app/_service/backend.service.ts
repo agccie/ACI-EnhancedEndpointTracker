@@ -300,8 +300,8 @@ export class BackendService {
             `/ept/stale?filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"))`);
     }
 
-    clearNodes(fabric: String, vnid: String, addr: String, nodeList: Array<Number>) {
-        return this.http.post(this.baseUrl + `/uni/fb-${fabric}/endpoint/vnid-${vnid}/addr-${addr}/clear`, nodeList);
+    clearEndpoint(fabric: String, vnid: number, addr: String, nodes: Array<Number>) {
+        return this.http.post(this.baseUrl + `/uni/fb-${fabric}/endpoint/vnid-${vnid}/addr-${addr}/clear`, {"nodes":nodes});
     }
 
     getCountsForEndpointDetails(fabric, vnid, address, table): Observable<EndpointList> {

@@ -140,16 +140,25 @@ del {
 .ng-select .ng-arrow-wrapper {
     display: none
 }
-
-#loginBg {
-    background: rgba(100, 187, 227, 1);
-    background: -moz-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
-    background: -webkit-gradient(radial, center center, 0px, center center, 100%, color-stop(0%, rgba(100, 187, 227, 1)), color-stop(100%, rgba(0, 81, 115, 1)));
-    background: -webkit-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
-    background: -o-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
-    background: -ms-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
-    background: radial-gradient(ellipse at center, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
-    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#64bbe3', endColorstr='#005173', GradientType=1);
+    
+/* ng-select multiple select updates to be consistent with cisco ui */
+.ng-select.ng-select-multiple.override .ng-value-icon, .ng-value-label{
+    vertical-align: middle;
+    border: none;
+    /* vibblue */
+    border: 0px solid #017CAD;
+    background: #017CAD;
+    color: #fff;
+}
+.ng-select.ng-select-multiple.override .ng-select-container .ng-value-container .ng-value{
+    border: 0px solid #017CAD;
 }
 
-    
+.ng-select.ng-select-multiple.override .ng-select-container .ng-value-container .ng-value .ng-value-icon.left {
+    border: 0px solid #017CAD; 
+}
+
+.ng-select.ng-select-multiple.override .ng-select-container .ng-value-container .ng-value .ng-value-icon:hover {
+    background: #64bbe3;
+    color: #39393b;
+}

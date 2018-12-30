@@ -23,19 +23,19 @@
                     </div>
                     <div class="row" *ngIf="index>0">
                         <div class="col-md-2">
-                            {{ item['ept.endpoint'].addr }}
+                            {{ item.addr }}
                         </div>
                         <div class="col-md-1">
-                            <endpoint-label [type]="item['ept.endpoint'].type"></endpoint-label>
+                            <endpoint-label [type]="item.type"></endpoint-label>
                         </div>
                         <div class="col-md-1">
-                            {{ item['ept.endpoint'].first_learn.encap }}
+                            {{ item.first_learn.encap }}
                         </div>
                         <div class="col-md-3">
-                            {{ item['ept.endpoint'].first_learn.vnid_name }}
+                            {{ item.first_learn.vnid_name }}
                         </div>
                         <div class="col-md-3">
-                            {{ item['ept.endpoint'].first_learn.epg_name }}
+                            {{ item.first_learn.epg_name }}
                         </div>
                     </div>
                 </ng-template>

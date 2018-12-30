@@ -14,12 +14,11 @@ import {Version} from './_model/version';
 
 export class AppComponent implements OnInit, OnDestroy {
     ls = localStorage;
-    app_mode: boolean;
-    login_required: boolean;
-    menuVisible: boolean;
-    fabricName: string;
-    endpointExpanded: boolean;
-    sidebarCollapsed: boolean;
+    app_mode: boolean = false;
+    login_required: boolean = false;
+    fabricName: string = '';
+    endpointExpanded: boolean = false;
+    sidebarCollapsed: boolean = false;
     loadingAbout: boolean = false;
     @ViewChild('abouttemplate') aboutModal: TemplateRef<any>;
     @ViewChild('generalModal') generalModal: TemplateRef<any>;
@@ -35,11 +34,9 @@ export class AppComponent implements OnInit, OnDestroy {
     }
 
     ngOnInit() {
-        localStorage.setItem('menuVisible', 'false');
         this.login_required = localStorage.getItem('isLoggedIn') != 'true';
         this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(event => {
             this.login_required = localStorage.getItem('isLoggedIn') != 'true';
-            this.menuVisible = localStorage.getItem('menuVisible') == 'true';
             this.activatedRoute.firstChild.paramMap.subscribe(params => {
                 this.fabricName = params.get('fabric');
             });

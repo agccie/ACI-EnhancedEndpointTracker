@@ -1,4 +1,4 @@
-import {Component, OnDestroy, OnInit, ViewEncapsulation, ViewChild} from '@angular/core';
+import {Component, OnInit, ViewEncapsulation, ViewChild} from '@angular/core';
 import {BackendService} from '../_service/backend.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {PreferencesService} from '../_service/preferences.service';
@@ -8,6 +8,7 @@ import {FormBuilder, FormControl} from "@angular/forms";
 import {concat, Observable, of, Subject} from "rxjs";
 import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
 import {NgSelectComponent} from '@ng-select/ng-select';
+import {EndpointList} from '../_model/endpoint';
 
 @Component({
     encapsulation: ViewEncapsulation.None,
@@ -16,7 +17,7 @@ import {NgSelectComponent} from '@ng-select/ng-select';
     styleUrls: ['./fabrics.component.css']
 })
 
-export class FabricsComponent implements OnInit, OnDestroy {
+export class FabricsComponent implements OnInit {
     @ViewChild('endpointSearch') public ngSelect: NgSelectComponent;
     fabricName: string;
     currentConfig: QueryBuilderConfig;
@@ -58,22 +59,18 @@ export class FabricsComponent implements OnInit, OnDestroy {
     endpointMatchCount: number = 0;
 
 
-    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private activatedRoute: ActivatedRoute, public modalService: ModalService, private formBuilder: FormBuilder) {
+    constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, 
+                private activatedRoute: ActivatedRoute, public modalService: ModalService, private formBuilder: FormBuilder) {
         this.queryText = '';
     }
 
     ngOnInit(): void {
-        localStorage.setItem('menuVisible', 'true');
         this.activatedRoute.paramMap.subscribe(params => {
             this.fabricName = params.get('fabric');
             this.queryCtrl = this.formBuilder.control(this.query);
             this.currentConfig = this.config;
         });
         this.searchEndpoint();
-    }
-
-    ngOnDestroy(): void {
-        localStorage.setItem('menuVisible', 'false');
     }
 
     updateQueryText() {
@@ -125,11 +122,8 @@ export class FabricsComponent implements OnInit, OnDestroy {
     }
 
     public onEndPointChange(endpoint) {
-        if(endpoint && 'ept.endpoint' in endpoint && "vnid" in endpoint['ept.endpoint'] && endpoint['ept.endpoint'].vnid>0){
-            const addr = endpoint['ept.endpoint'].addr;
-            const vnid = endpoint['ept.endpoint'].vnid;
-            const fabric = endpoint['ept.endpoint'].fabric;
-            this.router.navigate(['/fabric', fabric, 'history', vnid, addr]);
+        if(endpoint && "vnid" in endpoint && endpoint.vnid>0){
+            this.router.navigate(['/fabric', endpoint.fabric, 'history', endpoint.vnid, endpoint.addr]);
         } else {
             //TODO - need to trigger clear of all text after selected
             //this.ngSelect...
@@ -157,12 +151,11 @@ export class FabricsComponent implements OnInit, OnDestroy {
         );
         this.endpoints$.subscribe(
             (data) => {
-                if("objects" in data && "count" in data){
-                    this.endpointList = data["objects"];
-                    // add dummy shim entry at index 0 
-                    this.endpointList.unshift("");
-                    this.endpointMatchCount = data["count"];
-                }
+                let endpoint_list = new EndpointList(data);
+                this.endpointList = endpoint_list.objects;
+                // add dummy shim entry at index 0 
+                this.endpointList.unshift("");
+                this.endpointMatchCount = endpoint_list.count;
             }
         );
     }

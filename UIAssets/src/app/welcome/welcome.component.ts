@@ -7,6 +7,7 @@ import {Fabric, FabricList} from "../_model/fabric";
 import {ModalService} from '../_service/modal.service';
 import {concat, Observable, of, Subject} from "rxjs";
 import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
+import {EndpointList} from '../_model/endpoint';
 
 
 @Component({
@@ -153,11 +154,8 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     }
 
     public onEndPointChange(endpoint) {
-        if(endpoint && 'ept.endpoint' in endpoint && "vnid" in endpoint['ept.endpoint'] && endpoint['ept.endpoint'].vnid>0){
-            const addr = endpoint['ept.endpoint'].addr;
-            const vnid = endpoint['ept.endpoint'].vnid;
-            const fabric = endpoint['ept.endpoint'].fabric;
-            this.router.navigate(['/fabric', fabric, 'history', vnid, addr]);
+        if(endpoint && "vnid" in endpoint && endpoint.vnid>0){
+            this.router.navigate(['/fabric', endpoint.fabric, 'history', endpoint.vnid, endpoint.addr]);
         } else {
             //TODO - need to trigger clear of all text after selected
         }
@@ -184,12 +182,11 @@ export class WelcomeComponent implements OnInit, OnDestroy {
         );
         this.endpoints$.subscribe(
             (data) => {
-                if("objects" in data && "count" in data){
-                    this.endpointList = data["objects"];
-                    // add dummy shim entry at index 0 
-                    this.endpointList.unshift("");
-                    this.endpointMatchCount = data["count"];
-                }
+                let endpoint_list = new EndpointList(data);
+                this.endpointList = endpoint_list.objects;
+                // add dummy shim entry at index 0 
+                this.endpointList.unshift("");
+                this.endpointMatchCount = endpoint_list.count;
             }
         );
     }

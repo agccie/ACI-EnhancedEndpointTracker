@@ -1,5 +1,5 @@
 <div class="content-fluid" (click)="onContentClicked($event)">
-    <nav class="sidebar" [class.sidebar--mini]="sidebarCollapsed" *ngIf="menuVisible">
+    <nav class="sidebar" [class.sidebar--mini]="sidebarCollapsed" *ngIf="fabricName && fabricName.length>0">
         <div class="sidebar__header">
             <a id="sidebar-toggle" class="sidebar-toggle hidden-xs hidden-sm"
                (click)="onSidebarClicked($event)">

@@ -173,12 +173,15 @@
                 >
             </ng-select>
         </div>
+        <div>
+            <p>This action is may impact dataplane traffic on the fabric until the endpoint is relearned.</p>
+        </div>
         <div class="text-center" *ngIf="clearNodesLoading">
             <loading-dots></loading-dots>
         </div>
         <div class="modal__footer" *ngIf="!clearNodesLoading">
             <button class="btn btn--gray-ghost" (click)="modalService.hideModal()">Cancel</button>
-            <button class="btn btn--primary" [disabled]="clearNodes.length==0" (click)="clearEndpoint()">Submit</button>
+            <button class="btn btn--negative" [disabled]="clearNodes.length==0" (click)="clearEndpoint()">Clear Endpoint</button>
         </div>
     </div>
 </ng-template>

@@ -18,7 +18,7 @@
             pagerNext: 'icon-step-forward'
           }"
 >
-    <ngx-datatable-column prop="ts" name="Timestamp" [sortable]="true" [flexGrow]='0.25'>
+    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [flexGrow]='0.25'>
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
         </ng-template>

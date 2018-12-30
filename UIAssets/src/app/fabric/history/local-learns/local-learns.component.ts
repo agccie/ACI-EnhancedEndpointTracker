@@ -39,6 +39,11 @@ export class LocalLearnsComponent implements OnInit {
         }
     }
 
+    // public refresh that can be triggered by parent
+    public refresh(){
+        this.getLocalLearn();
+    }
+
     getLocalLearn(){
         this.loading = true;
         this.rows = [];

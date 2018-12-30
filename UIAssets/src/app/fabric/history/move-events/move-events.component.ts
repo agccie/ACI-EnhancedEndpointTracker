@@ -37,6 +37,11 @@ export class MoveEventsComponent implements OnInit {
             })
         }
     }
+ 
+    // public refresh that can be triggered by parent
+    public refresh(){
+        this.getMoveEventsForEndpoint();
+    }
 
     getMoveEventsForEndpoint() {
         this.loading = true;

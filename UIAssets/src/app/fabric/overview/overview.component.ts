@@ -24,15 +24,8 @@ export class OverviewComponent implements OnInit {
     fabricFound: boolean;
     fabricName: string;
     managerRunning: boolean = true;
-    dropdownActive = false;
-    selectedEp: any;
     fabricRunning: boolean;
-    // search bar variables
-    endpoints$: Observable<any>;
-    endpointInput$ = new Subject<string>();
-    endpointLoading: boolean = false;
-    endpointList = [];
-    endpointMatchCount: number = 0;
+
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
                 private activatedRoute: ActivatedRoute, public modalService: ModalService) {
@@ -45,7 +38,6 @@ export class OverviewComponent implements OnInit {
 
     ngOnInit() {
         this.getFabric();
-        this.searchEndpoint();
         this.getManagerStatus();
     }
 
@@ -194,43 +186,5 @@ export class OverviewComponent implements OnInit {
         );
     }
 
-    public onEndPointChange(endpoint) {
-        if('ept.endpoint' in endpoint){
-            const addr = endpoint['ept.endpoint'].addr;
-            const vnid = endpoint['ept.endpoint'].vnid;
-            const fabric = endpoint['ept.endpoint'].fabric;
-            this.router.navigate(['/fabric', fabric, 'history', vnid, addr]);
-        }
-    }
 
-    private searchEndpoint() {
-        this.endpoints$ = concat(
-            of([]), // default items
-            this.endpointInput$.pipe(
-                debounceTime(200),
-                distinctUntilChanged(),
-                tap(() => {
-                    this.endpointLoading = true;
-                    this.endpointMatchCount = 0;
-                    this.endpointList = [];
-                }),
-                switchMap(term => this.backendService.searchEndpoint(term, this.fabricName).pipe(
-                    catchError(() => of([])), // empty list on error
-                    tap(() => {
-                        this.endpointLoading = false;
-                    })
-                ))
-            )
-        );
-        this.endpoints$.subscribe(
-            (data) => {
-                if("objects" in data && "count" in data){
-                    this.endpointList = data["objects"];
-                    // add dummy shim entry at index 0 
-                    this.endpointList.unshift("");
-                    this.endpointMatchCount = data["count"];
-                }
-            }
-        );
-    }
 }

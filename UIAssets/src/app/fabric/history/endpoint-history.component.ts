@@ -59,6 +59,11 @@ export class EndpointHistoryComponent implements OnInit {
         });
     }
 
+    public refresh(){
+        //trigger child component refresh as well
+        this.getEndpoint();
+    }
+    
     getEndpoint() {
         this.loading = true;
         // need to get eptEndpoint info and merge in following other attributes:

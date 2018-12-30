@@ -38,6 +38,11 @@ export class OffSubnetEventsComponent implements OnInit {
         }
     }
 
+    // public refresh that can be triggered by parent
+    public refresh(){
+        this.getOffSubnetEvents();
+    }
+
     getOffSubnetEvents() {
         this.loading = true;
         this.backendService.getOffSubnetEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(

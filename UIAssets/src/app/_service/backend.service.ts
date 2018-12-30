@@ -147,7 +147,7 @@ export class BackendService {
 
     searchEndpoint(term:string="", fabric:string="") {
         // do not perform query if search term is under minimum characters
-        if(term.length<=4){
+        if(!term || term.length<=4){
             return new Observable((observer) => {
                 const {next, error, complete} = observer;
                 next({})

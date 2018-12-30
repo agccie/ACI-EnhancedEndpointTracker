@@ -39,6 +39,11 @@ export class ClearedComponent implements OnInit {
         }
     }
 
+    // public refresh that can be triggered by parent
+    public refresh(){
+        this.getClearEvents();
+    }
+
     getClearEvents() {
         this.loading = true;
         this.backendService.getClearedEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(

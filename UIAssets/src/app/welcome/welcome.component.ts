@@ -1,4 +1,4 @@
-import {Component, OnInit, TemplateRef, ViewChild} from '@angular/core';
+import {Component, OnInit, OnDestroy, TemplateRef, ViewChild} from '@angular/core';
 import {Router} from '@angular/router';
 import {environment} from '../../environments/environment';
 import {BackendService} from "../_service/backend.service";
@@ -15,7 +15,7 @@ import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rx
     styleUrls: ['./welcome.component.css']
 })
 
-export class WelcomeComponent implements OnInit {
+export class WelcomeComponent implements OnInit, OnDestroy {
     app_mode = environment.app_mode;
     userRole: number = 0;
     rows = [];
@@ -41,9 +41,14 @@ export class WelcomeComponent implements OnInit {
     }
 
     ngOnInit() {
+        localStorage.setItem('menuVisible', 'false');
         this.getFabrics();
-        this.searchEndpoint();
         this.getManagerStatus();
+        this.searchEndpoint();
+    }
+
+    ngOnDestroy(): void {
+        localStorage.setItem('menuVisible', 'true');
     }
 
     getManagerStatus(){
@@ -148,11 +153,13 @@ export class WelcomeComponent implements OnInit {
     }
 
     public onEndPointChange(endpoint) {
-        if('ept.endpoint' in endpoint){
+        if(endpoint && 'ept.endpoint' in endpoint && "vnid" in endpoint['ept.endpoint'] && endpoint['ept.endpoint'].vnid>0){
             const addr = endpoint['ept.endpoint'].addr;
             const vnid = endpoint['ept.endpoint'].vnid;
             const fabric = endpoint['ept.endpoint'].fabric;
             this.router.navigate(['/fabric', fabric, 'history', vnid, addr]);
+        } else {
+            //TODO - need to trigger clear of all text after selected
         }
     }
 

@@ -1,15 +1,9 @@
-<div class="row">
-    <div class="col-md-12">
-        &nbsp;
-    </div>
-</div>
-
 <div class="panel panel--bordered">
     <loading-dots *ngIf="loading"></loading-dots>
     <div *ngIf="!loading">
         <div class="row">
             <div class="col-md-12">
-                <button class="btn btn--icon btn--small btn--default half-margin-right" (click)='getEndpoint()'>
+                <button class="btn btn--icon btn--small btn--default half-margin-right" (click)='refresh()'>
                     <span class="icon-refresh"></span>
                 </button>
                 <endpoint-label [type]="endpoint.type"></endpoint-label>&nbsp;

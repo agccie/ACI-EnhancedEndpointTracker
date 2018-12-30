@@ -38,6 +38,11 @@ export class StaleEventsComponent implements OnInit {
         }
     }
 
+    // public refresh that can be triggered by parent
+    public refresh(){
+        this.getStaleEvents();
+    }
+
     getStaleEvents() {
         this.loading = true;
         this.backendService.getStaleEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(

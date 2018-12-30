@@ -38,6 +38,11 @@ export class PerNodeHistoryComponent implements OnInit {
         }
     }
 
+    // public refresh that can be triggered by parent
+    public refresh(){
+        this.getPerNodeHistory();
+    }
+
     getPerNodeHistory(){
         this.loading = true;
         this.backendService.getEndpointHistoryAllNodes(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(

@@ -20,7 +20,6 @@
                 [items]="endpointList"
                 bindLabel="name"
                 [typeahead]="endpointInput$"
-                [(ngModel)]="selectedEp"
                 (change)="onEndPointChange($event)"
                 [loading] = "endpointLoading"
                 autofocus

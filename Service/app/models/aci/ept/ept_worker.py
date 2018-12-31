@@ -451,7 +451,7 @@ class eptWorker(object):
                 remote = tunnel.remote
 
         # add names to msg object and remote value to msg object
-        setattr(msg, "epg_name", cache.get_epg_name(msg.vrf, msg.pcTag) if msg.pcTag>0 else "")
+        setattr(msg, "epg_name", cache.get_epg_name(msg.vrf, msg.pcTag) if msg.pcTag>1 else "")
         setattr(msg, "remote", remote)
         setattr(msg, "ifId_name", ifId_name)
         setattr(msg, "tunnel_flags", tunnel_flags)
@@ -994,7 +994,7 @@ class eptWorker(object):
         for node in per_node_history_events:
             if len(per_node_history_events[node])>0:
                 event = per_node_history_events[node][0]
-                if event.pctag > 0 and event.status != "deleted":
+                if event.pctag > 1 and event.status != "deleted":
                     # skip offsubnet analysis based on endpoint flags
                     if "loopback" in event.flags or \
                         "vtep" in event.flags or \

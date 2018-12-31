@@ -309,8 +309,17 @@ class Session(object):
             logger.warn('%s, refreshing login and will try again', resp.text)
             resp = self._send_login()
             if resp.ok:
+                logger.debug('retry login successful')
+                # need new session_method ptr with fresh session object
+                if method == "GET":
+                    session_method = self.session.get
+                elif method == "POST":
+                    session_method = self.session.post
+                elif method == "DELETE":
+                    session_method = self.session.delete
                 resp = session_method(url, data=data, verify=self.verify_ssl, timeout=timeout, 
                         proxies=self._proxies, cookies=cookies)
+                logger.debug('returning resp: %s', resp)
             else:
                 logger.warn('retry login failed')
         return resp

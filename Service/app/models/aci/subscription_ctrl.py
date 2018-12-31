@@ -342,9 +342,10 @@ class SubscriptionCtrl(object):
                 hasattr(self.session.subscription_thread, "_ws") and \
                 self.session.subscription_thread._ws.connected and \
                 hasattr(self.session.subscription_thread.event_handler_thread, "is_alive") and \
-                self.session.subscription_thread.event_handler_thread.is_alive() and \
-                not heartbeat or get_dn(self.session, "uni", timeout=10) is not None
+                self.session.subscription_thread.event_handler_thread.is_alive()
             )
+            if alive and heartbeat:
+                alive = get_dn(self.session, "uni", timeout=10) is not None
         except Exception as e: 
             logger.debug("Traceback:\n%s", traceback.format_exc())
         if heartbeat:

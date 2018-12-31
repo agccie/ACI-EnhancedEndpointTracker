@@ -677,7 +677,15 @@ class eptWorker(object):
                 # entry actual came from cache, analysis already performed, only need to update count
                 cached_rapid.rapid_count+= 1
 
+        # set learn type based on initial node info. This is used on initial event and non-local 
+        # events where learn has changed from epg to non-epg.
+        learn_type_flags = []
+        if msg.node in per_node_history_event:
+            learn_type_flags = per_node_history_event[msg.node][0].flags
+        learn_type = msg.wf.get_learn_type(msg.vnid, flags=learn_type_flags)
+
         last_event = None
+        last_learn_type = None
         if endpoint is not None:
             ret.is_offsubnet = endpoint["is_offsubnet"]
             ret.is_stale = endpoint["is_stale"]
@@ -685,6 +693,7 @@ class eptWorker(object):
                 ret.exists = True
                 ret.local_events = [eptEndpointEvent.from_dict(e) for e in endpoint["events"]]
                 last_event = ret.local_events[0]
+            last_learn_type = endpoint["learn_type"]
         else:
             # always create an eptEndpoint object for the endpoint even if no local events are 
             # ever created for it. Without eptEndpoint object then eptHistory total endpoints will
@@ -695,16 +704,8 @@ class eptWorker(object):
                 logger.debug("ignorning deleted/modified event for non-existing eptEndpoint")
                 return None
             endpoint_type = get_addr_type(msg.addr, msg.type)
-            # set learn_type only on initial creation. learn_type is determined based on vnid OR 
-            # history flags for loopback or psvi. we assume here that loopback/psvi flag is always
-            # present on first learn. We can revisit this later if needed (perhaps some scenario 
-            # where offsubnet/stale event using psvi address is seen BEFORE the psvi endpoint).
-            learn_type_flags = []
-            if msg.node in per_node_history_event:
-                learn_type_flags = per_node_history_event[msg.node][0].flags
-            learn_type = msg.wf.get_learn_type(msg.vnid, flags=learn_type_flags)
-            logger.debug("learn type set to %s", learn_type)
             dummy_event = eptEndpointEvent.from_dict({"vnid_name":msg.vnid_name}).to_dict()
+            logger.debug("learn type set to %s", learn_type)
             eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr,type=endpoint_type,
                     first_learn=dummy_event, learn_type=learn_type).save()
 
@@ -726,6 +727,13 @@ class eptWorker(object):
         if local_event is None:
             # need to add a delete event if entry currently exists within db and not deleted
             logger.debug("endpoint is XR or deleted on all nodes")
+            # need to check if learn_type has changed from epg to non-epg, which is only scenario
+            # that allows update of learn_type when local_event does not exists.
+            if last_learn_type is not None and last_learn_type=="epg" and learn_type!="epg":
+                logger.debug("updating learn_type from %s to %s", last_learn_type, learn_type)
+                self.db[eptEndpoint._classname].update(flt, 
+                    {"$set":{"learn_type": learn_type}}
+                )
             if last_event is not None and last_event.node > 0:
                 local_event = eptEndpointEvent.from_dict({
                     "ts":msg.ts, 
@@ -740,6 +748,12 @@ class eptWorker(object):
             else:
                 logger.debug("ignoring local delete event for XR/deleted/non-existing endpoint")
         else:
+            # set learn type from local_node
+            learn_type_flags = []
+            if local_node in per_node_history_event:
+                learn_type_flags = per_node_history_event[local_node][0].flags
+            learn_type = msg.wf.get_learn_type(msg.vnid, flags=learn_type_flags)
+
             # flags is in eptHistory event but not eptNode event. Need to maintain flags before 
             # casting eptHistoryEvent local_event to eptEndpointEvent
             local_event_flags = local_event.flags
@@ -797,6 +811,12 @@ class eptWorker(object):
                             updated = True
                             # only one update required to trigger updated logic...
                             break
+                    # check if learn_type has changed for this complete event
+                    if last_learn_type is not None and last_learn_type!=learn_type:
+                        logger.debug("learn type updated from %s to %s",last_learn_type,learn_type)
+                        self.db[eptEndpoint._classname].update(flt, 
+                            {"$set":{"learn_type": learn_type}}
+                        )
                     if updated:
                         # if the previous entry was a delete and the current entry is not a delete, 
                         # then check for possible merge.

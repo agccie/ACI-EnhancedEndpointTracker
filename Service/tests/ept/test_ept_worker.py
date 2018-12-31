@@ -2044,3 +2044,33 @@ def test_handle_endpoint_set_learn_type(app, func_prep):
     assert len(e)==1
     assert e[0].learn_type == "external"
 
+def test_handle_endpoint_update_learn_type(app, func_prep):
+    # if user creates a new BD/SVI then it's possible that first epm create will not have appropriate
+    # flags. From testing, we see epm pushes create, delete, then create with psvi flags and 
+    # encap.  For thi sreason, we need to support learn_type updates. Anytime a ctrl flag is set OR
+    # endpoint is in complete state, the learn type should be updated.
+    
+    dut = get_worker()
+    # psvi
+    ip = "10.1.1.1"
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT,intf="",flags=["ip"])
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    # first learn with no flags set, should be considered EPG
+    assert e[0].learn_type == "epg"
+
+    # delete it
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, status="deleted")
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # create with flags and interface
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT,intf="vlan1",flags=["ip","local","psvi"])
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    e = eptEndpoint.find(fabric=tfabric, addr=ip)
+    assert len(e)==1
+    assert e[0].learn_type == "psvi"
+

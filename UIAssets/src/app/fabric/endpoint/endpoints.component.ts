@@ -44,6 +44,7 @@ export class EndpointsComponent implements OnInit {
 
     getEndpoints() {
         this.loading = true;
+        this.rows = [];
         this.activatedRoute.parent.paramMap.subscribe(params => {
             this.pagingService.fabricName = params.get('fabric');
             if (this.fabricName != null) {
@@ -67,6 +68,7 @@ export class EndpointsComponent implements OnInit {
     onFilterToggle() {
         this.loading = true;
         this.rows = [];
+        this.pagingService.pageOffset = 0;
         this.backendService.getFilteredEndpoints(this.fabricName, this.sorts, this.osFilter, this.stFilter, 
                                                 this.activeFilter, this.rapidFilter, 'endpoint', this.pagingService.pageOffset, 
                                                 this.pagingService.pageSize).subscribe(

@@ -363,9 +363,11 @@ class Login(threading.Thread):
                     if not self._session._send_login().ok:
                         logger.warn("login failed, existing login thread")
                         return self.exit()
-                    if not self._session._resubscribe():
-                        logger.warn("failed to resubscribe to subscriptions, exiting login thread")
-                        return self.exit()
+                    # may not need to restart subscriptions as subscriber uses same token and will
+                    # automatically get the updated tokens on next subscriber refresh.
+                    #if not self._session._resubscribe():
+                    #    logger.warn("failed to resubscribe to subscriptions, exiting login thread")
+                    #    return self.exit()
                 except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
                     logger.warn('second connection error or timeout on login refresh')
                     return self.exit()

@@ -1,76 +1,95 @@
-<ngx-datatable
-        #myTable
-        class="fullscreen"
-        [columnMode]="'force'"
-        [headerHeight]="25"
-        [footerHeight]="50"
-        [rowHeight]="'auto'"
-        [limit]="pageSize"
-        [loadingIndicator]="loading"
-        [rows]="rows"
-        [sorts]="sorts"
-        [cssClasses]="{
-            sortAscending: 'icon-chevron-down',
-            sortDescending: 'icon-chevron-up',
-            pagerLeftArrow: 'icon-step-prev',
-            pagerRightArrow: 'icon-step-next',
-            pagerPrevious: 'icon-step-backward',
-            pagerNext: 'icon-step-forward'
-          }"
->
-    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [flexGrow]='0.2'>
-        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-            {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]='0.05'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value }}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="status" name="Status" [sortable]="true" [flexGrow]='0.05'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            <status-label [status]='value'></status-label>
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '&mdash;'}}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="encap" name="Encap" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '&mdash;'}}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="flags" name="Flags" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value.length > 0  ? value.join() : '&mdash;'}}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="pctag" name="pcTAG" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value >0 ? value : '&mdash;'}}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="remote" name="Remote" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-            {{ value | localNode:row.tunnel_flags}}
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column *ngIf="endpoint?.type !== 'mac'" prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" let-row='row' ngx-datatable-cell-template>
-            <a *ngIf="value !== ''"
-               [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value }}</a>
-            <span *ngIf="value === ''">&mdash;</span>
-        </ng-template>
-    </ngx-datatable-column>
-    <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.1'>
-        <ng-template let-value="value" ngx-datatable-cell-template>
-            {{ value !== '' ? value : '&mdash;'}}
-        </ng-template>
-    </ngx-datatable-column>
-</ngx-datatable>
+
+<loading-dots *ngIf="loading"></loading-dots>
+<div clas="row" *ngIf="!loading" >
+    <div class="col-md-12">
+        <div class="base-margin">
+            <form>
+                <div class="form-group input--icon">
+                    <div class="form-group__text">
+                        <input id="search" type="search" placeholder="Filter results"
+                               (keyup)='updateFilter($event)' required>
+                        <button type="button" class="link">
+                            <span class="icon-search"></span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <ngx-datatable
+            #myTable
+            class="fullscreen"
+            [columnMode]="'force'"
+            [headerHeight]="25"
+            [footerHeight]="50"
+            [rowHeight]="'auto'"
+            [limit]="pageSize"
+            [loadingIndicator]="loading"
+            [rows]="rows"
+            [sorts]="sorts"
+            [cssClasses]="{
+                sortAscending: 'icon-chevron-down',
+                sortDescending: 'icon-chevron-up',
+                pagerLeftArrow: 'icon-step-prev',
+                pagerRightArrow: 'icon-step-next',
+                pagerPrevious: 'icon-step-backward',
+                pagerNext: 'icon-step-forward'
+              }"
+        >
+            <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [flexGrow]='0.2'>
+                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                    {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]='0.05'>
+                <ng-template let-value="value" ngx-datatable-cell-template>
+                    {{ value }}
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="status" name="Status" [sortable]="true" [flexGrow]='0.05'>
+                <ng-template let-value="value" ngx-datatable-cell-template>
+                    <status-label [status]='value'></status-label>
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.1'>
+                <ng-template let-value="value" ngx-datatable-cell-template>
+                    {{ value !== '' ? value : '&mdash;'}}
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="encap" name="Encap" [sortable]="true" [flexGrow]='0.1'>
+                <ng-template let-value="value" ngx-datatable-cell-template>
+                    {{ value !== '' ? value : '&mdash;'}}
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="flags_string" name="Flags" [sortable]="true" [flexGrow]='0.1'>
+                <ng-template let-value="value" ngx-datatable-cell-template>
+                    {{ value }}
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="pctag" name="pcTAG" [sortable]="true" [flexGrow]='0.1'>
+                <ng-template let-value="value" ngx-datatable-cell-template>
+                    {{ value >0 ? value : '&mdash;'}}
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="remote_string" name="Remote" [sortable]="true" [flexGrow]='0.1'>
+                <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                    {{ value }}
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column *ngIf="endpoint?.type !== 'mac'" prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
+                <ng-template let-value="value" let-row='row' ngx-datatable-cell-template>
+                    <a *ngIf="value !== ''"
+                       [routerLink]="['/fabric',this.endpoint.fabric,'history',row.rw_bd,value]">{{ value }}</a>
+                    <span *ngIf="value === ''">&mdash;</span>
+                </ng-template>
+            </ngx-datatable-column>
+            <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.1'>
+                <ng-template let-value="value" ngx-datatable-cell-template>
+                    {{ value !== '' ? value : '&mdash;'}}
+                </ng-template>
+            </ngx-datatable-column>
+        </ngx-datatable>
+    </div>
+</div>
 
 
 

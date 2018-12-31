@@ -11,6 +11,7 @@ import {EndpointList, Endpoint, EndpointEvent} from '../../../_model/endpoint';
 })
 export class PerNodeHistoryComponent implements OnInit {
     rows: EndpointEvent[] = [];
+    fullData: EndpointEvent[] = [];
     endpoint: Endpoint = new Endpoint();
     loading: boolean = false;
     sorts = [{prop: 'ts', dir: 'desc'}];
@@ -21,6 +22,7 @@ export class PerNodeHistoryComponent implements OnInit {
         this.endpoint = this.prefs.selectedEndpoint;
         this.pageSize = this.prefs.pageSize;
         this.rows = [];
+        this.fullData = [];
     }
 
     ngOnInit() {
@@ -45,6 +47,7 @@ export class PerNodeHistoryComponent implements OnInit {
 
     getPerNodeHistory(){
         this.loading = true;
+        this.rows = [];
         this.backendService.getEndpointHistoryAllNodes(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
             (data)=>{
                 let endpoint_list = new EndpointList(data);
@@ -57,6 +60,7 @@ export class PerNodeHistoryComponent implements OnInit {
                     })
                 })
                 this.rows = rows;
+                this.fullData = rows;
                 this.loading = false;
             }, 
             (error) =>{
@@ -68,37 +72,39 @@ export class PerNodeHistoryComponent implements OnInit {
         );
     }
 
-    /*
-    getNodesForEndpoint() {
-        let cumulativeEvents = [];
-        let obsList = [];
-        this.backendService.getNodesForOffsubnetEndpoints(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, 'history').subscribe(
-            (data) => {
-                for (let items of data['objects']) {
-                    let node = (items['ept.history']['node']);
-                    obsList.push(this.backendService.getPerNodeHistory(this.endpoint.fabric, node, this.endpoint.vnid, this.endpoint.addr));
-                }
-                forkJoin(obsList).subscribe(
-                    (data) => {
-                        for (let item of data) {
-                            for (let event of item['objects'][0]['ept.history']['events']) {
-                                event.node = item['objects'][0]['ept.history']['node'];
+    updateFilter(event) {
+        let interests = [
+            "node",
+            "status",
+            "intf_name",
+            "encap",
+            "flags_string",
+            "pctag",
+            "remote_string",
+            "rw_mac",
+            "epg_name"
+        ];
+        //split search term into multiple terms separated by a space
+        let values = event.target.value.toLowerCase().split(" ").filter(function(v){
+            return v.length>0
+        })
+        if(values.length>0){
+            this.rows = this.fullData.filter(function (row) {
+                let match = false;
+                interests.forEach(i=>{
+                    if(i in row){
+                        let v = (""+row[i]).toLocaleLowerCase();
+                        values.forEach(val=>{
+                            if(val.length>0 && v.includes(val)){
+                                match = true;
                             }
-                            cumulativeEvents = cumulativeEvents.concat(item['objects'][0]['ept.history']['events']);
-                        }
-                        this.rows = cumulativeEvents;
-                    },
-                    (error) => {
-                        const msg = 'Could not fetch nodes for endpoint! ' + error['error']['error'];
-                        //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
+                        })
                     }
-                )
-            },
-            (error) => {
-                const msg = 'Could not fetch nodes for endpoint! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal, false);
-            }
-        );
+                })
+                return match;
+            });
+        } else {
+            this.rows = this.fullData;
+        }
     }
-    */
 }

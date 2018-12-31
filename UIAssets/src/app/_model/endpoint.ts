@@ -1,4 +1,25 @@
 
+
+export function nodeToString(value: number, tunnelFlags:string[]=[]): string{
+    let localNode = '-';
+    if (value > 0xffff) {
+        const nodeA = (value & 0xffff0000) >> 16;
+        const nodeB = (value & 0x0000ffff);
+        localNode = `(${nodeA},${nodeB})`;
+    } else if (value === 0) {
+        localNode = '-';
+        //set localNode to proxy if 'proxy' set in any of the provided tunnel flags
+        tunnelFlags.forEach(element =>{
+            if(element.includes("proxy")){
+                localNode=element;
+            }
+        })
+    } else {
+        localNode = ""+value;
+    }
+    return localNode;
+}
+
 export class EndpointList {
     count: number;
     objects: Endpoint[];
@@ -226,6 +247,10 @@ export class EndpointEvent {
     // action and reason are used by ept.remediate only
     action: string = "-";
     reason: string = "-";
+    // calculated strings
+    flags_string: string = "-";
+    node_string: string = "-";
+    remote_string: string = "-";
 
     constructor(data: any = {}) {
         this.init();
@@ -252,6 +277,9 @@ export class EndpointEvent {
         this.reason = "-";
         this.count = 0;
         this.rate = 0;
+        this.flags_string = "-";
+        this.node_string = "-";
+        this.remote_string = "-";
     }
     
     // sync EndpointEvent object to provided JSON
@@ -274,5 +302,14 @@ export class EndpointEvent {
         }
         // force rate to integer
         this.rate = Math.floor(this.rate);
+        if(this.flags.length>0){
+            this.flags_string = this.flags.join(",")
+        }
+        if(this.node>0){
+            this.node_string = nodeToString(this.node, this.tunnel_flags);
+        }
+        if(this.remote>0){
+            this.remote_string = nodeToString(this.remote, this.tunnel_flags);
+        }
     }
 }

@@ -102,7 +102,9 @@ export class ModalService {
         try{
             this.modalRef.hide();
         }
-        catch(error){}
+        catch(error){
+            console.log("failed to hide modal: "+error)
+        }
     }
 
     private _openModal(content: object = {}) {

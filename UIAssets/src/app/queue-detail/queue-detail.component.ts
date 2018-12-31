@@ -83,9 +83,10 @@ export class QueueDetailComponent implements OnInit {
         this.statsTypes = new Map<string, {}>();
         this.statsTypes.set('1', {value: '1 minute', index: 'stats_1min'});
         this.statsTypes.set('2', {value: '5 minutes', index: 'stats_5min'});
-        this.statsTypes.set('3', {value: '1 hour', index: 'stats_1hour'});
-        this.statsTypes.set('4', {value: '1 day', index: 'stats_1day'});
-        this.statsTypes.set('5', {value: '1 week', index: 'stats_1week'});
+        this.statsTypes.set('3', {value: '15 minutes', index: 'stats_15min'});
+        this.statsTypes.set('4', {value: '1 hour', index: 'stats_1hour'});
+        this.statsTypes.set('5', {value: '1 day', index: 'stats_1day'});
+        this.statsTypes.set('6', {value: '1 week', index: 'stats_1week'});
     }
 
     ngOnInit(): void {
@@ -98,8 +99,9 @@ export class QueueDetailComponent implements OnInit {
                     this.loading = false;
                 }, (err) => {
                     this.loading = false;
-                    const msg = 'Failed to load queue! ' + err['error']['error'];
-                    //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
+                    this.modalService.setModalError({
+                        "body": 'Failed to load queues ' + err['error']['error']
+                    });
                 });
             }
         });
@@ -112,7 +114,11 @@ export class QueueDetailComponent implements OnInit {
 
     private makeCharts(statsType = '1') {
         this.dropDownValue = this.statsTypes.get(statsType)['value'];
-        const stats = this.queue[this.statsTypes.get(statsType)['index']];
+        let stats = []
+        const statsIndex = this.statsTypes.get(statsType)['index'];
+        if(statsIndex in this.queue){
+            stats = this.queue[statsIndex];
+        }
         let rx_data = [];
         let tx_data = [];
         for (const stat of stats) {

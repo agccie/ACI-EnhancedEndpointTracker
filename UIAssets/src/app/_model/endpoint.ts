@@ -213,6 +213,7 @@ export class EndpointEvent {
     expected_remote: number = 0;
     pctag: number = 0;
     flags: string[] = [];
+    tunnel_flags: string[] = [];
     encap: string = "-";
     intf_name: string = "-";
     rw_mac: string = "";;
@@ -240,6 +241,7 @@ export class EndpointEvent {
         this.expected_remote = 0;
         this.pctag = 0;
         this.flags = [];
+        this.tunnel_flags = [];
         this.encap = "-";
         this.intf_name = "-";
         this.rw_mac = "";
@@ -255,7 +257,13 @@ export class EndpointEvent {
     // sync EndpointEvent object to provided JSON
     sync(data: any = {}) {
         for (let attr in data) {
-            if(attr in this){
+            if(attr == "tunnel_flags"){
+                //tunnel flags on backend is a comma-separated string, need to convert to list of strings
+                if(data[attr].length>0){
+                    this.tunnel_flags = data[attr].split(",")
+                }
+            }
+            else if(attr in this){
                 if ((typeof this[attr] === 'string' && data[attr].length == 0)|| 
                     (typeof this[attr] === 'number' && data[attr]==0)) {
                     //skip string attributes that are not set

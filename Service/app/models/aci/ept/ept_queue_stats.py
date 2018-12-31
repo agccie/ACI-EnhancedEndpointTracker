@@ -4,23 +4,62 @@ from ... rest import api_register
 from ... rest import api_callback
 from ... utils import get_db
 
+import copy
 import logging
 import time
 
 # module level logging
 logger = logging.getLogger(__name__)
 
+stats_queue_meta = {
+    "timestamp": {
+        "type": float,
+        "description": "epoch timestamp when stats where collected",
+    },
+    "total_tx_msg": {
+        "type": int,
+        "description": "total number of transmitted messages at time of collection",
+    },
+    "total_rx_msg": {
+        "type": int,
+        "description": "total number of received messages at time of collection",
+    },
+    "tx_msg": {
+        "type": int,
+        "description": "number of transmitted messages on queue within interval",
+    },
+    "rx_msg": {
+        "type": int,
+        "description": "number of received messages on queue within interval",
+    },
+    "tx_msg_rate": {
+        "type": float,
+        "description": "transmit message rate over the last collection interval",
+    },
+    "rx_msg_rate": {
+        "type": float,
+        "description": "receive message rate over the last collection interval",
+    },
+}
+stats_queue_meta_with_qlen = copy.deepcopy(stats_queue_meta)
+stats_queue_meta_with_qlen["qlen"] = {
+    "type": int,
+    "description": "number of messages in queue at time of collection",
+}
+
 @api_register(path="ept/queue")
 class eptQueueStats(Rest):
 
-    STATS_SLICE = 64            # maximum length of stats queue 
+    STATS_SLICE = 72            # maximum length of stats queue 
+    STATS_SLICE_MINUTES = 360   # length of stats queue for minute interval
     STATS_INTERVAL = 60.0       # stats collection interval
     INTERVALS = [
-        ("stats_1min", 60),
-        ("stats_5min", 300),
-        ("stats_1hour", 3600),
-        ("stats_1day", 86400),
-        ("stats_1week", 604800),
+        ("stats_1min", 60, STATS_SLICE_MINUTES),
+        ("stats_5min", 300, STATS_SLICE),
+        ("stats_15min", 900, STATS_SLICE),
+        ("stats_1hour", 3600, STATS_SLICE),
+        ("stats_1day", 86400, STATS_SLICE),
+        ("stats_1week", 604800, STATS_SLICE),
     ]
 
     META_ACCESS = {
@@ -61,199 +100,53 @@ class eptQueueStats(Rest):
             counters are reset if process is restarted.
             """,
         },
-
         "stats_1min": {
             "type": list,
             "subtype": dict,
             "description": """
             1 min interval statistics for this queue with most recent events at the top of the list
             """,
-            "meta": {
-                "timestamp": {
-                    "type": float,
-                    "description": "epoch timestamp when stats where collected",
-                },
-                "total_tx_msg": {
-                    "type": int,
-                    "description": "total number of transmitted messages at time of collection",
-                },
-                "total_rx_msg": {
-                    "type": int,
-                    "description": "total number of received messages at time of collection",
-                },
-                "tx_msg": {
-                    "type": int,
-                    "description": "number of transmitted messages on queue within interval",
-                },
-                "rx_msg": {
-                    "type": int,
-                    "description": "number of received messages on queue within interval",
-                },
-                "tx_msg_rate": {
-                    "type": float,
-                    "description": "transmit message rate over the last collection interval",
-                },
-                "rx_msg_rate": {
-                    "type": float,
-                    "description": "receive message rate over the last collection interval",
-                },
-                "qlen": {
-                    "type": int,
-                    "description": "number of messages in queue at time of collection",
-                },
-            },
+            "meta": stats_queue_meta_with_qlen,
         },
-
         "stats_5min": {
             "type": list,
             "subtype": dict,
             "description": """
             5 min interval statistics for this queue with most recent events at the top of the list
             """,
-            "meta": {
-                "timestamp": {
-                    "type": float,
-                    "description": "epoch timestamp when stats where collected",
-                },
-                "total_tx_msg": {
-                    "type": int,
-                    "description": "total number of transmitted messages at time of collection",
-                },
-                "total_rx_msg": {
-                    "type": int,
-                    "description": "total number of received messages at time of collection",
-                },
-                "tx_msg": {
-                    "type": int,
-                    "description": "number of transmitted messages on queue within interval",
-                },
-                "rx_msg": {
-                    "type": int,
-                    "description": "number of received messages on queue within interval",
-                },
-                "tx_msg_rate": {
-                    "type": float,
-                    "description": "transmit message rate over the last collection interval",
-                },
-                "rx_msg_rate": {
-                    "type": float,
-                    "description": "receive message rate over the last collection interval",
-                },
-            },
+            "meta": stats_queue_meta,
         },
-
+        "stats_15min": {
+            "type": list,
+            "subtype": dict,
+            "description": """
+            15 min interval statistics for this queue with most recent events at the top of the list
+            """,
+            "meta": stats_queue_meta,
+        },
         "stats_1hour": {
             "type": list,
             "subtype": dict,
             "description": """
             1 hour interval statistics for this queue with most recent events at the top of the list
             """,
-            "meta": {
-                "timestamp": {
-                    "type": float,
-                    "description": "epoch timestamp when stats where collected",
-                },
-                "total_tx_msg": {
-                    "type": int,
-                    "description": "total number of transmitted messages at time of collection",
-                },
-                "total_rx_msg": {
-                    "type": int,
-                    "description": "total number of received messages at time of collection",
-                },
-                "tx_msg": {
-                    "type": int,
-                    "description": "number of transmitted messages on queue within interval",
-                },
-                "rx_msg": {
-                    "type": int,
-                    "description": "number of received messages on queue within interval",
-                },
-                "tx_msg_rate": {
-                    "type": float,
-                    "description": "transmit message rate over the last collection interval",
-                },
-                "rx_msg_rate": {
-                    "type": float,
-                    "description": "receive message rate over the last collection interval",
-                },
-            },
+            "meta": stats_queue_meta,
         },
-
         "stats_1day": {
             "type": list,
             "subtype": dict,
             "description": """
             1 day interval statistics for this queue with most recent events at the top of the list
             """,
-            "meta": {
-                "timestamp": {
-                    "type": float,
-                    "description": "epoch timestamp when stats where collected",
-                },
-                "total_tx_msg": {
-                    "type": int,
-                    "description": "total number of transmitted messages at time of collection",
-                },
-                "total_rx_msg": {
-                    "type": int,
-                    "description": "total number of received messages at time of collection",
-                },
-                "tx_msg": {
-                    "type": int,
-                    "description": "number of transmitted messages on queue within interval",
-                },
-                "rx_msg": {
-                    "type": int,
-                    "description": "number of received messages on queue within interval",
-                },
-                "tx_msg_rate": {
-                    "type": float,
-                    "description": "transmit message rate over the last collection interval",
-                },
-                "rx_msg_rate": {
-                    "type": float,
-                    "description": "receive message rate over the last collection interval",
-                },
-            },
+            "meta": stats_queue_meta,
         },
-
         "stats_1week": {
             "type": list,
             "subtype": dict,
             "description": """
             1 week interval statistics for this queue with most recent events at the top of the list
             """,
-            "meta": {
-                "timestamp": {
-                    "type": float,
-                    "description": "epoch timestamp when stats where collected",
-                },
-                "total_tx_msg": {
-                    "type": int,
-                    "description": "total number of transmitted messages at time of collection",
-                },
-                "total_rx_msg": {
-                    "type": int,
-                    "description": "total number of received messages at time of collection",
-                },
-                "tx_msg": {
-                    "type": int,
-                    "description": "number of transmitted messages on queue within interval",
-                },
-                "rx_msg": {
-                    "type": int,
-                    "description": "number of received messages on queue within interval",
-                },
-                "tx_msg_rate": {
-                    "type": float,
-                    "description": "transmit message rate over the last collection interval",
-                },
-                "rx_msg_rate": {
-                    "type": float,
-                    "description": "receive message rate over the last collection interval",
-                },
-            },
+            "meta": stats_queue_meta,
         },
     }
 
@@ -278,7 +171,7 @@ class eptQueueStats(Rest):
         self.reload()
         ts = time.time()
         update = {}
-        for (stat_name, delta) in eptQueueStats.INTERVALS:
+        for (stat_name, delta, stats_slice) in eptQueueStats.INTERVALS:
             stats = getattr(self, stat_name)
             if ts - self.start_timestamp > delta and \
                 (len(stats)==0 or ts - stats[0]["timestamp"] >= delta):
@@ -302,7 +195,7 @@ class eptQueueStats(Rest):
                     record["tx_msg_rate"] = float(record["tx_msg"]) / true_delta
                     record["rx_msg_rate"] = float(record["rx_msg"]) / true_delta
                 stats.insert(0, record)
-                setattr(self, stat_name, stats[0:eptQueueStats.STATS_SLICE])
+                setattr(self, stat_name, stats[0:stats_slice])
 
         # save db update 
         self.total_tx_msg = total_tx

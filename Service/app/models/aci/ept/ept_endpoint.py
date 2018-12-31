@@ -227,7 +227,14 @@ class eptEndpoint(Rest):
             })
         if success:
             return self.refresh_endpoint()
-        abort(500, err_str)
+        # allow delete even if fabric is not running. Check for 'is not running' in err_str
+        elif "is not running" in err_str:
+            if self.remove():
+                return jsonify({"success": True})
+            else:
+                abort(500, "failed to delete endpoint")
+        else:
+            abort(500, err_str)
 
     @api_route(path="refresh", methods=["POST"], swag_ret=["success"])
     def refresh_endpoint(self):

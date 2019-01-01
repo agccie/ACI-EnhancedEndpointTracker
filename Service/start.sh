@@ -19,6 +19,7 @@ role="all-in-one"
 identity=""
 worker_count=5
 log_rotate=0
+no_exit=0
 APP_MODE=${APP_MODE:-0}
 APP_DIR=${APP_DIR:-/home/app}
 DATA_DIR=${DATA_DIR:-/home/app/data}
@@ -73,7 +74,12 @@ function exit_script(){
     log "exiting in $timeout seconds"
     sleep $timeout
     log "exit"
-    exit 1
+    if [ "$no_exit" == "1" ] ; then
+        log "no exit enabled, sleep forever"
+        sleep infinity 
+    else
+        exit 1
+    fi
 }
 
 # required dictories for logging and database datastore (all-in-one-mode)
@@ -682,11 +688,12 @@ function display_help() {
     echo "    -c [count] number of workers to run when executing all-in-one mode"
     echo "    -i [identity] manager/worker identity"
     echo "    -l enable log rotation"
+    echo "    -a always active (do not exit on error)"
     echo ""
     exit 0
 }
 
-optspec=":r:c:i:lh"
+optspec=":r:c:i:lah"
 while getopts "$optspec" optchar; do
   case $optchar in
     r)
@@ -700,6 +707,9 @@ while getopts "$optspec" optchar; do
         ;;
     i)
         identity=$OPTARG
+        ;;
+    a)
+        no_exit="1"
         ;;
     h)
         display_help

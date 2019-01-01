@@ -104,7 +104,10 @@ RUN \$SRC_DIR/build/build_frontend.sh -r \
     -d \$SRC_DIR/UIAssets \
     -t /tmp/build \
     -m standalone && \
-    rm -rf /root/.npm && rm -rf /usr/lib/node_modules && rm -rf /tmp/build
+    rm -rf /root/.npm && \
+    rm -rf /usr/lib/node_modules && \
+    rm -rf /tmp/build && \
+    rm -rf \$SRC_DIR/UIAssets.src/
 
 WORKDIR \$SRC_DIR/Service
 CMD \$SRC_DIR/Service/start.sh

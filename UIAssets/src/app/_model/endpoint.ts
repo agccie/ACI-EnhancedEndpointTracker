@@ -308,8 +308,6 @@ export class EndpointEvent {
         if(this.node>0){
             this.node_string = nodeToString(this.node, this.tunnel_flags);
         }
-        if(this.remote>0){
-            this.remote_string = nodeToString(this.remote, this.tunnel_flags);
-        }
+        this.remote_string = nodeToString(this.remote, this.tunnel_flags);
     }
 }

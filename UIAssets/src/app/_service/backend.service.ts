@@ -40,7 +40,7 @@ export class BackendService {
     }
 
     getActiveMacAndIps(fabric: Fabric, addressType) {
-        const filterString = 'and(eq("fabric","' + fabric.fabric + '"),eq("type","' + addressType + '"),neq("events.0.status","deleted"))';
+        const filterString = 'and(eq("fabric","' + fabric.fabric + '"),eq("type","' + addressType + '"),or(eq("events.0.status","created"),eq("events.0.status","modified")))';
         return this.http.get(this.baseUrl + '/ept/endpoint?filter=' + filterString + '&count=1');
     }
 

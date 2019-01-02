@@ -14,6 +14,7 @@ export class PagingService {
     constructor() {
         this.count = 0;
         this.pageOffset = 0;
+        this.pageSize = 25;
         this.sorts = {};
     }
 }

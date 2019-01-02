@@ -146,6 +146,8 @@ export class BackendService {
     }
 
     searchEndpoint(term:string="", fabric:string="") {
+        let filter = ""
+        term = term.trim()
         // do not perform query if search term is under minimum characters
         if(!term || term.length<=4){
             return new Observable((observer) => {
@@ -153,13 +155,13 @@ export class BackendService {
                 next({})
             });
         }
-        let filter = ""
         if(term.substr(0,1)=="/"){
-            filter='regex("addr","'+term+'")';
+            filter='regex("addr","'+term.substr(1)+'")';
         } else {
             term = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
             filter='regex("addr","(?i)'+term+'")'
         }
+        
         if(fabric.length>0){
             filter='and(eq("fabric","'+fabric+'"),'+filter+')';
         }       

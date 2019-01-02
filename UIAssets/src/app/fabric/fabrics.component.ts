@@ -8,7 +8,7 @@ import {FormBuilder, FormControl} from "@angular/forms";
 import {concat, Observable, of, Subject} from "rxjs";
 import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
 import {NgSelectComponent} from '@ng-select/ng-select';
-import {EndpointList} from '../_model/endpoint';
+import {EndpointList, Endpoint} from '../_model/endpoint';
 
 @Component({
     encapsulation: ViewEncapsulation.None,
@@ -57,6 +57,7 @@ export class FabricsComponent implements OnInit {
     endpointLoading: boolean = false;
     endpointList = [];
     endpointMatchCount: number = 0;
+    endpointHeader: boolean = false;
 
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, 
@@ -122,11 +123,14 @@ export class FabricsComponent implements OnInit {
     }
 
     public onEndPointChange(endpoint) {
+        this.endpointList = [];
+        this.endpointMatchCount = 0;
+        this.endpointHeader = false;
         if(endpoint && "vnid" in endpoint && endpoint.vnid>0){
+            this.ngSelect.clearModel();
             this.router.navigate(['/fabric', endpoint.fabric, 'history', endpoint.vnid, endpoint.addr]);
-        } else {
-            //TODO - need to trigger clear of all text after selected
-            //this.ngSelect...
+        } else if (typeof(endpoint)!=="undefined"){  
+            this.ngSelect.clearModel();
         }
     }
 
@@ -151,11 +155,21 @@ export class FabricsComponent implements OnInit {
         );
         this.endpoints$.subscribe(
             (data) => {
-                let endpoint_list = new EndpointList(data);
-                this.endpointList = endpoint_list.objects;
-                // add dummy shim entry at index 0 
-                this.endpointList.unshift("");
-                this.endpointMatchCount = endpoint_list.count;
+                if("objects" in data){
+                    let endpoint_list = new EndpointList(data);
+                    this.endpointList = endpoint_list.objects;
+                    this.endpointMatchCount = endpoint_list.count;
+                    this.endpointHeader = true;
+                    if(this.endpointList.length==0){
+                        //dummy result to hide 'not found' error on valid search (we have match count=0 already displayed)
+                        this.endpointList = [new Endpoint()]
+                    }
+                } else {
+                    //search was not performed
+                    this.endpointList = [];
+                    this.endpointMatchCount = 0;
+                    this.endpointHeader = false;
+                }          
             }
         );
     }

@@ -18,7 +18,6 @@ export class EndpointsComponent implements OnInit {
     stFilter = false;
     activeFilter = false;
     rapidFilter = false;
-    pageSize: number;
     count: number;
     pageNumber = 0;
     sorts = [];
@@ -30,7 +29,7 @@ export class EndpointsComponent implements OnInit {
                 private activatedRoute: ActivatedRoute, public pagingService: PagingService,
                 public modalService: ModalService) {
         this.rows = [];
-        this.pageSize = this.prefs.pageSize;
+        this.pagingService.pageSize = this.prefs.pageSize;
     }
 
     ngOnInit() {

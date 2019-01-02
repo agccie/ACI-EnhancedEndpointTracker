@@ -42,7 +42,6 @@ export class LocalLearnsComponent implements OnInit {
 
     getLocalLearn(){
         this.loading = true;
-        console.log('refreshing?')
         this.rows = [];
         this.backendService.getEndpoint(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
             (data) => {

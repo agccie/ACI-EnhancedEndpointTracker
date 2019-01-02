@@ -11,7 +11,7 @@ docker_image=""
 intro_video=""
 private_key=""
 enable_proxy="0"
-relax_build_checks="0"
+relax_build_checks="1"
 build_standalone="0"
 build_all_in_one="0"
 standalone_http_port="5000"
@@ -212,7 +212,7 @@ function build_app() {
             echo "hello" > $bf_dst/app-start.html
             cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
         else
-            ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
+            ./build/build_frontend.sh -r -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
             # need to manually copy over logo.png into UIAssets folder
             if [ -f "$BASE_DIR/UIAssets/logo.png" ] ; then
                 cp -p $BASE_DIR/UIAssets/logo.png $bf_dst

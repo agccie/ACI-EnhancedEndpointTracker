@@ -12,7 +12,7 @@ TMP_DIR=""
 SRC_DIR=""
 DST_DIR=""
 self=$0
-relax_build_checks="0"
+relax_build_checks="1"
 build_mode="standalone"
 
 function build_frontend() {

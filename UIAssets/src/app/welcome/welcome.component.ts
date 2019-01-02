@@ -7,7 +7,7 @@ import {Fabric, FabricList} from "../_model/fabric";
 import {ModalService} from '../_service/modal.service';
 import {concat, Observable, of, Subject} from "rxjs";
 import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
-import {EndpointList} from '../_model/endpoint';
+import {EndpointList, Endpoint} from '../_model/endpoint';
 
 
 @Component({
@@ -32,6 +32,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     endpointLoading: boolean = false;
     endpointList = [];
     endpointMatchCount: number = 0;
+    endpointHeader: boolean = false;
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
                 public modalService: ModalService) {
@@ -182,11 +183,21 @@ export class WelcomeComponent implements OnInit, OnDestroy {
         );
         this.endpoints$.subscribe(
             (data) => {
-                let endpoint_list = new EndpointList(data);
-                this.endpointList = endpoint_list.objects;
-                // add dummy shim entry at index 0 
-                this.endpointList.unshift("");
-                this.endpointMatchCount = endpoint_list.count;
+                if("objects" in data){
+                    let endpoint_list = new EndpointList(data);
+                    this.endpointList = endpoint_list.objects;
+                    this.endpointMatchCount = endpoint_list.count;
+                    this.endpointHeader = true;
+                    if(this.endpointList.length==0){
+                        //dummy result to hide 'not found' error on valid search (we have match count=0 already displayed)
+                        this.endpointList = [new Endpoint()]
+                    }
+                } else {
+                    //search was not performed
+                    this.endpointList = [];
+                    this.endpointMatchCount = 0;
+                    this.endpointHeader = false;
+                }          
             }
         );
     }

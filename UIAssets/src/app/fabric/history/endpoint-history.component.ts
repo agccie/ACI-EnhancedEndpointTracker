@@ -32,6 +32,7 @@ export class EndpointHistoryComponent implements OnInit {
 
     dropdownActive: boolean = false;
     @ViewChild('clearModal') clearModal: TemplateRef<any>;
+    childComponent: any;
 
     constructor(private prefs: PreferencesService, private router: Router, private backendService: BackendService,
                 private activatedRoute: ActivatedRoute, public modalService: ModalService) {
@@ -59,9 +60,17 @@ export class EndpointHistoryComponent implements OnInit {
         });
     }
 
+    public onActivate(event){
+        this.childComponent = event;
+    }
+
     public refresh(){
         //trigger child component refresh as well
         this.getEndpoint();
+        if(this.childComponent && "refresh" in this.childComponent){
+            this.childComponent.refresh();
+        }
+        
     }
     
     getEndpoint() {
@@ -328,45 +337,4 @@ export class EndpointHistoryComponent implements OnInit {
         })
         return nodes;
     }
-
-    /*
-
-
-    public clearEndpoints() {
-        let nodesList = this.filterNodes(this.clearNodes);
-        if (this.endpoint.is_offsubnet) {
-            nodesList = nodesList.concat(this.offsubnetList);
-        }
-        if (this.endpoint.is_stale) {
-            nodesList = nodesList.concat(this.staleList);
-        }
-        this.modalService.hideModal();
-        this.backendService.clearNodes(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, nodesList).subscribe(
-            (data) => {
-                if (data['success']) {
-                    const msg = 'Refresh successful';
-                    //this.modalService.setAndOpenModal('success', 'Success', msg, this.msgModal);
-                } else {
-                    const msg = 'Failed to refresh endpoint';
-                    //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
-                }
-            },
-            (error) => {
-                const msg = 'Failed to clear nodes! ' + error['error']['error'];
-                //this.modalService.setAndOpenModal('error', 'Error', msg, this.msgModal);
-            }
-        )
-    }
-
-    runFunction() {
-        this.callback();
-    }
-
-    onClickOfClear() {
-        //this.modalService.setAndOpenModal('', '', '', this.clearModal);
-    }
-
-
-
-    */
 }

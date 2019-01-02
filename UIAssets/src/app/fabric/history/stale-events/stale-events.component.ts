@@ -24,18 +24,14 @@ export class StaleEventsComponent implements OnInit {
     }
 
     ngOnInit() {
-        if (this.endpoint.addr.length>0){
-            this.getStaleEvents();
-        } else {
-            this.loading = true;
-            let that = this;
-            this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
-                that.endpoint.fabric = fabricName;
-                that.endpoint.vnid = vnid;
-                that.endpoint.addr = addr;
-                that.getStaleEvents();
-            })
-        }
+        this.loading = true;
+        let that = this;
+        this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
+            that.endpoint.fabric = fabricName;
+            that.endpoint.vnid = vnid;
+            that.endpoint.addr = addr;
+            that.getStaleEvents();
+        })
     }
 
     // public refresh that can be triggered by parent

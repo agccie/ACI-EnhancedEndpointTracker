@@ -25,18 +25,14 @@ export class ClearedComponent implements OnInit {
     }
 
     ngOnInit() {
-        if (this.endpoint.addr.length>0){
-            this.getClearEvents();
-        } else {
-            this.loading = true;
-            let that = this;
-            this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
-                that.endpoint.fabric = fabricName;
-                that.endpoint.vnid = vnid;
-                that.endpoint.addr = addr;
-                that.getClearEvents();
-            })
-        }
+        this.loading = true;
+        let that = this;
+        this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
+            that.endpoint.fabric = fabricName;
+            that.endpoint.vnid = vnid;
+            that.endpoint.addr = addr;
+            that.getClearEvents();
+        })
     }
 
     // public refresh that can be triggered by parent

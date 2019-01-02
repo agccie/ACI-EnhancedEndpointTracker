@@ -24,18 +24,15 @@ export class MoveEventsComponent implements OnInit {
     }
 
     ngOnInit() {
-        if (this.endpoint.addr.length>0){
-            this.getMoveEventsForEndpoint();
-        } else {
-            this.loading = true;
-            let that = this;
-            this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
-                that.endpoint.fabric = fabricName;
-                that.endpoint.vnid = vnid;
-                that.endpoint.addr = addr;
-                that.getMoveEventsForEndpoint();
-            })
-        }
+        this.loading = true;
+        let that = this;
+        this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
+            that.endpoint.fabric = fabricName;
+            that.endpoint.vnid = vnid;
+            that.endpoint.addr = addr;
+            that.getMoveEventsForEndpoint();
+        })
+
     }
  
     // public refresh that can be triggered by parent

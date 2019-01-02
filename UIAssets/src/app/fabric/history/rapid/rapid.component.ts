@@ -24,18 +24,14 @@ export class RapidComponent implements OnInit {
     }
 
     ngOnInit() {
-        if (this.endpoint.addr.length>0){
-            this.getRapidEvents();
-        } else {
-            this.loading = true;
-            let that = this;
-            this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
-                that.endpoint.fabric = fabricName;
-                that.endpoint.vnid = vnid;
-                that.endpoint.addr = addr;
-                that.getRapidEvents();
-            })
-        }
+        this.loading = true;
+        let that = this;
+        this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
+            that.endpoint.fabric = fabricName;
+            that.endpoint.vnid = vnid;
+            that.endpoint.addr = addr;
+            that.getRapidEvents();
+        })
     }
 
     getRapidEvents() {

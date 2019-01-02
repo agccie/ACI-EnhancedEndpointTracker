@@ -25,18 +25,14 @@ export class LocalLearnsComponent implements OnInit {
     }
 
     ngOnInit() {
-        if (this.endpoint.addr.length>0){
-            this.getLocalLearn();
-        } else {
-            this.loading = true;
-            let that = this;
-            this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
-                that.endpoint.fabric = fabricName;
-                that.endpoint.vnid = vnid;
-                that.endpoint.addr = addr;
-                that.getLocalLearn();
-            })
-        }
+        this.loading = true;
+        let that = this;
+        this.prefs.getEndpointParams(this, function(fabricName, vnid, addr){
+            that.endpoint.fabric = fabricName;
+            that.endpoint.vnid = vnid;
+            that.endpoint.addr = addr;
+            that.getLocalLearn();
+        })
     }
 
     // public refresh that can be triggered by parent
@@ -46,6 +42,7 @@ export class LocalLearnsComponent implements OnInit {
 
     getLocalLearn(){
         this.loading = true;
+        console.log('refreshing?')
         this.rows = [];
         this.backendService.getEndpoint(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr).subscribe(
             (data) => {

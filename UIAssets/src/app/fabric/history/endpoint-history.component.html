@@ -149,7 +149,8 @@
     </div>
     <div class="row">
         <div class="col-md-12">
-            <router-outlet></router-outlet>
+            <router-outlet (activate)='onActivate($event)'>
+            </router-outlet>
         </div>
     </div>
 </div>

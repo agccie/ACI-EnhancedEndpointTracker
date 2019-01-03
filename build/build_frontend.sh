@@ -36,6 +36,8 @@ function build_frontend() {
     rm -r $TMP_DIR
     mkdir -p $TMP_DIR
     cp -rp $SRC_DIR/. $TMP_DIR/
+    # remove node_modules cached if present in tmp working directory
+    rm -rf $TMP_DIR/node_modules
     cd $TMP_DIR
     npm install
     if [ "$build_mode" == "app" ] ; then

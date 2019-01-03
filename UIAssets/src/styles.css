@@ -162,3 +162,10 @@ del {
     background: #64bbe3;
     color: #39393b;
 }
+
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}

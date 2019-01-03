@@ -1,11 +1,13 @@
-import {Component, OnDestroy, OnInit, TemplateRef, ViewChild} from '@angular/core';
+import {Component, OnDestroy, OnInit, TemplateRef, ViewChild, Renderer2} from '@angular/core';
 import {ActivatedRoute, NavigationEnd, Router} from '@angular/router';
 import {BackendService} from './_service/backend.service';
+import {CookieService} from 'ngx-cookie-service';
 import {PreferencesService} from './_service/preferences.service';
 import {environment} from '../environments/environment';
-import {filter} from "rxjs/operators";
 import {ModalService} from './_service/modal.service';
 import {Version} from './_model/version';
+import {interval, throwError, empty} from "rxjs";
+import {filter, switchMap, map, catchError} from "rxjs/operators";
 
 @Component({
     selector: 'app-root',
@@ -20,20 +22,30 @@ export class AppComponent implements OnInit, OnDestroy {
     endpointExpanded: boolean = false;
     sidebarCollapsed: boolean = false;
     loadingAbout: boolean = false;
-    @ViewChild('abouttemplate') aboutModal: TemplateRef<any>;
+    appLoading: boolean = true;
+    appLoadingStatus: string = "";
+    appCookieAcquired: boolean = false;
+    @ViewChild('aboutModal') aboutModal: TemplateRef<any>;
     @ViewChild('generalModal') generalModal: TemplateRef<any>;
-    authors = ['Andy Gossett', 'Axel Bodart', 'Hrishikesh Deshpande'];
     version: Version;
     private stopListening: () => void;
 
     constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService,
+                private cookieService: CookieService, private renderer: Renderer2,
                 private activatedRoute: ActivatedRoute, public modalService: ModalService) {
         this.endpointExpanded = false;
         this.sidebarCollapsed = true;
         this.app_mode = environment.app_mode;
+        this.stopListening = renderer.listen('window', 'message', this.handleMessage.bind(this));
     }
 
     ngOnInit() {
+        if(this.app_mode){
+            this.appLoadingStatus = "Waiting for tokens"
+        } else {
+            this.appLoadingStatus = 'Waiting for backend application';
+            this.waitForAppReady();
+        }
         this.login_required = localStorage.getItem('isLoggedIn') != 'true';
         this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(event => {
             this.login_required = localStorage.getItem('isLoggedIn') != 'true';
@@ -48,8 +60,7 @@ export class AppComponent implements OnInit, OnDestroy {
         this.stopListening();
         if (!this.app_mode) {
             localStorage.removeItem('isLoggedIn');
-            this.backendService.logout().subscribe(() => {
-            });
+            this.backendService.logout().subscribe(() => {});
         }
     }
 
@@ -97,5 +108,64 @@ export class AppComponent implements OnInit, OnDestroy {
     onEndpointExpand($event: MouseEvent) {
         this.endpointExpanded = !this.endpointExpanded;
         $event.stopPropagation();
+    }
+
+    handleMessage(event: Event) {
+        const message = event as MessageEvent;
+        if (environment.app_mode) {
+          const data = JSON.parse(message.data);
+          if (data.hasOwnProperty('token') && data.hasOwnProperty('urlToken')) {
+            this.cookieService.set('app_' + environment.aci_vendor + '_' + environment.aci_appId + '_token', data['token']);
+            this.cookieService.set('app_' + environment.aci_vendor + '_' + environment.aci_appId + '_urlToken', data['urlToken']);
+            if (!this.appCookieAcquired) {
+              this.appCookieAcquired = true;
+              this.appLoadingStatus = 'Waiting for backend application';
+              this.waitForAppReady();
+            }
+          }
+        }
+    }
+
+    //return observable to poll app status to determine if backend is ready (after token acquired for app mode)
+    pollAppStatus() {
+        //app-status API will return 200 ok when ready else will return an error (503 or 500) with error string
+        //if not yet ready. This needs to wait for 200 ok else update message displayed to the user.
+        return interval(1000).pipe(switchMap(() =>
+                this.backendService.getAppStatus().pipe(
+                    map(
+                        (data) => data,
+                    ),
+                    catchError((error)=>{
+                        console.log(error);
+                        let status = "";
+                        let msg = "";
+                        if("status" in error){
+                            status = "("+error["status"]+")";
+                        }
+                        if("error" in error && "error" in error["error"]){
+                            msg = status+" "+error["error"]["error"];
+                        } else {
+                            msg = status+" Waiting for backend application";
+                        }
+                        this.appLoadingStatus = msg;
+                        return empty()
+                    })
+                )
+            ),
+        )
+    }
+    
+    waitForAppReady() {
+        const poller = this.pollAppStatus().subscribe(
+            (data) => {
+                this.appLoading = false;
+                this.appLoadingStatus = "App loading complete."
+                poller.unsubscribe();
+            }, 
+            (error) => {
+                this.appLoadingStatus = "failed to load results"
+                poller.unsubscribe();
+            }
+        )
     }
 }

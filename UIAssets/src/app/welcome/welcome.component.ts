@@ -8,7 +8,7 @@ import {ModalService} from '../_service/modal.service';
 import {concat, Observable, of, Subject} from "rxjs";
 import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
 import {EndpointList, Endpoint} from '../_model/endpoint';
-
+import {NgSelectComponent} from '@ng-select/ng-select';
 
 @Component({
     selector: 'app-welcome',
@@ -27,6 +27,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     loadingCount = 0;
     sorts = [{prop: 'fabric', dir: 'asc'}];
     @ViewChild('addFabric') addFabricModal: TemplateRef<any>;
+    @ViewChild('endpointSearch') public ngSelect: NgSelectComponent;
     endpoints$: Observable<any>;
     endpointInput$ = new Subject<string>();
     endpointLoading: boolean = false;
@@ -155,10 +156,14 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     }
 
     public onEndPointChange(endpoint) {
+        this.endpointList = [];
+        this.endpointMatchCount = 0;
+        this.endpointHeader = false;
         if(endpoint && "vnid" in endpoint && endpoint.vnid>0){
+            this.ngSelect.clearModel();
             this.router.navigate(['/fabric', endpoint.fabric, 'history', endpoint.vnid, endpoint.addr]);
-        } else {
-            //TODO - need to trigger clear of all text after selected
+        } else if (typeof(endpoint)!=="undefined"){  
+            this.ngSelect.clearModel();
         }
     }
 

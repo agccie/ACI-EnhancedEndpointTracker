@@ -85,7 +85,17 @@
             </li>
         </ul>
     </nav>
-    <main>
+
+    <div *ngIf="appLoading">
+      <div class="loading">
+        <h4 class="text-center half-margin">Loading EndpointTracker</h4>
+        <h6 class="text-center">{{ appLoadingStatus }}</h6>
+        <loading-dots></loading-dots>
+        <br>
+      </div>
+    </div>
+
+    <main *ngIf="!appLoading">
         <header class="header header--compressed" *ngIf="ls.getItem('isLoggedIn') === 'true'">
             <div class="header-bar container">
                 <a class="header-bar__logo">
@@ -126,7 +136,7 @@
         </div>
     </main>
 </div>
-<ng-template #abouttemplate>
+<ng-template #aboutModal>
     <div class="row" *ngIf="loadingAbout">
         <div class="col-md-12">
             <loading-dots [text]="Loading"></loading-dots>

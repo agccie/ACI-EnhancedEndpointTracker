@@ -3,6 +3,7 @@ from ..utils import get_user_data
 from .dependency import RestDependency
 from flask import abort
 from functools import wraps
+from pymongo.errors import ServerSelectionTimeoutError
 from swagger.common import (swagger_create, swagger_read, swagger_update,
                             swagger_delete, swagger_generic_path)
 import copy
@@ -643,10 +644,13 @@ class RouteInfo(object):
                 # for class method, first argument is cls
                 if self.is_cls: ordered_args.insert(0, cls)
             # execute the function
-            if len(optional_args)>0:
-                return self.ofunc(*ordered_args, **optional_args)
-            else:
-                return self.ofunc(*ordered_args)
+            try:
+                if len(optional_args)>0:
+                    return self.ofunc(*ordered_args, **optional_args)
+                else:
+                    return self.ofunc(*ordered_args)
+            except ServerSelectionTimeoutError as e:
+                abort(503, "unable to connect to database")
 
         # remapping the function to prechecks function
         pre_checks.__doc__ = self.ofunc.__doc__

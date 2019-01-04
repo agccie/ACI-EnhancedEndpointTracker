@@ -7,7 +7,8 @@ from .role import Role
 from bson.objectid import ObjectId, InvalidId
 from flask import abort, g, jsonify
 from pymongo.errors import (DuplicateKeyError, PyMongoError, BulkWriteError, NetworkTimeout)
-from pymongo.errors import OperationFailure
+from pymongo.errors import OperationFailure 
+from pymongo.errors import ServerSelectionTimeoutError
 from pymongo import (ASCENDING, DESCENDING, InsertOne, UpdateOne, UpdateMany)
 from werkzeug.exceptions import (NotFound, BadRequest, Forbidden, InternalServerError)
 
@@ -676,9 +677,9 @@ class Rest(object):
         except RestLoadError as e:
             cls.logger.error(e)
             raise
-        except Exception as e:
-            cls.logger.debug("traceback: %s", traceback.format_exc())
-            cls.logger.warn("%s load failed: %s", cls._classname, e)
+        #except Exception as e:
+        #    cls.logger.debug("traceback: %s", traceback.format_exc())
+        #    cls.logger.warn("%s load failed: %s", cls._classname, e)
 
         for db_obj in db_objs:
             obj = cls(**kwargs)
@@ -855,10 +856,13 @@ class Rest(object):
         """ api call - create rest object, aborts on error """
         cls.rbac(role=cls._access["create_role"])
         _data = get_user_data()
-        ret = cls.create(_data=_data, _api=True)
-        # pop _id as this is not exposed by default on api create operations
-        if not cls._access["expose_id"]: ret.pop("_id", None)
-        return jsonify(ret)
+        try:
+            ret = cls.create(_data=_data, _api=True)
+            # pop _id as this is not exposed by default on api create operations
+            if not cls._access["expose_id"]: ret.pop("_id", None)
+            return jsonify(ret)
+        except ServerSelectionTimeoutError as e:
+            abort(503, "unable to connect to database")
 
     @classmethod
     def api_read(cls, **kwargs):
@@ -874,6 +878,8 @@ class Rest(object):
                 abort(500, "database error, sort operation exceeded memory limit")
             else:
                 abort(500, "database error on read")
+        except ServerSelectionTimeoutError as e:
+            abort(503, "unable to connect to database")
         # allow other exceptions to be raised (like 404/403/etc...
 
     @classmethod
@@ -883,7 +889,10 @@ class Rest(object):
         _data = get_user_data()
         _params = get_user_params()
         kwargs["_api"] = True
-        return jsonify(cls.update(_data=_data, _params=_params, **kwargs))
+        try:
+            return jsonify(cls.update(_data=_data, _params=_params, **kwargs))
+        except ServerSelectionTimeoutError as e:
+            abort(503, "unable to connect to database")
 
     @classmethod
     def api_delete(cls, **kwargs):
@@ -891,7 +900,10 @@ class Rest(object):
         cls.rbac(role=cls._access["delete_role"])
         _params = get_user_params()
         kwargs["_api"] = True
-        return jsonify(cls.delete(_params=_params, **kwargs))
+        try:
+            return jsonify(cls.delete(_params=_params, **kwargs))
+        except ServerSelectionTimeoutError as e:
+            abort(503, "unable to connect to database")
 
     @classmethod
     def validate_attribute(cls, attr, val):

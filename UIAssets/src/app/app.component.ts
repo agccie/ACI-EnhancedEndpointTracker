@@ -66,17 +66,14 @@ export class AppComponent implements OnInit, OnDestroy {
     }
 
     logout() {
-        this.modalService.setModalInfo({
-            "title": "Logging out",
-            "loading": true,
-        })
-        localStorage.removeItem('isLoggedIn');
         this.backendService.logout().subscribe(
             (data) => {
                 this.modalService.hideModal();
+                localStorage.removeItem('isLoggedIn');
                 this.router.navigate(['login']);
             }, 
             (error) => {
+                localStorage.removeItem('isLoggedIn');
                 this.modalService.setModalError({
                     "subtitle": "failed to logout."
                 });

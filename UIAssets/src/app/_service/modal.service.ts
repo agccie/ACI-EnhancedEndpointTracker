@@ -99,11 +99,8 @@ export class ModalService {
     }
 
     public hideModal() {
-        try{
+        if(this.modalRef){
             this.modalRef.hide();
-        }
-        catch(error){
-            console.log("failed to hide modal: "+error)
         }
     }
 

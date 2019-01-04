@@ -33,6 +33,7 @@ export class LoginComponent implements OnInit {
         if (localStorage.getItem('isLoggedIn') === 'true') {
             this.router.navigate(['/']);
         } else {
+            this.modalService.hideModal();
             this.loading = true;
             this.backendService.getAppVersion().subscribe(
                 (data) => {

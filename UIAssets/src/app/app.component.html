@@ -96,7 +96,7 @@
     </div>
 
     <main *ngIf="!appLoading">
-        <header class="header header--compressed" *ngIf="ls.getItem('isLoggedIn') === 'true'">
+        <header class="header header--compressed" *ngIf="!login_required && !app_mode">
             <div class="header-bar container">
                 <a class="header-bar__logo">
                     <span class="icon-cisco"></span>
@@ -113,9 +113,9 @@
                         </span>
                     </a>
                     <a class="btn btn--small btn--icon" title="Users" [routerLink]="['/users']">
-            <span data-balloon="Users" data-balloon-pos="down">
-              <span class="icon-user"></span>
-            </span>
+                        <span data-balloon="Users" data-balloon-pos="down">
+                          <span class="icon-user"></span>
+                        </span>
                     </a>
                     <a *ngIf="!app_mode" class="btn btn--small btn--icon" title="Logout" (click)="logout()">
                         <span data-balloon="Logout" data-balloon-pos="down">

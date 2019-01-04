@@ -471,6 +471,40 @@ def execute_worker(arg_str, background=True):
     # assume success
     return True
 
+def map_signal(sig):
+    """ return string name and number for provided signal """
+    name = {
+        signal.SIGHUP: "SIGHUP",
+        signal.SIGINT: "SIGINT",
+        signal.SIGQUIT: "SIGQUIT",
+        signal.SIGABRT: "SIGABRT",
+        signal.SIGKILL: "SIGKILL",
+        signal.SIGSEGV: "SIGSEGV",
+        signal.SIGTERM: "SIGTERM",
+    }.get(sig, "")
+    return "(%s)%s" % (sig, name)
+
+def register_signal_handlers():
+    """ register listener to various signals to trigger a KeyboardInterrupt (SIGINT) which can
+        be caught by running processes to gracefull handle cleanups
+    """
+    def cleanup_shim(sig_number, frame):
+        logger.error("exiting due to signal %s", map_signal(sig_number))
+        raise KeyboardInterrupt()
+
+    catch_signals = [
+        signal.SIGHUP,      # 1
+        #signal.SIGINT,     # 2 (this is translated into keyboardInterrupt which can be caught)
+        signal.SIGQUIT,     # 3
+        signal.SIGABRT,     # 6
+        #signal.SIGKILL,    # 9 (note, cannot register listener for sigkill)
+        signal.SIGSEGV,     # 11
+        signal.SIGTERM      # 15
+    ]
+    for sig_number in catch_signals:
+        logger.debug("registering listener for %s", map_signal(sig_number))
+        signal.signal(sig_number, cleanup_shim)
+
 def terminate_pid(p):
     """ send SIGKILL to process based on integer pid.
         return booelan success

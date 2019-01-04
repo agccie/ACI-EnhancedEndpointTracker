@@ -2,6 +2,7 @@
 from ... utils import get_redis
 from ... utils import get_db
 from .. utils import execute_worker
+from .. utils import register_signal_handlers
 from . common import CACHE_STATS_INTERVAL
 from . common import HELLO_INTERVAL
 from . common import MANAGER_WORK_QUEUE
@@ -67,6 +68,7 @@ class eptWorker(object):
 
     def __init__(self, worker_id, role):
         logger.debug("init role %s id %s", role, worker_id)
+        register_signal_handlers()
         self.worker_id = "%s" % worker_id
         self.role = role
         self.db = get_db(uniq=True, overwrite_global=True)

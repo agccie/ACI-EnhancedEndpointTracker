@@ -2,6 +2,7 @@
 from ... utils import get_db
 from ... utils import get_redis
 from .. fabric import Fabric
+from .. utils import register_signal_handlers
 from .. utils import terminate_process
 from . common import HELLO_INTERVAL
 from . common import HELLO_TIMEOUT
@@ -23,6 +24,7 @@ from multiprocessing import Process
 
 import logging
 import threading
+import signal
 import time
 import traceback
 
@@ -37,6 +39,7 @@ class eptManager(object):
 
     def __init__(self, worker_id):
         logger.debug("init role manager id %s", worker_id)
+        register_signal_handlers()
         self.worker_id = "%s" % worker_id
         self.db = get_db(uniq=True, overwrite_global=True)
         self.redis = get_redis()
@@ -59,6 +62,20 @@ class eptManager(object):
     def __repr__(self):
         return self.worker_id
 
+    def cleanup(self):
+        """ graceful cleanup on exit """
+        if self.stats_thread is not None:
+            self.stats_thread.cancel()
+        if self.worker_tracker is not None and self.worker_tracker.update_thread is not None:
+            self.worker_tracker.update_thread.cancel()
+        if self.subscribe_thread is not None:
+            self.subscribe_thread.stop()
+        for f, fab in self.fabrics.items():
+            if fab["process"] is not None:
+                terminate_process(fab["process"])
+        if self.db is not None:
+            self.db.client.close()
+
     def run(self):
         """ wrapper around run to handle interrupts/errors """
         try:
@@ -66,18 +83,7 @@ class eptManager(object):
         except (Exception, SystemExit, KeyboardInterrupt) as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
         finally:
-            # clean up threads and running fabrics
-            if self.stats_thread is not None:
-                self.stats_thread.cancel()
-            if self.worker_tracker is not None and self.worker_tracker.update_thread is not None:
-                self.worker_tracker.update_thread.cancel()
-            if self.subscribe_thread is not None:
-                self.subscribe_thread.stop()
-            for f, fab in self.fabrics.items():
-                if fab["process"] is not None:
-                    terminate_process(fab["process"])
-            if self.db is not None:
-                self.db.client.close()
+            self.cleanup()
 
     def _run(self):
         """ start manager 

@@ -197,6 +197,10 @@ export class BackendService {
         return this.http.post(this.baseUrl + '/uni/fb-' + fabric.fabric + '/verify', {});
     }
 
+    buildController(fabric: Fabric){
+        return this.http.post(this.baseUrl + '/uni/fb-' + fabric.fabric + '/controllers', {});
+    }
+
     deleteFabric(fabric: Fabric) {
         return this.http.delete(this.baseUrl + '/uni/fb-' + fabric.fabric);
     }

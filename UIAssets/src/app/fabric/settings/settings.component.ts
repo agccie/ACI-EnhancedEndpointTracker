@@ -142,6 +142,12 @@ export class SettingsComponent implements OnInit {
                 this.backendService.verifyFabric(this.fabricService.fabric).subscribe(
                     (verifyData) => {
                         this.isLoading = false;
+                        let apic_text = verifyData["apic_error"];
+                        let ssh_text = verifyData["ssh_error"];
+                        // if apic was success and this is not app mode, trigger controllers post in background
+                        if(!this.app_mode && apic_text.length==0){
+                            this.backendService.buildController(this.fabricService.fabric).subscribe();
+                        }
                         if ("success" in verifyData && verifyData["success"]) {
                             let that = this;
                             this.modalService.setModalConfirm({
@@ -169,10 +175,8 @@ export class SettingsComponent implements OnInit {
                         } else {
                             let apic_label_class = "label--warning-alt";
                             let apic_label_text = "failed";
-                            let apic_text = verifyData["apic_error"];
                             let ssh_label_class = "label--warning-alt";
                             let ssh_label_text = "failed";
-                            let ssh_text = verifyData["ssh_error"];
                             if (apic_text.length == 0) {
                                 apic_label_text = "success";
                                 apic_label_class = "label--success";

@@ -181,13 +181,20 @@ export class SettingsComponent implements OnInit {
                                 ssh_label_text = "success";
                                 ssh_label_class = "label--success";
                             }
-                            let msg = '<div class="row">' +
-                                '<div class="col-md-3"><strong>APIC Credentials</strong></div>' +
-                                '<div class="col-md-2"><span class="label ' + apic_label_class + '">' + apic_label_text + '</span></div>' +
-                                '<div class="col-md-7">' + apic_text + '</div>' +
-                                '<div class="col-md-3"><strong>SSH Credentials</strong></div>' +
-                                '<div class="col-md-2"><span class="label ' + ssh_label_class + '">' + ssh_label_text + '</span></div>' +
-                                '<div class="col-md-7">' + ssh_text + '</div>' +
+                            let msg = 
+                                '<div class="row">' +
+                                    '<div class="col-md-3"><strong>APIC Credentials</strong></div>' +
+                                    '<div class="col-md-2"><span class="label ' + apic_label_class + '">' + apic_label_text + '</span></div>' +
+                                    '<div class="col-md-7">' + apic_text + '</div>' +
+                                    '<div class="col-md-3"><strong>SSH Credentials</strong></div>' +
+                                    '<div class="col-md-2"><span class="label ' + ssh_label_class + '">' + ssh_label_text + '</span></div>' +
+                                    '<div class="col-md-7">' + ssh_text + '</div>' +
+                                '</div>' +
+                                '<div class="row base-margin-top">' +
+                                    '<div class="col-md-12"><span class="text-muted">' +
+                                    'SSH credentials are only used when clearing fabric endpoints. If no remediate actions are configured or '+
+                                    'you do not intend to use the clear endpoint API, then SSH is not required.' +
+                                    '</span></div>' +
                                 '</div>';
                             this.modalService.setModalInfo({
                                 "title": "Credentials verification failed",

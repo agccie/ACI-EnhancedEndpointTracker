@@ -7,9 +7,8 @@ import {environment} from '../environments/environment';
 import {ModalService} from './_service/modal.service';
 import {Version} from './_model/version';
 import {FabricList} from './_model/fabric';
-import {interval, empty} from "rxjs";
-import {filter, switchMap, map, tap, catchError, repeatWhen, retryWhen, delay, takeWhile} from "rxjs/operators";
-import { TestBed } from '@angular/core/testing';
+import {filter, map, tap, repeatWhen, retryWhen, delay, takeWhile} from "rxjs/operators";
+
 
 @Component({
     selector: 'app-root',
@@ -149,14 +148,16 @@ export class AppComponent implements OnInit, OnDestroy {
                 }),
                 delay(1000)
             ))
-        ).subscribe((data)=>{
-            this.appLoadingStatus = "App loading complete."
-            if(this.app_mode){
-                this.waitForFabricDiscovery();
-            } else {
-                this.appLoading = false;
+        ).subscribe(
+            (data)=>{
+                this.appLoadingStatus = "App loading complete."
+                if(this.app_mode){
+                    this.waitForFabricDiscovery();
+                } else {
+                    this.appLoading = false;
+                }
             }
-        })
+        )
     }
 
     // in app mode we need to wait until fabric is discovered.

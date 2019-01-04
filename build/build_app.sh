@@ -107,7 +107,8 @@ RUN \$SRC_DIR/build/build_frontend.sh -r \
     rm -rf /root/.npm && \
     rm -rf /usr/lib/node_modules && \
     rm -rf /tmp/build && \
-    rm -rf \$SRC_DIR/UIAssets.src/
+    rm -rf \$SRC_DIR/UIAssets.src/ && \
+    rm -rf \$SRC_DIR/Service/instance/config.py
 
 WORKDIR \$SRC_DIR/Service
 CMD \$SRC_DIR/Service/start.sh
@@ -169,6 +170,8 @@ function build_app() {
     # include app.json in Service directory for config.py to pick up required variables
     cp -p ./app.json $TMP_DIR/$APP_ID/Service/
     cp -p ./version.txt $TMP_DIR/$APP_ID/Service/
+    # remove instance config if present
+    rm -rf $TMP_DIR/$APP_ID/Service/instance/config.py
     # dynamically create clusterMgrConfig
     conf=$TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
     python ./cluster/kron/create_config.py --image $docker_image_name > $conf

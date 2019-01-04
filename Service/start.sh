@@ -224,7 +224,17 @@ function create_app_config_file() {
     if [ ! -d $instance_config ] ; then 
         mkdir -p $instance_config
     fi
-    
+
+    # in app mode on APIC it's possible that multiple processes will try to create the config
+    # file. To prevent the race condition, only create it if not already present. This requires
+    # build logic to initialize an empty config file
+    if [ "$HOSTED_PLATFORM" == "APIC" ] ; then
+        if [ -s $config_file ] ; then
+            log "app config already exists"
+            return 0
+        fi
+    fi
+
     # app mode specific settings
     if [ "$APP_MODE" == "1" ] ; then
         echo "" > $config_file

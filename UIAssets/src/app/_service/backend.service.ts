@@ -1,6 +1,6 @@
 import {Injectable} from '@angular/core';
 import {HttpClient, HttpHeaders, HttpParams} from '@angular/common/http';
-import {Observable} from 'rxjs';
+import {Observable, empty} from 'rxjs';
 import {environment} from '../../environments/environment';
 import {FabricSettings, FabricSettingsList} from '../_model/fabric-settings';
 import {User, UserList} from '../_model/user';
@@ -22,8 +22,8 @@ export class BackendService {
         this.baseUrl = environment.api_entry;
     }
 
-    getAppStatus() {
-        return this.http.get(this.baseUrl + '/app-status');
+    getAppStatus(): Observable<any>{
+        return this.http.get(this.baseUrl + '/app-status/');
     }
 
     getAppManagerStatus() {
@@ -154,10 +154,7 @@ export class BackendService {
         term = term.trim()
         // do not perform query if search term is under minimum characters
         if(!term || term.length<=4){
-            return new Observable((observer) => {
-                const {next, error, complete} = observer;
-                next({})
-            });
+            return empty();
         }
         if(term.substr(0,1)=="/"){
             filter='regex("addr","'+term.substr(1)+'")';

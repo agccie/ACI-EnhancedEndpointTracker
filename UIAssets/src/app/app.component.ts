@@ -8,7 +8,8 @@ import {ModalService} from './_service/modal.service';
 import {Version} from './_model/version';
 import {FabricList} from './_model/fabric';
 import {interval, empty} from "rxjs";
-import {filter, switchMap, map, catchError} from "rxjs/operators";
+import {filter, switchMap, map, tap, catchError, repeatWhen, retryWhen, delay, takeWhile} from "rxjs/operators";
+import { TestBed } from '@angular/core/testing';
 
 @Component({
     selector: 'app-root',
@@ -123,73 +124,48 @@ export class AppComponent implements OnInit, OnDestroy {
           }
         }
     }
-
-    //return observable to poll app status to determine if backend is ready (after token acquired for app mode)
-    pollAppStatus() {
-        //app-status API will return 200 ok when ready else will return an error (503 or 500) with error string
-        //if not yet ready. This needs to wait for 200 ok else update message displayed to the user.
-        return interval(1000).pipe(switchMap(() =>
-                this.backendService.getAppStatus().pipe(
-                    map(
-                        (data) => data,
-                    ),
-                    catchError((error)=>{
-                        console.log(error);
-                        let status = "";
-                        let msg = "";
-                        if("status" in error){
-                            status = "("+error["status"]+")";
-                        }
-                        if("error" in error && "error" in error["error"]){
-                            msg = status+" "+error["error"]["error"];
-                        } else if("error" in error && "message" in error["error"]){
-                            msg = status+" "+error["error"]["message"];
-                        } else {
-                            msg = status+" Waiting for backend application";
-                        }
-                        this.appLoadingStatus = msg;
-                        return empty()
-                    })
-                )
-            ),
-        )
-    }
     
     waitForAppReady() {
-        const poller = this.pollAppStatus().subscribe(
-            (data) => {
-                this.appLoadingStatus = "App loading complete."
-                poller.unsubscribe();
-                if(this.app_mode){
-                    this.waitForFabricDiscovery();
-                } else {
-                    this.appLoading = false;
-                }
-            }, 
-            (error) => {
-                console.log(error);
-                this.appLoadingStatus = "failed to load results."
-                poller.unsubscribe();
-                return this.waitForAppReady();
+        //app-status API will return 200 ok when ready else will return an error (503 or 500) with error string
+        //if not yet ready. This needs to wait for 200 ok else update message displayed to the user.
+        this.backendService.getAppStatus().pipe(
+            map((data) => data),
+            retryWhen( err => err.pipe(
+                tap(val => {
+                    console.log(val);
+                    let status = "";
+                    let msg = "";
+                    if("status" in val){
+                        status = "("+val["status"]+")";
+                    }
+                    if("error" in val && "error" in val["error"]){
+                        msg = status+" "+val["error"]["error"];
+                    } else if("error" in val && "message" in val["error"]){
+                        msg = status+" "+val["error"]["message"];
+                    } else {
+                        msg = status+" Waiting for backend application";
+                    }
+                    this.appLoadingStatus = msg;
+                }),
+                delay(1000)
+            ))
+        ).subscribe((data)=>{
+            this.appLoadingStatus = "App loading complete."
+            if(this.app_mode){
+                this.waitForFabricDiscovery();
+            } else {
+                this.appLoading = false;
             }
-        )
-    }
-
-    pollFabricsBrief() {
-        return interval(1000).pipe(switchMap(() =>
-                this.backendService.getFabricsBrief().pipe(
-                    map(
-                        (data) => data,
-                    ),
-                )
-            ),
-        )
+        })
     }
 
     // in app mode we need to wait until fabric is discovered.
     waitForFabricDiscovery(){
         this.appLoadingStatus = "Waiting for fabric discovery to complete."
-        const poller = this.pollFabricsBrief().subscribe(
+        this.backendService.getFabricsBrief().pipe(
+            repeatWhen(delay(1000)),
+            takeWhile(()=> this.appLoading)
+        ).subscribe(
             (data) => {
                 let fabric_list = new FabricList(data);
                 if(fabric_list.objects.length>0){
@@ -198,15 +174,14 @@ export class AppComponent implements OnInit, OnDestroy {
                     this.appLoading = false;
                     this.router.navigate(['/fabric', fabric]);
                 }
-            }, 
-            (error) => {
+            },
+            (error)=>{
                 console.log(error);
                 this.appLoadingStatus = "failed to load fabric status."
                 if("error" in error && "error" in error["error"]){
                     this.appLoadingStatus+= " "+error["error"]["error"];
                 }
-                poller.unsubscribe();
             }
-        );
+        )
     }
 }

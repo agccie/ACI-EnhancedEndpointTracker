@@ -33,7 +33,7 @@ export class BackendInterceptorService implements HttpInterceptor {
         let body;
         if (this.app_mode) {
             body = {
-                'url': '/api/' + req.urlWithParams,
+                'url': req.urlWithParams,
                 'method': req.method,
                 'data': initialBody
             };
@@ -43,7 +43,7 @@ export class BackendInterceptorService implements HttpInterceptor {
                     'APIC-Challenge': this.cookieService.get('app_' + environment.aci_vendor + '_' + environment.aci_appId + '_urlToken')
                 },
                 body: body,
-                url: environment.api_entry,
+                url: environment.apic_proxy,
                 params: params,
                 method: 'post',
             });

@@ -144,6 +144,8 @@ export class AppComponent implements OnInit, OnDestroy {
                         }
                         if("error" in error && "error" in error["error"]){
                             msg = status+" "+error["error"]["error"];
+                        } else if("error" in error && "message" in error["error"]){
+                            msg = status+" "+error["error"]["message"];
                         } else {
                             msg = status+" Waiting for backend application";
                         }
@@ -163,8 +165,9 @@ export class AppComponent implements OnInit, OnDestroy {
                 poller.unsubscribe();
             }, 
             (error) => {
-                this.appLoadingStatus = "failed to load results"
+                this.appLoadingStatus = "failed to load results."
                 poller.unsubscribe();
+                return this.waitForAppReady();
             }
         )
     }

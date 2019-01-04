@@ -41,6 +41,11 @@ export class OverviewComponent implements OnInit {
         this.getManagerStatus();
     }
 
+    refresh() {
+        this.getManagerStatus();
+        this.getFabric();
+    }
+
     getManagerStatus(){
         this.backendService.getAppManagerStatus().subscribe(
             (data) => {

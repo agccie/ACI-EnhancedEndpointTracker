@@ -39,6 +39,10 @@ export class BackendService {
         }
     }
 
+    getFabricsBrief(): Observable<FabricList> {
+        return this.http.get<FabricList>(this.baseUrl + '/fabric?include=fabric');
+    }
+
     getActiveMacAndIps(fabric: Fabric, addressType) {
         const filterString = 'and(eq("fabric","' + fabric.fabric + '"),eq("type","' + addressType + '"),or(eq("events.0.status","created"),eq("events.0.status","modified")))';
         return this.http.get(this.baseUrl + '/ept/endpoint?filter=' + filterString + '&count=1');

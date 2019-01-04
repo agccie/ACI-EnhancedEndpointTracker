@@ -3,9 +3,9 @@ import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Fabric, FabricList} from "../../_model/fabric";
-import {concat, forkJoin, Observable, of, Subject, interval} from "rxjs";
+import {forkJoin, interval} from "rxjs";
 import {ModalService} from '../../_service/modal.service';
-import {catchError, debounceTime, distinctUntilChanged, switchMap, map, tap} from "rxjs/operators";
+import {switchMap, map} from "rxjs/operators";
 
 @Component({
     selector: 'app-overview',

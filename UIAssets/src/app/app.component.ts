@@ -6,7 +6,8 @@ import {PreferencesService} from './_service/preferences.service';
 import {environment} from '../environments/environment';
 import {ModalService} from './_service/modal.service';
 import {Version} from './_model/version';
-import {interval, throwError, empty} from "rxjs";
+import {FabricList} from './_model/fabric';
+import {interval, empty} from "rxjs";
 import {filter, switchMap, map, catchError} from "rxjs/operators";
 
 @Component({
@@ -160,15 +161,55 @@ export class AppComponent implements OnInit, OnDestroy {
     waitForAppReady() {
         const poller = this.pollAppStatus().subscribe(
             (data) => {
-                this.appLoading = false;
                 this.appLoadingStatus = "App loading complete."
                 poller.unsubscribe();
+                if(this.app_mode){
+                    this.waitForFabricDiscovery();
+                } else {
+                    this.appLoading = false;
+                }
             }, 
             (error) => {
+                console.log(error);
                 this.appLoadingStatus = "failed to load results."
                 poller.unsubscribe();
                 return this.waitForAppReady();
             }
         )
+    }
+
+    pollFabricsBrief() {
+        return interval(1000).pipe(switchMap(() =>
+                this.backendService.getFabricsBrief().pipe(
+                    map(
+                        (data) => data,
+                    ),
+                )
+            ),
+        )
+    }
+
+    // in app mode we need to wait until fabric is discovered.
+    waitForFabricDiscovery(){
+        this.appLoadingStatus = "Waiting for fabric discovery to complete."
+        const poller = this.pollFabricsBrief().subscribe(
+            (data) => {
+                let fabric_list = new FabricList(data);
+                if(fabric_list.objects.length>0){
+                    let fabric = fabric_list.objects[0].fabric;
+                    this.appLoadingStatus = "Discovered fabric "+fabric;
+                    this.appLoading = false;
+                    this.router.navigate(['/fabric', fabric]);
+                }
+            }, 
+            (error) => {
+                console.log(error);
+                this.appLoadingStatus = "failed to load fabric status."
+                if("error" in error && "error" in error["error"]){
+                    this.appLoadingStatus+= " "+error["error"]["error"];
+                }
+                poller.unsubscribe();
+            }
+        );
     }
 }

@@ -90,7 +90,7 @@ export class ModalService {
 
     public openModal(template: TemplateRef<any>) {
         this.modalRef = this.modalService.show(template, {
-            animated: true,
+            animated: false,
             keyboard: true,
             backdrop: true,
             ignoreBackdropClick: false,

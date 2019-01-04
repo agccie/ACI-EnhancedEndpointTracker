@@ -15,13 +15,15 @@ import {PreferencesService} from "../../_service/preferences.service";
 })
 
 export class SettingsComponent implements OnInit {
-    app_mode = environment.app_mode;
-    tabs = [];
-    isLoading = false;
+    app_mode: boolean = false;
+    isLoading: boolean = false;
     userRole: number = 0;
+    tabs = [];
 
     constructor(private backendService: BackendService, private activatedRoute: ActivatedRoute, private router: Router,
                 public modalService: ModalService, public fabricService: FabricService, private pref: PreferencesService) {
+        
+        this.app_mode = environment.app_mode;
         this.userRole = this.pref.userRole;
         this.tabs = [
             {name: 'Connectivity', path: 'connectivity'},

@@ -154,27 +154,39 @@ common_event_attribute = {
 
 def wait_for_redis(redis_db, check_interval=1):
     """ blocking function that waits until provided redis-db is available """
-    while True:
-        try:
-            if redis_db.dbsize() >= 0:
-                logger.debug("successfully connected to redis db")
-                return
-        except Exception as e:
-            logger.debug("failed to connect to redis db: %s", e)
+    while not redis_alive(redis_db):
         if check_interval > 0:
             time.sleep(check_interval)
+        else:
+            return
+
+def redis_alive(redis_db):
+    """ return boolean if redis db is alive """
+    try:
+        if redis_db.dbsize() >= 0:
+            logger.debug("successfully connected to redis db")
+            return True
+    except Exception as e:
+        logger.debug("failed to connect to redis db: %s", e)
+        return False
 
 def wait_for_db(db, check_interval=1):
     """ blocking function that waits until provided mongo-db is available """
-    while True:
-        try:
-            if len(db.collection_names()) >= 0:
-                logger.debug("successfully connected to mongo db")
-                return 
-        except Exception as e:
-            logger.debug("failed to connect to mongo db: %s", e)
+    while not db_alive(db):
         if check_interval > 0:
             time.sleep(check_interval)
+        else:
+            return
+
+def db_alive(db):
+    """ return boolean if db is alive """
+    try:
+        if len(db.collection_names()) >= 0:
+            logger.debug("successfully connected to mongo db")
+            return True
+    except Exception as e:
+        logger.debug("failed to connect to mongo db: %s", e)
+        return False
 
 ###############################################################################
 #

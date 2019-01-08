@@ -2,6 +2,7 @@
 from ... utils import get_redis
 from ... utils import get_db
 from .. utils import execute_worker
+from .. utils import raise_interrupt
 from .. utils import register_signal_handlers
 from . common import CACHE_STATS_INTERVAL
 from . common import HELLO_INTERVAL
@@ -18,6 +19,7 @@ from . common import SUPPRESS_WATCH_STALE
 from . common import SUBSCRIBER_CTRL_CHANNEL
 from . common import WATCH_INTERVAL
 from . common import WORKER_CTRL_CHANNEL
+from . common import db_alive
 from . common import get_addr_type
 from . common import get_vpc_domain_id
 from . common import parse_vrf_name
@@ -206,9 +208,17 @@ class eptWorker(object):
                     self.queue_stats["total"].total_rx_msg+= count
 
     def update_stats(self):
+        """ update stats at regular interval """
+
+        # monitor db health prior to db updates
+        if not db_alive(self.db):
+            logger.error("db no longer reachable/alive")
+            raise_interrupt()
+            return
+
         # update stats at regular interval for all queues
-        with self.queue_stats_lock:
-            for k, q in self.queue_stats.items():
+        for k, q in self.queue_stats.items():
+            with self.queue_stats_lock:
                 q.collect(qlen = self.redis.llen(k))
 
         # set timer to recollect at next collection interval

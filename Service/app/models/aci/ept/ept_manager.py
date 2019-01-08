@@ -2,6 +2,7 @@
 from ... utils import get_db
 from ... utils import get_redis
 from .. fabric import Fabric
+from .. utils import raise_interrupt
 from .. utils import register_signal_handlers
 from .. utils import terminate_process
 from . common import HELLO_INTERVAL
@@ -12,6 +13,7 @@ from . common import SEQUENCE_TIMEOUT
 from . common import SUPPRESS_FABRIC_RESTART
 from . common import WORKER_CTRL_CHANNEL
 from . common import WORKER_UPDATE_INTERVAL
+from . common import db_alive
 from . common import wait_for_db
 from . common import wait_for_redis
 from . ept_msg import MSG_TYPE
@@ -75,6 +77,8 @@ class eptManager(object):
                 terminate_process(fab["process"])
         if self.db is not None:
             self.db.client.close()
+        if self.redis is not None and self.redis.connection_pool is not None:
+            self.redis.connection_pool.disconnect()
 
     def run(self):
         """ wrapper around run to handle interrupts/errors """
@@ -327,9 +331,17 @@ class eptManager(object):
                     self.queue_stats["total"].total_rx_msg+= count
 
     def update_stats(self):
+        """ update stats at regular interval """
+
+        # monitor db health prior to db updates
+        if not db_alive(self.db):
+            logger.error("db no longer reachable/alive")
+            raise_interrupt()
+            return
+
         # update stats at regular interval for all queues
-        with self.queue_stats_lock:
-            for k, q in self.queue_stats.items():
+        for k, q in self.queue_stats.items():
+            with self.queue_stats_lock:
                 q.collect(qlen = self.redis.llen(k))
 
         # set timer to recollect at next collection interval

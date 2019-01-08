@@ -394,7 +394,8 @@ class EventHandler(threading.Thread):
             try:
                 event = self.subscriber._ws.recv()
             except Exception as e:
-                logger.debug("websocket recv closed: %s", e)
+                logger.warn("websocket recv closed: %s", e)
+                logger.debug("Traceback:\n%s", traceback.format_exc())
                 return
             if len(event) > 0:
                 # parse event, determine subscription_ids and callback

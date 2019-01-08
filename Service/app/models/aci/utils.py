@@ -484,13 +484,19 @@ def map_signal(sig):
     }.get(sig, "")
     return "(%s)%s" % (sig, name)
 
+def raise_interrupt():
+    """ raise an interrupt signal for local pid 
+        this is thread independent and useful for monitoring threads to kill parent threads
+    """
+    os.kill(os.getpid(), signal.SIGINT)
+
 def register_signal_handlers():
     """ register listener to various signals to trigger a KeyboardInterrupt (SIGINT) which can
         be caught by running processes to gracefull handle cleanups
     """
     def cleanup_shim(sig_number, frame):
         logger.error("exiting due to signal %s", map_signal(sig_number))
-        raise KeyboardInterrupt()
+        raise_interrupt()
 
     catch_signals = [
         signal.SIGHUP,      # 1

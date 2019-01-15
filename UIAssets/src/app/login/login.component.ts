@@ -49,10 +49,12 @@ export class LoginComponent implements OnInit {
 
     onSubmit() {
         this.loading = true;
-        this.backendService.login(this.username, this.password).subscribe(
+        this.backendService.login(this.username, this.password, true).subscribe(
             (data) => {
                 localStorage.setItem('isLoggedIn', 'true');
                 localStorage.setItem('userName', this.username);
+                localStorage.setItem('session', data['session']);
+                localStorage.setItem('token', data['token']);
                 this.pref.userName = this.username;
                 this.backendService.getUserDetails(this.username).subscribe(
                     (data) => {

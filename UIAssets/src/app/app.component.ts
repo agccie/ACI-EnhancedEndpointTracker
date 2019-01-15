@@ -61,6 +61,8 @@ export class AppComponent implements OnInit, OnDestroy {
         this.stopListening();
         if (!this.app_mode) {
             localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('token');
+            localStorage.removeItem('session');
             this.backendService.logout().subscribe(() => {});
         }
     }

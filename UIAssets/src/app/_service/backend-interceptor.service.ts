@@ -48,8 +48,13 @@ export class BackendInterceptorService implements HttpInterceptor {
                 method: 'post',
             });
         } else {
+            let token = localStorage.getItem('token')
+            let sessionId = localStorage.getItem('session')
             req = req.clone({
-                withCredentials: true
+                setHeaders: {
+                    'app-token': token? token : '',
+                    'session': sessionId? sessionId: ''
+                }
             });
         }
         return next.handle(req).pipe(map(resp => {

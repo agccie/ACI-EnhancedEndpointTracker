@@ -138,10 +138,11 @@ export class BackendService {
         });
     }
 
-    login(username, password) {
+    login(username, password, token_required=false) {
         return this.http.post(this.baseUrl + '/user/login', {
             username: username,
-            password: password
+            password: password,
+            token_required: token_required
         });
     }
 

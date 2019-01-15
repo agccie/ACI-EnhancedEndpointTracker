@@ -23,11 +23,9 @@ logger = logging.getLogger(__name__)
 tfabric = "fab1"
 
 @pytest.fixture(scope="module")
-def app(request):
+def app(request, app):
     # module level setup
-
-    from app import create_app
-    app = create_app("config.py")
+    app.config["LOGIN_ENABLED"] = False
 
     # teardown called after all tests in session have completed
     def teardown(): pass

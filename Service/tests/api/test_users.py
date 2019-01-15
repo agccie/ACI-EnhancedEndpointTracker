@@ -16,13 +16,13 @@ keyed_pwreset_url = "%s/pwreset" % keyed_url
 logger = logging.getLogger(__name__)
 
 @pytest.fixture(scope="module")
-def app(request):
+def app(request, app):
     # module level setup executed before any 'user' test in current file
 
     from app import create_app
     app = create_app("config.py")
     app.config["test_password"] = "password"
-    app.db = get_db
+    app.db = get_db()
     app.config["LOGIN_ENABLED"] = True
 
     # ensure uni exists
@@ -45,7 +45,9 @@ def app(request):
 def userprep(request, app):
     # perform proper proper user prep/cleanup
     # at this point, only requirement is to delete all users except local and admin
-    
+   
+    logger.debug("%s test setup", "*"*80)
+
     # for settings to default values
     Settings.delete(_filters={})
     s = Settings()
@@ -60,9 +62,11 @@ def userprep(request, app):
     assert response.status_code == 200
 
     def teardown():
+        logger.debug("%s test teardown", "-"*80)
         User.delete(_filters={"$and":[{"username":{"$ne":"admin"}}, {"username":{"$ne":"local"}}]})
         Session.delete(_filters={})
     request.addfinalizer(teardown)
+    logger.debug("********** test start")
     return
 
 def get_cookies(test_client):
@@ -138,30 +142,53 @@ def test_api_session_csfr_token(app, userprep):
     assert response.status_code == 200
     js = json.loads(response.data)
     assert "token" in js
+    assert "session" in js
 
+    logger.debug("ensure 401 returned when token not sent")
     response = c.get("/api/user")
     assert response.status_code == 401 
 
     # ensure token present in url is accepted
-    response = c.get("/api/user?app_token=%s" % js["token"])
-    assert response.status_code == 200
+    # response = c.get("/api/user?app-token=%s" % js["token"])
+    # assert response.status_code == 200
 
     # ensure token present in data is accepted
-    response = c.get("/api/user", data=json.dumps({
-        "app_token": js["token"]
-    }), content_type="application/json")
-    assert response.status_code == 200
+    # response = c.get("/api/user", data=json.dumps({
+    #    "app-token": js["token"]
+    # }), content_type="application/json")
+    # assert response.status_code == 200
 
-    # ensure token present in header is accepted
+    # ensure token present in header is accepted with session in cookie
+    logger.debug("ensure success with token in headers and session in cookie")
     response = c.get("/api/user", headers={
-        "app_token": js["token"],
+        "app-token": js["token"],
     })
     assert response.status_code == 200
 
-    # ensure an invalid token is not accepted
-    response = c.get("/api/user?app_token=bad_token")
+    # ensure token present in header with session in header (no cookie) is accepted
+    logger.debug("ensure success with token in headers and session in headers (no cookie)")
+    c2 = app.test_client()
+    response = c2.get("/api/user", headers={
+        "app-token": js["token"],
+        "session": js["session"],
+    })
+    assert response.status_code == 200
+
+    # ensure an invalid sesison/token is not accepted
+    logger.debug("ensure 401 with bad token and valid session")
+    response = c.get("/api/user", headers={
+        "app-token": "bad_token1",
+        "session": js["session"],
+    })
     assert response.status_code == 401
 
+    # ensure an invalid sesison/token is not accepted
+    logger.debug("ensure 401 with valid token and bad session")
+    response = c.get("/api/user", headers={
+        "app-token": js["token"],
+        "session": "bad_session",
+    })
+    assert response.status_code == 401
 
 def test_api_create_user_incomplete_data(app, userprep):
     # create a user with no data

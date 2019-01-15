@@ -15,8 +15,6 @@ from flask import abort
 from flask import g
 from flask import current_app
 from flask import jsonify
-from flask_login import login_user
-from flask_login import logout_user
 
 import base64
 import json
@@ -103,15 +101,16 @@ class User(Rest):
     @api_route(path="logout", methods=["POST"], role=Role.USER)
     def logout():
         """ logout current user """
-        session_id = g.user.session
+        session_id = Session.load_session()
         if session_id is not None:
             s = Session.find(session=session_id)
             if len(s)>0:
                 #logger.debug("deleting session: %s", session_id)
-                s = s[0]
-                s.remove()
-        logout_user()
-        return User.api_ok()
+                s[0].remove()
+        # delete session cookie
+        ret = User.api_ok()
+        ret.set_cookie("session","", max_age=0)
+        return ret
 
     @staticmethod
     @api_route(path="login", methods=["POST"], authenticated=False, swag_ret=["success","token"])
@@ -126,15 +125,20 @@ class User(Rest):
                     u.save()
                     # create a new session for user
                     sid = base64.b64encode(os.urandom(64))
-                    s = Session(username=u.username, role=u.role, session=sid, 
-                                                            token_required=token_required)
+                    s = Session(username=u.username, session=sid, token_required=token_required)
                     if not s.save():
                         logger.error("failed to create session for user %s", u.username)
-                    login_user(s, remember=True)
+                    js = {
+                        "success": True,
+                        "token": "",
+                        "session": sid
+                    }
                     if token_required:
-                        return jsonify({"success": True, "token": s.token})
-                    else:
-                        return User.api_ok()
+                        js["token"] = s.token
+                    # set session cookie on response
+                    ret = jsonify(js)
+                    ret.set_cookie("session", s.session)
+                    return ret
             except Exception as e:
                 logger.error("check_password_hash failed: %s", e)
         else:
@@ -283,13 +287,6 @@ class Session(Rest):
             "key": True,
             "description": "unique session id",
         },
-        "role": {
-            "type": int,
-            "default": Role.USER,
-            "min": Role.MIN_ROLE,
-            "max": Role.MAX_ROLE,
-            "description": "role inherited from user object that created this session",
-        },
         "created": {
             "type": float,
             "description": "epoch timestampe when session was created",
@@ -309,15 +306,26 @@ class Session(Rest):
         },
     }
 
-    # required for flask-login
-    # https://flask-login.readthedocs.org/en/latest/#your-user-class
-    def is_authenticated(self): return True
-    def is_active(self): return True
-    def is_anonymous(self): return False
-    def get_id(self): return self.session
+    @staticmethod
+    def load_session():
+        """ load session id from auth header or cookie and return value.  
+            Return None if not found 
+        """
+        # need to get the session_id from the header (preferred) or cookie
+        session_id = get_user_headers().get("session", None)
+        if session_id is None:
+            return get_user_cookies().get("session", None)
+        return session_id
 
     @staticmethod 
-    def load_session(session_id):
+    def load_user():
+        """ load user object from session id in cookie or header. If session is invalid return None
+            else return valid user
+        """
+        session_id = Session.load_session()
+        if session_id is None:
+            return None
+
         # load user object for corresponding session id.  If session id is invalid, has expired,
         # or token is not present within the request and token_required enabled, then return None
         now = time.time()
@@ -331,12 +339,12 @@ class Session(Rest):
             return None
         # perform CSFR check if token_required 
         if s.token_required:
-            # token can be set in headers, data, or params and must be called 'app_token'
-            token = get_user_headers().get("app_token", None)
-            if token is None:
-                token = get_user_data().get("app_token", None)
-            if token is None:
-                token = get_user_params().get("app_token", None)
+            # accept token only in header
+            token = get_user_headers().get("app-token", None)
+            #if token is None:
+            #    token = get_user_data().get("app_token", None)
+            #if token is None:
+            #    token = get_user_params().get("app_token", None)
             if token is None:
                 logger.debug("no token provided for session %s", s.session)
                 return None
@@ -349,7 +357,8 @@ class Session(Rest):
         if not u.exists(): 
             logger.debug("username %s for session %s no longer exists", s.username, s.session)
             return None
-        return s
+        logger.debug("user %s, session %s", u.username, s.session)
+        return u
 
     @classmethod
     @api_callback("before_create")

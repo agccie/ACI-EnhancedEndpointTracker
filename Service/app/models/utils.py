@@ -150,7 +150,11 @@ def get_user_params():
     except Exception as e: return {}
 
 def get_user_headers():
-    """ return dict of user headers in http request """
+    """ return request.headers corresponding to user headers in http request 
+        This is pseudo dict with multiple keys mapping to the same value:
+            http://werkzeug.pocoo.org/docs/0.14/datastructures/#werkzeug.datastructures.Headers
+            This is nice because the key app-token = App-Token = app_token
+    """
     try:
         if not request.headers: return {}
         return request.headers

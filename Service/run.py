@@ -39,7 +39,7 @@ if __name__ == "__main__":
         # override some config settings and add test modules
         from tests.api.test_proxy import Rest_TestProxy
         app = create_app("config.py")
-        app.config["ENABLE_LOGIN"] = False
+        app.config["LOGIN_ENABLED"] = False
         app.config["DEBUG"] = True
         app.config["MONGO_DBNAME"] = "testdb"
         app.config["TMP_DIR"] = os.path.realpath("%s/test" % app.config["TMP_DIR"])

@@ -1,11 +1,16 @@
-from flask import Flask, g, abort
+from flask import Flask, abort
 from flask_login import (LoginManager, login_required, login_user, 
     current_user, logout_user)
 from flask import request, make_response, render_template, jsonify
 import re
 
+_app_config = None
 def create_app_config(config_filename="config.py"):
     # get app config without initiating entire app
+    global _app_config
+    if _app_config is not None:
+        return _app_config
+
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object("config")
     # pass if unable to load instance file
@@ -14,11 +19,13 @@ def create_app_config(config_filename="config.py"):
     # import private config when running in APP_MODE
     try: app.config.from_pyfile("/home/app/config.py", silent=True)
     except IOError: pass
-    return app.config
+    _app_config = app.config
+    return _app_config
 
 _app = None
 def create_app(config_filename="config.py"):
     global _app
+    global _app_config
     if _app is not None: return _app
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object("config")
@@ -28,6 +35,8 @@ def create_app(config_filename="config.py"):
     # import private config when running in APP_MODE
     try: app.config.from_pyfile("/home/app/config.py", silent=True)
     except IOError: pass
+    # save global pointer for app_config as well
+    _app_config = app.config
 
     # add custom converter (filename) so attribute keys can be type 'filename'
     app.url_map.converters["filename"] = FilenameConverter
@@ -134,17 +143,6 @@ def register_error_handler(app):
         app.errorhandler(code)(error_handler)
 
     return None
-
-def basic_auth():
-    """ basic authentication that can be provided to admin-only blueprints
-        that aborts on error else returns None
-    """
-    g.user = current_user
-    if g.user is not None:
-        if hasattr(g.user, "is_authenticated") and hasattr(g.user, "role"):
-            if g.user.is_authenticated and g.user.role == g.ROLE_FULL_ADMIN:
-                return
-    abort(403, "")
 
 from werkzeug.routing import BaseConverter
 class FilenameConverter(BaseConverter):

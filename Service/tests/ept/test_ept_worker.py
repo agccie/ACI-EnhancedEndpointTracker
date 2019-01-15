@@ -147,15 +147,9 @@ vpc_node_id = 0x650066
 parser = eptEpmEventParser(tfabric, overlay_vnid)
 
 @pytest.fixture(scope="module")
-def app(request):
-    # module level setup
-    from app import create_app
-    app = create_app("config.py")
-    db = get_db()
-    logger.debug("setting up db!")
-    assert db_setup(sharding=False, force=True)
-    logger.debug("db initialized")
+def app(request, app):
 
+    app.config["LOGIN_ENABLED"] = False
     create_test_environment()
 
     # teardown called after all tests in session have completed

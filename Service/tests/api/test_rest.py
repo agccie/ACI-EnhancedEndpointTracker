@@ -127,8 +127,15 @@ def assert_not_found(fn, *args, **kwargs):
     except NotFound as e: 
         logger.debug("NotFound: %s", e)
 
+@pytest.fixture(scope="module")
+def app(request, app):
+    logger.debug("%s module-prep start", "-"*80)
+    app.config["LOGIN_ENABLED"] = False
+    return app
+
 @pytest.fixture(scope="function")
 def rest_cleanup(request, app):
+
     # drop test.rest (objects for Rest_TestClass) and dnyamic.test for Dynamic_Test objects
     def teardown():
         db = app.db

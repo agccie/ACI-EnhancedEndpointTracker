@@ -832,7 +832,8 @@ class Rest(object):
     @classmethod
     def authenticated(cls):
         """ abort if user is not currently authenticated (not currently logged in) """
-        if (g.user.is_authenticated is False): abort(401, "Unauthenticated")
+        if not g.user.is_authenticated:
+            abort(401, "Unauthenticated")
         
     @classmethod
     def rbac(cls, role=None):
@@ -1852,8 +1853,7 @@ class Rest(object):
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            cls.logger.debug("traceback: %s", traceback.format_exc())
-            cls.logger.warn("database error: %s", e)
+            cls.logger.debug("traceback (database error): %s", traceback.format_exc())
             raise e
 
 def raise_error(classname, attr, val, e=""):

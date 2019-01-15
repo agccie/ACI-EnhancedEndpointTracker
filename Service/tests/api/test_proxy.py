@@ -130,12 +130,13 @@ def kill_group(pid):
         logger.error("failed to read pids - proxy app may still be running...")
 
 @pytest.fixture(scope="module")
-def app(request):
+def app(request, app):
     # module level setup executed before any 'user' test in current file
     logger.debug("%s module-prep start", "-"*80)
 
+    app.config["LOGIN_ENABLED"] = False
     t_app = create_app("config.py")
-    t_app.db = get_db
+    t_app.db = get_db()
     t_app.client = t_app.test_client()
     t_app.config["LOGIN_ENABLED"] = False
     t_app.config["PROXY_URL"] = "http://127.0.0.1:%s" % PROXY_PORT
@@ -184,19 +185,21 @@ def app(request):
 @pytest.fixture(scope="function")
 def funcprep(request, app):
     # function level bring up and teardown
-
+    logger.debug("%s funcprep start", "*"*80)
     def teardown():
+        logger.debug("%s funcprep tear down", "-"*80)
         # kill proxy_server
         Rest_TestProxy.delete(_filters={})
 
     request.addfinalizer(teardown)
-    logger.debug("funcprep completed")
+    logger.debug("********** funcprep completed")
     return
        
 def test_proxy_read(app, funcprep):
     # send proxy read request and ensure data is captured
 
     # first read no objects found
+    logger.debug("test proxy request")
     c = app.test_client()
     response = c.get("/proxy.json?url=/api/test/proxy")
     assert response.status_code == 200

@@ -12,12 +12,12 @@ import json, logging
 logger = logging.getLogger(__name__)
 
 @pytest.fixture(scope="module")
-def app(request):
+def app(request, app):
     # module level setup executed before any 'settings' test in current file
 
     from app import create_app
     app = create_app("config.py")
-    app.db = get_db
+    app.db = get_db()
     app.config["LOGIN_ENABLED"] = False
 
     # create settings object with default attributes

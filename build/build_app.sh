@@ -10,8 +10,8 @@ self=$0
 docker_image=""
 intro_video=""
 private_key=""
+app_mini="0"
 enable_proxy="0"
-relax_build_checks="1"
 build_standalone="0"
 build_all_in_one="0"
 standalone_http_port="5000"
@@ -99,7 +99,7 @@ COPY ./Service/ \$SRC_DIR/Service/
 COPY ./UIAssets/ \$SRC_DIR/UIAssets.src/
 COPY ./build/ \$SRC_DIR/build/
 # trigger frontend build
-RUN \$SRC_DIR/build/build_frontend.sh -r \
+RUN \$SRC_DIR/build/build_frontend.sh \
     -s \$SRC_DIR/UIAssets.src \
     -d \$SRC_DIR/UIAssets \
     -t /tmp/build \
@@ -134,12 +134,14 @@ function build_app() {
     mkdir -p $TMP_DIR/$APP_ID/UIAssets
     mkdir -p $TMP_DIR/$APP_ID/Service
     mkdir -p $TMP_DIR/$APP_ID/Image
-    mkdir -p $TMP_DIR/$APP_ID/ClusterMgrConfig
     mkdir -p $TMP_DIR/$APP_ID/Legal
     mkdir -p $TMP_DIR/$APP_ID/Media/Snapshots
     mkdir -p $TMP_DIR/$APP_ID/Media/Readme
     mkdir -p $TMP_DIR/$APP_ID/Media/License
     mkdir -p $TMP_DIR/$APP_ID.build
+    if [ "$app_mini" == "0" ] ; then
+        mkdir -p $TMP_DIR/$APP_ID/ClusterMgrConfig
+    fi
 
     # build docker container
     if [ "$docker_image" ] ; then
@@ -172,9 +174,15 @@ function build_app() {
     cp -p ./version.txt $TMP_DIR/$APP_ID/Service/
     # remove instance config if present
     rm -rf $TMP_DIR/$APP_ID/Service/instance/config.py
-    # dynamically create clusterMgrConfig
-    conf=$TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
-    python ./cluster/kron/create_config.py --image $docker_image_name > $conf
+    if [ "app_mini" == "0" ] ; then
+        # dynamically create clusterMgrConfig
+        conf=$TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
+        python ./cluster/kron/create_config.py --image $docker_image_name > $conf
+    else
+        # override app.json with app_mini
+        log "overriding app.json with app_mini.json"
+        cp -p ./app_mini.json $TMP_DIR/$APP_ID/app.json
+    fi
 
     # create media and legal files
     # (note, snapshots are required in order for intro_video to be displayed on appcenter
@@ -215,7 +223,7 @@ function build_app() {
             echo "hello" > $bf_dst/app-start.html
             cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
         else
-            ./build/build_frontend.sh -r -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
+            ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
             # need to manually copy over logo.png into UIAssets folder
             if [ -f "$BASE_DIR/UIAssets/logo.png" ] ; then
                 cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
@@ -251,16 +259,16 @@ function display_help() {
     echo "    -k [file] private key uses for signing app"
     echo "    -P [https] https port when running in standalone mode (use 0 to disable)"
     echo "    -p [http] http port when running in standalone mode (use 0 to disable)"
-    echo "    -r relax build checks (ensure tools are present but skip version check)"
     echo "    -s build and deploy container for standalone mode"
     echo "    -v [file] path to intro video (.mp4 format)"
     echo "    -x send local environment proxy settings to container during build"
+    echo "    -m mini-app build (excludes clusterMgrConfig for support on APIC 2.2.1n and above)"
     echo ""
     exit 0
 }
 
 
-optspec=":i:v:k:p:P:a:hxrs"
+optspec=":i:v:k:p:P:a:hxsm"
 while getopts "$optspec" optchar; do
   case $optchar in
     i)
@@ -290,6 +298,9 @@ while getopts "$optspec" optchar; do
             exit 1
         fi
         ;;
+    m)
+        app_mini="1"
+        ;;
     p)
         if [[ $OPTARG =~ ^-?[0-9]+$ ]] ; then
             standalone_http_port=$OPTARG
@@ -312,9 +323,6 @@ while getopts "$optspec" optchar; do
         ;;
     x)
         enable_proxy="1"
-        ;;
-    r)
-        relax_build_checks="1"
         ;;
     s)
         build_standalone="1"

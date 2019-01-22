@@ -299,7 +299,7 @@ function check_frontend(){
     local tmp="/tmp/build/"
     if [ "$APP_MODE" == "0" ] ; then
         log "checking for frontend UI build"
-        local cmd="$APP_DIR/src/build/build_frontend.sh -r -s $src -d $dst -t $tmp -m standalone"
+        local cmd="$APP_DIR/src/build/build_frontend.sh -s $src -d $dst -t $tmp -m standalone"
         cmd="$cmd >> $LOG_FILE 2>> $LOG_FILE"
         if [ -z "$(ls -A $dst)" ] ; then
             # bail out if frontend src files don't exist or already built

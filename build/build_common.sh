@@ -4,7 +4,6 @@ BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../"
 # change working directory to root of project
 cd $BASE_DIR
 
-relax_build_checks="0"
 app_pack="1.2_min"
 
 # these variables are set from app.json if found. Use app.json as single
@@ -86,14 +85,7 @@ function check_build_tools() {
         if [ "$v" ] ; then
             version=`$p -v`
             if [ ! "$version" == "$v" ] ; then
-                if [ "$relax_build_checks" == "1" ] ; then
-                    log "'$p' version '$version', expected '$v', continuing anyways"
-                else
-                    echo "" >&2
-                    echo "incompatible '$p' version '$version', expected '$v', aborting build" >&2
-                    echo "" >&2
-                    exit 1
-                fi
+                log "'$p' version '$version', expected '$v', continuing anyways"
             fi
         fi
     done
@@ -127,14 +119,7 @@ function check_packager_dependencies() {
         if [ "$v" ] ; then
             version=`$p -v`
             if [ ! "$version" == "$v" ] ; then
-                if [ "$relax_build_checks" == "1" ] ; then
-                    log "'$p' version '$version', expected '$v', continuing anyways"
-                else
-                    echo "" >&2
-                    echo "incompatible '$p' version '$version', expected '$v', aborting build" >&2
-                    echo "" >&2
-                    exit 1
-                fi
+                log "'$p' version '$version', expected '$v', continuing anyways"
             fi
         fi
     done

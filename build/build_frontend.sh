@@ -12,7 +12,6 @@ TMP_DIR=""
 SRC_DIR=""
 DST_DIR=""
 self=$0
-relax_build_checks="1"
 build_mode="standalone"
 
 function build_frontend() {
@@ -70,12 +69,11 @@ function display_help() {
     echo "    -t [path] tmp directory to perform build"
     echo "    -d [path] final directory to cp build files"
     echo "    -m [mode] build frontend in app or standalone, default 'standalone'"
-    echo "    -r relax build checks (ensure tools are present but skip version check)"
     echo ""
     exit 0
 }
 
-optspec=":s:t:d:m:hr"
+optspec=":s:t:d:m:h"
 while getopts "$optspec" optchar; do
   case $optchar in
     s)
@@ -86,9 +84,6 @@ while getopts "$optspec" optchar; do
         ;;
     d)
         DST_DIR=$OPTARG
-        ;;
-    r)
-        relax_build_checks="1"
         ;;
     m)
         build_mode=$OPTARG

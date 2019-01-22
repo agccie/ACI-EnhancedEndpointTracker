@@ -1,0 +1,26 @@
+{
+    "api":{
+        "proxy.json":"dynamic api workaround"
+    },
+    "apicversion":"2.2(1n)",
+    "appid":"EnhancedEndpointTracker",
+    "author":"Andy Gossett",
+    "category":[
+        "Visibility and Monitoring"
+    ],
+    "contact":{
+        "contact-email":"aciappcenter-support@external.cisco.com ",
+        "contact-phone":"555-123-4567",
+        "contact-url":"https://github.com/agccie/ACI-EnhancedEndpointTracker"
+    },
+    "iconfile":"logo.png",
+    "name":"EnhancedEndpointTracker",
+    "permissions":[
+        "admin"
+    ],
+    "permissionslevel":"read",
+    "shortdescr":"Track endpoint activity within the ACI fabric",
+    "vendor":"Cisco",
+    "vendordomain":"Cisco",
+    "version":"2.0"
+}

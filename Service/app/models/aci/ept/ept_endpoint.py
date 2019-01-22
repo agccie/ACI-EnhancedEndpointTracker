@@ -294,13 +294,19 @@ class eptEndpoint(Rest):
         else:
             addr_type = "ip"
             # get the vrf name so consuming function does not need to perform this op multiple times
+            # need to check both events and first_event for vrf name.
             if len(self.events) > 0:
                 vrf_name = parse_vrf_name(self.events[0]["vnid_name"])
                 if vrf_name is None:
                     abort(500, "failed to parse vrf name from vnid(%s) name %s" % (
                         self.vnid, self.events[0]["vnid_name"]))
-            else:
-                logger.warn("no events for this endpoint, cannot determine vrf_name")
+            elif "vnid_name" in self.first_learn:
+                vrf_name = parse_vrf_name(self.first_learn["vnid_name"])
+                if vrf_name is None:
+                    abort(500, "failed to parse vrf name from vnid(%s) name %s" % (
+                        self.vnid, self.first_learn["vnid_name"]))
+            else: 
+                logger.warn("no events/first_learn for this endpoint, cannot determine vrf_name")
                 abort(400, "cannot execute clear for this endpoint as vrf name is unresolved")
 
         # need to get pod for each node, ignore unknown nodes

@@ -143,8 +143,9 @@ class SubscriptionCtrl(object):
   
     def unsubscribe(self):
         """ unsubscribe and close connections """
-        if not self.alive: return
         logger.info("unsubscribe: (alive:%r, thread:%r)",self.alive,(self.worker_thread is not None))
+        if not self.alive: 
+            return
 
         # should never call unsubscribe without worker (subscribe called with block=True), however 
         # as sanity check let's put it in there...
@@ -212,7 +213,7 @@ class SubscriptionCtrl(object):
             while self.ctrl == SubscriptionCtrl.CTRL_CONTINUE:
                 self._subscribe(restarting=restarting)
                 if self.ctrl == SubscriptionCtrl.CTRL_RESTART:
-                    logger.debug("restart request, resting subscription ctrl to continue")
+                    logger.debug("restart request, resetting subscription ctrl to continue")
                     with self.lock:
                         self.ctrl = SubscriptionCtrl.CTRL_CONTINUE
                         restarting = True
@@ -230,7 +231,7 @@ class SubscriptionCtrl(object):
         # initialize subscription is not alive unless in restarting status
         self.alive = restarting
 
-        # dummy function that does nothing
+        # dummy function that does nothing if no callback available for subscription
         def noop(*args,**kwargs): pass
     
         try: self.heartbeat = float(self.heartbeat)
@@ -277,7 +278,7 @@ class SubscriptionCtrl(object):
         """ execute subscribe for single classname, return bool success"""
         if classname in self.interests:
             # assume user knows what they are doing here - if only_new is True then return set is
-            # limited to first 1.  Else, page-size is set to maximum
+            # limited to page-size 1.  Else, page-size is set to maximum
             if self.only_new:
                 url = "/api/class/%s.json?subscription=yes&page-size=1" % classname
             else:
@@ -344,6 +345,20 @@ class SubscriptionCtrl(object):
                 hasattr(self.session.subscription_thread.event_handler_thread, "is_alive") and \
                 self.session.subscription_thread.event_handler_thread.is_alive()
             )
+
+            alive = (
+                hasattr(self.session.subscription_thread, "is_alive") and \
+                self.session.subscription_thread.is_alive() and \
+                hasattr(self.session.subscription_thread, "_ws")
+            )
+            # only check websocket health if subscription thread is not in graceful restart
+            if alive and not self.session.subscription_thread.restarting:
+                alive = alive and (
+                    self.session.subscription_thread._ws.connected and \
+                    hasattr(self.session.subscription_thread.event_handler_thread, "is_alive") and \
+                    self.session.subscription_thread.event_handler_thread.is_alive()
+                )
+
             if alive and heartbeat:
                 alive = get_dn(self.session, "uni", timeout=10) is not None
         except Exception as e: 

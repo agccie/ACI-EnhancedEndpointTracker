@@ -828,7 +828,7 @@ class eptSubscriber(object):
                     #logger.debug("failed to map tunnel to remote node: %s", t)
                     pass
                 else:
-                    logger.warn("failed to map tunnel to remote node: %s", t)
+                    logger.debug("failed to map tunnel to remote node: %s", t)
         if len(bulk_objects)>0:
             eptTunnel.bulk_save(bulk_objects, skip_validation=False)
         return True

@@ -52,7 +52,7 @@ class aaaUserDomain(object):
 class Session(object):
     """ Session class responsible for all communication with the APIC """
     def __init__(self, url, uid, pwd=None, cert_name=None, key=None, verify_ssl=False,
-                 appcenter_user=False, proxies=None, resubscribe=True):
+                 appcenter_user=False, proxies=None, resubscribe=True, graceful=True):
         """
             url (str)               apic url such as https://1.2.3.4
             uid (str)               apic username or certificate name 
@@ -66,6 +66,10 @@ class Session(object):
             proxies (dict)          optional dict containing the proxies passed to request library
             resubscribe (bool)      auto resubscribe on if subscription or login fails
                                     if false then subscription thread is closed on refresh failure
+            graceful(bool)          trigger graceful_resubscribe at 95% of maximum lifetime which
+                                    acquires new login token and gracefully restarts subscriptions.
+                                    During this time, there may be duplicate data on subscription 
+                                    but no data should be lost.
         """
         if not isinstance(url, basestring): url = str(url)
         if not isinstance(uid, basestring): uid = str(uid)
@@ -91,6 +95,7 @@ class Session(object):
         self.appcenter_user = appcenter_user
         self.default_timeout = 120
         self.resubscribe = resubscribe
+        self.graceful = graceful
         # indexed by aaaUserDomain name and contains all permission info discovered at login
         self.domains = {}               
 
@@ -108,7 +113,9 @@ class Session(object):
         self.verify_ssl = verify_ssl
         self.session = None
         self.token = None
-        self.login_thread = Login(self)
+        self.login_timeout = 0
+        self.login_lifetime = 0
+        self.login_thread = None
         self.subscription_thread = None
         self._logged_in = False
         self._proxies = proxies
@@ -179,9 +186,11 @@ class Session(object):
             return ret
         self._logged_in = True
         ret_data = json.loads(ret.text)['imdata'][0]
-        timeout = ret_data['aaaLogin']['attributes']['refreshTimeoutSeconds']
         self.token = str(ret_data['aaaLogin']['attributes']['token'])
-        self.login_thread._login_timeout = int(timeout) / 2
+        self.login_timeout = int(ret_data['aaaLogin']['attributes']['refreshTimeoutSeconds'])/2
+        lifetime = float(ret_data['aaaLogin']['attributes']['maximumLifetimeSeconds'])
+        self.login_lifetime = time.time() + lifetime*0.95
+        logger.debug("lifetime set to %.3f (%.3f seconds)", self.login_lifetime, 0.95*lifetime)
         # set domains from aaaUserDomain info
         self.domains = {}
         if 'children' in ret_data['aaaLogin'] and len(ret_data['aaaLogin']['children'])>0:
@@ -228,7 +237,6 @@ class Session(object):
         """
         return self._send("GET", url, timeout=timeout, retry=retry)
 
-
     def init_subscription_thread(self):
         """ start subscription thread """
         if self.subscription_thread is None:
@@ -241,6 +249,13 @@ class Session(object):
         self.init_subscription_thread()
         return self.subscription_thread.subscribe(url, callback, only_new=only_new, paused=paused)
 
+    def graceful_resubscribe(self):
+        """ gracefully restart subscriptions and return boolean success """
+        if self.subscription_thread is not None:
+            return self.subscription_thread.graceful_resubscribe()
+        logger.debug("cannot restart non-existing subscription thread")
+        return False
+
     def unsubscribe(self, url):
         """ unsubscribe from a particular url """
         if self.subscription_thread is not None:
@@ -251,8 +266,10 @@ class Session(object):
         try:
             resp = self._send_login(timeout)
             if resp.status_code == 200:
-                self.login_thread.daemon = True
-                self.login_thread.start()
+                if self.login_thread is None:
+                    self.login_thread = Login(self)
+                    self.login_thread.daemon = True
+                    self.login_thread.start()
                 return True
         except ConnectionError as e:
             logger.warn('Could not login to APIC due to ConnectionError: %s', e)
@@ -338,7 +355,6 @@ class Login(threading.Thread):
     def __init__(self, session):
         threading.Thread.__init__(self)
         self._session = session
-        self._login_timeout = 0
         self._exit = False
 
     def exit(self):
@@ -348,33 +364,69 @@ class Login(threading.Thread):
         if self._session.subscription_thread is not None:
             self._session.subscription_thread.exit()
 
+    def wait_until_next_cycle(self):
+        """ determine sleep period based on login_timeout and login_lifetime and wait required
+            amount of time.
+        """
+        sleep_time = self._session.login_timeout
+        if self._session.graceful:
+            ts = time.time()
+            if ts + sleep_time > self._session.login_lifetime:
+                sleep_time = self._session.login_lifetime - ts
+        if sleep_time > 0:
+            time.sleep(sleep_time)
+
+    def refresh(self):
+        """ trigger a token refresh with login triggered on error. 
+            Return boolean success.
+        """
+        logger.debug("login thread token refresh")
+        refreshed = False
+        try:
+            refreshed = self._session.refresh_login(timeout=30)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            logger.warn('connection error or timeout on login refresh, triggering new login')
+            self._session.login_timeout = 30
+        if not refreshed:
+            if self._session._send_login().ok:
+                return True
+            else:
+                logger.warn("login attempt failed")
+                return False
+        else:
+            return True
+
+    def restart(self):
+        """ if graceful restart is enabled and subscription thread is running, then trigger the 
+            graceful_resubscribe function.  Else, trigger a new login (fresh token).
+            Return boolean success
+        """
+        logger.debug("login thread graceful restart")
+        if self._session.subscription_thread is not None:
+            return self._session.graceful_resubscribe()
+        else:
+            return self._session._send_login().ok
+
     def run(self):
         while not self._exit:
-            time.sleep(self._login_timeout)
-            refreshed = False
+            self.wait_until_next_cycle()
             try:
-                logger.debug("refreshing session token")
-                refreshed = self._session.refresh_login(timeout=30)
+                # trigger either token refresh or graceful_resubscribe
+                if self._session.graceful and time.time() > self._session.login_lifetime:
+                    success = self.restart()
+                else:
+                    success = self.refresh()
+                if not success:
+                    logger.warn("failed to refresh/restart login thread")
+                    return self.exit()
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-                logger.warn('connection error or timeout on login refresh')
-                self._login_timeout = 30
-            if not refreshed:
-                try:
-                    if not self._session._send_login().ok:
-                        logger.warn("login failed, existing login thread")
-                        return self.exit()
-                    # may not need to restart subscriptions as subscriber uses same token and will
-                    # automatically get the updated tokens on next subscriber refresh.
-                    #if not self._session._resubscribe():
-                    #    logger.warn("failed to resubscribe to subscriptions, exiting login thread")
-                    #    return self.exit()
-                except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-                    logger.warn('second connection error or timeout on login refresh')
-                    return self.exit()
-                except Exception as e:
-                    logger.debug("Traceback:\n%s", traceback.format_exc())
-                    logger.warn("exception occurred on login thread login: %s", e)
-                    return self.exit()
+                logger.warn('connection error or timeout on login refresh/restart')
+                return self.exit()
+            except Exception as e:
+                logger.debug("Traceback:\n%s", traceback.format_exc())
+                logger.warn("exception occurred on login thread login: %s", e)
+                return self.exit()
+
         return self.exit()
 
 class EventHandler(threading.Thread):
@@ -395,7 +447,6 @@ class EventHandler(threading.Thread):
                 event = self.subscriber._ws.recv()
             except Exception as e:
                 logger.warn("websocket recv closed: %s", e)
-                logger.debug("Traceback:\n%s", traceback.format_exc())
                 return
             if len(event) > 0:
                 # parse event, determine subscription_ids and callback
@@ -425,7 +476,7 @@ class CallbackHandler(object):
         self.event_q = Queue()
 
     def flush(self):
-        # flush any pending events
+        # flush any pending events (no callback triggered on flush)
         while not self.event_q.empty():
             self.event_q.get()
 
@@ -475,6 +526,8 @@ class Subscriber(threading.Thread):
         self._event_q = Queue()
         self.resubscribe = resubscribe
         self.event_handler_thread = None
+        self._lock = threading.Lock()
+        self.restarting = False
 
     def exit(self):
         """ exit the thread and ensure event handler thread is also closed """
@@ -573,22 +626,70 @@ class Subscriber(threading.Thread):
         # validate callback is callable, else raise exception
         if not callable(callback):
             raise Exception("callback is not callable: %s", str(callback))
+
         self._callbacks[url] = callback
-        return self._send_subscription(url, callback, only_new, paused)
+        (subscription_id, data) = self._send_subscription(url)
+        logger.debug("acquiring subscription lock")
+        with self._lock:
+            logger.debug("subscription lock acquired")
+            if subscription_id is None:
+                self._subscriptions.pop(url, None)
+                return False
+            cb = CallbackHandler(url, subscription_id, callback, paused)
+            self._subscriptions[url] = subscription_id
+            self._subscription_ids[subscription_id] = cb
+            # callback for non-new events
+            if not only_new:
+                # trigger callback for each object
+                ts = time.time()
+                for obj in data:
+                    cb.execute_callback({
+                        "imdata": [ obj ] ,
+                        "subscriptionId": [ subscription_id ],
+                        "_ts": ts
+                    })
+        return True
+
+    def _send_subscription(self, url):
+        """ send the subscription to the specified url 
+            return tuple (subscriptionId, data) on success, else return (None, None)
+        """
+        try:
+            resp = self._session.get(url)
+            if not resp.ok:
+                logger.warn('could not send subscription to APIC for url %s', url)
+                return (None, None)
+            resp_data = json.loads(resp.text)
+            if 'subscriptionId' in resp_data and "imdata" in resp_data:
+                logger.debug("subscription id %s for %s", resp_data["subscriptionId"], url)
+                return (resp_data['subscriptionId'], resp_data["imdata"])
+            else:
+                logger.warn("invalid subscription response: %s", resp_data)
+        except ConnectionError:
+            self._subscriptions.pop(url, None)
+            logger.warn("connection error occurred")
+        except Exception as e:
+            logger.debug("Traceback:\n%s", traceback.format_exc())
+
+        logger.debug("failed to _send_subscription for url %s", url)
+        return (None, None)
 
     def unsubscribe(self, url):
         """ unsubscribe from a particular apic url """
         if url in self._subscriptions:
-            self._callbacks.pop(url, None)
-            _id = self._subscriptions.pop(url, None)
-            self._subscription_ids.pop(_id, None)
+            logger.debug("acquiring lock for unsubscribe")
+            with self._lock:
+                logger.debug("subscription lock acquired")
+                self._callbacks.pop(url, None)
+                _id = self._subscriptions.pop(url, None)
+                self._subscription_ids.pop(_id, None)
             unsubscribe_url = re.sub("subscription=yes", "subscription=no", url)
             try:
                 resp = self._session.get(unsubscribe_url, timeout=5)
                 logger.debug("unsubscribe success: %r, url %s", resp.ok, unsubscribe_url)
             except Exception as e:
-                #logger.debug("Traceback:\n%s", traceback.format_exc())
-                logger.debug("failed to unsubscribe while exiting subscription: %s", e)
+                logger.error("failed to unsubscribe while exiting subscription: %s", e)
+                logger.debug("Traceback:\n%s", traceback.format_exc())
 
     def _close_web_socket(self):
         """ close websocket if connnected """
@@ -604,16 +705,14 @@ class Subscriber(threading.Thread):
                 if self.event_handler_thread is not None:
                     self.event_handler_thread.exit()
 
-    def _open_web_socket(self):
-        """ open new web socket, return bool success"""
-        # close any open websockets first
-        self._close_web_socket()
+    def _get_web_socket(self):
+        """ get a new web socket connection, return None on error """
 
         # if no token is present then need to trigger login
         if self._session.token is None:
             if not self._session.login():
                 logger.warn("aborting web socket, unable to acquire login token")
-                return False
+                return None
         sslopt = {}
         if re.search("^https", self._session.api):
             sslopt['cert_reqs'] = ssl.CERT_NONE
@@ -622,60 +721,33 @@ class Subscriber(threading.Thread):
             self._ws_url = 'ws://%s/socket%s' % (self._session.hostname, self._session.token)
         try:
             logger.debug("opening web socket")
-            self._ws = create_connection(self._ws_url, sslopt=sslopt)
-            if self._ws.connected:
-                self.event_handler_thread = EventHandler(self)
-                self.event_handler_thread.daemon = True
-                self.event_handler_thread.start()
-                return True
+            ws = create_connection(self._ws_url, sslopt=sslopt)
+            if ws.connected:
+                return ws
             else:
-                logger.warn('unable to open websocket connection')
+                logger.warn("failed to connect on new websocket")
+                return None
         except WebSocketException:
             logger.debug("Traceback:\n%s", traceback.format_exc())
             logger.error('unable to open websocket connection due to WebSocketException')
         except socket.error:
             logger.debug("Traceback:\n%s", traceback.format_exc())
             logger.error('unable to open websocket connection due to Socket Error')
-        return False
+        return None
 
-    def _send_subscription(self, url, callback, only_new, paused):
-        """ send the subscription to the specified url 
-            return bool success
-        """
-        try:
-            resp = self._session.get(url)
-            if not resp.ok:
-                self._subscriptions.pop(url, None)
-                logger.warn('could not send subscription to APIC for url %s', url)
-                return False
-            resp_data = json.loads(resp.text)
-            if 'subscriptionId' in resp_data:
-                subscription_id = resp_data['subscriptionId']
-                cb = CallbackHandler(url, subscription_id, callback, paused)
-                self._subscriptions[url] = subscription_id
-                self._subscription_ids[subscription_id] = cb
-                logger.debug("subscription id %s for %s", subscription_id, url)
-                # callback for non-new events
-                if not only_new:
-                    # trigger callback for each object
-                    ts = time.time()
-                    for obj in resp_data["imdata"]:
-                        cb.execute_callback({
-                            "imdata": [ obj ] ,
-                            "subscriptionId": [ subscription_id ],
-                            "_ts": ts
-                        })
-                return True
-            else:
-                logger.warn("invalid subscription response: %s", resp_data)
-        except ConnectionError:
-            self._subscriptions.pop(url, None)
-            logger.warn("connection error occurred")
-        except Exception as e:
-            logger.debug("Traceback:\n%s", traceback.format_exc())
-
-        logger.debug("failed to _send_subscription for url %s", url)
-        return False
+    def _open_web_socket(self):
+        """ open new web socket, return bool success"""
+        # close any open websockets first
+        self._close_web_socket()
+        self._ws = self._get_web_socket()
+        if self._ws is not None:
+            self.event_handler_thread = EventHandler(self)
+            self.event_handler_thread.daemon = True
+            self.event_handler_thread.start()
+            return True
+        else:
+            logger.debug("failed to open new websocket")
+            return False
 
     def _resubscribe(self):
         """ restart websocket and resubscribe to urls. Triggered under the following scenarios:
@@ -691,8 +763,11 @@ class Subscriber(threading.Thread):
         urls = self._subscriptions.keys()
         for (cb, _id) in self._subscription_ids.items():
             cb.flush()
-        self._subscription_ids = {}
-        self._subscriptions = {}
+        logger.debug("acquiring lock for subscription_id update")
+        with self._lock:
+            logger.debug("subscription lock acquired")
+            self._subscription_ids = {}
+            self._subscriptions = {}
         for url in urls:
             if url not in self._callbacks:
                 logger.warn("skipping subscribe, no callback found for url %s", url)
@@ -701,4 +776,77 @@ class Subscriber(threading.Thread):
                     return False
         return True
 
+    def graceful_resubscribe(self):
+        """ graceful restart websocket and all subscriptions.
+            APIC websocket has a 24-hour maximum lifetime. This purpose of this function is to be 
+            triggered prior to the websocket closure on APIC side and graceful switch over to a new
+            websocket without missing any events.  To trigger this we will do the following steps:
+                - lock set to prevent update to current subscriptions
+                - create a new websocket with a new token
+                - subscribe to all existing subscriptions with updated callbacks
+                - close event handler
+                - close old websocket
+                    note, we do not unsubscribe from the old subscriptions as we have lost the
+                    old token. The hope is that closing the old websocket is sufficient.
+                - update pointer to new websocket/callbacks/subscriptions and restart event handler
+                - release locks
+            Return boolean success
+        """
+        logger.debug("triggering graceful restart of all subscriptions")
+        restart_success = False
+        ws = None
+        try:
+            logger.debug("acquiring lock for graceful restart")
+            with self._lock:
+                logger.debug("subscription lock acquired")
+                self.restarting = True
+                if not self._session.login():
+                    logger.warn("failed to acquire new login token")
+                    return False
+                ws = self._get_web_socket()
+                if ws is None:
+                    logger.warn("failed to get new web socket")
+                    return False
+                subscriptions = {}
+                subscription_ids = {}
+                for (url, callback) in self._callbacks.items():
+                    (subscription_id, data) = self._send_subscription(url)
+                    if subscription_id is None:
+                        logger.warn("failed to start subscription for %s", url)
+                        return False
+                    paused = False
+                    # maintain previous callback handler if found with update to subscription_id
+                    if url in self._subscriptions and \
+                        self._subscriptions[url] in self._subscription_ids:
+                        cb = self._subscription_ids[self._subscriptions[url]]
+                        cb.subscription_id = subscription_id
+                    else:
+                        cb = CallbackHandler(url, subscription_id, callback, False)
+                    subscriptions[url] = subscription_id
+                    subscription_ids[subscription_id] = cb
+                # close event handler 
+                if self._ws is not None and self._ws.connected:
+                    logger.debug("closing old connected web socket")
+                    self._ws.close()
+                if self.event_handler_thread is not None:
+                    logger.debug("closing old event handler thread")
+                    self.event_handler_thread.exit()
+                # remap pointers
+                logger.debug("updating pointers for subscriptions, _ids, and _ws")
+                self._subscriptions = subscriptions
+                self._subscription_ids = subscription_ids
+                self._ws = ws
+                logger.debug("starting new event handler")
+                self.event_handler_thread = EventHandler(self)
+                self.event_handler_thread.daemon = True
+                self.event_handler_thread.start()
+                logger.debug("graceful restart success")
+                restart_success = True
+                return True
+        finally:
+            self.restarting = False
+            if not restart_success:
+                if ws is not None and ws.connected:
+                    logger.debug("closing connected web socket")
+                    ws.close()
 

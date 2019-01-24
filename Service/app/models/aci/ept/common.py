@@ -164,7 +164,7 @@ def redis_alive(redis_db):
     """ return boolean if redis db is alive """
     try:
         if redis_db.dbsize() >= 0:
-            logger.debug("redis_alive successfully connected to redis db")
+            #logger.debug("redis_alive successfully connected to redis db")
             return True
     except Exception as e:
         logger.debug("failed to connect to redis db: %s", e)
@@ -182,7 +182,7 @@ def db_alive(db):
     """ return boolean if db is alive """
     try:
         if len(db.collection_names()) >= 0:
-            logger.debug("db_alive successfully connected to mongo db")
+            #logger.debug("db_alive successfully connected to mongo db")
             return True
     except Exception as e:
         logger.debug("failed to connect to mongo db: %s", e)

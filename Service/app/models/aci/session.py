@@ -368,12 +368,15 @@ class Login(threading.Thread):
         """ determine sleep period based on login_timeout and login_lifetime and wait required
             amount of time.
         """
+        override = False
         sleep_time = self._session.login_timeout
         if self._session.graceful:
             ts = time.time()
             if ts + sleep_time > self._session.login_lifetime:
                 sleep_time = self._session.login_lifetime - ts
+                override = True
         if sleep_time > 0:
+            logger.debug("login-thread next cycle %0.3f (graceful: %r)", sleep_time, override)
             time.sleep(sleep_time)
 
     def refresh(self):
@@ -408,6 +411,7 @@ class Login(threading.Thread):
             return self._session._send_login().ok
 
     def run(self):
+        logger.debug("starting new login thread")
         while not self._exit:
             self.wait_until_next_cycle()
             try:
@@ -446,7 +450,7 @@ class EventHandler(threading.Thread):
             try:
                 event = self.subscriber._ws.recv()
             except Exception as e:
-                logger.warn("websocket recv closed: %s", e)
+                logger.info("websocket recv closed: %s", e)
                 return
             if len(event) > 0:
                 # parse event, determine subscription_ids and callback
@@ -577,18 +581,22 @@ class Subscriber(threading.Thread):
             logger.debug("ignoring resume for unknown url: %s", url)
 
     def refresh_subscriptions(self):
-        """ refresh all subscriptions
-            if any refresh fails then force resubscribe for all.
+        """ refresh all subscriptions. If any refresh fails then force resubscribe for all. Note
+            if object is in graceful restart than refresh is skipped (success returned)
             return bool success
         """
         # cache result in case new subscription added during refresh
+        if self.restarting:
+            logger.debug("skip refresh of %s subscriptions during restart",len(self._subscriptions))
+            return True
         logger.debug("refreshing %s subscriptions", len(self._subscriptions))
         subscriptions = [ _id for (k, _id) in self._subscriptions.items() ]
         refreshed_all = True
         for _id in subscriptions:
             refreshed = False
             try:
-                refreshed = self._session.get("/api/subscriptionRefresh.json?id=%s" % _id).ok
+                with self._lock:
+                    refreshed = self._session.get("/api/subscriptionRefresh.json?id=%s" % _id).ok
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
                 logger.warn("requests exception on refresh of %s: %s", _id, e)
             if not refreshed:
@@ -629,9 +637,7 @@ class Subscriber(threading.Thread):
 
         self._callbacks[url] = callback
         (subscription_id, data) = self._send_subscription(url)
-        logger.debug("acquiring subscription lock")
         with self._lock:
-            logger.debug("subscription lock acquired")
             if subscription_id is None:
                 self._subscriptions.pop(url, None)
                 return False
@@ -677,9 +683,7 @@ class Subscriber(threading.Thread):
     def unsubscribe(self, url):
         """ unsubscribe from a particular apic url """
         if url in self._subscriptions:
-            logger.debug("acquiring lock for unsubscribe")
             with self._lock:
-                logger.debug("subscription lock acquired")
                 self._callbacks.pop(url, None)
                 _id = self._subscriptions.pop(url, None)
                 self._subscription_ids.pop(_id, None)
@@ -763,9 +767,7 @@ class Subscriber(threading.Thread):
         urls = self._subscriptions.keys()
         for (cb, _id) in self._subscription_ids.items():
             cb.flush()
-        logger.debug("acquiring lock for subscription_id update")
         with self._lock:
-            logger.debug("subscription lock acquired")
             self._subscription_ids = {}
             self._subscriptions = {}
         for url in urls:
@@ -796,9 +798,7 @@ class Subscriber(threading.Thread):
         restart_success = False
         ws = None
         try:
-            logger.debug("acquiring lock for graceful restart")
             with self._lock:
-                logger.debug("subscription lock acquired")
                 self.restarting = True
                 if not self._session.login():
                     logger.warn("failed to acquire new login token")
@@ -832,7 +832,6 @@ class Subscriber(threading.Thread):
                     logger.debug("closing old event handler thread")
                     self.event_handler_thread.exit()
                 # remap pointers
-                logger.debug("updating pointers for subscriptions, _ids, and _ws")
                 self._subscriptions = subscriptions
                 self._subscription_ids = subscription_ids
                 self._ws = ws

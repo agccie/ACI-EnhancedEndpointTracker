@@ -167,8 +167,12 @@ class SubscriptionCtrl(object):
             self.worker_thread = None
             logger.debug("worker thread closed")
  
-    def subscribe(self, blocking=True):
+    def subscribe(self, blocking=True, session=None):
         """ start subscription and handle appropriate callbacks 
+
+            session (opt)       provide a session object for the subscription.  This is useful when
+                                if user already has a session object and does not want parallel 
+                                sessions running to the same apic.
 
             blocking (bool)     by default subscriptions block while the 
                                 subscription is active. If blocking is set to
@@ -177,15 +181,22 @@ class SubscriptionCtrl(object):
             Note, when blocking=False, the main thread will still wait until
             subscription has successfully started (or failed) before returning bool success
         """
-        logger.info("start subscribe (blocking:%r)", blocking)
+        logger.info("start subscription_ctrl subscribe (blocking:%r)", blocking)
 
         # get lock to set ctrl
-        logger.debug("setting ctrl to close")
         with self.lock:
             self.ctrl = SubscriptionCtrl.CTRL_CONTINUE
 
         # never try to subscribe without first killing previous sessions
         self.unsubscribe()
+
+        if session is not None:
+            logger.debug("using shared session object")
+            # override local session with new session (this requires closing any previous session)
+            if self.session is not None:
+                self.session.close()
+            self.session = session
+
         if blocking: 
             self._subscribe_wrapper()
         else:
@@ -239,12 +250,13 @@ class SubscriptionCtrl(object):
             logger.warn("invalid heartbeat '%s' setting to 60.0", self.heartbeat)
             self.heartbeat = 60.0
 
-        # create session to fabric
-        self.session = get_apic_session(self.fabric)
+        # create session to fabric if not already set
         if self.session is None:
-            logger.error("subscription failed to connect to fabric")
-            self.alive = False
-            return
+            self.session = get_apic_session(self.fabric)
+            if self.session is None:
+                logger.error("subscription failed to connect to fabric")
+                self.alive = False
+                return
         # manually init subscription thread so we can pause if needed
         self.session.init_subscription_thread()
         for classname in self.interests:

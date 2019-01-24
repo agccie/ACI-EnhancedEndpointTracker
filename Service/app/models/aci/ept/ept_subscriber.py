@@ -207,6 +207,7 @@ class eptSubscriber(object):
 
         init_str = "initializing"
         # first step is to get a valid apic session, bail out if unable to connect
+        logger.debug("starting ept_subscriber session")
         self.session = get_apic_session(self.fabric)
         if self.session is None:
             logger.warn("failed to connect to fabric: %s", self.fabric.fabric)
@@ -293,7 +294,7 @@ class eptSubscriber(object):
         # setup slow subscriptions to catch events occurring during build 
         if self.settings.queue_init_events:
             self.subscriber.pause(self.subscription_classes + self.ordered_mo_classes)
-        if not self.subscriber.subscribe(blocking=False):
+        if not self.subscriber.subscribe(blocking=False, session=self.session):
             self.fabric.add_fabric_event("failed", "failed to start one or more subscriptions")
             return
 

@@ -96,22 +96,29 @@ function setup_directories() {
         log "directory $d found"
     done
 
+    # use local data directory for db to avoid gluster issues
     if [ ! -d $DATA_DIR/db ] ; then
         log "create $DATA_DIR/db"
         mkdir -p $DATA_DIR/db
-        chown mongodb:mongodb $DATA_DIR/db -R
+    fi
+    # use local data directory for db to avoid gluster issues
+    if [ ! -d $LOCAL_DATA_DIR/db ] ; then
+        log "create $LOCAL_DATA_DIR/db"
+        mkdir -p $LOCAL_DATA_DIR/db
     fi
     if [ ! -d $LOG_DIR/mongo ] ; then
         log "create $LOG_DIR/mongo"
         mkdir -p $LOG_DIR/mongo/
-        chown mongodb:mongodb $LOG_DIR/mongo/ -R
     fi
     if [ ! -d $LOG_DIR/apache2 ] ; then
         log "create $LOG_DIR/apache2"
         mkdir -p $LOG_DIR/apache2/ 
-        chown www-data:www-data $LOG_DIR/apache2 -R
     fi
-    # backend scripts run under www-data user and write directly to LOG_DIR
+    # update log/db file permissions
+    chown mongodb:mongodb $DATA_DIR/db -R
+    chown mongodb:mongodb $LOCAL_DATA_DIR/db -R
+    chown mongodb:mongodb $LOG_DIR/mongo/ -R
+    chown www-data:www-data $LOG_DIR/apache2 -R
     chown www-data:www-data $LOG_DIR/*.log
     chmod 777 $LOG_DIR/*.log
     chmod 777 $LOG_DIR
@@ -160,36 +167,12 @@ function start_all_services(){
     set_status "starting all services"
     for s in "${ALL_SERVICES[@]}" ; do
         if ! start_service $s ; then
-            if [ "$s" == "mongodb" ] ; then
-                if ! mongodb_reconfigure_and_restart ; then exit_script ; fi
-            else
-                exit_script
-            fi 
+            log "failed to start service $s"
+            exit_script
         else
             log "successfully started service $s"
         fi
     done
-}
-
-# multiple problems with mongodb in app mode and interaction with glusterfs
-# if mongo fails to start use the below recovery method to move mongo off of
-# glusterfs.  Note, all previous database data is lost when this occurs AND new
-# data is not persisted if app is moved to different APIC 
-function mongodb_reconfigure_and_restart(){
-    set_status "attempting mongodb remediation"
-    if [ "$APP_MODE" == "0" ] ; then
-        log "recovery only supported in app mode, aborting..."
-        return 1        
-    fi
-    log `service mongodb force-stop 2>&1`
-    DATA_DIR="/data/"
-    log `rm -rf $DATA_DIR`
-    mkdir -p $DATA_DIR
-    chmod 777 $DATA_DIR
-    setup_directories
-    log `sed -i '/  dbPath:/c\  dbPath: \/data\/db' $MONGO_CONFIG 2>&1`
-    start_service "mongodb"
-    return "$?"
 }
 
 # ensure mongo db is accepting new connections.  It may take a few minutes on 

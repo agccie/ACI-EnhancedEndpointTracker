@@ -75,8 +75,11 @@ COPY ./conf/mongod.conf /etc/mongod.conf
 RUN chmod 755 /etc/init.d/mongodb && \
     mkdir -p $LOG_DIR/mongo && \
     mkdir -p $DATA_DIR/db && \
+    mkdir -p $LOCAL_DATA_DIR/db && \
     chown mongodb:mongodb $LOG_DIR/mongo && \
-    chown mongodb:mongodb $DATA_DIR/db
+    chown mongodb:mongodb $DATA_DIR/db && \
+    chown mongodb:mongodb $LOCAL_DATA_DIR/db
+
 
 # setup logrotate for minute granularity and add custom logging directories
 RUN mkdir -p /etc/cron.minute && \

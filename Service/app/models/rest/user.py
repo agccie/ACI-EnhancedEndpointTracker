@@ -357,7 +357,7 @@ class Session(Rest):
         if not u.exists(): 
             logger.debug("username %s for session %s no longer exists", s.username, s.session)
             return None
-        logger.debug("user %s, session %s", u.username, s.session)
+        #logger.debug("user %s, session %s", u.username, s.session)
         return u
 
     @classmethod

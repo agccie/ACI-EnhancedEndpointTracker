@@ -352,15 +352,6 @@ class SubscriptionCtrl(object):
             alive = (
                 hasattr(self.session.subscription_thread, "is_alive") and \
                 self.session.subscription_thread.is_alive() and \
-                hasattr(self.session.subscription_thread, "_ws") and \
-                self.session.subscription_thread._ws.connected and \
-                hasattr(self.session.subscription_thread.event_handler_thread, "is_alive") and \
-                self.session.subscription_thread.event_handler_thread.is_alive()
-            )
-
-            alive = (
-                hasattr(self.session.subscription_thread, "is_alive") and \
-                self.session.subscription_thread.is_alive() and \
                 hasattr(self.session.subscription_thread, "_ws")
             )
             # only check websocket health if subscription thread is not in graceful restart

@@ -174,7 +174,7 @@ function build_app() {
     cp -p ./version.txt $TMP_DIR/$APP_ID/Service/
     # remove instance config if present
     rm -rf $TMP_DIR/$APP_ID/Service/instance/config.py
-    if [ "app_mini" == "0" ] ; then
+    if [ "$app_mini" == "0" ] ; then
         # dynamically create clusterMgrConfig
         conf=$TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
         python ./cluster/kron/create_config.py --image $docker_image_name > $conf

@@ -18,9 +18,6 @@ import traceback
 # module level logging
 logger = logging.getLogger(__name__)
 
-# common message
-MSG_403 = "Sorry old chap, this is a restricted area..."
-
 # track app so we don't need to create it multiple times
 _g_app = None  
 _g_app_config = None
@@ -165,6 +162,15 @@ def get_user_cookies():
     try:
         if not request.cookies: return {}
         return request.cookies
+    except Exception as e: return {}
+
+def get_user_files():
+    """ return dict of user uploaded files indexed by file name """
+    try:
+        if len(request.files)>0:
+            return request.files
+        else:
+            return {}
     except Exception as e: return {}
 
 def hash_password(p):

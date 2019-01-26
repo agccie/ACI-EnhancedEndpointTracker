@@ -4,8 +4,12 @@ from .dependency import RestDependency
 from flask import abort
 from functools import wraps
 from pymongo.errors import ServerSelectionTimeoutError
-from swagger.common import (swagger_create, swagger_read, swagger_update,
-                            swagger_delete, swagger_generic_path)
+from swagger.common import swagger_create
+from swagger.common import swagger_delete
+from swagger.common import swagger_read
+from swagger.common import swagger_update
+from swagger.common import swagger_generic_path
+
 import copy
 import inspect
 import re
@@ -388,8 +392,9 @@ def register(api, uni=True):
             endpoint = "%s_create" % c.__name__.lower()
             api.add_url_rule(path, endpoint , c.api_create, methods=["POST"])
             #c.logger.debug("registered create path: POST %s", path)
-            if path not in c._swagger: c._swagger[path] = {}
-            swagger_create(c, path)
+            if c._access["doc_enable"]:
+                if path not in c._swagger: c._swagger[path] = {}
+                swagger_create(c, path)
 
         # create path will not have _id but read, update, and delete will 
         # include _id as key (if enabled)
@@ -420,14 +425,16 @@ def register(api, uni=True):
                 endpoint = "%s_read" % c.__name__.lower()
                 api.add_url_rule(key_path, endpoint, c.api_read,methods=["GET"])
                 #c.logger.debug("registered read path: GET %s", key_path)
-                swagger_read(c, key_swag_path, bulk=False)
+                if c._access["doc_enable"]:
+                    swagger_read(c, key_swag_path, bulk=False)
                 warn_dup(c, "GET", key_path)
 
             if c._access["bulk_read"] and bulk(c):
                 endpoint = "%s_bulk_read" % c.__name__.lower()
                 api.add_url_rule(path, endpoint, c.api_read, methods=["GET"])
                 #c.logger.debug("registered bulk read path: GET %s", path)
-                swagger_read(c, path, bulk=True)
+                if c._access["doc_enable"]:
+                    swagger_read(c, path, bulk=True)
                 warn_dup(c, "GET", path)
 
         # add update paths
@@ -437,7 +444,8 @@ def register(api, uni=True):
                 api.add_url_rule(key_path,endpoint,c.api_update,
                     methods=["PATCH","PUT"])
                 #c.logger.debug("registered update path: PATCH,PUT %s", key_path)
-                swagger_update(c, key_swag_path, bulk=False)
+                if c._access["doc_enable"]:
+                    swagger_update(c, key_swag_path, bulk=False)
                 warn_dup(c, ["PUT", "PATCH"], key_path)
 
             if c._access["bulk_update"] and bulk(c):
@@ -445,7 +453,8 @@ def register(api, uni=True):
                 api.add_url_rule(path,endpoint,c.api_update,
                     methods=["PATCH","PUT"])
                 #c.logger.debug("registered bulk update path: PATCH,PUT %s",path)
-                swagger_update(c, path, bulk=True)
+                if c._access["doc_enable"]:
+                    swagger_update(c, path, bulk=True)
                 warn_dup(c, ["PUT", "PATCH"], path)
 
         # add delete paths
@@ -455,14 +464,16 @@ def register(api, uni=True):
                 api.add_url_rule(key_path,endpoint,c.api_delete,
                     methods=["DELETE"])
                 #c.logger.debug("registered delete path: DELETE %s", key_path)
-                swagger_delete(c, key_swag_path, bulk=False)
+                if c._access["doc_enable"]:
+                    swagger_delete(c, key_swag_path, bulk=False)
                 warn_dup(c, "DELETE", key_path)
 
             if c._access["bulk_delete"] and bulk(c):
                 endpoint = "%s_bulk_delete" % c.__name__.lower()
                 api.add_url_rule(path,endpoint,c.api_delete,methods=["DELETE"])
                 #c.logger.debug("registered bulk delete path: DELETE %s", path)
-                swagger_delete(c, path, bulk=True)
+                if c._access["doc_enable"]:
+                    swagger_delete(c, path, bulk=True)
                 warn_dup(c, "DELETE", path)
 
         # handle custom routes
@@ -486,8 +497,9 @@ def register(api, uni=True):
             api.add_url_rule(rpath, endpoint, r.function, methods=r.methods)
             c.logger.debug("registered custom path: %s %s", r.methods, rpath)
             swag_rpath = re.sub("<[a-z]+:([^>]+)>",r"{\1}", rpath)
-            swagger_generic_path(c, swag_rpath, r.methods[0], r.summary, r.swag_args, r.swag_ret,
-                    authenticated=r.authenticated, role=r.role)
+            if c._access["doc_enable"]:
+                swagger_generic_path(c, swag_rpath, r.methods[0], r.summary, r.swag_args, 
+                        r.swag_ret, authenticated=r.authenticated, role=r.role)
             warn_dup(c,r.methods,rpath)
 
     # check registered_callbacks for additional callback_info (decorators used outside of class)

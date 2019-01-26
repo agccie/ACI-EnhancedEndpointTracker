@@ -8,7 +8,6 @@ from ..utils import get_user_data
 from ..utils import get_user_params 
 from ..utils import get_user_headers 
 from ..utils import get_user_cookies
-from ..utils import  MSG_403
 from .settings import Settings
 
 from flask import abort
@@ -152,7 +151,7 @@ class User(Rest):
         """
         # non-admins can only get a pwreset link for thier account
         if g.user.role != Role.FULL_ADMIN and self.username != g.user.username:
-            abort(403, MSG_403)
+            abort(403)
 
         # create a temporary random key and timestamp it
         self.password_reset_key = "%s"%uuid.uuid4()
@@ -207,7 +206,7 @@ class User(Rest):
         if not admin:
             if "username" in filters:
                 if filters["username"] != g.user.username:
-                    abort(403, MSG_403)
+                    abort(403)
             else:
                 filters["username"] = g.user.username
         return filters
@@ -223,7 +222,7 @@ class User(Rest):
             if filters["username"] in User.RESERVED:
                 abort(400, "Username \"%s\" is reserved and cannot be updated"%filters["username"])
             elif not admin and g.user.username != filters["username"]:
-                abort(403, MSG_403)
+                abort(403)
         else:
             if not admin:
                 # for non-admin users, filter must include their username

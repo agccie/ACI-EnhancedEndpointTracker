@@ -21,6 +21,7 @@ class ManagedObject(Rest):
         "read": True,
         "update": False,
         "delete": False,
+        "doc_enable": False,
     }
 
     META = {

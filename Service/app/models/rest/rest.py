@@ -1,16 +1,35 @@
 
-from ..utils import (hash_password, aes_encrypt, aes_decrypt, MSG_403,
-                    get_user_data, get_user_params, get_db)
-from .decorators import CallbackInfo, RouteInfo
+from .decorators import CallbackInfo
+from .decorators import RouteInfo
 from .dependency import RestDependency
 from .role import Role
-from bson.objectid import ObjectId, InvalidId
-from flask import abort, g, jsonify
-from pymongo.errors import (DuplicateKeyError, PyMongoError, BulkWriteError, NetworkTimeout)
+from ..utils import aes_decrypt
+from ..utils import aes_encrypt
+from ..utils import get_db
+from ..utils import get_user_data
+from ..utils import get_user_params
+from ..utils import hash_password
+
+from bson.objectid import ObjectId
+from bson.objectid import InvalidId
+from flask import abort
+from flask import g
+from flask import jsonify
+from pymongo import ASCENDING
+from pymongo import DESCENDING
+from pymongo import InsertOne
+from pymongo import UpdateOne
+from pymongo import UpdateMany
+from pymongo.errors import BulkWriteError
+from pymongo.errors import DuplicateKeyError
+from pymongo.errors import NetworkTimeout
 from pymongo.errors import OperationFailure 
+from pymongo.errors import PyMongoError
 from pymongo.errors import ServerSelectionTimeoutError
-from pymongo import (ASCENDING, DESCENDING, InsertOne, UpdateOne, UpdateMany)
-from werkzeug.exceptions import (NotFound, BadRequest, Forbidden, InternalServerError)
+from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import InternalServerError
+from werkzeug.exceptions import NotFound
 
 import copy
 import logging
@@ -170,6 +189,10 @@ class Rest(object):
                             be overridden by providing a specific index for shards.  Note, mongo 
                             requires shard index to be prefix of collection index.
 
+            "description":  str (default None), class description provided in swagger docs. If not
+                            provided, then docstring for class will be used.
+
+            "doc_enable":   bool (default True), enable API documentation
         }
 
         All classes required META dict in following format:
@@ -291,6 +314,8 @@ class Rest(object):
         "db_index_unique": None,
         "db_shard_enable": False,
         "db_shard_index": None,
+        "description": None,
+        "doc_enable": True,
     }
     ATTRIBUTE_DEF = {
         "type": str,
@@ -742,6 +767,12 @@ class Rest(object):
             if d not in cls.META_ACCESS: 
                 cls._access[d] = copy.copy(cls.ACCESS_DEF[d])
             else: cls._access[d] = cls.META_ACCESS[d]
+        # description can be set via a string in META_ACCESS or docstring of object
+        if cls._access["description"] is None:
+            if cls.__doc__ is not None:
+                cls._access["description"] = cls.__doc__
+            else:
+                cls._access["description"] = ""
 
         # for access routes, cast and provided dicts to RouteInfo objects
         routes = []
@@ -845,7 +876,7 @@ class Rest(object):
         # perform role check only if role is a integer (can extend functionality later)
         if role is None: role = cls._access["default_role"]
         if type(role) is int:
-            if g.user.role > role: abort(403, MSG_403)
+            if g.user.role > role: abort(403)
 
     @classmethod
     def api_ok(cls):
@@ -1380,10 +1411,12 @@ class Rest(object):
                 abort(400, "result size of page(%s)*page-size(%s) exceeds max %s"%(
                     page, pagesize, cls.MAX_RESULT_SIZE))
 
+        # disable support for rsp_include for now
+        rsp_include = "self"
         # validate rsp_include values
-        rsp_include = _params.get("rsp-include", "self")
-        if rsp_include not in ["self", "children", "subtree"]:
-            abort(400, "invalid rsp-include '%s', expect [self|children|subtree]" % rsp_include)
+        #rsp_include = _params.get("rsp-include", "self")
+        #if rsp_include not in ["self", "children", "subtree"]:
+        #    abort(400, "invalid rsp-include '%s', expect [self|children|subtree]" % rsp_include)
 
         # before read callback
         if callable(cls._access["before_read"]):

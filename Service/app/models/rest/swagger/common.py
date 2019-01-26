@@ -363,7 +363,8 @@ def build_swagger_parameters(cls, path=False,query=False,full=False,paths=[]):
                 {"$ref": "#/components/parameters/page-size"},
                 {"$ref": "#/components/parameters/count"},
                 {"$ref": "#/components/parameters/include"},
-                {"$ref": "#/components/parameters/rsp-include"},
+                # disable rsp-include for now
+                #{"$ref": "#/components/parameters/rsp-include"},
             ]
 
     return parameters

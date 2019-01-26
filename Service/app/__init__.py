@@ -1,8 +1,8 @@
-from flask import Flask, abort
-from flask_login import (LoginManager, login_required, login_user, 
-    current_user, logout_user)
-from flask import request, make_response, render_template, jsonify
-import re
+from flask import Blueprint
+from flask import Flask
+from flask import abort
+from flask import jsonify
+from flask import make_response
 
 _app_config = None
 def create_app_config(config_filename="config.py"):
@@ -45,6 +45,7 @@ def create_app(config_filename="config.py"):
     from .models.aci.fabric import Fabric
     from .models.app_status import AppStatus
     from .models.rest.swagger.docs import Docs
+    from .models.rest.swagger.docs import swagger_doc
     from .models.rest.settings import Settings
     from .models.rest.user import User
 
@@ -90,18 +91,15 @@ def create_app(config_filename="config.py"):
     from .models.aci.mo.vpcRsVpcConf import vpcRsVpcConf
 
     # auto-register api objects
-    from .views.api import api
     from .models.rest import register
-    register(api)
+    from .models.rest import rest_auth
+    register(rest_auth)
 
     # register blueprints
-    from .views.auth import auth
     from .views.base import base
-    from .views.doc import doc
     app.register_blueprint(base)
-    app.register_blueprint(auth) # auth has fixed url_prefix
-    app.register_blueprint(api, url_prefix="/api")
-    app.register_blueprint(doc, url_prefix="/docs")
+    app.register_blueprint(rest_auth, url_prefix="/api")
+    app.register_blueprint(swagger_doc, url_prefix="/docs")
 
     # register error handlers
     register_error_handler(app)

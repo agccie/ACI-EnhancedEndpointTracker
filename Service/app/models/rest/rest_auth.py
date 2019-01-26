@@ -1,8 +1,10 @@
-
-from .. models.rest.user import User
-from .. models.rest.user import Session
-from .. models.rest import Role
-from .. models.utils import MSG_403
+"""
+rest authentication API blueprint that can be registered within flask application. 
+once registered all api requests are authenticated.
+"""
+from . import Role
+from .user import User
+from .user import Session
 from flask import abort
 from flask import current_app
 from flask import g
@@ -11,10 +13,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-auth_prefix = "/auth"
-auth = Blueprint("auth", __name__, url_prefix=auth_prefix)
+rest_auth = Blueprint("rest_auth", __name__)
 
-@auth.before_app_request
+@rest_auth.before_app_request
 def before_request():
     """ load user session or default anonymous/unauthenticated user """
     g.ROLE_FULL_ADMIN = Role.FULL_ADMIN
@@ -33,5 +34,5 @@ def before_request():
 
     # block blacklist user
     if g.user.role == Role.BLACKLIST:
-        abort(403, MSG_403)
+        abort(403)
 

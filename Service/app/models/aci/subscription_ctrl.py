@@ -288,6 +288,7 @@ class SubscriptionCtrl(object):
 
     def _subscribe_to_interest(self, classname):
         """ execute subscribe for single classname, return bool success"""
+        logger.debug("attempting to subscribe to %s", classname)
         if classname in self.interests:
             # assume user knows what they are doing here - if only_new is True then return set is
             # limited to page-size 1.  Else, page-size is set to maximum

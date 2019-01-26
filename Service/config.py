@@ -11,6 +11,8 @@ import sys
 app_vars = {
     "APP_VENDOR_DOMAIN":    "Cisco",
     "APP_ID":               "ExampleApp",
+    "APP_CONTACT_EMAIL":    "",
+    "APP_CONTACT_URL":      "",
     "APP_VERSION":          "1.0",
     "APP_COMMIT":           "",
     "APP_COMMIT_DATE":      "",
@@ -35,6 +37,13 @@ if os.path.exists(appfile):
                 app_vars["APP_VERSION"] = js["version"]
             if "full_version" in js:
                 app_vars["APP_FULL_VERSION"] = js["full_version"]
+            else:
+                app_vars["APP_FULL_VERSION"] = app_vars["APP_VERSION"]
+            if "contact" in js:
+                if "contact-email" in js["contact"]:
+                    app_vars["APP_CONTACT_EMAIL"] = js["contact"]["contact-email"]
+                if "contact-url" in js["contact"]:
+                    app_vars["APP_CONTACT_URL"] = js["contact"]["contact-url"]
     except Exception as e: pass
 
 # version.txt is created at build and should be in the following format
@@ -102,8 +111,9 @@ AUTO_START_MONITOR = bool(int(os.environ.get("AUTO_START_MONITOR",1)))
 # app info
 APP_VERSION = os.environ.get("APP_VERSION", app_vars["APP_VERSION"])
 APP_ID = os.environ.get("APP_ID", app_vars["APP_ID"])
-APP_VENDOR_DOMAIN = os.environ.get("APP_VENDOR_DOMAIN", 
-                                        app_vars["APP_VENDOR_DOMAIN"])
+APP_VENDOR_DOMAIN = os.environ.get("APP_VENDOR_DOMAIN", app_vars["APP_VENDOR_DOMAIN"])
+APP_CONTACT_URL = os.environ.get("APP_CONTACT_URL", app_vars["APP_CONTACT_URL"])
+APP_CONTACT_EMAIL = os.environ.get("APP_CONTACT_EMAIL", app_vars["APP_CONTACT_EMAIL"])
 APP_FULL_VERSION = app_vars["APP_FULL_VERSION"]
 APP_COMMIT = app_vars["APP_COMMIT"]
 APP_COMMIT_DATE = app_vars["APP_COMMIT_DATE"]

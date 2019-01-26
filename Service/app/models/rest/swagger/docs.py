@@ -1,4 +1,5 @@
 
+from ... utils import get_app_config
 from .. import Rest
 from .. import api_register
 from .. import api_route
@@ -38,12 +39,27 @@ class Docs(Rest):
     @api_route(path="/", methods=["GET"], authenticated=False)
     def get_swagger_documentation():
         """ get swagger documentation for all rest endpoints """
+        config = get_app_config()
+        app_id = config.get("APP_ID", "")
+        app_contact_email = config.get("APP_CONTACT_EMAIL", "")
+        app_contact_url = config.get("APP_CONTACT_URL", "")
+        app_full_version = config.get("APP_FULL_VERSION", "1.0")
         swagger = {
             "openapi": "3.0.0",
             "info": {
-                "description": "Provide general API documentation",
-                "version": "2.0.1",
-                "title": "API Documentation",
+                "description": """
+This documentation details the externally accessible APIs. Each API endpoint may have different 
+authentication and authorization (role) requirements. Authorized endpoints require a `session` 
+token provided in either a cookie or within the HTTP header. For additional security, a challenge 
+token can also be requested and will be required in all subsequent requests as a header named 
+`app-token`. Refer to the **User** login section for more details.
+                """,
+                "version": app_full_version,
+                "title": "%s API Documentation" % app_id,
+                "contact":{
+                    "email": app_contact_email,
+                    "url": app_contact_url,
+                }
             },
             "servers": [
                 { "url": "/api" },

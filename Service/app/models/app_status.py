@@ -36,6 +36,7 @@ queue_len_meta = {
 
 @api_register(path="/app-status")
 class AppStatus(Rest):
+    """ validate that all required backend services are running for this application """
 
     MANAGER_STATUS_TIMEOUT = 3
 

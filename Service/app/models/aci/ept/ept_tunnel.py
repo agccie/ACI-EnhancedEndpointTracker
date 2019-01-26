@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @api_register(parent="fabric", path="ept/tunnel")
 class eptTunnel(Rest):
-    """ ept tunnels """
+    """ provides a mapping of tunnel interface to remote node for all nodes within the fabric """
 
     logger = logger
 

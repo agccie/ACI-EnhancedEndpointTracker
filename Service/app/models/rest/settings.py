@@ -6,6 +6,7 @@ import logging
 
 @api_register()
 class Settings(Rest):
+    """ Global application settings that can be used only in standalone mode """
 
     # allow only read and update requests
     META_ACCESS = {
@@ -13,6 +14,8 @@ class Settings(Rest):
         "delete": False,
         "bulk_update": True,    # no keys or _id requires bulk update
         "default_role": Role.FULL_ADMIN,
+        "keyed_path": False,
+        "dn": False,
     }
 
     META = {

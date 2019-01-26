@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @api_register(parent="fabric", path="ept/subnet")
 class eptSubnet(Rest):
-    """ provide subnet to BD vnid mapping for configured subnets """ 
+    """ provides subnet to bd vnid mapping for configured subnets within a fabric """ 
     logger = logger
 
     META_ACCESS = {

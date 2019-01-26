@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # expose an API to get roles 
 @api_register(path="/role")
 class RoleApi(Rest):
+    """ Statically defined RBAC roles used in standalone mode only """
     logger = logger
     META_ACCESS = {
         "create": False,

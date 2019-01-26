@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 @api_register(parent="fabric", path="ept/vnid")
 class eptVnid(Rest):
-    """ provide mapping of vnid to bd or vrf name """ 
+    """ provides a mapping of vnid to bd or vrf name with a fabric """ 
     logger = logger
 
     META_ACCESS = {

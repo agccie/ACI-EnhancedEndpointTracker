@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 @api_register(parent="fabric", path="ept/rapid")
 class eptRapid(Rest):
-    """ rapid endpoint events within the fabric """
+    """ historical records of endpoint rapid events within a fabric """
     logger = logger
 
     META_ACCESS = {

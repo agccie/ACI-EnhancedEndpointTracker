@@ -49,6 +49,11 @@ stats_queue_meta_with_qlen["qlen"] = {
 
 @api_register(path="ept/queue")
 class eptQueueStats(Rest):
+    """ historical statistics for messages sent between manager/worker processes. Each process can
+        have one or more queues and this object will track aggregate and relative rates on various
+        intervals. This is useful to understand the number of events processed by the application
+        on a per minute/hour/daily basis.
+    """
 
     STATS_SLICE = 72            # maximum length of stats queue 
     STATS_SLICE_MINUTES = 360   # length of stats queue for minute interval

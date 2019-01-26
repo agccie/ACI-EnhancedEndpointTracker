@@ -16,7 +16,9 @@ for a in common_attr:
 
 @api_register(parent="fabric", path="ept/history")
 class eptHistory(Rest):
-    """ per-node endpoint history """
+    """ This contains historical records of an endpoint state on a per-node basis. Refer to
+        ept.endpoint for the aggregate result of an endpoint across all nodes.
+    """
     logger = logger
 
     META_ACCESS = {

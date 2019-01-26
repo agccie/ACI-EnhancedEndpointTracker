@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 @api_register()
 class User(Rest):
+    """ Local user object for authentication and authorization when running in standalone mode. """
 
     logger = logger
 
@@ -279,6 +280,7 @@ class Session(Rest):
         "read": False,
         "update": False,
         "delete": False,
+        "doc_enable": False,
     }
     META = {
         "session": {

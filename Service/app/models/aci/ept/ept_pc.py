@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 @api_register(parent="fabric", path="ept/pc")
 class eptPc(Rest):
-    """ provide mapping of port-channel interface to port-channel name """ 
+    """ provides mapping of port-channel interface to port-channel name within a fabric """ 
     logger = logger
 
     META_ACCESS = {

@@ -17,7 +17,7 @@ for a in common_attr:
 
 @api_register(parent="fabric", path="ept/offsubnet")
 class eptOffSubnet(Rest):
-    """ endpoint offsubnet events within the fabric """
+    """ historical records of endpoint offsubnet events within a fabric """
     logger = logger
 
     META_ACCESS = {

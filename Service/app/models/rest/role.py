@@ -3,6 +3,7 @@ from flask import jsonify
 
 class Role(object):
     """ Static Roles """
+
     FULL_ADMIN  = 0
     USER        = 1
     BLACKLIST   = 2

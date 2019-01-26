@@ -50,12 +50,10 @@ for a in common_attr:
 
 @api_register(parent="fabric", path="ept/endpoint")
 class eptEndpoint(Rest):
-    """ endpoint info 
-        this is very similar to eptMove except it creates an event for unique local learns (and 
-        tracks the first local learn) as well as deletes.  It's similar to APIC endpoint tracker 
-        which can be used to see general learns (attach) and deletes (detach) events.  Also, all
-        known endpoints are present so can be used to get total number of endpoints along with 
-        searching for endpoints within the fabric.
+    """ The calculated result of an endpoint state within the fabric.  This object is created 
+        after aggregating the results of all per-node endpoint info (ept.history).  It keeps a track
+        of all the local learns and if/when an endpoint is deleted from the fabric. It can also
+        be use to see if an endpoint is currently offsubnet/stale/rapid.
     """
     logger = logger
 

@@ -8,7 +8,9 @@ logger = logging.getLogger(__name__)
 
 @api_register(parent="fabric", path="ept/remediate")
 class eptRemediate(Rest):
-    """ ept remediation events. this includes API clear events or auto-clear events """
+    """ historical records of endpoint remediation events within a fabric. This includes API clear 
+        events along with auto-remediation clear events.
+    """
     logger = logger
 
     META_ACCESS = {

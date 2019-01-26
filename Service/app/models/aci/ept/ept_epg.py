@@ -12,7 +12,7 @@ def pctag_validator(classname, attribute_name, attribute_meta, value):
 
 @api_register(parent="fabric", path="ept/epg")
 class eptEpg(Rest):
-    """ provide mapping of pctag and vrf to epg name and bd vnid """ 
+    """ provides a mapping of pctag and vrf to epg name and bd vnid """ 
     logger = logger
 
     META_ACCESS = {

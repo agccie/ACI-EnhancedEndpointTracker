@@ -22,7 +22,9 @@ def after_fabric_create(data):
 
 @api_register(parent="fabric", path="ept/settings")
 class eptSettings(Rest):
-    """ ept settings per fabric auto created with defaults when fabric is created """
+    """ fabric monitor settings which are automatically created/deleted with fabric objects. For 
+        now, all ept.settings objects are keyed by fabric name and a settings value of 'default'.
+    """
 
     logger = logger
 

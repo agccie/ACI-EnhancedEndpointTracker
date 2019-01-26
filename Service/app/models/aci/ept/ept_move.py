@@ -28,7 +28,7 @@ for a in common_attr:
 
 @api_register(parent="fabric", path="ept/move")
 class eptMove(Rest):
-    """ endpoint moves within the fabric """
+    """ historical records of endpoint moves within a fabric """
     logger = logger
 
     META_ACCESS = {

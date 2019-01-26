@@ -7,7 +7,9 @@ logger = logging.getLogger(__name__)
 
 @api_register(parent="fabric", path="ept/node")
 class eptNode(Rest):
-    """ ept nodes """
+    """ tracks the current state of all nodes within the fabric. Pseudo node objects are also
+        created to represent vpc pairs and will have a role of 'vpc'.
+    """
 
     logger = logger
 

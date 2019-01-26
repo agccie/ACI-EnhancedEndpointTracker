@@ -29,7 +29,9 @@ logger = logging.getLogger(__name__)
 
 @api_register(path="/fabric")
 class Fabric(Rest):
-    """ ACI Fabric REST class """
+    """ ACI Fabric REST class stores connectivity information to the APIC. It is also used to 
+        start/stop monitors and is the parent object for all data received from an ACI fabric
+    """
 
     logger = logger
     # meta data and type that are exposed via read/write 

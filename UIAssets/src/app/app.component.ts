@@ -28,7 +28,8 @@ export class AppComponent implements OnInit, OnDestroy {
     appCookieAcquired: boolean = false;
     @ViewChild('aboutModal') aboutModal: TemplateRef<any>;
     @ViewChild('generalModal') generalModal: TemplateRef<any>;
-    version: Version;
+    version: Version = new Version();
+    feedbackUrl: string = "";
     private stopListening: () => void;
 
     constructor(private router: Router, private backendService: BackendService, public prefs: PreferencesService,
@@ -86,10 +87,16 @@ export class AppComponent implements OnInit, OnDestroy {
     showAbout() {
         this.loadingAbout = true;
         this.modalService.openModal(this.aboutModal);
-        this.backendService.getVersion().subscribe(
+        this.backendService.getAppVersion().subscribe(
             (data) => {
                 this.loadingAbout = false;
-                this.version = data;
+                this.version.sync(data);
+                // set feedbackUrl if contact_email is set
+                if(this.version.contact_email.length>0){
+                    this.feedbackUrl = "mailto:"+this.version.contact_email+"?Subject=Feedback for Enhanced Endpoint Tracker app";
+                }else{
+
+                }
             }, 
             (error) => {
                 this.loadingAbout = false;

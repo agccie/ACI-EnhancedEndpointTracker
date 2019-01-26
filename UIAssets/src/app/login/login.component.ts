@@ -5,6 +5,7 @@ import {environment} from "../../environments/environment";
 import {ModalService} from '../_service/modal.service';
 import {PreferencesService} from "../_service/preferences.service";
 import {UserList} from '../_model/user';
+import {Version} from '../_model/version';
 
 @Component({
     selector: 'app-login',
@@ -17,7 +18,7 @@ export class LoginComponent implements OnInit {
     password = '';
     modalTitle = '';
     modalBody = '';
-    version = '-';
+    version: Version = new Version();
     loading = false;
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
@@ -38,7 +39,7 @@ export class LoginComponent implements OnInit {
             this.backendService.getAppVersion().subscribe(
                 (data) => {
                     this.loading = false;
-                    this.version = data['version'];
+                    this.version.sync(data);
                 },
                 (error) => {
                     this.loading = false;

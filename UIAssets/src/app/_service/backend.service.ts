@@ -26,6 +26,10 @@ export class BackendService {
         return this.http.get(this.baseUrl + '/app-status/');
     }
 
+    getAppVersion(): Observable<Version> {
+        return this.http.get<Version>(this.baseUrl + '/app-status/version');
+    }
+
     getAppManagerStatus() {
         return this.http.get(this.baseUrl + '/app-status/manager');
     }
@@ -168,10 +172,6 @@ export class BackendService {
             filter='and(eq("fabric","'+fabric+'"),'+filter+')';
         }       
         return this.http.get(this.baseUrl + '/ept/endpoint?filter='+filter+'&include=fabric,addr,vnid,type,first_learn&page-size=20&sort=addr');
-    }
-
-    getAppVersion() {
-        return this.http.get(this.baseUrl + '/app-status/version');
     }
 
     getSortsArrayAsString(sorts) {
@@ -321,10 +321,4 @@ export class BackendService {
         return this.http.get<EndpointList>(this.baseUrl + 
             `/ept/history?include=node&filter=and(eq("fabric","${fabric}"),eq("vnid",${vnid}),eq("addr","${address}"),or(eq("events.0.status","created"),eq("events.0.status","modified")),gt("events.0.remote",0))`);
     }
-
-    getVersion(): Observable<Version> {
-        const url = this.baseUrl + '/app-status/version';
-        return this.http.get<Version>(url);
-    }
-
 }

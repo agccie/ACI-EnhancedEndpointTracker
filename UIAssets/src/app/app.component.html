@@ -161,16 +161,23 @@
                     <tr>
                         <td class="text-bold">Documentation</td>
                         <td>
-                            <a target="_blank" href="https://aci-enhancedendpointtracker.readthedocs.io/en/latest/">
-                                https://aci-enhancedendpointtracker.readthedocs.io/en/latest/
-                            </a>
+                            <div>
+                                <a target="_blank" href="https://aci-enhancedendpointtracker.readthedocs.io/en/latest/">
+                                    https://aci-enhancedendpointtracker.readthedocs.io/en/latest/
+                                </a>
+                            </div>
+                            <div *ngIf="version.contact_url.length>0">
+                                <a target="_blank" [attr.href]="version.contact_url">
+                                    {{ version.contact_url }}
+                                </a>
+                            </div>
                         </td>
                     </tr>
                     <tr>
                         <td class="text-bold">Feedback</td>
                         <td>
-                            <a href="mailto:aciappcenter-support@external.cisco.com?Subject=Feedback for Enhanced Endpoint Tracker app">
-                                 aciappcenter-support@external.cisco.com
+                            <a [attr.href]="feedbackUrl">
+                                {{ version.contact_email }}
                              </a>
                         </td>
                     </tr>

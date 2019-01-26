@@ -77,6 +77,14 @@ class AppStatus(Rest):
                     "type": str,
                     "description": "author email of git commit",
                 },
+                "contact_email": {
+                    "type": str,
+                    "description": "contact email address"
+                },
+                "contact_url": {
+                    "type": str,
+                    "description": "contact url"
+                },
             },
         },
         "manager_status": {
@@ -217,6 +225,8 @@ class AppStatus(Rest):
             "timestamp": current_app.config.get("APP_COMMIT_DATE_EPOCH", 0),
             "branch": current_app.config.get("APP_COMMIT_BRANCH", ""),
             "author": current_app.config.get("APP_COMMIT_AUTHOR", ""),
+            "contact_url": current_app.config.get("APP_CONTACT_URL", ""),
+            "contact_email": current_app.config.get("APP_CONTACT_EMAIL", ""),
         })
 
     @staticmethod

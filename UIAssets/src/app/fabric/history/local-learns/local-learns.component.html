@@ -43,6 +43,11 @@
             {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
+    <ngx-datatable-column prop="pctag" name="pcTAG" [sortable]="true" [flexGrow]='0.1'>
+        <ng-template let-value="value" ngx-datatable-cell-template>
+            {{ value >0 ? value : '&mdash;'}}
+        </ng-template>
+    </ngx-datatable-column>
     <ngx-datatable-column *ngIf="endpoint.type !== 'mac'" prop="rw_mac" name="MAC" [sortable]="true" [flexGrow]='0.1'>
         <ng-template let-value="value" let-row='row' ngx-datatable-cell-template>
             <a *ngIf="value !== ''"

@@ -4,7 +4,7 @@
 
 export const environment = {
   app_mode: false,
-  api_entry: 'http://esc-aci-compute:9080/api',
+  api_entry: 'http://localhost:5000/api',
   apic_proxy: '',
   production: false,
   aci_vendor: 'Cisco',

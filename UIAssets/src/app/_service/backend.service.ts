@@ -212,6 +212,11 @@ export class BackendService {
         return this.http.patch(this.baseUrl + '/uni/fb-' + fabric + '/settings-default', fabricSettings.get_save_json());
     }
 
+    settingsReload(fabricSettings: FabricSettings){
+        const fabric = fabricSettings.fabric;
+        return this.http.post(this.baseUrl + '/uni/fb-' + fabric + '/settings-default/reload', {})
+    }
+
     updateFabric(fabric: Fabric) {
         return this.http.patch(this.baseUrl + '/uni/fb-' + fabric.fabric, fabric.get_save_json());
     }

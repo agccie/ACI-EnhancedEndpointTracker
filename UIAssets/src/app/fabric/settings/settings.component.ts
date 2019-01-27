@@ -139,6 +139,8 @@ export class SettingsComponent implements OnInit {
         const updateSettingsObservable = this.backendService.updateFabricSettings(this.fabricService.fabricSettings);
         forkJoin(updateObservable, updateSettingsObservable).subscribe(
             (data) => {
+                // unconditionally trigger  settingsReload to apply changes to backend processes
+                this.backendService.settingsReload(this.fabricService.fabricSettings).subscribe();
                 this.backendService.verifyFabric(this.fabricService.fabric).subscribe(
                     (verifyData) => {
                         this.isLoading = false;
@@ -149,29 +151,7 @@ export class SettingsComponent implements OnInit {
                             this.backendService.buildController(this.fabricService.fabric).subscribe();
                         }
                         if ("success" in verifyData && verifyData["success"]) {
-                            let that = this;
-                            this.modalService.setModalConfirm({
-                                "title": "Success",
-                                "body": "Changes successfully applied. You must restart the fabric monitor for your changes to take effect." +
-                                    " Would you like to restart now?",
-                                "callback": function () {
-                                    that.isLoading = true;
-                                    let reason = 'monitor config change restart';
-                                    const stopFabric = that.backendService.stopFabric(that.fabricService.fabric, reason);
-                                    const startFabric = that.backendService.startFabric(that.fabricService.fabric, reason);
-                                    concat(stopFabric, startFabric).subscribe(
-                                        (restartData) => {
-                                            that.isLoading = false;
-                                        },
-                                        (restartError) => {
-                                            that.isLoading = false;
-                                            that.modalService.setModalError({
-                                                "body": "Failed to restart fabric. " + restartError['error']['error']
-                                            });
-                                        }
-                                    )
-                                }
-                            });
+                            //no prompt for restart after implementing settingsReload API
                         } else {
                             let apic_label_class = "label--warning-alt";
                             let apic_label_text = "failed";

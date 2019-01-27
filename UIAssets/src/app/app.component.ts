@@ -24,6 +24,8 @@ export class AppComponent implements OnInit, OnDestroy {
     sidebarCollapsed: boolean = false;
     loadingAbout: boolean = false;
     appLoading: boolean = true;
+    appFabricDiscoveryLoading: boolean = true;
+    discoveredFabric: string = "";
     appLoadingStatus: string = "";
     appCookieAcquired: boolean = false;
     @ViewChild('aboutModal') aboutModal: TemplateRef<any>;
@@ -94,8 +96,6 @@ export class AppComponent implements OnInit, OnDestroy {
                 // set feedbackUrl if contact_email is set
                 if(this.version.contact_email.length>0){
                     this.feedbackUrl = "mailto:"+this.version.contact_email+"?Subject=Feedback for Enhanced Endpoint Tracker app";
-                }else{
-
                 }
             }, 
             (error) => {
@@ -172,17 +172,23 @@ export class AppComponent implements OnInit, OnDestroy {
     // in app mode we need to wait until fabric is discovered.
     waitForFabricDiscovery(){
         this.appLoadingStatus = "Waiting for fabric discovery to complete."
+        this.appFabricDiscoveryLoading = true;
         this.backendService.getFabricsBrief().pipe(
             repeatWhen(delay(1000)),
-            takeWhile(()=> this.appLoading)
+            takeWhile(()=> this.appFabricDiscoveryLoading)
         ).subscribe(
             (data) => {
                 let fabric_list = new FabricList(data);
                 if(fabric_list.objects.length>0){
-                    let fabric = fabric_list.objects[0].fabric;
-                    this.appLoadingStatus = "Discovered fabric "+fabric;
-                    this.appLoading = false;
-                    this.router.navigate(['/fabric', fabric]);
+                    this.discoveredFabric = fabric_list.objects[0].fabric;
+                    this.appLoadingStatus = "Discovered fabric "+this.discoveredFabric;
+                    this.appFabricDiscoveryLoading = false;
+                    if(this.app_mode){
+                        this.waitForManagerReady();
+                    } else {
+                        this.appLoading = false;
+                        this.router.navigate(['/fabric', this.discoveredFabric]);
+                    }
                 }
             },
             (error)=>{
@@ -194,4 +200,39 @@ export class AppComponent implements OnInit, OnDestroy {
             }
         )
     }
+
+    // in app mode, need to also wait until manager process is ready OR until maximum wait time 
+    waitForManagerReady(){
+        let managerCheckCount = 10;
+        this.appLoadingStatus = "Waiting for manager process."
+        this.backendService.getAppManagerStatus().pipe(
+            repeatWhen(delay(1000)),
+            takeWhile(()=> this.appLoading)
+        ).subscribe(
+            (data) => {
+                managerCheckCount--;
+                if("manager" in data && "status" in data["manager"] && data["manager"]["status"] == "running"){
+                    this.appLoadingStatus = "Manager process is ready"
+                    this.appLoading = false;
+                    this.router.navigate(['/fabric', this.discoveredFabric]);
+                } else {
+                    console.log("manager not ready");
+                    console.log(data);
+                    if(managerCheckCount<=0){
+                        console.log("maximum manager check count exceeded, proceeding anyways.")
+                        this.appLoading = false;
+                        this.router.navigate(['/fabric', this.discoveredFabric]);
+                    }
+                }
+            },
+            (error)=>{
+                console.log(error);
+                this.appLoadingStatus = "failed to load manager status."
+                if("error" in error && "error" in error["error"]){
+                    this.appLoadingStatus+= " "+error["error"]["error"];
+                }
+            }
+        )
+    }
+
 }

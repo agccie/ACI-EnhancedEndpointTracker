@@ -260,7 +260,8 @@ def parse_vrf_name(dn):
 
 
 def subscriber_op(fabric, msg_type, data=None, qnum=1):
-    """ send msg to subscriber if running with provided msg_type, return jsonify object 
+    """ send msg to subscriber with provided msg_type and data. The message is only sent if fabric 
+        is currently running, else an error is returned.
         returns a tuple (success, error_string)
     """
     from ... utils import get_redis
@@ -274,9 +275,10 @@ def subscriber_op(fabric, msg_type, data=None, qnum=1):
             # fabric and qnum are always in data, add if not present
             data["fabric"] = fabric
             data["qnum"] = qnum
-            msg = eptMsgSubOp(msg_type, data = data)
+            msg = eptMsgSubOp(msg_type, data = data).jsonify()
+            logger.debug("subscriber_op publishing msg: %s", msg)
             r = get_redis()
-            r.publish(SUBSCRIBER_CTRL_CHANNEL, msg.jsonify())
+            r.publish(SUBSCRIBER_CTRL_CHANNEL, msg)
             # no error sending message so assume success
             return (True, "")
         except Exception as e:

@@ -26,6 +26,8 @@ class MSG_TYPE(Enum):
                                             # flushed.
     TEST_EMAIL          = "test_email"      # send a test email
     TEST_SYSLOG         = "test_syslog"     # send a test syslog
+    SETTINGS_RELOAD     = "settings_reload" # request from API to subscriber/worker to flush+reload
+                                            # current fabric settings
 
 # static work types sent with MSG_TYPE.WORK
 @enum_unique
@@ -44,6 +46,8 @@ class WORK_TYPE(Enum):
                                             # flush info from cache
     TEST_EMAIL          = "test_email"      # test email notification
     TEST_SYSLOG         = "test_syslog"     # test syslog notification
+    SETTINGS_RELOAD        = "fabric_flush"    # request from API to subscriber/worker to flush+reload
+                                            # current fabric settings
 
 class eptMsg(object):
     """ generic ept job for messaging between workers 
@@ -82,6 +86,8 @@ class eptMsg(object):
             return eptMsgSubOp(MSG_TYPE.TEST_EMAIL, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.TEST_SYSLOG.value:
             return eptMsgSubOp(MSG_TYPE.TEST_SYSLOG, js["data"], js["seq"])
+        elif js["msg_type"] == MSG_TYPE.SETTINGS_RELOAD.value:
+            return eptMsgSubOp(MSG_TYPE.SETTINGS_RELOAD, js["data"], js["seq"])
         return eptMsg(
                     MSG_TYPE(js["msg_type"]), 
                     data=js.get("data", {}),
@@ -92,7 +98,9 @@ class eptMsgSubOp(eptMsg):
     """ subscriber operation supporting following ops:
             - MSG_TYPE.REFRESH_EPT
             - MSG_TYPE.DELETE_EPT
-            - MSG_TYPE.TEST_EMAIL   (no ept required but fabric is required)
+            - MSG_TYPE.TEST_EMAIL   (no ept required but fabric needed for worker)
+            - MSG_TYPE.TEST_SYSLOG  (no ept required but fabric needed for worker)
+            - MSG_TYPE.SETTINGS_RELOAD (no ept required but fabric needed for worker)
     """
     def __init__(self, msg_type, data={}, seq=1):
         super(eptMsgSubOp, self).__init__(msg_type, data, seq)

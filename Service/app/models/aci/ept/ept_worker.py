@@ -130,6 +130,7 @@ class eptWorker(object):
                 WORK_TYPE.WATCH_RAPID: self.handle_watch_rapid,
                 WORK_TYPE.TEST_EMAIL: self.handle_test_email,
                 WORK_TYPE.TEST_SYSLOG: self.handle_test_syslog,
+                WORK_TYPE.SETTINGS_RELOAD: self.handle_settings_reload,
             }
         else:
             self.work_type_handlers = {
@@ -139,6 +140,7 @@ class eptWorker(object):
                 WORK_TYPE.EPM_MAC_EVENT: self.handle_endpoint_event,
                 WORK_TYPE.EPM_RS_IP_EVENT: self.handle_endpoint_event,
                 WORK_TYPE.DELETE_EPT: self.handle_endpoint_delete,
+                WORK_TYPE.SETTINGS_RELOAD: self.handle_settings_reload,
             }
 
     def __repr__(self):
@@ -1603,6 +1605,11 @@ class eptWorker(object):
         logger.debug("sending test syslog")
         txt = "%s test syslog" % msg.fabric
         msg.wf.send_notification("any_syslog", txt, txt)
+
+    def handle_settings_reload(self, msg):
+        """ receive eptMsgWork with WORK_TYPE.SETTINGS_RELOAD to reload local wf settings """
+        logger.debug("reloading settings for fabric %s", msg.fabric)
+        msg.wf.settings_reload()
 
 class eptWorkerUpdateLocalResult(object):
     """ return object for eptWorker.update_loal method """

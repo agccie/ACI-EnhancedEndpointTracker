@@ -36,6 +36,11 @@ class eptWorkerFabric(object):
             self.syslog_server = None
             self.syslog_port = None
 
+    def settings_reload(self):
+        """ reload settings from db """
+        logger.debug("worker fabric reloading settings for %s", self.fabric)
+        self.settings.reload()
+
     def get_uptime_delta_offset(self, delta=None):
         """ return difference between provided delta and current uptime. If the uptime_delta is 
             less than zero, return 0.  If no delta is provided, then return the uptime.

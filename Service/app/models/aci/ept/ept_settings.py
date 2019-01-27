@@ -256,3 +256,14 @@ class eptSettings(Rest):
             return jsonify({"success": True})
         abort(500, err_str)
 
+    @api_route(path="reload", methods=["POST"], swag_ret=["success"])
+    def reload_settings(self):
+        """ send msg to background processes to graceful reload settings. This is used after
+            settings are updated to apply them without restarting the fabric monitor.
+        """
+        (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.SETTINGS_RELOAD, qnum=0)
+        if success:
+            return jsonify({"success": True})
+        abort(500, err_str)
+
+

@@ -199,6 +199,15 @@ class eptSubscriber(object):
             self.send_msg(eptMsgWork(msg.addr, "watcher", {},
                 WORK_TYPE.TEST_SYSLOG, qnum=msg.qnum, fabric=self.fabric,
             ))
+        elif msg.msg_type == MSG_TYPE.SETTINGS_RELOAD:
+            # reload local settings and send broadcast for settings reload to all workers
+            logger.debug("reloading local ept settings")
+            self.settings = eptSettings.load(fabric=self.fabric.fabric, settings="default")
+            # node addr of 0 is broadcast to all nodes. set role to None to send to all roles
+            logger.debug("broadcasting settings reload to all roles")
+            self.send_msg(eptMsgWork(0, None, {}, 
+                WORK_TYPE.SETTINGS_RELOAD, qnum=msg.qnum, fabric=self.fabric,
+            ))
         else:
             logger.debug("ignoring unexpected msg type: %s", msg.msg_type)
 

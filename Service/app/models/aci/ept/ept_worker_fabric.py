@@ -24,6 +24,10 @@ class eptWorkerFabric(object):
         self.settings = eptSettings.load(fabric=fabric, settings="default")
         self.cache = eptCache(fabric)
         self.db = get_db()
+        self.init() 
+
+    def init(self):
+        """ initialize settings after fabric settings as been loaded """
         # epm parser used with eptWorker for creating pseudo eevents
         self.ept_epm_parser = eptEpmEventParser(self.fabric, self.settings.overlay_vnid)
         # one time calculation for email address and syslog server (which requires valid port)
@@ -40,6 +44,7 @@ class eptWorkerFabric(object):
         """ reload settings from db """
         logger.debug("worker fabric reloading settings for %s", self.fabric)
         self.settings.reload()
+        self.init()
 
     def get_uptime_delta_offset(self, delta=None):
         """ return difference between provided delta and current uptime. If the uptime_delta is 

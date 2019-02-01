@@ -50,7 +50,7 @@ class Fabric(Rest):
         "apic_username":{
             "type":str, 
             "default":"admin",
-            "regex":"^[a-zA-Z0-9\-_\.@]{1,128}$",
+            "regex":"^[^ ]{1,128}$",
             "description": "APIC username",
         },
         "apic_password":{
@@ -69,7 +69,7 @@ class Fabric(Rest):
             "description": "path to APIC private-key for cert-based authentication",
         },
         "ssh_username":{
-            "regex":"^[a-zA-Z0-9\-_\.@]{0,128}$",
+            "regex":"^[^ ]{1,128}$",
             "default": "admin",
             "description": "username for ssh access to switch",
         },

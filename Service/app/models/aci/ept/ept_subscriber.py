@@ -13,6 +13,7 @@ from .. subscription_ctrl import SubscriptionCtrl
 
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_WORK_QUEUE
+from . common import MAX_EPM_BUILD_TIME
 from . common import MAX_SEND_MSG_LENGTH
 from . common import MINIMUM_SUPPORTED_VERSION
 from . common import MO_BASE
@@ -54,8 +55,8 @@ class eptSubscriber(object):
         epm events are sent to workers to analyze.
         subscriber also listens 
     """
-    def __init__(self, fabric):
-        # receive instance of Fabric rest object
+    def __init__(self, fabric, active_workers={}):
+        # receive instance of Fabric rest object along with dict of active_workers indexed by role
         self.fabric = fabric
         self.settings = eptSettings.load(fabric=self.fabric.fabric, settings="default")
         self.initializing = True    # set to queue events until fully initialized
@@ -69,6 +70,17 @@ class eptSubscriber(object):
         self.manager_ctrl_channel_lock = threading.Lock()
         self.manager_work_queue_lock = threading.Lock()
         self.subscription_check_interval = 5.0   # interval to check subscription health
+
+        # active workers indexed by role. Each role is a list of TrackedWorker objects.
+        # Note, this is initial value of workers when subscriber is started. It may not be accurate 
+        # at a later time and therefore should only be trusted during initial startup. If we want 
+        # to support dynamic worker bringup/teardown in the future, then we will need to implement 
+        # messaging between manager and subscriber with active worker updates to keep them in sync.
+        self.active_workers = active_workers
+
+        # track when fabric epm EOF was sent 
+        self.epm_eof_tracking = None
+        self.epm_eof_start = None
 
         # classes that have corresponding mo Rest object and handled by handle_std_mo_event
         # the order shouldn't matter during build but just to be safe we'll control the order...
@@ -187,17 +199,17 @@ class eptSubscriber(object):
         elif msg.msg_type == MSG_TYPE.DELETE_EPT:
             # enqueue work to available worker
             self.send_msg(eptMsgWorkDeleteEpt(msg.addr, "worker", {"vnid":msg.vnid},
-                WORK_TYPE.DELETE_EPT, qnum=msg.qnum, fabric=self.fabric,
+                WORK_TYPE.DELETE_EPT, qnum=msg.qnum,
             ))
         elif msg.msg_type == MSG_TYPE.TEST_EMAIL:
             # enqueue notification test to watcher
             self.send_msg(eptMsgWork(msg.addr, "watcher", {},
-                WORK_TYPE.TEST_EMAIL, qnum=msg.qnum, fabric=self.fabric,
+                WORK_TYPE.TEST_EMAIL, qnum=msg.qnum,
             ))
         elif msg.msg_type == MSG_TYPE.TEST_SYSLOG:
             # enqueue notification test to watcher
             self.send_msg(eptMsgWork(msg.addr, "watcher", {},
-                WORK_TYPE.TEST_SYSLOG, qnum=msg.qnum, fabric=self.fabric,
+                WORK_TYPE.TEST_SYSLOG, qnum=msg.qnum,
             ))
         elif msg.msg_type == MSG_TYPE.SETTINGS_RELOAD:
             # reload local settings and send broadcast for settings reload to all workers
@@ -206,10 +218,29 @@ class eptSubscriber(object):
             # node addr of 0 is broadcast to all nodes. set role to None to send to all roles
             logger.debug("broadcasting settings reload to all roles")
             self.send_msg(eptMsgWork(0, None, {}, 
-                WORK_TYPE.SETTINGS_RELOAD, qnum=msg.qnum, fabric=self.fabric,
+                WORK_TYPE.SETTINGS_RELOAD, qnum=msg.qnum,
             ))
+        elif msg.msg_type == MSG_TYPE.FABRIC_EPM_EOF_ACK:
+            # received an ack from a worker for completion of work
+            logger.debug("%s receiving EPM EOF ACK: %s", msg.fabric, msg.addr)
+            if self.epm_eof_tracking is not None:
+                if msg.addr in self.epm_eof_tracking:
+                    self.epm_eof_tracking[msg.addr] = True
+                else:
+                    logger.warn("%s received ack from unknown worker %s", msg.fabric, msg.addr)
+                # check if all workers have been received or still pending from any
+                pending = self.get_workers_with_pending_ack()
+                if len(pending) == 0:
+                    logger.debug("%s received epm ack from all workers", msg.fabric)
+                    # unpause and stop tracking
+                    logger.debug("%s broadcasting resume to all watchers", msg.fabric)
+                    self.send_msg(eptMsgWork(0, "watcher", {},WORK_TYPE.FABRIC_WATCH_RESUME,qnum=0))
+                    self.epm_eof_tracking = None
+                    self.fabric.add_fabric_event("running")
+            else:
+                logger.debug("%s ignoring ack as tracking is disabled", msg.fabric)
         else:
-            logger.debug("ignoring unexpected msg type: %s", msg.msg_type)
+            logger.debug("%s ignoring unexpected msg type: %s", msg.fabric, msg.msg_type)
 
     def _run(self):
         """ monitor fabric and enqueue work to workers """
@@ -299,7 +330,11 @@ class eptSubscriber(object):
             logger.warn("failed to determine overlay vnid: %s", overlay_attr)
             self.fabric.add_fabric_event("failed", "unable to determine overlay-1 vnid")
             return
-       
+      
+        # trigger watch pause until initial build is complete
+        logger.debug("broadcasting pause to all watchers")
+        self.send_msg(eptMsgWork(0, "watcher", {}, WORK_TYPE.FABRIC_WATCH_PAUSE, qnum=0))
+
         # setup slow subscriptions to catch events occurring during build 
         if self.settings.queue_init_events:
             self.subscriber.pause(self.subscription_classes + self.ordered_mo_classes)
@@ -355,18 +390,15 @@ class eptSubscriber(object):
         self.ept_epm_parser = eptEpmEventParser(self.fabric.fabric, self.settings.overlay_vnid)
 
         # build endpoint database
-        self.fabric.add_fabric_event(init_str, "building endpoint db")
+        self.fabric.add_fabric_event(init_str, "getting initial endpoint state")
         if not self.build_endpoint_db():
-            self.fabric.add_fabric_event("failed", "failed to build endpoint db")
+            self.fabric.add_fabric_event("failed", "failed to build initial endpoint db")
             return
 
         # epm objects intialization completed
         self.epm_initializing = False
         # safe to call resume even if never paused
         self.subscriber.resume(self.epm_subscription_classes)
-
-        # subscriber running
-        self.fabric.add_fabric_event("running")
 
         # subscribe to subscriber events only after successfully started and initialized
         channels = {
@@ -377,12 +409,55 @@ class eptSubscriber(object):
         self.subscribe_thread = p.run_in_thread(sleep_time=0.01, daemon=True)
         logger.debug("[%s] listening for events on channels: %s", self, channels.keys())
 
-        # ensure that all subscriptions are active
+        # send EPM EOF to all workers lowest prority queue to track when initial processing is done
+        # note, this needs to be done after listern is setup on SUBSCRIBER_CTRL_CHANNEL
+        self.epm_eof_start = time.time()
+        self.epm_eof_tracking = {}
+        for role in self.active_workers:
+            if role == "worker":
+                for w in self.active_workers[role]:
+                    self.epm_eof_tracking[w.worker_id] = False
+                    logger.debug("epm eof tracking for worker %s", w.worker_id)
+
+        logger.debug("sending fabric epm eof to all workers")
+        self.send_msg(eptMsgWork(0, "worker", {}, WORK_TYPE.FABRIC_EPM_EOF, qnum=1))
+        self.fabric.add_fabric_event(init_str, "building endpoint db")
+
         while True:
+            # ensure that all subscriptions are active
             if not self.subscriber.is_alive():
                 logger.warn("subscription no longer alive for %s", self.fabric.fabric)
                 return
+
+            if self.epm_eof_tracking is not None:
+                # still actively tracking workers, check if we've exceeded max build time
+                ts = time.time()
+                if self.epm_eof_start + MAX_EPM_BUILD_TIME <= ts:
+                    pending = self.get_workers_with_pending_ack()
+                    err = "epm max build time(%s) exceeded while waiting for worker[%s]" % (
+                                MAX_EPM_BUILD_TIME, ",".join(pending)
+                            )
+                    logger.warn(err)
+                    self.fabric.add_fabric_event("warning", err)
+                    # unpause and stop tracking
+                    logger.debug("broadcasting resume to all watchers")
+                    self.send_msg(eptMsgWork(0, "watcher", {},WORK_TYPE.FABRIC_WATCH_RESUME,qnum=0))
+                    self.epm_eof_tracking = None
+                    self.fabric.add_fabric_event("running")
+
+            # sleep for check interval
             time.sleep(self.subscription_check_interval)
+
+    def get_workers_with_pending_ack(self):
+        """ check epm_eof_start and get list of workers that have not yet sent an ack """
+        pending = []
+        if self.epm_eof_tracking is not None:
+            for (wid, complete) in self.epm_eof_tracking.items():
+                if not complete:
+                    pending.append(wid)
+        logger.debug("%s pending ack from %s workers: [%s]", self.fabric.fabric, len(pending), 
+                        ",".join(pending))
+        return pending
 
     def hard_restart(self, reason=""):
         """ send msg to manager for fabric restart """

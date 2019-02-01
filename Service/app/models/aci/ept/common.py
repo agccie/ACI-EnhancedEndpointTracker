@@ -34,6 +34,9 @@ RAPID_CALCULATE_INTERVAL            = 15.0
 MAX_SEND_MSG_LENGTH                 = 10240
 
 # transitory timers:
+#   max_epm_build   maximum amount of time to wait for ACK from all worker processes to indiciate
+#                   that all initial epm messages (from build created/delete) have been processed.
+#                   when exceeded, warning is logged to fabric events and watcher is unpaused.
 #   uptime          amount of time added to all transitory events when fabric is first started. For
 #                   example, if the uptime of the fabric subscription is 100 seconds and transitory
 #                   uptime is 300, then an additional 200 seconds needs to be added to any transitory
@@ -55,6 +58,7 @@ MAX_SEND_MSG_LENGTH                 = 10240
 #   watch_offsubnet amount of time to suppress new watch_offsubnet events for single node/ep
 #   watch_stale     amount of time to suppress new watch_stale events for single node/ep
 #   fabric_restart  amount of time to suppress new fabric monitor restart events
+MAX_EPM_BUILD_TIME                  = 5400.0
 TRANSITORY_UPTIME                   = 900.0 
 TRANSITORY_DELETE                   = 60.0
 TRANSITORY_OFFSUBNET                = 10.0

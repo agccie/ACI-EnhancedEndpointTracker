@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 # static msg types to prevent duplicates
 @enum_unique
 class MSG_TYPE(Enum):
-    WORK                = "work"            # worker from subscriber to manager to worker (or requeued)
+    WORK                = "work"            # main work message
     HELLO               = "hello"           # hello from worker to manager
-    MANAGER_STATUS      = "manager_status"  # manager status response
-    GET_MANAGER_STATUS  = "get_manager_status" # request to get manager status from API to manager
+    MANAGER_STATUS      = "mgr_status"      # manager status response
+    GET_MANAGER_STATUS  = "get_mgr_status"  # request to get manager status from API to manager
     FABRIC_START        = "fabric_start"    # request from API to manager to start fabric monitor
     FABRIC_STOP         = "fabric_stop"     # request from API to manager to stop fabric monitor
     FABRIC_RESTART      = "fabric_restart"  # request from API or subscriber to manager for restart
@@ -28,6 +28,9 @@ class MSG_TYPE(Enum):
     TEST_SYSLOG         = "test_syslog"     # send a test syslog
     SETTINGS_RELOAD     = "settings_reload" # request from API to subscriber/worker to flush+reload
                                             # current fabric settings
+    FABRIC_EPM_EOF_ACK  = "epm_eof_ack"     # sent from worker to subscriber on subscriber channel 
+                                            # to indiciate reception/processing of work type
+                                            # FABRIC_EPM_EOF.
 
 # static work types sent with MSG_TYPE.WORK
 @enum_unique
@@ -46,8 +49,12 @@ class WORK_TYPE(Enum):
                                             # flush info from cache
     TEST_EMAIL          = "test_email"      # test email notification
     TEST_SYSLOG         = "test_syslog"     # test syslog notification
-    SETTINGS_RELOAD        = "fabric_flush"    # request from API to subscriber/worker to flush+reload
+    SETTINGS_RELOAD     = "settings_reload" # request from API to subscriber/worker to flush+reload
                                             # current fabric settings
+    FABRIC_EPM_EOF      = "epm_eof"         # broadcast from subscriber to all workers as the last
+                                            # EPM event. In response workers send back 
+    FABRIC_WATCH_PAUSE  = "watch_pause"     # sent from subscriber to watcher to pause watch execute
+    FABRIC_WATCH_RESUME = "watch_resume"    # sent from subscriber to watcher to resume execute
 
 class eptMsg(object):
     """ generic ept job for messaging between workers 
@@ -88,6 +95,8 @@ class eptMsg(object):
             return eptMsgSubOp(MSG_TYPE.TEST_SYSLOG, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.SETTINGS_RELOAD.value:
             return eptMsgSubOp(MSG_TYPE.SETTINGS_RELOAD, js["data"], js["seq"])
+        elif js["msg_type"] == MSG_TYPE.FABRIC_EPM_EOF_ACK.value:
+            return eptMsgSubOp(MSG_TYPE.FABRIC_EPM_EOF_ACK, js["data"], js["seq"])
         return eptMsg(
                     MSG_TYPE(js["msg_type"]), 
                     data=js.get("data", {}),
@@ -98,9 +107,11 @@ class eptMsgSubOp(eptMsg):
     """ subscriber operation supporting following ops:
             - MSG_TYPE.REFRESH_EPT
             - MSG_TYPE.DELETE_EPT
-            - MSG_TYPE.TEST_EMAIL   (no ept required but fabric needed for worker)
-            - MSG_TYPE.TEST_SYSLOG  (no ept required but fabric needed for worker)
-            - MSG_TYPE.SETTINGS_RELOAD (no ept required but fabric needed for worker)
+            - MSG_TYPE.TEST_EMAIL           (no ept required but fabric needed for worker)
+            - MSG_TYPE.TEST_SYSLOG          (no ept required but fabric needed for worker)
+            - MSG_TYPE.SETTINGS_RELOAD      (no ept required but fabric needed for worker)
+            - MSG_TYPE.FABRIC_EPM_EOF_ACK   sent from worker to subscriber with worker_id 
+                                            embedded in addr field
     """
     def __init__(self, msg_type, data={}, seq=1):
         super(eptMsgSubOp, self).__init__(msg_type, data, seq)

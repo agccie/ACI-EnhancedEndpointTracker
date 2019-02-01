@@ -8,7 +8,6 @@ from . common import CACHE_STATS_INTERVAL
 from . common import HELLO_INTERVAL
 from . common import MANAGER_WORK_QUEUE
 from . common import RAPID_CALCULATE_INTERVAL
-from . common import TRANSITORY_UPTIME
 from . common import TRANSITORY_DELETE
 from . common import TRANSITORY_OFFSUBNET
 from . common import TRANSITORY_RAPID
@@ -131,6 +130,8 @@ class eptWorker(object):
                 WORK_TYPE.TEST_EMAIL: self.handle_test_email,
                 WORK_TYPE.TEST_SYSLOG: self.handle_test_syslog,
                 WORK_TYPE.SETTINGS_RELOAD: self.handle_settings_reload,
+                WORK_TYPE.FABRIC_WATCH_PAUSE: self.handle_watch_pause,
+                WORK_TYPE.FABRIC_WATCH_RESUME: self.handle_watch_resume,
             }
         else:
             self.work_type_handlers = {
@@ -141,6 +142,7 @@ class eptWorker(object):
                 WORK_TYPE.EPM_RS_IP_EVENT: self.handle_endpoint_event,
                 WORK_TYPE.DELETE_EPT: self.handle_endpoint_delete,
                 WORK_TYPE.SETTINGS_RELOAD: self.handle_settings_reload,
+                WORK_TYPE.FABRIC_EPM_EOF:  self.handle_epm_eof,
             }
 
     def __repr__(self):
@@ -1341,8 +1343,7 @@ class eptWorker(object):
         msg.wf.send_notification("rapid", subject, txt)
         if msg.wf.settings.refresh_rapid:
             key = "%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr)
-            uptime_delta = msg.wf.get_uptime_delta_offset(TRANSITORY_UPTIME)
-            msg.xts = msg.now + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID + uptime_delta
+            msg.xts = msg.now + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID
             with self.watch_rapid_lock:
                 self.watch_rapid[key] = msg
             logger.debug("watch rapid added with xts: %.03f, delta: %.03f", msg.xts, msg.xts-msg.now)
@@ -1353,8 +1354,7 @@ class eptWorker(object):
             exists it is overwritten with the new watch event.
         """
         key = "%s,%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr, msg.node)
-        uptime_delta = msg.wf.get_uptime_delta_offset(TRANSITORY_UPTIME)
-        msg.xts = msg.now + TRANSITORY_OFFSUBNET + uptime_delta
+        msg.xts = msg.now + TRANSITORY_OFFSUBNET
         with self.watch_offsubnet_lock:
             self.watch_offsubnet[key] = msg
         logger.debug("watch offsubnet added with xts: %.03f, delta: %.03f", msg.xts, msg.xts-msg.now)
@@ -1365,11 +1365,10 @@ class eptWorker(object):
             If object already exists it is overwritten with the new watch event.
         """
         key = "%s,%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr, msg.node)
-        uptime_delta = msg.wf.get_uptime_delta_offset(TRANSITORY_UPTIME)
         if msg.event["expected_remote"] == 0:
-            msg.xts = msg.now + TRANSITORY_STALE_NO_LOCAL + uptime_delta
+            msg.xts = msg.now + TRANSITORY_STALE_NO_LOCAL
         else:
-            msg.xts = msg.now + TRANSITORY_STALE + uptime_delta
+            msg.xts = msg.now + TRANSITORY_STALE
         with self.watch_stale_lock:
             self.watch_stale[key] = msg
         logger.debug("watch stale added with xts: %.03f, delta: %.03f", msg.xts, msg.xts-msg.now)
@@ -1393,11 +1392,21 @@ class eptWorker(object):
         """
         ts = time.time()
         work = []               # tuple of (key, msg) of watch event that is ready
+        paused = {}             # count of work per fabric for accounting only
         with lock:
             # get msg events that are ready, remove key from corresponding dict
             for k, msg in msgs.items():
-                if msg.xts <= ts: work.append((k, msg))
+                if msg.wf.watcher_paused:
+                    if msg.fabric not in paused:
+                        paused[msg.fabric] = 0
+                    paused[msg.fabric]+=1
+                else:
+                    if msg.xts <= ts: 
+                        work.append((k, msg))
             for (k, msg) in work: msgs.pop(k, None)
+        if len(paused) > 0:
+            for fab in paused:
+                logger.debug("paused %s watch events for fabric %s", paused[fab], fab)
         return work
 
     def execute_watch_rapid(self):
@@ -1610,6 +1619,28 @@ class eptWorker(object):
         """ receive eptMsgWork with WORK_TYPE.SETTINGS_RELOAD to reload local wf settings """
         logger.debug("reloading settings for fabric %s", msg.fabric)
         msg.wf.settings_reload()
+
+    def handle_epm_eof(self, msg):
+        """ receive eptMsgWork with WORK_TYPE.FABRIC_EPM_EOF and send ack back to subscriber """
+        logger.debug("received epm eof for fabric %s", msg.fabric)
+        self.redis.publish(SUBSCRIBER_CTRL_CHANNEL, 
+            eptMsgSubOp(MSG_TYPE.FABRIC_EPM_EOF_ACK,data={
+                "fabric": msg.fabric,
+                "addr": self.worker_id,
+                }
+            ).jsonify()
+        )
+        self.increment_stats(SUBSCRIBER_CTRL_CHANNEL, tx=True)
+
+    def handle_watch_pause(self, msg):
+        """ receive eptMsgWork with WORK_TYPE.FABRIC_WATCH_PAUSE and set local watcher_pause flag """
+        logger.debug("receiving watch pause for fabric %s", msg.fabric)
+        msg.wf.watcher_paused = True
+
+    def handle_watch_resume(self, msg):
+        """ receive eptMsgWork with WORK_TYPE.FABRIC_WATCH_RESUME and set local watcher_pause flag """
+        logger.debug("receiving watch resume for fabric %s", msg.fabric)
+        msg.wf.watcher_paused = False
 
 class eptWorkerUpdateLocalResult(object):
     """ return object for eptWorker.update_loal method """

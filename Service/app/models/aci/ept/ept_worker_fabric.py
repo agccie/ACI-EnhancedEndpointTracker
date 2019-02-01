@@ -24,6 +24,7 @@ class eptWorkerFabric(object):
         self.settings = eptSettings.load(fabric=fabric, settings="default")
         self.cache = eptCache(fabric)
         self.db = get_db()
+        self.watcher_paused = False
         self.init() 
 
     def init(self):

@@ -246,7 +246,7 @@ class eptManager(object):
                     return False
 
                 f.add_fabric_event("starting", reason)
-                sub = eptSubscriber(f)
+                sub = eptSubscriber(f, active_workers=self.worker_tracker.active_workers)
                 self.fabrics[fabric]["subscriber"] = sub
                 self.fabrics[fabric]["process"] = Process(target=sub.run)
                 self.fabrics[fabric]["process"].daemon = True

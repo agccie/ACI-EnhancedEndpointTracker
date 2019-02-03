@@ -62,7 +62,7 @@
                   pagerPrevious: 'icon-step-backward',
                   pagerNext: 'icon-step-forward'
                   }">
-                <ngx-datatable-column prop="events[0].status" name="State" [sortable]="true" [flexGrow]="0.1">
+                <ngx-datatable-column prop="events[0].status" name="State" [sortable]="true" [width]="100">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         <status-label *ngIf="!row.is_flagged && row.is_active && !row.is_ctrl" [status]="'active'"></status-label>
                         <status-label *ngIf="!row.is_flagged && !row.is_active && !row.is_ctrl" [status]="'inactive'"></status-label>
@@ -73,24 +73,24 @@
                         <status-label *ngIf="row.is_stale" [status]="'stale'"></status-label>
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [flexGrow]="0.1">
+                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [width]="100">
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         <endpoint-label [type]="value"></endpoint-label>
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" [flexGrow]="0.2">
+                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" >
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         <a [routerLink]="['../history', row.vnid, row.addr]">
                             {{ value }}
                         </a>
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="first_learn.vnid_name" name="VRF/BD" [sortable]="true" [flexGrow]="0.3">
+                <ngx-datatable-column prop="first_learn.vnid_name" name="VRF/BD" [sortable]="true" >
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         {{ row.events.length > 0 ? row.events[0].vnid_name : row.first_learn.vnid_name }}
                     </ng-template>
                 </ngx-datatable-column>
-                <ngx-datatable-column prop="events.0.epg_name" name="EPG" [sortable]="true" [flexGrow]="0.3">
+                <ngx-datatable-column prop="events.0.epg_name" name="EPG" [sortable]="true" >
                     <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
                         {{ row.events.length > 0 ? (row.events[0].epg_name !== '' ? row.events[0].epg_name : '&mdash;') : (row.first_learn.epg_name !== '' ? row.first_learn.epg_name : '&mdash;') }}
                     </ng-template>

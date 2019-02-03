@@ -18,32 +18,32 @@
             pagerNext: 'icon-step-forward'
           }"
 >
-    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [flexGrow]='0.15'>
+    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [width]="175">
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="node" name="Node" [sortable]="true" [flexGrow]='0.05'>
+    <ngx-datatable-column prop="node" name="Affected Node" [sortable]="true" [width]="100">
         <ng-template let-value="value" ngx-datatable-cell-template>
             {{ value }}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column prop="intf_name" name="Interface" [sortable]="true" >
         <ng-template let-value="value" ngx-datatable-cell-template>
             {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="encap" name="Encap" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column prop="encap" name="Encap" [sortable]="true" [width]="100">
         <ng-template let-value="value" ngx-datatable-cell-template>
             {{ value !== '' ? value : '&mdash;'}}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="remote" name="Remote Node" [sortable]="true" [flexGrow]='0.1'>
+    <ngx-datatable-column prop="remote" name="Remote Node" [sortable]="true" [width]="100">
         <ng-template let-value="value" ngx-datatable-cell-template>
             {{ value | localNode }}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" [flexGrow]='0.5'>
+    <ngx-datatable-column prop="epg_name" name="EPG" [sortable]="true" >
         <ng-template let-value="value" ngx-datatable-cell-template>
             {{ value !== '' ? value : '&mdash;'}}
         </ng-template>

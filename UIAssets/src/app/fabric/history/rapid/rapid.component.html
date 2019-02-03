@@ -18,17 +18,17 @@
             pagerNext: 'icon-step-forward'
           }"
 >
-    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [flexGrow]='0.33'>
+    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [width]="175">
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             {{ (value | amFromUnix ) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="count" name="Total EPM Events" [sortable]="true" [flexGrow]='0.33'>
+    <ngx-datatable-column prop="count" name="Total EPM Events" [sortable]="true" >
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             {{ value | number }}
         </ng-template>
     </ngx-datatable-column>
-    <ngx-datatable-column prop="rate" name="Rate(per minute)" [sortable]="true" [flexGrow]='0.34'>
+    <ngx-datatable-column prop="rate" name="Rate(per minute)" [sortable]="true" >
         <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
             {{ value | number }}
         </ng-template>

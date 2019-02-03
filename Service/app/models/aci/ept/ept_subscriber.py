@@ -1182,6 +1182,7 @@ class eptSubscriber(object):
             else:
                 gen = get_class(self.session, c, stream=True, orderBy="%s.addr" % c)
             ts = time.time()
+            create_count = 0
             create_msgs = []
             if not self.subscriber.add_interest(c, self.handle_epm_event, paused=paused):
                 logger.warn("failed to add interest %s to subscriber", c)
@@ -1190,25 +1191,49 @@ class eptSubscriber(object):
                 if obj is None:
                     logger.error("failed to get epm data for class %s", c)
                     return False
-                # process the data now as we can't afford buffer all msgs in memory on scale setups
                 if c in obj and "attributes" in obj[c]:
                     msg = self.ept_epm_parser.parse(c, obj[c]["attributes"], ts)
                     if msg is not None:
+                        create_count+=1
                         create_msgs.append(msg)
                         if msg.node not in endpoints: endpoints[msg.node] = {}
                         if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
                         endpoints[msg.node][msg.vnid][msg.addr] = 1
+                        # process the data now as we can't afford buffer all msgs in memory on 
+                        # scale setups.
+                        if len(create_msgs) >= MAX_SEND_MSG_LENGTH:
+                            logger.debug("build_endpoint_db sending %s create for %s", 
+                                    len(create_msgs), c)
+                            self.send_msg(create_msgs)
+                            create_msgs = []
                 else:
                     logger.warn("invalid %s object: %s", c, obj)
-            # send all create and delete messages to workers (delete first just because...)
-            logger.debug("build_endpoint_db sending %s create for %s", len(create_msgs),c)
-            self.send_msg(create_msgs)
-            create_msgs = []
 
-        # get delete jobs
-        delete_msgs = self.get_epm_delete_msgs(endpoints)
-        logger.debug("build_endpoint_db sending %s delete jobs", len(delete_msgs))
-        self.send_msg(delete_msgs)
+            # send remaining create messages
+            if len(create_msgs) > 0:
+                logger.debug("build_endpoint_db sending %s create for %s", len(create_msgs),c)
+                self.send_msg(create_msgs)
+                create_msgs = []
+            # print total for reference
+            logger.debug("build_endpoint_db total %s create for %s", create_count, c)
+
+        # stream delete jobs
+        delete_count = 0
+        delete_msgs = []
+        for obj in self.get_epm_delete_msgs(endpoints):
+            delete_count+= 1
+            delete_msgs.append(obj)
+            if len(delete_msgs) >= MAX_SEND_MSG_LENGTH:
+                logger.debug("build_endpoint_db sending %s delete jobs", len(delete_msgs))
+                self.send_msg(delete_msgs)
+                delete_msgs = []
+        # send remaining delete messages
+        if len(delete_msgs) > 0:
+            logger.debug("build_endpoint_db sending %s delete jobs", len(delete_msgs))
+            self.send_msg(delete_msgs)
+            delete_msgs = []
+        # print total for reference
+        logger.debug("build_endpoint_db total %s delete jobs", delete_count)
         logger.debug("build_endpoint_db total time: %.3f", time.time()-start_time)
         return True
 
@@ -1255,7 +1280,7 @@ class eptSubscriber(object):
                 else:
                     logger.debug("ignoring invalid epm object %s", obj)
             # get delete jobs
-            delete_msgs = self.get_epm_delete_msgs(endpoints, addr=addr, vnid=vnid)
+            delete_msgs = [_ for _ in self.get_epm_delete_msgs(endpoints, addr=addr, vnid=vnid)]
             logger.debug("sending %s create and %s delete msgs from refresh", len(create_msgs),
                     len(delete_msgs))
             # set force flag and qnum on each msg to trigger analysis update
@@ -1269,9 +1294,10 @@ class eptSubscriber(object):
             logger.debug("failed to get epm objects")
 
     def get_epm_delete_msgs(self, endpoints, addr=None, vnid=None):
-        """ from provided create endpoint dict and flt, return list of delete msgs 
+        """ from provided create endpoint dict and flt, stream iterators for epm delete msgs
             endpoints must be 3-level dict in the form endpoints[node][vnid][addr]
         """
+        logger.debug("get epm delete messages (flt addr:%s, vnid:%s)", addr, vnid)
 
         # get entries in db and create delete events for those not deleted and not in class query.
         # we need to iterate through the results and do so as fast as possible and current rest
@@ -1291,7 +1317,6 @@ class eptSubscriber(object):
             flt["vnid"] = vnid
 
         ts = time.time()
-        delete_msgs = []
         for obj in self.db[eptHistory._classname].find(flt, projection):
             # if in endpoints dict, then stil exists in the fabric so do not create a delete event
             if obj["node"] in endpoints and obj["vnid"] in endpoints[obj["node"]] and \
@@ -1301,16 +1326,15 @@ class eptSubscriber(object):
                 msg = self.ept_epm_parser.get_delete_event("epmMacEp", obj["node"], 
                     obj["vnid"], obj["addr"], ts)
                 if msg is not None:
-                    delete_msgs.append(msg)
+                    yield msg
             else:
                 # create an epmRsMacEpToIpEpAtt and epmIpEp delete event
                 msg = self.ept_epm_parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"], 
                     obj["vnid"], obj["addr"], ts)
                 if msg is not None:
-                    delete_msgs.append(msg)
+                    yield msg
                 msg = self.ept_epm_parser.get_delete_event("epmIpEp", obj["node"], 
                     obj["vnid"], obj["addr"], ts)
                 if msg is not None:
-                    delete_msgs.append(msg)
-        return delete_msgs
+                    yield msg
 

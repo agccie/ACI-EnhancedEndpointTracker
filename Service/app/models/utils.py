@@ -39,15 +39,23 @@ def get_app_config():
         _g_app_config = create_app_config("config.py")
     return _g_app_config
 
-def get_db(uniq=False, overwrite_global=False):
+def get_db(uniq=False, overwrite_global=False, write_concern=None, write_timeout=None):
     # return instance of mongo db, set uniq to True to always return a uniq db connection
     # set uniq to True and overwrite_global to True to force new global db as well
     global _g_db
     if _g_db is None or uniq:
         config = get_app_config()
+        wtimeout = None
         db = config.get("MONGO_DBNAME", "devdb")
-        if config.get("MONGO_WRITECONCERN", 0) == 0: w = 0
-        else: w = 1
+        if write_concern is None:
+            w = 1 if bool(config.get("MONGO_WRITE_CONCERN", True)) else 0
+        else:
+            w = 1 if write_concern else 0
+        if w:
+            if write_timeout is None:
+                wtimeout = int(config.get("MONGO_WRITE_TIMEOUT_MS", 90000))
+            else:
+                wtimeout = write_timeout
         uri = "mongodb://%s:%s/%s?" % (
             config.get("MONGO_HOST","localhost"),
             config.get("MONGO_PORT", 27017),
@@ -61,8 +69,12 @@ def get_db(uniq=False, overwrite_global=False):
         if "MONGO_SOCKET_TIMEOUT_MS" in config:
             uri+= "socketTimeoutMS=%s&" % config["MONGO_SOCKET_TIMEOUT_MS"]
         uri = re.sub("[\?&]+$","",uri)
-        logger.debug("starting mongo connection: %s", uri)
-        client = MongoClient(uri, w=w)
+        if wtimeout is not None:
+            logger.debug("starting mongo connection: %s, w=%s, wtimeout=%s", uri, w, wtimeout)
+            client = MongoClient(uri, w=w, wtimeout=wtimeout)
+        else:
+            logger.debug("starting mongo connection: %s, w=%s", uri, w)
+            client = MongoClient(uri, w=w)
         if _g_db is None or overwrite_global: _g_db = client[db]
         return client[db]
     return _g_db

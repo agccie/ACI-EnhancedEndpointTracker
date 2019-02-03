@@ -605,8 +605,14 @@ class Rest(object):
                 timing = "build_time: %0.3f, insert_time: %0.3f, total_time: %0.3f" % (
                     insert_time - ts, now - insert_time, now - ts
                 )
+                # only if write ack is enabled do we have an inserted/modified count
+                inserted = None
+                modified = None
+                if collection.client.write_concern.acknowledged:
+                    inserted = result.inserted_count
+                    modified = result.modified_count
                 cls.logger.debug("%s bulk write results (objects:%s), inserts: %s, updates: %s, %s", 
-                    cls._classname, len(bulk), result.inserted_count, result.modified_count, timing)
+                    cls._classname, len(bulk), inserted, modified, timing)
             return True
         except BulkWriteError as be:
             cls.logger.warn("%s bulkwrite error: %s", cls._classname, be.details)
@@ -1289,6 +1295,7 @@ class Rest(object):
             if len(okeys)>0: err = "%s (%s)" % (err, ", ".join(okeys))
             abort(400, err)
         except PyMongoError as e:
+            cls.logger.debug("Traceback:\n%s", traceback.format_exc())
             abort(500, "database error %s" % e)
 
         # after create callback
@@ -1454,6 +1461,7 @@ class Rest(object):
             #cls.logger.debug("read filters(%s): %s", cls._classname, filters)
             cursor = cls._mongo(collection.find, filters, projections)
         except PyMongoError as e:
+            cls.logger.debug("Traceback:\n%s", traceback.format_exc())
             abort(500, "database error %s" % e)
             
         # check for sort options
@@ -1713,8 +1721,13 @@ class Rest(object):
         # perform db update for selected objects
         try:
             r = cls._mongo(collection.update_many, filters, {"$set":obj})
-            ret_obj["count"] = r.matched_count
+            if collection.client.write_concern.acknowledged:
+                ret_obj["count"] = r.matched_count
+            else:
+                # always return 1 if write concern is disabled
+                ret_obj["count"] = 1
         except PyMongoError as e:
+            cls.logger.debug("Traceback:\n%s", traceback.format_exc())
             abort(500, "database error %s" % e)
 
         # perform 404 check for write_one scenario
@@ -1847,8 +1860,13 @@ class Rest(object):
         # perform db update for selected objects
         try:
             r = cls._mongo(collection.delete_many, filters)
-            ret_obj["count"] = r.deleted_count
+            if collection.client.write_concern.acknowledged:
+                ret_obj["count"] = r.deleted_count
+            else:
+                # always return 1 if write concern is disabled
+                ret_obj["count"] = 1
         except PyMongoError as e:
+            cls.logger.debug("Traceback:\n%s", traceback.format_exc())
             abort(500, "database error %s" % e)
 
         # perform 404 check for write_one scenario

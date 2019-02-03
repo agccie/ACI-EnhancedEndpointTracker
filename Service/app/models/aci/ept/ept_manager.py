@@ -43,7 +43,7 @@ class eptManager(object):
         logger.debug("init role manager id %s", worker_id)
         register_signal_handlers()
         self.worker_id = "%s" % worker_id
-        self.db = get_db(uniq=True, overwrite_global=True)
+        self.db = get_db(uniq=True, overwrite_global=True, write_concern=True)
         self.redis = get_redis()
         self.fabrics = {}               # running fabrics indexed by fabric name
         self.subscribe_thread = None

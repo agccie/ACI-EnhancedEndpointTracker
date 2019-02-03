@@ -163,7 +163,7 @@ class eptSubscriber(object):
         logger.info("starting eptSubscriber for fabric '%s'", self.fabric.fabric)
         try:
             # allocate a unique db connection as this is running in a new process
-            self.db = get_db(uniq=True, overwrite_global=True)
+            self.db = get_db(uniq=True, overwrite_global=True, write_concern=True)
             self.redis = get_redis()
             self._run()
         except (Exception, SystemExit, KeyboardInterrupt) as e:

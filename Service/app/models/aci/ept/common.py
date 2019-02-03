@@ -233,14 +233,16 @@ def push_event(collection, key, event, rotate=None, increment=True):
         update["$inc"] = {"count": 1}
     # logger.debug("push event key: %s, event:%s", key, event)
     r = collection.update_one(key, update, upsert=True)
-    if r.matched_count == 0:
-        if "n" in r.raw_result and "updatedExisting" in r.raw_result and \
-            not r.raw_result["updatedExisting"] and r.raw_result["n"]>0:
-            # result was upserted (new entry added to db)
-            pass
-        else:
-            logger.warn("failed to push event key:%s, event:%s", key, event)
-            return False
+    # to support disabling write concern, we can only check for a successfull push if ack is enabled
+    if collection.client.write_concern.acknowledged:
+        if r.matched_count == 0:
+            if "n" in r.raw_result and "updatedExisting" in r.raw_result and \
+                not r.raw_result["updatedExisting"] and r.raw_result["n"]>0:
+                # result was upserted (new entry added to db)
+                pass
+            else:
+                logger.warn("failed to push event key:%s, event:%s", key, event)
+                return False
     return True
 
 def get_addr_type(addr, addr_type):

@@ -118,7 +118,8 @@ if __name__ == "__main__":
     else:
         fname="%s_w%s.log" % (args.role, args.worker_id)
     debug_modules = [
-        "app.models.aci"
+        "app.models.aci",
+        "app.models.utils",
     ]
     setup_logger(logger, fname=fname, stdout=stdout)
     for l in debug_modules:

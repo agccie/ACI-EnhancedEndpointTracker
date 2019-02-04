@@ -40,9 +40,9 @@
                     {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
                 </ng-template>
             </ngx-datatable-column>
-            <ngx-datatable-column prop="node" name="Reporter" [sortable]="true" [width]="100">
+            <ngx-datatable-column prop="reporting_node" name="Reporter" [sortable]="true" [width]="100">
                 <ng-template let-value="value" ngx-datatable-cell-template>
-                    node-{{ value }}
+                    {{ value }}
                 </ng-template>
             </ngx-datatable-column>
             <ngx-datatable-column prop="status" name="Status" [sortable]="true" [width]="100">

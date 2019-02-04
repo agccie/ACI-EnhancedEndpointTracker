@@ -261,6 +261,7 @@ export class EndpointEvent {
     flags_string: string = "-";
     node_string: string = "-";
     remote_string: string = "-";
+    reporting_node: string = "-";
 
     constructor(data: any = {}) {
         this.init();
@@ -290,6 +291,7 @@ export class EndpointEvent {
         this.flags_string = "-";
         this.node_string = "-";
         this.remote_string = "-";
+        this.reporting_node = "-";
     }
     
     // sync EndpointEvent object to provided JSON
@@ -316,6 +318,7 @@ export class EndpointEvent {
             this.flags_string = this.flags.join(",")
         }
         if(this.node>0){
+            this.reporting_node = "node-"+this.node;
             this.node_string = nodeToString(this.node, this.tunnel_flags);
         }
         this.remote_string = nodeToString(this.remote, this.tunnel_flags);

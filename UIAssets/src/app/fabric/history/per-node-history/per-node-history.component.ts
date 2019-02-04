@@ -52,6 +52,7 @@ export class PerNodeHistoryComponent implements OnInit {
                 endpoint_list.objects.forEach(element => {
                     element.events.forEach(sub_element => {
                         sub_element.node = element.node;
+                        sub_element.reporting_node = "node-"+sub_element.node;
                         rows.push(sub_element);
                     })
                 })
@@ -70,7 +71,7 @@ export class PerNodeHistoryComponent implements OnInit {
 
     updateFilter(event) {
         let interests = [
-            "node",
+            "reporting_node",
             "status",
             "intf_name",
             "encap",

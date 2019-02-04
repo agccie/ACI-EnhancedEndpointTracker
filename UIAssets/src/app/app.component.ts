@@ -143,16 +143,18 @@ export class AppComponent implements OnInit, OnDestroy {
                     console.log(val);
                     let status = "";
                     let msg = "";
-                    if("status" in val){
-                        status = "("+val["status"]+")";
-                    }
-                    if("error" in val && "error" in val["error"]){
-                        msg = status+" "+val["error"]["error"];
-                    } else if("error" in val && "message" in val["error"]){
-                        msg = status+" "+val["error"]["message"];
-                    } else {
-                        msg = status+" Waiting for backend application";
-                    }
+                    try{
+                        if("status" in val){
+                            status = "("+val["status"]+")";
+                        }
+                        if("error" in val && "error" in val["error"]){
+                            msg = status+" "+val["error"]["error"];
+                        } else if("error" in val && "message" in val["error"]){
+                            msg = status+" "+val["error"]["message"];
+                        } else {
+                            msg = status+" Waiting for backend application";
+                        }
+                    } catch(err){msg = "Waiting for backend application";}
                     this.appLoadingStatus = msg;
                 }),
                 delay(1000)

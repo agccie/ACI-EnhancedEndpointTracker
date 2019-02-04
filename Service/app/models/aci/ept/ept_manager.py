@@ -288,14 +288,19 @@ class eptManager(object):
             # need to force all workers to flush their caches for this fabric
             stop = eptMsg(MSG_TYPE.FABRIC_STOP, data={"fabric": fabric})
             self.worker_tracker.broadcast(stop)
-            # manager should flush all events from worker queues for the fabric instead of 
-            # having worker perform the operation which could lead to race conditions
-            self.worker_tracker.flush_fabric(fabric)
+            # remove fabric from auto-start before flushing messages
             if not f.exists() or not f.auto_start: 
                 logger.debug("removing fabric '%s' from managed fabrics", fabric)
                 self.fabrics.pop(fabric, None)
             else:
                 self.fabrics[fabric]["waiting_for_retry"] = True
+            # manager should flush all events from worker queues for the fabric instead of 
+            # having worker perform the operation which could lead to race conditions. This needs
+            # to happening in a different thread so it does not block hellos or other events 
+            # received on the control thread.
+            tmp = threading.Thread(target=self.worker_tracker.flush_fabric, args=(fabric,))
+            tmp.daemon = True
+            tmp.start()
             return True
 
     def check_fabric_processes(self):
@@ -479,7 +484,7 @@ class WorkerTracker(object):
         with worker.queue_locks[msg.qnum]:
             worker.last_seq[msg.qnum]+= 1
             msg.seq = worker.last_seq[msg.qnum]
-            logger.debug("enqueue %s: %s", worker.queues[msg.qnum], msg)
+            #logger.debug("enqueue %s: %s", worker.queues[msg.qnum], msg)
             self.redis.rpush(worker.queues[msg.qnum], msg.jsonify())
         self.manager.increment_stats(worker.queues[msg.qnum], tx=True)
         return True

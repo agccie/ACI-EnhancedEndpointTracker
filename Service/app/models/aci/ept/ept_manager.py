@@ -404,8 +404,8 @@ class WorkerTracker(object):
                 remove_workers.append(w)
             elif not w.active:
                 # new worker that needs to be added to active list
-                logger.info("new worker: %s", w)
                 if w.role not in self.active_workers: self.active_workers[w.role] = []
+                logger.info("new worker: %s, index: %d", w, len(self.active_workers[w.role]))
                 self.active_workers[w.role].append(w)
                 w.active = True
                 new_workers = True

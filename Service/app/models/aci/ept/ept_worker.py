@@ -1044,6 +1044,9 @@ class eptWorker(object):
             for node in offsubnet_nodes:
                 logger.debug("setting is_offsubnet to True for node 0x%04x", node)
                 nlist.append({"node":node})
+                # update the event timestamp to msg.ts as node is detected as offsubnet based on this
+                # recent event.
+                offsubnet_nodes[node].ts = msg.ts
             flt["$or"] = nlist
             self.db[eptHistory._classname].update_many(flt, {"$set":{"is_offsubnet":True}})
         # clear eptEndpoint is_offsubnet flag if not currently offsubnet on any node
@@ -1221,6 +1224,9 @@ class eptWorker(object):
             nlist = []
             for node in stale_nodes:
                 logger.debug("setting is_stale to True for node 0x%04x", node)
+                # update the event timestamp to msg.ts as node is detected as stale based on this
+                # recent event.
+                stale_nodes[node].ts = msg.ts
                 nlist.append({"node":node})
             flt["$or"] = nlist
             self.db[eptHistory._classname].update_many(flt, {"$set":{"is_stale":True}})

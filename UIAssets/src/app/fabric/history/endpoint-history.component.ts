@@ -4,7 +4,7 @@ import {BackendService} from '../../_service/backend.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {forkJoin} from 'rxjs';
 import {ModalService} from '../../_service/modal.service';
-import {EndpointList, Endpoint} from '../../_model/endpoint';
+import {EndpointList, Endpoint, getLocalNodeList} from '../../_model/endpoint';
 
 @Component({
     selector: 'app-endpoint-history',
@@ -29,6 +29,9 @@ export class EndpointHistoryComponent implements OnInit {
 
     clearNodes = [];
     clearNodesLoading: boolean = false;
+    clearOffsubnetNodes: boolean = false;
+    clearStaleNodes: boolean = false;
+    clearActiveNodes: boolean = false;
 
     dropdownActive: boolean = false;
     @ViewChild('clearModal') clearModal: TemplateRef<any>;
@@ -194,7 +197,6 @@ export class EndpointHistoryComponent implements OnInit {
         this.dropdownActive = false;
     }
 
-
     onDataplaneRefreshEndpoint(){
         // request to dataplane refresh of endpoint
         let that = this;
@@ -273,11 +275,39 @@ export class EndpointHistoryComponent implements OnInit {
     onClearEndpoint() {
         this.clearNodes = [];
         this.clearNodesLoading = false;
+        this.clearStaleNodes = false;
+        this.clearOffsubnetNodes = false;
+        this.clearActiveNodes = false;
         this.modalService.openModal(this.clearModal);
     }
 
     clearEndpoint(){
         let nodes = this.parseClearNodes();
+        //add all active, offsubnet, and stale if selected
+        if(this.clearActiveNodes){
+            nodes = nodes.concat(this.xrNodeList);
+            if(this.endpoint.is_local){
+                getLocalNodeList(this.endpoint.local_node).forEach(val => {
+                    if(!nodes.includes(val)){
+                        nodes.push(val);
+                    }
+                })
+            }
+        }
+        if(this.clearOffsubnetNodes){
+            this.offsubnetNodeList.forEach(val => {
+                if(!nodes.includes(val)){
+                    nodes.push(val);
+                }
+            })
+        }
+        if(this.clearStaleNodes){
+            this.staleNodeList.forEach(val => {
+                if(!nodes.includes(val)){
+                    nodes.push(val);
+                }
+            })
+        }
         if(nodes.length>0){
             this.clearNodesLoading = true;
             this.backendService.clearEndpoint(this.endpoint.fabric, this.endpoint.vnid, this.endpoint.addr, nodes).subscribe(

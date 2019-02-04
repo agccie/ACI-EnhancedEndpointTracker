@@ -158,31 +158,76 @@
     <div class="modal__header">
         <h2>Clear Endpoint</h2>
     </div>
+    <div>
+        <p>This action is may impact dataplane traffic on the fabric until the endpoint is relearned.</p>
+    </div>
     <div class="modal__body">
         <div class="form-group">
             <label for="endpoints">Nodes</label>
             <ng-select
-                    class="override"
-                    bindLabel="label"
-                    bindValue="value"
-                    placeholder="Enter range or comma seperated nodes to be cleared (e.g. 100-106, 301, 303)"
-                    [isOpen]="false"
-                    [multiple]="true"
-                    [addTag]="addClearNodes"
-                    [items]="[]"
-                    [(ngModel)]="clearNodes"
+                class="override"
+                bindLabel="label"
+                bindValue="value"
+                placeholder="Enter range or comma seperated nodes to be cleared (e.g. 100-106, 301, 303)"
+                [isOpen]="false"
+                [multiple]="true"
+                [addTag]="addClearNodes"
+                [items]="[]"
+                [(ngModel)]="clearNodes"
                 >
             </ng-select>
         </div>
-        <div>
-            <p>This action is may impact dataplane traffic on the fabric until the endpoint is relearned.</p>
+        <div class="base-margin">
+            <div class="row half-margin-top">
+            <div class="form-group">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="clearActiveNodes">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Clear on all nodes where the endpoint is currently learned</span>
+                </label>
+            </div>
+            </div>
+            <div class="row half-margin-top">
+            <div class="form-group">
+                <label class="switch" [ngClass]="offsubnetNodeList.length==0 ? 'disabled':''">
+                    <input type="checkbox" [(ngModel)]="clearOffsubnetNodes">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">
+                        <span *ngIf="offsubnetNodeList.length==0" class="text-muted">
+                            Not currently offsubnet on any node
+                        </span>
+                        <span *ngIf="offsubnetNodeList.length>0">
+                            Clear on all currently offsubnet nodes
+                        </span>
+                    </span>
+                </label>
+            </div>
+            </div>
+            <div class="row half-margin-top">
+            <div class="form-group">
+                <label class="switch" [ngClass]="staleNodeList.length==0 ? 'disabled':''">
+                    <input type="checkbox" [(ngModel)]="clearStaleNodes">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">
+                        <span *ngIf="staleNodeList.length==0" class="text-muted">
+                            Not currently stale on any node
+                        </span>
+                        <span *ngIf="staleNodeList.length>0">
+                            Clear on all currently stale nodes
+                        </span>
+                    </span>
+                </label>
+            </div>
+            </div>
         </div>
         <div class="text-center" *ngIf="clearNodesLoading">
             <loading-dots></loading-dots>
         </div>
         <div class="modal__footer" *ngIf="!clearNodesLoading">
             <button class="btn btn--gray-ghost" (click)="modalService.hideModal()">Cancel</button>
-            <button class="btn btn--negative" [disabled]="clearNodes.length==0" (click)="clearEndpoint()">Clear Endpoint</button>
+            <button class="btn btn--negative" (click)="clearEndpoint()" [disabled]="clearNodes.length==0 && !clearActiveNodes && !clearStaleNodes && !clearOffsubnetNodes">
+                Clear Endpoint
+            </button>
         </div>
     </div>
 </ng-template>

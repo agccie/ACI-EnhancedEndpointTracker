@@ -1,4 +1,14 @@
 
+// receive an integer node and a list of nodes where one node is returned 
+// if the value is <0xffff, else two nodes are returned representing a vpc pair
+export function getLocalNodeList(value: number){
+    if (value > 0xffff) {
+        const nodeA = (value & 0xffff0000) >> 16;
+        const nodeB = (value & 0x0000ffff);
+        return [nodeA, nodeB];
+    }
+    return [value];
+}
 
 export function nodeToString(value: number, tunnelFlags:string[]=[]): string{
     let localNode = '-';

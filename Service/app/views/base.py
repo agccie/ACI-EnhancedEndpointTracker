@@ -7,6 +7,7 @@ from ..models.utils import get_user_files
 from ..models.utils import get_user_params
 
 from flask import Blueprint
+from flask import abort
 from flask import current_app
 from flask import jsonify
 from flask import redirect
@@ -105,7 +106,7 @@ def aci_app_proxy():
     is_json = "json" in user_headers.get("content-type", "")
     if method == "get":
         r = requests.get(url, verify=False, data=data, params=params, cookies=user_cookies,
-                        headers=user_headers)
+                        headers=user_headers, allow_redirects=True)
     elif method == "post":
         if len(user_files)>0:
             files = {}

@@ -13,6 +13,7 @@ from . common import SEQUENCE_TIMEOUT
 from . common import SUPPRESS_FABRIC_RESTART
 from . common import WORKER_CTRL_CHANNEL
 from . common import WORKER_UPDATE_INTERVAL
+from . common import BackgroundThread
 from . common import db_alive
 from . common import wait_for_db
 from . common import wait_for_redis
@@ -67,9 +68,9 @@ class eptManager(object):
     def cleanup(self):
         """ graceful cleanup on exit """
         if self.stats_thread is not None:
-            self.stats_thread.cancel()
+            self.stats_thread.exit()
         if self.worker_tracker is not None and self.worker_tracker.update_thread is not None:
-            self.worker_tracker.update_thread.cancel()
+            self.worker_tracker.update_thread.exit()
         if self.subscribe_thread is not None:
             self.subscribe_thread.stop()
         for f, fab in self.fabrics.items():
@@ -103,7 +104,10 @@ class eptManager(object):
         self.redis.flushall()
         wait_for_db(self.db)
         self.worker_tracker = WorkerTracker(manager=self)
-        self.update_stats()
+        self.stats_thread = BackgroundThread(func=self.update_stats, name="stats", count=0, 
+                                            interval= eptQueueStats.STATS_INTERVAL)
+        self.stats_thread.daemon = True
+        self.stats_thread.start()
 
         channels = {
             WORKER_CTRL_CHANNEL: self.handle_channel_msg,
@@ -337,23 +341,15 @@ class eptManager(object):
 
     def update_stats(self):
         """ update stats at regular interval """
-
         # monitor db health prior to db updates
         if not db_alive(self.db):
             logger.error("db no longer reachable/alive")
             raise_interrupt()
             return
-
         # update stats at regular interval for all queues
         for k, q in self.queue_stats.items():
             with self.queue_stats_lock:
                 q.collect(qlen = self.redis.llen(k))
-
-        # set timer to recollect at next collection interval
-        self.stats_thread = threading.Timer(eptQueueStats.STATS_INTERVAL, self.update_stats)
-        self.stats_thread.daemon = True
-        self.stats_thread.start()
-
         
 class WorkerTracker(object):
     # track list of active workers 
@@ -363,8 +359,10 @@ class WorkerTracker(object):
         self.known_workers = {}     # indexed by worker_id
         self.active_workers = {}    # list of active workers indexed by role
         self.update_interval = WORKER_UPDATE_INTERVAL # interval to check for new/expired workers
-        self.update_thread = None
-        self.update_active_workers()
+        self.update_thread = BackgroundThread(func=self.update_active_workers, count=0, 
+                                            name="workerTracker", interval=self.update_interval)
+        self.update_thread.daemon = True
+        self.update_thread.start()
 
     def handle_hello(self, hello):
         # handle worker hello, add to known workers if unknown
@@ -461,11 +459,6 @@ class WorkerTracker(object):
 
         # trigger manager fabric processes check
         self.manager.check_fabric_processes()
-
-        # schedule next worker check
-        self.update_thread = threading.Timer(self.update_interval, self.update_active_workers)
-        self.update_thread.daemon = True
-        self.update_thread.start()
 
     def send_msg(self, _hash, msg):
         # get number of active workers for msg.role and using modulo on _hash to select a worker

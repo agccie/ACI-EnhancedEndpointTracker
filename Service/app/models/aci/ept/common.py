@@ -3,6 +3,7 @@ common ept functions
 """
 import logging
 import re
+import threading
 import time
 import traceback
 
@@ -465,4 +466,47 @@ def get_ipv6_prefix(ipv6):
     for n in (upper + [0]*pad + lower): addr = (addr << 16) + n
     mask = (~(pow(2,128-mask)-1)) & 0xffffffffffffffffffffffffffffffff
     return (addr&mask, mask)
+
+
+###############################################################################
+#
+# Basic timer class that repeats function in background thread at regular interval
+#
+###############################################################################
+
+class BackgroundThread(threading.Thread):
+    """ simply background thread that executes provided function with provided args at regular
+        interval. Set count to zero to repeat indefinitely at the provided interval (in seconds).
+    """
+    def __init__(self, func=None, name=None, count=1, interval=1.0, args=None, kwargs=None):
+        threading.Thread.__init__(self)
+        self._exit = False
+        if name is not None:
+            self.name = "%s" % name
+        self.func = func
+        self.max_count = count
+        self.count = 0
+        self.interval = interval
+        self.args = args
+        self.kwargs = kwargs
+        if self.args is None:
+            self.args = []
+        if self.kwargs is None:
+            self.kwargs = {}
+        if not callable(self.func):
+            raise Exception("background thread function (%s) not callable" % self.func)
+
+    def exit(self):
+        """ exit thread """
+        logger.debug("exiting background thread: %s", self.name)
+        self._exit = True
+
+    def run(self):
+        logger.debug("starting background thread: %s", self.name)
+        while not self._exit:
+            self.func(*self.args, **self.kwargs)
+            if self.max_count > 0 and self.count >= self.max_count:
+                # stop execution when reaching max number of iterations
+                return
+            time.sleep(self.interval)
 

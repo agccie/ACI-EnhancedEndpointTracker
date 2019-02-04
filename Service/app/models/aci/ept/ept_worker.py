@@ -18,6 +18,7 @@ from . common import SUPPRESS_WATCH_STALE
 from . common import SUBSCRIBER_CTRL_CHANNEL
 from . common import WATCH_INTERVAL
 from . common import WORKER_CTRL_CHANNEL
+from . common import BackgroundThread
 from . common import db_alive
 from . common import get_addr_type
 from . common import get_vpc_domain_id
@@ -153,22 +154,38 @@ class eptWorker(object):
         try:
             wait_for_redis(self.redis)
             wait_for_db(self.db)
-            self.send_hello()
-            self.update_stats()
+            # start stats thread
+            self.stats_thread = BackgroundThread(func=self.update_stats, name="stats", count=0, 
+                                                interval= eptQueueStats.STATS_INTERVAL)
+            self.stats_thread.daemon = True
+            self.stats_thread.start()
+            # start hello thread
+            self.hello_thread = BackgroundThread(func=self.send_hello, name="hello", count=0,
+                                                interval = HELLO_INTERVAL)
+            self.hello_thread.daemon = True
+            self.hello_thread.start()
             if self.role == "watcher":
                 self.execute_watch()
+                # watcher needs to trigger execute watch at regular interval
+                self.watch_thread = BackgroundThread(func=self.execute_watch, name="watch", count=0,
+                                                interval=WATCH_INTERVAL)
+                self.watch_thread.daemon = True
+                self.watch_thread.start()
+            # start listening to redis channels/queues
             self._run()
         except (Exception, SystemExit, KeyboardInterrupt) as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
         finally:
             if self.hello_thread is not None:
-                self.hello_thread.cancel()
+                self.hello_thread.exit()
             if self.watch_thread is not None:
-                self.watch_thread.cancel()
+                self.watch_thread.exit()
             if self.stats_thread is not None:
-                self.stats_thread.cancel()
+                self.stats_thread.exit()
             if self.db is not None:
                 self.db.client.close()
+            if self.redis is not None and self.redis.connection_pool is not None:
+                self.redis.connection_pool.disconnect()
 
     def _run(self):
         """  start hello thread for registration notifications/keepalives and wait on work """
@@ -213,22 +230,15 @@ class eptWorker(object):
 
     def update_stats(self):
         """ update stats at regular interval """
-
         # monitor db health prior to db updates
         if not db_alive(self.db):
             logger.error("db no longer reachable/alive")
             raise_interrupt()
             return
-
         # update stats at regular interval for all queues
         for k, q in self.queue_stats.items():
             with self.queue_stats_lock:
                 q.collect(qlen = self.redis.llen(k))
-
-        # set timer to recollect at next collection interval
-        self.stats_thread = threading.Timer(eptQueueStats.STATS_INTERVAL, self.update_stats)
-        self.stats_thread.daemon = True
-        self.stats_thread.start()
 
     def send_msg(self, msg):
         """ send one or more eptMsgWork objects to worker via manager work queue 
@@ -262,10 +272,6 @@ class eptWorker(object):
             for f in fabrics:
                 if f in fabrics: 
                     self.fabrics[f].cache.log_stats()
-
-        self.hello_thread = threading.Timer(HELLO_INTERVAL, self.send_hello)
-        self.hello_thread.daemon = True
-        self.hello_thread.start()
 
     def fabric_start(self, fabric):
         """ start fabric to init cache and for watcher process, to set a start timestamp for the 
@@ -1380,11 +1386,6 @@ class eptWorker(object):
         self.execute_generic_watch("offsubnet")
         self.execute_generic_watch("stale")
         self.execute_watch_rapid()
-
-        # set timer to trigger at next interval
-        self.watch_thread = threading.Timer(WATCH_INTERVAL, self.execute_watch)
-        self.watch_thread.daemon = True
-        self.watch_thread.start()
 
     def watcher_get_xts_ready(self, lock, msgs):
         """ receive a lock and dict 'msgs' and pop off msgs that are ready to execute.

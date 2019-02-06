@@ -2068,3 +2068,24 @@ def test_handle_endpoint_update_learn_type(app, func_prep):
     assert len(e)==1
     assert e[0].learn_type == "psvi"
 
+def test_create_ept_msg_bulk(app, func_prep):
+    # create, parse, and jsonify an eptMsgBulk object
+
+    ip = "10.1.1.101"
+    msg1 = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=1.0)
+    msg2 = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/2", ts=1.0)
+    bulk = eptMsgBulk()
+    bulk.msgs = [msg1, msg2]
+
+    js = bulk.jsonify()
+    logger.debug("jsonify msg: %s", js)
+
+    # ensure we can reparse it 
+    p = eptMsg.parse(js)
+    assert p.msg_type == MSG_TYPE.BULK
+    assert len(p.msgs) == 2
+    for m in p.msgs:
+        assert m.msg_type == MSG_TYPE.WORK
+        assert m.wt == WORK_TYPE.EPM_IP_EVENT
+        assert m.addr == ip
+

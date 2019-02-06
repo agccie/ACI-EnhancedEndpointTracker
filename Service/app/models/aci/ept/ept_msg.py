@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 # static msg types to prevent duplicates
 @enum_unique
 class MSG_TYPE(Enum):
+    BULK                = "bulk"            # super framing (bulk list of eptMsg objects)
     WORK                = "work"            # main work message
     HELLO               = "hello"           # hello from worker to manager
     MANAGER_STATUS      = "mgr_status"      # manager status response
@@ -85,6 +86,8 @@ class eptMsg(object):
             return eptMsgWork.from_msg_json(js)
         elif js["msg_type"] == MSG_TYPE.HELLO.value:
             return eptMsgHello.from_msg_json(js)
+        elif js["msg_type"] == MSG_TYPE.BULK.value:
+            return eptMsgBulk(MSG_TYPE.BULK, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.REFRESH_EPT.value:
             return eptMsgSubOp(MSG_TYPE.REFRESH_EPT, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.DELETE_EPT.value:
@@ -102,6 +105,31 @@ class eptMsg(object):
                     data=js.get("data", {}),
                     seq = js.get("seq", None)
                 )
+
+class eptMsgBulk(eptMsg):
+    """ list of eptMsg objects that share a common destination and qnum """
+    def __init__(self, msg_type=MSG_TYPE.BULK, data={}, seq=1):
+        super(eptMsgBulk, self).__init__(msg_type, data, seq)
+        self.msg_type = MSG_TYPE.BULK
+        self.msgs = []
+        # each msg in msgs should be of type eptMsg in jsonify format that needs to be parsed
+        if "msgs" in data and len(data["msgs"])>0:
+            for m in data["msgs"]:
+                self.msgs.append(eptMsg.parse(m))
+
+    def jsonify(self):
+        """ jsonify for transport across messaging queue """
+        return json.dumps({
+            "msg_type": self.msg_type.value,
+            "seq": self.seq,
+            "data": {
+                "msgs": [m.jsonify() for m in self.msgs],
+            },
+        })
+
+    def __repr__(self):
+        return "%s.0x%08x msgs:%s" % (self.msg_type.value, self.seq, len(self.msgs))
+
 
 class eptMsgSubOp(eptMsg):
     """ subscriber operation supporting following ops:

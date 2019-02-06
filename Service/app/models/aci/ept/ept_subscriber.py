@@ -11,6 +11,8 @@ from .. utils import parse_apic_version
 from .. utils import validate_session_role
 from .. subscription_ctrl import SubscriptionCtrl
 
+from . common import EPM_EVENT_HANDLER_INTERVAL
+from . common import EPM_EVENT_HANDLER_ENABLED
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_WORK_QUEUE
 from . common import MAX_EPM_BUILD_TIME
@@ -18,12 +20,14 @@ from . common import MAX_SEND_MSG_LENGTH
 from . common import MINIMUM_SUPPORTED_VERSION
 from . common import MO_BASE
 from . common import SUBSCRIBER_CTRL_CHANNEL
+from . common import BackgroundThread
 from . common import get_vpc_domain_id
 from . common import parse_tz
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
 from . ept_msg import eptEpmEventParser
 from . ept_msg import eptMsg
+from . ept_msg import eptMsgBulk
 from . ept_msg import eptMsgWork
 from . ept_msg import eptMsgWorkDeleteEpt
 from . ept_msg import eptMsgWorkRaw
@@ -40,6 +44,7 @@ from . ept_vpc import eptVpc
 from . mo_dependency_map import dependency_map
 
 from importlib import import_module
+from six.moves.queue import Queue
 
 import logging
 import re
@@ -65,7 +70,9 @@ class eptSubscriber(object):
         self.db = None
         self.redis = None
         self.session = None
-        self.ept_epm_parser = None  # initialized once overlay vnid is known
+        self.epm_thread = None      # background thread used to batch epm event messages
+        self.epm_event_queue = Queue()
+        self.epm_parser = None  # initialized once overlay vnid is known
         self.soft_restart_ts = 0    # timestamp of last soft_restart
         self.manager_ctrl_channel_lock = threading.Lock()
         self.manager_work_queue_lock = threading.Lock()
@@ -165,6 +172,15 @@ class eptSubscriber(object):
             # allocate a unique db connection as this is running in a new process
             self.db = get_db(uniq=True, overwrite_global=True, write_concern=True)
             self.redis = get_redis()
+            if EPM_EVENT_HANDLER_ENABLED:
+                self.epm_thread = BackgroundThread(
+                    func=self.handle_epm_event_queue, 
+                    name="epm_q",
+                    count=0, 
+                    interval=EPM_EVENT_HANDLER_INTERVAL
+                )
+                self.epm_thread.daemon = True
+                self.epm_thread.start()
             self._run()
         except (Exception, SystemExit, KeyboardInterrupt) as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
@@ -172,6 +188,8 @@ class eptSubscriber(object):
             self.subscriber.unsubscribe()
             if self.db is not None:
                 self.db.client.close()
+            if self.epm_thread is not None:
+                self.epm_thread.exit()
 
     def handle_channel_msg(self, msg):
         """ handle msg received on subscribed channels """
@@ -387,7 +405,7 @@ class eptSubscriber(object):
         self.subscriber.resume(self.subscription_classes + self.ordered_mo_classes)
 
         # build current epm state, start subscriptions for epm objects after query completes
-        self.ept_epm_parser = eptEpmEventParser(self.fabric.fabric, self.settings.overlay_vnid)
+        self.epm_parser = eptEpmEventParser(self.fabric.fabric, self.settings.overlay_vnid)
 
         # build endpoint database
         self.fabric.add_fabric_event(init_str, "getting initial endpoint state")
@@ -538,12 +556,13 @@ class eptSubscriber(object):
             for sub_msg in msg:
                 # validate that 'fabric' is ALWAYS set on any work
                 sub_msg.fabric = self.fabric.fabric
-            # break up msg into multiple blocks 
+            # break up msg into multiple blocks and send as single eptMsgBulk
             for i in range(0, len(msg), MAX_SEND_MSG_LENGTH):
-                work = [m.jsonify() for m in msg[i:i+MAX_SEND_MSG_LENGTH]]
-                if len(work)>0:
+                bulk = eptMsgBulk()
+                bulk.msgs = [m for m in msg[i:i+MAX_SEND_MSG_LENGTH]]
+                if len(bulk.msgs)>0:
                     with self.manager_work_queue_lock:
-                        self.redis.rpush(MANAGER_WORK_QUEUE, *work)
+                        self.redis.rpush(MANAGER_WORK_QUEUE, bulk.jsonify())
         else:
             # validate that 'fabric' is ALWAYS set on any work
             msg.fabric = self.fabric.fabric
@@ -645,7 +664,12 @@ class eptSubscriber(object):
 
     def handle_epm_event(self, event, qnum=1):
         """ handle epm events received on epm_subscription
-            this can also enqueue events into buffer until intialization has completed
+            this will parse the epm event and create and eptMsgWorkRaw msg for the event. Then it
+            will do one of the following
+                if EPM_EVENT_HANDLER_ENABLED
+                    add raw msg to epm_event_queue for background process to batch
+                else:
+                    send as a eptMsgWorkRaw event to manager to queue to an available worker.
         """
         if self.stopped:
             logger.debug("ignoring event (subscriber stopped and waiting for reset)")
@@ -659,15 +683,28 @@ class eptSubscriber(object):
             return
         try:
             for (classname, attr) in self.parse_event(event):
-                #msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
+                #msg = self.epm_parser.parse(classname, attr, attr["_ts"])
                 # dn for each possible epm event:
                 #   .../db-ep/mac-00:AA:00:00:28:1A
                 #   .../db-ep/ip-[10.1.55.220]
                 #   rsmacEpToIpEpAtt-.../db-ep/ip-[10.1.1.74]]
                 addr = re.sub("[\[\]]","", attr["dn"].split("-")[-1])
-                self.send_msg(eptMsgWorkRaw(addr,"worker",{classname:attr},WORK_TYPE.RAW,qnum=qnum))
+                msg = eptMsgWorkRaw(addr,"worker", {classname:attr}, WORK_TYPE.RAW, qnum=qnum)
+                if EPM_EVENT_HANDLER_ENABLED:
+                    self.epm_event_queue.put(msg)
+                else:
+                    self.send_msg(msg)
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
+
+    def handle_epm_event_queue(self):
+        """ pull off all current msgs in epm_event_queue and send as a batch.
+            The purpose of this is to create bulk eptMsg objects to improve redis performance
+        """
+        msgs = []
+        while not self.epm_event_queue.empty():
+            msgs.append(self.epm_event_queue.get())
+        self.send_msg(msgs)
 
     def build_mo(self):
         """ build managed objects for defined classes """
@@ -1192,7 +1229,7 @@ class eptSubscriber(object):
                     logger.error("failed to get epm data for class %s", c)
                     return False
                 if c in obj and "attributes" in obj[c]:
-                    msg = self.ept_epm_parser.parse(c, obj[c]["attributes"], ts)
+                    msg = self.epm_parser.parse(c, obj[c]["attributes"], ts)
                     if msg is not None:
                         create_count+=1
                         create_msgs.append(msg)
@@ -1271,7 +1308,7 @@ class eptSubscriber(object):
                 if "attributes" in obj[classname]:
                     attr = obj[classname]["attributes"]
                     attr["_ts"] = ts
-                    msg = self.ept_epm_parser.parse(classname, attr, attr["_ts"])
+                    msg = self.epm_parser.parse(classname, attr, attr["_ts"])
                     if msg is not None:
                         create_msgs.append(msg)
                         if msg.node not in endpoints: endpoints[msg.node] = {}
@@ -1323,17 +1360,17 @@ class eptSubscriber(object):
                 obj["addr"] in endpoints[obj["node"]][obj["vnid"]]:
                 continue
             if obj["type"] == "mac":
-                msg = self.ept_epm_parser.get_delete_event("epmMacEp", obj["node"], 
+                msg = self.epm_parser.get_delete_event("epmMacEp", obj["node"], 
                     obj["vnid"], obj["addr"], ts)
                 if msg is not None:
                     yield msg
             else:
                 # create an epmRsMacEpToIpEpAtt and epmIpEp delete event
-                msg = self.ept_epm_parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"], 
+                msg = self.epm_parser.get_delete_event("epmRsMacEpToIpEpAtt", obj["node"], 
                     obj["vnid"], obj["addr"], ts)
                 if msg is not None:
                     yield msg
-                msg = self.ept_epm_parser.get_delete_event("epmIpEp", obj["node"], 
+                msg = self.epm_parser.get_delete_event("epmIpEp", obj["node"], 
                     obj["vnid"], obj["addr"], ts)
                 if msg is not None:
                     yield msg

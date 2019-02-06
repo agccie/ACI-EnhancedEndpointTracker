@@ -20,6 +20,7 @@ from . common import wait_for_redis
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
 from . ept_msg import eptMsg
+from . ept_msg import eptMsgBulk
 from . ept_msg import eptMsgHello
 from . ept_queue_stats import eptQueueStats
 from . ept_subscriber import eptSubscriber
@@ -130,29 +131,43 @@ class eptManager(object):
         # watch for work that needs to be dispatched to available workers
         while True:
             (q, data) = self.redis.blpop(MANAGER_WORK_QUEUE)
+            # to support msg type BULK, assume an array of messages received
+            msg_list = []
             try:
-                msg = eptMsg.parse(data) 
-                # expected only eptWork received on this queue
-                if q == MANAGER_WORK_QUEUE and msg.msg_type == MSG_TYPE.WORK:
-                    self.increment_stats(MANAGER_WORK_QUEUE, tx=False)
-                    if msg.addr == 0:
-                        # an addr of 0 is a broadcast to all workers of specified role
-                        self.worker_tracker.broadcast(msg, qnum=msg.qnum, role=msg.role)
-                    else:
-                        # create hash based on address and send to specific worker
-                        # need to ensure that we has on ip for EPM_RS_IP_EVENT so it goes to the 
-                        # correct worker...
-                        if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
-                            _hash = sum(ord(i) for i in msg.ip)
-                        else:
-                            _hash = sum(ord(i) for i in msg.addr)
-                        if not self.worker_tracker.send_msg(_hash, msg):
-                            logger.warn("[%s] failed to enqueue message(%s): %s", self, _hash, msg)
+                omsg = eptMsg.parse(data) 
+                #logger.debug("[%s] msg on q(%s): %s", self, q, omsg)
+                if omsg.msg_type == MSG_TYPE.BULK:
+                    msg_list = omsg.msgs
+                elif omsg.msg_type == MSG_TYPE.WORK:
+                    msg_list = [omsg]
                 else:
                     logger.warn("[%s] unexpected messaged received on queue %s: %s", self, q, msg)
 
+                bulk = []   # list of (hash, msg) to execute against send_bulk
+                for msg in msg_list:
+                    # expected only eptWork received on this queue
+                    if q == MANAGER_WORK_QUEUE and msg.msg_type == MSG_TYPE.WORK:
+                        self.increment_stats(MANAGER_WORK_QUEUE, tx=False)
+                        if msg.addr == 0:
+                            # an addr of 0 is a broadcast to all workers of specified role
+                            # send now (note, broadcast may be out of order if received in BULK 
+                            # with unicast updates
+                            self.worker_tracker.broadcast(msg, qnum=msg.qnum, role=msg.role)
+                        else:
+                            # create hash based on address and send to specific worker
+                            # need to ensure that we has on ip for EPM_RS_IP_EVENT so it goes to the 
+                            # correct worker...
+                            if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
+                                _hash = sum(ord(i) for i in msg.ip)
+                            else:
+                                _hash = sum(ord(i) for i in msg.addr)
+                            bulk.append((_hash, msg))
+                if len(bulk) > 0:
+                    if not self.worker_tracker.send_bulk(bulk):
+                        logger.warn("[%s] failed to enqueue one or more messages", self)
+
             except Exception as e:
-                logger.debug("failure occurred on msg from q: %s, data: %s", q, data)
+                logger.debug("failed to parse message from q: %s, data: %s", q, data)
                 logger.error("Traceback:\n%s", traceback.format_exc())
 
     def handle_channel_msg(self, msg):
@@ -460,27 +475,54 @@ class WorkerTracker(object):
         # trigger manager fabric processes check
         self.manager.check_fabric_processes()
 
-    def send_msg(self, _hash, msg):
-        # get number of active workers for msg.role and using modulo on _hash to select a worker
-        # add the work to corresponding worker queue and increment seq number.  
-        # msg must be type eptMsgWorker 
-        # return boolean success
-        if msg.role not in self.active_workers or len(self.active_workers[msg.role]) == 0:
-            logger.warn("no available workers for role '%s'", msg.role)
-            return False
-        index = _hash % len(self.active_workers[msg.role])
-        worker = self.active_workers[msg.role][index]
-        if msg.qnum >= len(worker.queues):
-            logger.warn("unable to enqueue work on worker %s, queue %s does not exist", 
-                worker.worker_id, msg.qnum)
-            return False
-        with worker.queue_locks[msg.qnum]:
-            worker.last_seq[msg.qnum]+= 1
-            msg.seq = worker.last_seq[msg.qnum]
-            #logger.debug("enqueue %s: %s", worker.queues[msg.qnum], msg)
-            self.redis.rpush(worker.queues[msg.qnum], msg.jsonify())
-        self.manager.increment_stats(worker.queues[msg.qnum], tx=True)
-        return True
+    def send_bulk(self, msgs):
+        """ receive list of tuples (_hash, msg) and enqueue to an available worker. 
+            Each msg in bulk list must be of type eptMsgWork.  This will create sub bulk messages to
+            reduce the blocking IO for redis calls.
+            return boolean success
+        """
+        all_success = True
+        work = {}   # dict indexed by worker_id and qnum with a tuple (worker, eptMsgBulk)
+        for (_hash, msg) in msgs:
+            if msg.role not in self.active_workers or len(self.active_workers[msg.role]) == 0:
+                logger.warn("no available workers for role '%s'", msg.role)
+                all_success = False
+            else:
+                index = _hash % len(self.active_workers[msg.role])
+                worker = self.active_workers[msg.role][index]
+                if msg.qnum >= len(worker.queues):
+                    logger.warn("unable to enqueue work on worker %s, queue %s does not exist", 
+                        worker.worker_id, msg.qnum)
+                    all_success = False
+                else:
+                    if worker.worker_id not in work:
+                        work[worker.worker_id] = {}
+                    if msg.qnum not in work[worker.worker_id]:
+                        work[worker.worker_id][msg.qnum] = (worker, eptMsgBulk())
+                    work[worker.worker_id][msg.qnum][1].msgs.append(msg)
+                    with worker.queue_locks[msg.qnum]:
+                        worker.last_seq[msg.qnum]+= 1
+                        msg.seq = worker.last_seq[msg.qnum]
+
+        # send each message
+        for worker_id in work:
+            for qnum in work[worker_id]:
+                (worker, tx_msg) = work[worker_id][qnum]
+                # if there's only one message, then send that single message instead of bulk format
+                if len(tx_msg.msgs) == 1:
+                    tx_msg = tx_msg.msgs[0]
+                else:
+                    tx_msg.seq = tx_msg.msgs[-1].seq
+                with worker.queue_locks[qnum]:
+                    try:
+                        #logger.debug("enqueue %s: %s", worker.queues[qnum], tx_msg)
+                        self.redis.rpush(worker.queues[qnum], tx_msg.jsonify())
+                        self.manager.increment_stats(worker.queues[qnum], tx=True)
+                    except Exception as e:
+                        logger.error("failed to enqueue msg on queue %s: %s", worker.queues[qnum], 
+                                        tx_msg)
+                        all_success = False
+        return all_success
 
     def broadcast(self, msg, qnum=0, role=None):
         # broadcast message to active workers on particular queue index.  Set role to limit the 

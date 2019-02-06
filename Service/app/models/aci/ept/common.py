@@ -33,6 +33,8 @@ WORKER_CTRL_CHANNEL                 = "wctrl"
 WORKER_UPDATE_INTERVAL              = 15.0
 RAPID_CALCULATE_INTERVAL            = 15.0
 MAX_SEND_MSG_LENGTH                 = 10240
+EPM_EVENT_HANDLER_INTERVAL          = 0.01
+EPM_EVENT_HANDLER_ENABLED           = True
 
 # transitory timers:
 #   max_epm_build   maximum amount of time to wait for ACK from all worker processes to indiciate

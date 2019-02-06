@@ -188,33 +188,44 @@ class eptWorker(object):
                 self.redis.connection_pool.disconnect()
 
     def _run(self):
-        """  start hello thread for registration notifications/keepalives and wait on work """
+        """ listen for work on redis queues """
         # first check/wait on redis and mongo connection, then start hello thread
         logger.debug("[%s] listening for jobs on queues: %s", self, self.queues)
         while True: 
             (q, data) = self.redis.blpop(self.queues)
             if q in self.queue_stats:
                 self.increment_stats(q, tx=False)
+            # to support msg type BULK, assume an array of messages received
+            msg_list = []
             try:
-                msg = eptMsg.parse(data) 
-                logger.debug("[%s] msg on q(%s): %s", self, q, msg)
-
-                if msg.msg_type == MSG_TYPE.WORK:
-                    if msg.wt in self.work_type_handlers:
-                        # set msg.wf to current fabric eptWorkerFabric object
-                        self.set_msg_worker_fabric(msg)
-                        self.work_type_handlers[msg.wt](msg)
-                    else:
-                        logger.warn("unsupported work type: %s", msg.wt)
-                elif msg.msg_type == MSG_TYPE.FABRIC_START:
-                    self.fabric_start(fabric=msg.data["fabric"])
-                elif msg.msg_type == MSG_TYPE.FABRIC_STOP:
-                    self.fabric_stop(fabric=msg.data["fabric"])
+                omsg = eptMsg.parse(data) 
+                if omsg.msg_type == MSG_TYPE.BULK:
+                    logger.debug("[%s] msg on q(%s): %s", self, q, omsg)
+                    msg_list = omsg.msgs
                 else:
-                    logger.warn("unsupported worker msg type: %s", msg.msg_type)
-
+                    msg_list = [omsg]
+                for msg in msg_list:
+                    # exception on one msg must not block processing of other messages in block
+                    try:
+                        logger.debug("[%s] msg on q(%s): %s", self, q, msg)
+                        if msg.msg_type == MSG_TYPE.WORK:
+                            if msg.wt in self.work_type_handlers:
+                                # set msg.wf to current fabric eptWorkerFabric object
+                                self.set_msg_worker_fabric(msg)
+                                self.work_type_handlers[msg.wt](msg)
+                            else:
+                                logger.warn("unsupported work type: %s", msg.wt)
+                        elif msg.msg_type == MSG_TYPE.FABRIC_START:
+                            self.fabric_start(fabric=msg.data["fabric"])
+                        elif msg.msg_type == MSG_TYPE.FABRIC_STOP:
+                            self.fabric_stop(fabric=msg.data["fabric"])
+                        else:
+                            logger.warn("unsupported worker msg type: %s", msg.msg_type)
+                    except Exception as e:
+                        logger.debug("failed to execute msg %s", msg)
+                        logger.error("Traceback:\n%s", traceback.format_exc())
             except Exception as e:
-                logger.debug("failure occurred on msg from q: %s, data: %s", q, data)
+                logger.debug("failed to parse message from q: %s, data: %s", q, data)
                 logger.error("Traceback:\n%s", traceback.format_exc())
 
     def increment_stats(self, queue, tx=False, count=1):

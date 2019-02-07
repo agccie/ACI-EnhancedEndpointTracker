@@ -78,7 +78,7 @@ MONGO_SERVER_SELECTION_TIMEOUT_MS = 5000
 MONGO_CONNECT_TIMEOUT_MS = 5000
 MONGO_SOCKET_TIMEOUT_MS = 90000
 MONGO_WRITE_CONCERN = bool(int(os.environ.get("MONGO_WRITE_CONCERN",1)))
-MONGO_WRITE_TIMEOUT_MS = int(os.environ.get("MONGO_WRITE_TIMEOUT_MS", 90000))
+MONGO_WRITE_TIMEOUT_MS = int(os.environ.get("MONGO_WRITE_TIMEOUT_MS", 120000))
 
 # enable application debugging (ensure debugging is disabled on production app)
 DEBUG = bool(int(os.environ.get("DEBUG", 1)))

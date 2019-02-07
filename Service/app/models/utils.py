@@ -53,7 +53,7 @@ def get_db(uniq=False, overwrite_global=False, write_concern=None, write_timeout
             w = 1 if write_concern else 0
         if w:
             if write_timeout is None:
-                wtimeout = int(config.get("MONGO_WRITE_TIMEOUT_MS", 90000))
+                wtimeout = int(config.get("MONGO_WRITE_TIMEOUT_MS", 120000))
             else:
                 wtimeout = write_timeout
         uri = "mongodb://%s:%s/%s?" % (

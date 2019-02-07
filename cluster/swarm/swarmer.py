@@ -12,6 +12,7 @@ import time
 logger = logging.getLogger(__name__)
 
 class Swarmer(object):
+    CERT_EXPIRY = "86400h0m0s"
 
     def __init__(self, config, username=None, password=None):
         # recevies instance of ClusterConfig
@@ -71,7 +72,9 @@ class Swarmer(object):
         else:
             # need to initialize this node as a swarm master
             logger.info("initializing swarm master")
-            if not run_command("docker swarm init --cert-expiry 86400h0m0s"):
+            cmd = "docker swarm init --advertise-addr %s --cert-expiry %s" % (
+                    self.node_addr, Swarmer.CERT_EXPIRY)
+            if not run_command(cmd):
                 raise Exception("failed to initialize node as swarm master")
             # get new swarm info
             js = self.get_swarm_info()

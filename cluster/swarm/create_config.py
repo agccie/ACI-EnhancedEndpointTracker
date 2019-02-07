@@ -445,6 +445,7 @@ class ClusterConfig(object):
 
         with open(self.compose_file, "w") as f:
             yaml.dump(config, f, default_flow_style=False)
+            logger.info("compose file complete: %s", self.compose_file)
 
 class Service(object):
 

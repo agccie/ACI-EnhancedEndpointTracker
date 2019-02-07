@@ -19,6 +19,7 @@ role="all-in-one"
 identity=""
 worker_count=10
 log_rotate=0
+stdout=0
 no_exit=0
 APP_MODE=${APP_MODE:-0}
 APP_DIR=${APP_DIR:-/home/app}
@@ -47,8 +48,10 @@ ALL_SERVICES=(
 function log(){
     ts=`date '+%Y-%m-%dT%H:%M:%S'`
     echo "$ts $@"
-    if [ "$LOG_FILE" ] ; then
-        echo "$ts $@" >> $LOG_FILE 2> /dev/null
+    if [ "$stdout" == "0" ] ; then
+        if [ "$LOG_FILE" ] ; then
+         echo "$ts $@" >> $LOG_FILE 2> /dev/null
+        fi
     fi
 }
 
@@ -180,7 +183,10 @@ function start_all_services(){
 function mongodb_accept_connections(){
     local wait_time=3
     local i="0"
-    local cmd="cd $SCRIPT_DIR ; python -m app.models.aci.worker --stdout check_db >> $LOG_FILE"
+    local cmd="cd $SCRIPT_DIR ; python -m app.models.aci.worker --stdout check_db "
+    if [ "$stdout" == "0" ] ; then
+        cmd="$cmd >> $LOG_FILE"
+    fi
     while [ $i -lt "$MONGO_MAX_WAIT_COUNT" ] ; do
         set_status "checking mongodb is accepting connections $i/$MONGO_MAX_WAIT_COUNT"
         log "command: $cmd"
@@ -266,6 +272,9 @@ function init_db() {
         setup_args="--apic_app_init "
     fi
     cmd="python $SCRIPT_DIR/setup_db.py $setup_args"
+    if [ "$stdout" == "1" ] ; then
+        cmd="$cmd --stdout"
+    fi
     log "command: $cmd"
     if su - -s /bin/bash www-data -c "$cmd" ; then
         log "successfully initialized db"
@@ -283,7 +292,9 @@ function check_frontend(){
     if [ "$APP_MODE" == "0" ] ; then
         log "checking for frontend UI build"
         local cmd="$APP_DIR/src/build/build_frontend.sh -s $src -d $dst -t $tmp -m standalone"
-        cmd="$cmd >> $LOG_FILE 2>> $LOG_FILE"
+        if [ "$stdout" == "0" ] ; then
+            cmd="$cmd >> $LOG_FILE 2>> $LOG_FILE"
+        fi
         if [ -z "$(ls -A $dst)" ] ; then
             # bail out if frontend src files don't exist or already built
             if [ ! -d $src ] ; then
@@ -388,7 +399,10 @@ function run_db_cluster() {
     cmd="/usr/bin/mongod --configsvr --replSet cfg "
     cmd="$cmd --bind_ip_all --port $cfg_port --dbpath $MONGO_DATA_DIR/cfg "
     cmd="$cmd --wiredTigerCacheSizeGB $DB_MEMORY "
-    cmd="$cmd --logpath $MONGO_LOG_DIR/cfg.log --logappend &"
+    if [ "$stdout" == "0" ] ; then
+        cmd="$cmd --logpath $MONGO_LOG_DIR/cfg.log --logappend"
+    fi
+    cmd="$cmd &"
     log "starting cfg server: $cmd"
     eval $cmd
 
@@ -404,7 +418,10 @@ function run_db_cluster() {
         cmd="/usr/bin/mongod --shardsvr --replSet sh$shard "
         cmd="$cmd --bind_ip_all --port $shard_port --dbpath $MONGO_DATA_DIR/sh$shard "
         cmd="$cmd --wiredTigerCacheSizeGB $DB_MEMORY "
-        cmd="$cmd --logpath $MONGO_LOG_DIR/sh$shard.log --logappend &"
+        if [ "$stdout" == "0" ] ; then
+            cmd="$cmd --logpath $MONGO_LOG_DIR/sh$shard.log --logappend"
+        fi
+        cmd="$cmd &"
         log "starting shard $shard: $cmd"
         eval $cmd
         shard=$[$shard+1]
@@ -413,7 +430,9 @@ function run_db_cluster() {
     # start mongos last, exit if mongos stops running
     cmd="/usr/bin/mongos --configdb $DB_CFG_SRV "
     cmd="$cmd --bind_ip_all --port $db_port "
-    cmd="$cmd --logpath $MONGO_LOG_DIR/mongos.log --logappend "
+    if [ "$stdout" == "0" ] ; then
+        cmd="$cmd --logpath $MONGO_LOG_DIR/mongos.log --logappend "
+    fi
     log "starting mongos server: $cmd"
     eval $cmd
 }
@@ -447,7 +466,9 @@ function run_db_single_role(){
         # start mongos last, exit if mongos stops running
         cmd="/usr/bin/mongos --configdb $DB_CFG_SRV "
         cmd="$cmd --bind_ip_all --port $LOCAL_PORT "
-        cmd="$cmd --logpath $MONGO_LOG_DIR/mongos.log --logappend "
+        if [ "$stdout" == "0" ] ; then
+            cmd="$cmd --logpath $MONGO_LOG_DIR/mongos.log --logappend "
+        fi
 
     elif [ "$DB_ROLE" == "configsvr" ] ; then
         if [ ! -d $MONGO_DATA_DIR/cfg ] ; then
@@ -457,7 +478,9 @@ function run_db_single_role(){
         cmd="/usr/bin/mongod --configsvr --replSet cfg "
         cmd="$cmd --bind_ip_all --port $LOCAL_PORT --dbpath $MONGO_DATA_DIR/cfg "
         cmd="$cmd --wiredTigerCacheSizeGB $DB_MEMORY "
-        cmd="$cmd --logpath $MONGO_LOG_DIR/cfg.log --logappend "
+        if [ "$stdout" == "0" ] ; then
+            cmd="$cmd --logpath $MONGO_LOG_DIR/cfg.log --logappend "
+        fi
 
     elif [ "$DB_ROLE" == "shardsvr" ] ; then
         if [ ! -d $MONGO_DATA_DIR/sh$LOCAL_SHARD ] ; then
@@ -467,7 +490,9 @@ function run_db_single_role(){
         cmd="/usr/bin/mongod --shardsvr --replSet sh$LOCAL_SHARD "
         cmd="$cmd --bind_ip_all --port $LOCAL_PORT --dbpath $MONGO_DATA_DIR/sh$LOCAL_SHARD "
         cmd="$cmd --wiredTigerCacheSizeGB $DB_MEMORY "
-        cmd="$cmd --logpath $MONGO_LOG_DIR/sh$LOCAL_SHARD.log --logappend "
+        if [ "$stdout" == "0" ] ; then
+            cmd="$cmd --logpath $MONGO_LOG_DIR/sh$LOCAL_SHARD.log --logappend "
+        fi
     else
         log "error: invalid DB_ROLE: $DB_ROLE"
         return 1
@@ -484,6 +509,9 @@ function init_rs(){
     while true ; do
         set_status "init replica set $rs"
         cmd="python $SCRIPT_DIR/setup_db.py --init_rs $rs $configsvr"
+        if [ "$stdout" == "1" ] ; then
+            cmd="$cmd --stdout"
+        fi
         log "command: $cmd"
         if `eval $cmd` ; then
             log "successfully initiated replica set $rs"
@@ -530,6 +558,9 @@ function init_db_cluster() {
         shardname="DB_RS_SHARD_$shard"
         log "adding shard $shard to db: $shardname: ${!shardname}"
         cmd="python $SCRIPT_DIR/setup_db.py --add_shard ${!shardname}"
+        if [ "$stdout" == "1" ] ; then
+            cmd="$cmd --stdout"
+        fi
         log "command: $cmd"
         if ! `eval $cmd` ; then
             log "failed to add shard to db"
@@ -544,6 +575,9 @@ function init_db_cluster() {
         setup_args="--apic_app_init "
     fi
     cmd="python $SCRIPT_DIR/setup_db.py --sharding $setup_args"
+    if [ "$stdout" == "1" ] ; then
+        cmd="$cmd --stdout"
+    fi
     log "command: $cmd"
     if ! `eval $cmd` ; then
         log "failed to setup db"
@@ -555,7 +589,11 @@ function init_db_cluster() {
 function run_all_in_one_mgr_workers() {
     set_status "starting mgr with $worker_count workers"
     cd $SCRIPT_DIR
-    python -m app.models.aci.ept.main --all-in-one --count $worker_count >> $LOG_FILE 2>> $LOG_FILE 
+    if [ "$stdout" == "0" ] ; then
+        python -m app.models.aci.ept.main --all-in-one --count $worker_count >> $LOG_FILE 2>> $LOG_FILE 
+    else
+        python -m app.models.aci.ept.main --all-in-one --count $worker_count --stdout
+    fi
     log "unexpected mgr exit"
 }
 
@@ -590,13 +628,18 @@ function main(){
     setup_directories
     create_app_config_file
 
-    # if log_rotate is enabled, start cront
+    # if log_rotate is enabled, start cron
     if [ "$log_rotate" == "1" ] ; then
         start_service "cron"
     fi
 
     # execute requested role
     if [ "$role" == "all-in-one" ] ; then
+        # stdout not supported in all-in-one mode
+        if [ "$stdout" == "1" ] ; then 
+            log "stdout not supported in all-in-one mode, disabling stdout"
+            stdout="0"
+        fi
         start_all_services
         init_db
         check_frontend
@@ -610,6 +653,10 @@ function main(){
                 log "error: failed to update apache config"
                 exit_script
             fi
+        fi
+        # no easy way to force apache2 logs to stdout, warn the user and move on...
+        if [ "$stdout" == "1" ] ; then
+            log "web role currently ignores stdout option"
         fi
         if ! start_service "apache2" ; then
             log "error: failed to start apache"
@@ -628,7 +675,9 @@ function main(){
         fi
         set_running
         cmd="$cmd --maxclients 10000"
-        cmd="$cmd --logfile $LOG_DIR/redis-server.log"
+        if [ "$stdout" == "0" ] ; then
+            cmd="$cmd --logfile $LOG_DIR/redis-server.log"
+        fi
         log "starting redis: $cmd"
         log `eval $cmd 2>&1`
     elif [ "$role" == "db" ] ; then
@@ -648,7 +697,11 @@ function main(){
         fi
         set_running
         cd $SCRIPT_DIR
-        python -m app.models.aci.ept.main --role manager --id $identity >> $LOG_FILE 2>> $LOG_FILE 
+        if [ "$stdout" == "0" ] ; then
+            python -m app.models.aci.ept.main --role manager --id $identity >> $LOG_FILE 2>> $LOG_FILE 
+        else
+            python -m app.models.aci.ept.main --role manager --id $identity --stdout
+        fi
     elif [ "$role" == "watcher" ] ; then
         # run watcher script
         validate_identity
@@ -656,13 +709,21 @@ function main(){
         start_service "exim4"
         set_running
         cd $SCRIPT_DIR
-        python -m app.models.aci.ept.main --role watcher --id $identity >> $LOG_FILE 2>> $LOG_FILE 
+        if [ "$stdout" == "0" ] ; then
+            python -m app.models.aci.ept.main --role watcher --id $identity >> $LOG_FILE 2>> $LOG_FILE 
+        else
+            python -m app.models.aci.ept.main --role watcher --id $identity --stdout
+        fi
     elif [ "$role" == "worker" ] ; then
         # run worker script
         validate_identity
         set_running
         cd $SCRIPT_DIR
-        python -m app.models.aci.ept.main --role worker --id $identity --count $worker_count >> $LOG_FILE 2>> $LOG_FILE 
+        if [ "$stdout" == "0" ] ; then
+            python -m app.models.aci.ept.main --role worker --id $identity --count $worker_count >> $LOG_FILE 2>> $LOG_FILE 
+        else
+            python -m app.models.aci.ept.main --role worker --id $identity --count $worker_count --stdout
+        fi
     else
         log "error: unknown startup role '$role'"
     fi
@@ -681,12 +742,13 @@ function display_help() {
     echo "    -c [count] number of workers to run when executing all-in-one mode"
     echo "    -i [identity] manager/worker identity"
     echo "    -l enable log rotation"
+    echo "    -s send all output to stdout"
     echo "    -a always active (do not exit on error)"
     echo ""
     exit 0
 }
 
-optspec=":r:c:i:lah"
+optspec=":r:c:i:lash"
 while getopts "$optspec" optchar; do
   case $optchar in
     r)
@@ -703,6 +765,9 @@ while getopts "$optspec" optchar; do
         ;;
     a)
         no_exit="1"
+        ;;
+    s)
+        stdout="1"
         ;;
     h)
         display_help

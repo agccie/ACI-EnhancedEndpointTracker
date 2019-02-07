@@ -62,19 +62,49 @@ def setup_logger(logger, loglevel="debug", logfile=None):
 if __name__ == "__main__":
 
     default_config = "%s/swarm/swarm_config.yml" %os.path.dirname(os.path.realpath(__file__))
-    desc = __doc__
-    parser = argparse.ArgumentParser(description=desc, 
+    parser = argparse.ArgumentParser(description=__doc__, 
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("-c","--config", dest="config", help="cluster config file in yaml format",
-            default=default_config)
-    parser.add_argument("-d","--debug", dest="debug", choices=["debug","info","warn","error"],
-        help="debug loglevel", default="info")
-    parser.add_argument("-l","--log", dest="logfile", default="/tmp/deploy.log", help="log file")
-    parser.add_argument("-u","--username", dest="username", 
-        help="username for initializing other nodes within the cluster")
-    parser.add_argument("-p","--password", dest="password", 
-        help="password for initializing other nodes within the cluster")
+    parser.add_argument(
+        "-c","--config", 
+        dest="config", 
+        default=default_config,
+        help="cluster config file in yaml format",
+    )
+    parser.add_argument(
+        "-a","--action",
+        dest="action",
+        choices=["config", "deploy", "techsupport"],
+        default="deploy",
+        help="""the deploy script can be used to creat the compose file (config), along with 
+                initializing the swarm and deploying the stack (deploy).
+                User can also specify (techsupport) to collect app techsupport logs.
+            """,
+    )
+    parser.add_argument(
+        "-u","--username", 
+        dest="username", 
+        help="username for connecting to other nodes within the cluster used by init/ts actions",
+    )
+    parser.add_argument(
+        "-p","--password", 
+        dest="password", 
+        help="password for connecting to other nodes within the cluster used by init/ts actions",
+    )
+    parser.add_argument(
+        "-d","--debug", 
+        dest="debug", 
+        choices=["debug","info","warn","error"],
+        default="info",
+        help="debug loglevel", 
+    )
+    parser.add_argument(
+        "-l","--log", 
+        dest="logfile", 
+        default="/tmp/deploy.log", 
+        help="log file",
+    )
+
 
     args = parser.parse_args()
 
@@ -87,12 +117,18 @@ if __name__ == "__main__":
     # validate config file
     config = ClusterConfig()
     try:
+        # all actions (techsupport/config/init/deploy) all required configuration to be parsed
         config.import_config(args.config)
         config.build_compose()
-        swarm = Swarmer(config, username=args.username, password=args.password)
-        swarm.init_swarm()
-        swarm.deploy_service()
-        logger.info("deployment complete")
+        if args.action == "config":
+            logger.info("configuration build complete")
+        elif args.action == "deploy":
+            swarm = Swarmer(config, username=args.username, password=args.password)
+            swarm.init_swarm()
+            swarm.deploy_service()
+            logger.info("deployment complete")
+        elif args.action == "techsupport":
+            logger.info("collection techsupport")
     except Exception as e:
         logger.debug("Traceback:\n%s", traceback.format_exc())
         logger.error("Unable to deploy cluster: %s", e)

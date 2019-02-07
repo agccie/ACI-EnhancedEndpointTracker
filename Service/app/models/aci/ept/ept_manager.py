@@ -503,6 +503,7 @@ class WorkerTracker(object):
                     with worker.queue_locks[msg.qnum]:
                         worker.last_seq[msg.qnum]+= 1
                         msg.seq = worker.last_seq[msg.qnum]
+                        self.manager.increment_stats(worker.queues[msg.qnum], tx=True)
 
         # send each message
         for worker_id in work:
@@ -517,7 +518,6 @@ class WorkerTracker(object):
                     try:
                         #logger.debug("enqueue %s: %s", worker.queues[qnum], tx_msg)
                         self.redis.rpush(worker.queues[qnum], tx_msg.jsonify())
-                        self.manager.increment_stats(worker.queues[qnum], tx=True)
                     except Exception as e:
                         logger.error("failed to enqueue msg on queue %s: %s", worker.queues[qnum], 
                                         tx_msg)
@@ -561,7 +561,12 @@ class WorkerTracker(object):
             for data in ret[0]:
                 # need to reparse message and check fabric
                 msg = eptMsg.parse(data) 
-                if hasattr(msg, "fabric") and msg.fabric == fabric:
+                # for eptMsgBulk it is currently safe to assume if the first msg is our fabric
+                # then all messages will be our fabric
+                if msg.msg_type == MSG_TYPE.BULK and len(msg.msgs)>0 and \
+                    hasattr(msg.msgs[0], "fabric") and msg.msgs[0].fabric == fabric:
+                    removed_count+=len(msg.msgs)
+                elif hasattr(msg, "fabric") and msg.fabric == fabric:
                     removed_count+=1
                 else:
                     repush.append(data)

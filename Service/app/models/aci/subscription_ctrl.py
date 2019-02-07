@@ -39,7 +39,9 @@ class SubscriptionCtrl(object):
             only_new (bool)     do not return existing objects, only newly received events
             heartbeat (int)     dead interval to check health of session
             subscribe_timeout(int) maximum amount of time to wait for non-blocking subscription to 
-                                start. If exceeded the subscription is aborted
+                                start. If exceeded the subscription is aborted. This time is per
+                                subscription.  I.e., if there are 30 objects to subscribe to and
+                                the timeout is 10 seconds, then script will wait at most 300 secs.
         """
 
         self.fabric = fabric
@@ -207,9 +209,9 @@ class SubscriptionCtrl(object):
             # wait until subscription is alive or exceeds timeout
             ts = time.time()
             while not self.alive:
-                if time.time() - ts  > self.subscribe_timeout:
-                    logger.warning("failed to start subscription within timeout: %.3f", 
-                            self.subscribe_timeout)
+                if time.time() - ts  > (self.subscribe_timeout * len(self.interests)):
+                    logger.warning("failed to start %s subscriptions within timeout: %.3f", 
+                            len(self.interests), len(self.interests)*self.subscribe_timeout)
                     self.unsubscribe()
                     return False
                 #logger.debug("waiting for subscription to start")

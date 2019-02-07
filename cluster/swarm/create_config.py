@@ -43,6 +43,7 @@ class ClusterConfig(object):
         self.shardsvr_replicas = 1
         self.configsvr_memory = 2.0
         self.configsvr_replicas = 1
+        self.logging_stdout = False
         self.compose_file = "/tmp/compose.yml"
         self.services = {}         # indexed by service name and contains node label or 0
 
@@ -64,6 +65,8 @@ class ClusterConfig(object):
                     self.add_app(config[k])
                 elif k == "database":
                     self.add_database(config[k])
+                elif k == "logging":
+                    self.add_logging(config[k])
                 else:
                     logger.info("unexpected key '%s'", k)
                     raise Exception("invalid config file")
@@ -203,6 +206,20 @@ class ClusterConfig(object):
             else:
                 raise Exception("unexpected attribute '%s' for configsvr" % k)
 
+    def add_logging(self, config):
+        """ add logging attribute from config """
+        logger.debug("adding logging config: %s", config)
+        for k in config:
+            if k == "stdout":
+                if type(config[k]) is bool:
+                    self.logging_stdout = config[k]
+                elif type(config[k]) is int or type(config[k]) is float:
+                    self.logging_stdout = config[k] > 0
+                else:
+                    raise Exception("invalid logging stdout value %s" % config[k])
+            else:
+                raise Exception("unexpected attribute '%s' for logging" % k)
+
     def get_shared_environment(self):
         """ return shared environment list """
         node_count = len(self.nodes)
@@ -243,7 +260,7 @@ class ClusterConfig(object):
             },
         }
 
-        config = {"version": "3", "services":{}, "networks": {}}
+        config = {"version": "3.3", "services":{}, "networks": {}}
         config["networks"]= {
             "default": {
                 "ipam": {
@@ -251,15 +268,24 @@ class ClusterConfig(object):
                 }
             }
         }
+        config["volumes"] = {
+            "web-log":{},
+            "redis-log":{},
+            "db-log":{},
+            "mgr-log":{},
+        }
+
+        stdout = "-s" if self.logging_stdout else ""
 
         # configure webservice (ports are configurable by user)
         web_service = {
             "image": ClusterConfig.APP_IMAGE,
-            "command": "/home/app/src/Service/start.sh -r web -l",
+            "command": "/home/app/src/Service/start.sh -r web -l %s" % stdout,
             "ports": [],
             "deploy": {"replicas": 1},
             "logging": copy.deepcopy(default_logging),
             "environment": copy.copy(shared_environment),
+            "volumes":[{"web-log":"/home/app/log"}],
         }
         if self.app_http_port > 0:
             web_service["ports"].append("%s:80" % self.app_http_port)
@@ -271,10 +297,11 @@ class ClusterConfig(object):
         # configure redis service (static)
         redis_service = {
             "image": ClusterConfig.APP_IMAGE,
-            "command": "/home/app/src/Service/start.sh -r redis -l",
-            "deploy": {"replicas": 1},
+            "command": "/home/app/src/Service/start.sh -r redis -l %s" % stdout,
+            "deploy": {"replicas": 1, "endpoint_mode": "dnsrr"},
             "logging": copy.deepcopy(default_logging),
             "environment": copy.copy(shared_environment),
+            "volumes":[{"redis-log":"/home/app/log"}],
         }
         config["services"]["redis"] = redis_service
         self.services["redis"] = Service("redis")
@@ -291,13 +318,14 @@ class ClusterConfig(object):
                 env.append("LOCAL_PORT=%s" % self.shardsvr_port)
                 env.append("DB_MEMORY=%s" % self.shardsvr_memory)
                 env.append("DB_ROLE=shardsvr")
-                cmd = "/home/app/src/Service/start.sh -r db -l"
+                cmd = "/home/app/src/Service/start.sh -r db -l %s" % stdout
                 config["services"][svc] = {
                     "image": ClusterConfig.APP_IMAGE,
                     "command": cmd,
                     "logging": copy.deepcopy(default_logging),
                     "deploy": {
                         "replicas": 1,
+                        "endpoint_mode": "dnsrr",
                         "placement": {
                             "constraints": [
                                 "node.labels.node == %s" % anchor,
@@ -305,7 +333,14 @@ class ClusterConfig(object):
                         }
                     },
                     "environment": env,
+                    "volumes":[{
+                        "%s-log" % svc:"/home/app/log",
+                        "%s-data" % svc:"/home/app/local-data",
+                    }],
                 }
+
+                config["volumes"]["%s-log" % svc] = {}
+                config["volumes"]["%s-data" % svc] = {}
                 self.services[svc] = Service(svc, node=anchor, replica="sh%s" % s)
                 self.services[svc].set_service_type("db_sh", shard_number=s, replica_number=r,
                         port_number=self.shardsvr_port)
@@ -314,7 +349,7 @@ class ClusterConfig(object):
         for r in xrange(0, self.configsvr_replicas):
             svc = "db_cfg_%s" % r
             anchor = (r % node_count) + 1
-            cmd = "/home/app/src/Service/start.sh -r db -l"
+            cmd = "/home/app/src/Service/start.sh -r db -l %s" % stdout
             env = copy.copy(shared_environment)
             env.append("LOCAL_REPLICA=%s" % r)
             env.append("LOCAL_SHARD=0")
@@ -327,6 +362,7 @@ class ClusterConfig(object):
                 "logging": copy.deepcopy(default_logging),
                 "deploy": {
                     "replicas": 1,
+                    "endpoint_mode": "dnsrr",
                     "placement": {
                         "constraints": [
                             "node.labels.node == %s" % anchor
@@ -334,13 +370,19 @@ class ClusterConfig(object):
                     }
                 },
                 "environment": env,
+                "volumes":[{
+                    "%s-log" % svc:"/home/app/log",
+                    "%s-data" % svc:"/home/app/local-data",
+                }],
             }
+            config["volumes"]["%s-log" % svc] = {}
+            config["volumes"]["%s-data" % svc] = {}
             self.services[svc] = Service(svc, node=anchor, replica="cfg")
             self.services[svc].set_service_type("db_cfg", replica_number=r, 
                     port_number=self.configsvr_port)
 
         # configure router (mongos = main db app will use) pointing to cfg replica
-        cmd = "/home/app/src/Service/start.sh -r db -l"
+        cmd = "/home/app/src/Service/start.sh -r db -l %s" % stdout
         env = copy.copy(shared_environment)
         env.append("LOCAL_REPLICA=0")
         env.append("LOCAL_SHARD=0")
@@ -355,6 +397,7 @@ class ClusterConfig(object):
                 "mode": "global"        # each node has local db instance
             },
             "environment": env, 
+            "volumes":[{"db-log":"/home/app/log"}],
         }
         self.services["db"] = Service("db")
         self.services["db"].set_service_type("db", port_number=self.mongos_port)
@@ -362,10 +405,11 @@ class ClusterConfig(object):
         # configure manager, watcher, and workers
         config["services"]["mgr"] = {
             "image": ClusterConfig.APP_IMAGE,
-            "command": "/home/app/src/Service/start.sh -r mgr -l -c 1 -i 0",
+            "command": "/home/app/src/Service/start.sh -r mgr -l -c 1 -i 0 -%s" % stdout,
+            "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
             "logging": copy.deepcopy(default_logging),
-            "deploy": {"replicas": 1},
-            "environment": copy.copy(shared_environment)
+            "environment": copy.copy(shared_environment),
+            "volumes":[{"mgr-log":"/home/app/log"}],
         }
         self.services["mgr"] = Service("manager")
 
@@ -374,10 +418,13 @@ class ClusterConfig(object):
             svc = "x%s" % i
             config["services"][svc] = {
                 "image": ClusterConfig.APP_IMAGE,
-                "command": "/home/app/src/Service/start.sh -r watcher -l -c 1 -i %s" % i,
+                "command": "/home/app/src/Service/start.sh -r watcher -l -c 1 -i %s %s"%(i, stdout),
+                "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
                 "logging": copy.deepcopy(default_logging),
                 "environment": copy.copy(shared_environment),
+                "volumes":[{"%s-log" % svc:"/home/app/log"}],
             }
+            config["volumes"]["%s-log" % svc] = {}
             self.services[svc] = Service(svc)
             self.services[svc].set_service_type("watcher")
 
@@ -386,10 +433,13 @@ class ClusterConfig(object):
             svc = "w%s" % i
             config["services"][svc] = {
                 "image": ClusterConfig.APP_IMAGE,
-                "command": "/home/app/src/Service/start.sh -r worker -l -c 1 -i %s" % i,
+                "command": "/home/app/src/Service/start.sh -r worker -l -c 1 -i %s %s" % (i,stdout),
+                "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
                 "logging": copy.deepcopy(default_logging),
                 "environment": copy.copy(shared_environment),
+                "volumes":[{"%s-log" % svc:"/home/app/log"}],
             }
+            config["volumes"]["%s-log" % svc] = {}
             self.services[svc] = Service(svc)
             self.services[svc].set_service_type("worker")
 

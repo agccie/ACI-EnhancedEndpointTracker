@@ -71,7 +71,7 @@ class Swarmer(object):
         else:
             # need to initialize this node as a swarm master
             logger.info("initializing swarm master")
-            if not run_command("docker swarm init"):
+            if not run_command("docker swarm init --cert-expiry 86400h0m0s"):
                 raise Exception("failed to initialize node as swarm master")
             # get new swarm info
             js = self.get_swarm_info()
@@ -145,6 +145,11 @@ class Swarmer(object):
                 if run_command(cmd) is None:
                     raise Exception("failed to add docker node label node=%s to %s" % (node_label,
                         swarm_node_id))
+                # for redundancy we need at least 3 managers and for simplicity, we will only
+                # support all manager setup
+                cmd = "docker node promote %s" % swarm_node_id
+                if run_command(cmd) is None:
+                    raise Exception("failed to promote node %s(%s)" % (node_label, swarm_node_id))
 
         logger.info("docker cluster initialized with %s node(s)", len(self.config.nodes))
 
@@ -252,11 +257,12 @@ class Swarmer(object):
         if run_command(cmd) is None:
             raise Exception("failed to deploy stack")
         
-        check_count = 8
-        check_interval = 15
+        check_count = 15
+        check_interval = 60.0
         all_services_running = True
         while check_count > 0:
             check_count-= 1
+            pending_services = 0
             all_services_running = True
             # check that all the deployed services have at least one replica up 
             cmd = "docker service ls --format '{{json .}}'"
@@ -276,6 +282,7 @@ class Swarmer(object):
                                 # if this is last check interation, raise an error
                                 if check_count <= 0: raise Exception(err_msg)
                                 all_services_running = False
+                                pending_services+= 1
                                 logger.debug(err_msg)
                         logger.debug("service %s success: %s", js["Name"], js["Replicas"])
                     else:
@@ -284,7 +291,8 @@ class Swarmer(object):
                     logger.warn("failed to parse docker service line: %s", l)
 
             if not all_services_running:
-                logger.info("one or more services pending, re-check in %s seconds", check_interval)
+                logger.info("%s services pending, re-check in %s seconds", pending_services, 
+                            check_interval)
                 time.sleep(check_interval)
             else: break
 

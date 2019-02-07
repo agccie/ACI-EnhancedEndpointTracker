@@ -18,7 +18,7 @@ app:
     http_port: 80
     https_port: 443
     # number of workers containers
-    workers: 12
+    workers: 10
     # internal network for communication between app components. This subnet should only be changed
     # if it overlaps with an existing network
     subnet: "192.0.2.0/24"
@@ -47,4 +47,7 @@ database:
         replicas: 3
         memory: 2.0
 
+# enable stdout for all containers logs instead of writing to local log directory
+logging:
+    stdout: no
 

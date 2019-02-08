@@ -72,8 +72,7 @@ class Swarmer(object):
         else:
             # need to initialize this node as a swarm master
             logger.info("initializing swarm master")
-            cmd = "docker swarm init --advertise-addr %s --cert-expiry %s" % (
-                    self.node_addr, Swarmer.CERT_EXPIRY)
+            cmd = "docker swarm init --cert-expiry %s" % Swarmer.CERT_EXPIRY
             if not run_command(cmd):
                 raise Exception("failed to initialize node as swarm master")
             # get new swarm info
@@ -87,7 +86,7 @@ class Swarmer(object):
 
         # validated that swarm is initialized and we're executing on a manager node.  Need to get
         # token for deploying to new workers
-        token = run_command("docker swarm join-token worker -q")
+        token = run_command("docker swarm join-token manager -q")
         if token is None:
             raise Exception("failed to get swarm token from manager")
         self.token = token.strip()
@@ -148,12 +147,6 @@ class Swarmer(object):
                 if run_command(cmd) is None:
                     raise Exception("failed to add docker node label node=%s to %s" % (node_label,
                         swarm_node_id))
-                # for redundancy we need at least 3 managers and for simplicity, we will only
-                # support all manager setup
-                cmd = "docker node promote %s" % swarm_node_id
-                if run_command(cmd) is None:
-                    raise Exception("failed to promote node %s(%s)" % (node_label, swarm_node_id))
-
         logger.info("docker cluster initialized with %s node(s)", len(self.config.nodes))
 
     def add_worker(self, hostname, nid):

@@ -285,7 +285,7 @@ class ClusterConfig(object):
             "deploy": {"replicas": 1},
             "logging": copy.deepcopy(default_logging),
             "environment": copy.copy(shared_environment),
-            "volumes":[{"web-log":"/home/app/log"}],
+            "volumes":["web-log:/home/app/log"],
         }
         if self.app_http_port > 0:
             web_service["ports"].append("%s:80" % self.app_http_port)
@@ -301,7 +301,7 @@ class ClusterConfig(object):
             "deploy": {"replicas": 1, "endpoint_mode": "dnsrr"},
             "logging": copy.deepcopy(default_logging),
             "environment": copy.copy(shared_environment),
-            "volumes":[{"redis-log":"/home/app/log"}],
+            "volumes":["redis-log:/home/app/log"],
         }
         config["services"]["redis"] = redis_service
         self.services["redis"] = Service("redis")
@@ -333,10 +333,10 @@ class ClusterConfig(object):
                         }
                     },
                     "environment": env,
-                    "volumes":[{
-                        "%s-log" % svc:"/home/app/log",
-                        "%s-data" % svc:"/home/app/local-data",
-                    }],
+                    "volumes":[
+                        "%s-log:/home/app/log" % svc,
+                        "%s-data/home/app/local-data" % svc,
+                    ],
                 }
 
                 config["volumes"]["%s-log" % svc] = {}
@@ -370,10 +370,10 @@ class ClusterConfig(object):
                     }
                 },
                 "environment": env,
-                "volumes":[{
-                    "%s-log" % svc:"/home/app/log",
-                    "%s-data" % svc:"/home/app/local-data",
-                }],
+                "volumes":[
+                    "%s-log:/home/app/log" % svc,
+                    "%s-data:/home/app/local-data" % svc,
+                ],
             }
             config["volumes"]["%s-log" % svc] = {}
             config["volumes"]["%s-data" % svc] = {}
@@ -397,7 +397,7 @@ class ClusterConfig(object):
                 "mode": "global"        # each node has local db instance
             },
             "environment": env, 
-            "volumes":[{"db-log":"/home/app/log"}],
+            "volumes":["db-log:home/app/log"],
         }
         self.services["db"] = Service("db")
         self.services["db"].set_service_type("db", port_number=self.mongos_port)
@@ -409,7 +409,7 @@ class ClusterConfig(object):
             "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
             "logging": copy.deepcopy(default_logging),
             "environment": copy.copy(shared_environment),
-            "volumes":[{"mgr-log":"/home/app/log"}],
+            "volumes":["mgr-log:/home/app/log"],
         }
         self.services["mgr"] = Service("manager")
 
@@ -422,7 +422,7 @@ class ClusterConfig(object):
                 "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
                 "logging": copy.deepcopy(default_logging),
                 "environment": copy.copy(shared_environment),
-                "volumes":[{"%s-log" % svc:"/home/app/log"}],
+                "volumes":["%s-log:/home/app/log" % svc],
             }
             config["volumes"]["%s-log" % svc] = {}
             self.services[svc] = Service(svc)
@@ -437,7 +437,7 @@ class ClusterConfig(object):
                 "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
                 "logging": copy.deepcopy(default_logging),
                 "environment": copy.copy(shared_environment),
-                "volumes":[{"%s-log" % svc:"/home/app/log"}],
+                "volumes":["%s-log:/home/app/log" % svc],
             }
             config["volumes"]["%s-log" % svc] = {}
             self.services[svc] = Service(svc)

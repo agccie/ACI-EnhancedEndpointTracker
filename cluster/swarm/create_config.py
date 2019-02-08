@@ -335,7 +335,7 @@ class ClusterConfig(object):
                     "environment": env,
                     "volumes":[
                         "%s-log:/home/app/log" % svc,
-                        "%s-data/home/app/local-data" % svc,
+                        "%s-data:/home/app/local-data" % svc,
                     ],
                 }
 
@@ -397,7 +397,7 @@ class ClusterConfig(object):
                 "mode": "global"        # each node has local db instance
             },
             "environment": env, 
-            "volumes":["db-log:home/app/log"],
+            "volumes":["db-log:/home/app/log"],
         }
         self.services["db"] = Service("db")
         self.services["db"].set_service_type("db", port_number=self.mongos_port)

@@ -2,6 +2,8 @@
 from . aci.ept.ept_msg import eptMsg
 from . aci.ept.ept_msg import MSG_TYPE
 from . aci.ept.common import MANAGER_CTRL_CHANNEL 
+from . aci.ept.common import MANAGER_CTRL_RESPONSE_CHANNEL 
+from . aci.ept.common import get_random_sequence
 from . rest import api_register
 from . rest import api_route
 from . rest import Rest
@@ -87,6 +89,7 @@ class AppStatus(Rest):
                 },
             },
         },
+        # for api swagger reference only
         "manager_status": {
             "reference": True,
             "type": dict,
@@ -159,6 +162,31 @@ class AppStatus(Rest):
                     },
                 },
             },
+        },
+        "addr": {
+            "reference": True,
+            "type": str,
+            "regex": "^[0-9a-z\.\:]{2,64}",
+            "description": """ 
+            IP or mac address string for hash check. Note, for accurate results ensure MAC addresses
+            are in upper-case format (AA:BB:CC:DD:EE:FF), IPv4 address are in standard dotted-decimal
+            format (W.X.Y.Z), and IPv6 addresses are in lower-case format (2001::a:b:c:d)
+            """
+        },
+        "hash": {
+            "reference": True,
+            "type": int,
+            "description": """ address hash calculation result """,
+        },
+        "index": {
+            "reference": True,
+            "type": int,
+            "description": """ index of worker from hash calculation """,
+        },
+        "worker": {
+            "reference": True,
+            "type": str,
+            "description": """ worker selected by hash/index for provided address """,
         },
     }
 
@@ -234,10 +262,12 @@ class AppStatus(Rest):
     def api_check_manager_status():
         """ check status of manager process including all active fabrics """
         try:
-            return jsonify(AppStatus.check_manager_status())
+            ret = AppStatus.check_manager_status()
+            if ret is not None:
+                return jsonify(ret)
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
-            abort(500, "failed to send message or invalid manager response")
+        abort(500, "failed to send message or invalid manager response")
 
     @staticmethod
     def check_manager_status():
@@ -256,19 +286,22 @@ class AppStatus(Rest):
             "workers": [],
             "fabrics": [],
         }
+        seq = get_random_sequence()
+        logger.debug("get manager status (seq:0x%x)", seq)
         redis = get_redis()
         p = redis.pubsub(ignore_subscribe_messages=True)
-        p.subscribe(MANAGER_CTRL_CHANNEL)
-        redis.publish(MANAGER_CTRL_CHANNEL, eptMsg(MSG_TYPE.GET_MANAGER_STATUS).jsonify())
+        p.subscribe(MANAGER_CTRL_RESPONSE_CHANNEL)
+        redis.publish(MANAGER_CTRL_CHANNEL, eptMsg(MSG_TYPE.GET_MANAGER_STATUS,seq=seq).jsonify())
         start_ts = time.time()
         try:
             while start_ts + AppStatus.MANAGER_STATUS_TIMEOUT > time.time():
                 data = p.get_message(timeout=1)
                 if data is not None:
                     channel = data["channel"]
-                    if channel == MANAGER_CTRL_CHANNEL:
+                    if channel == MANAGER_CTRL_RESPONSE_CHANNEL:
                         msg = eptMsg.parse(data["data"]) 
                         if msg.msg_type == MSG_TYPE.MANAGER_STATUS:
+                            logger.debug("received manager status (seq:0x%x)", msg.seq)
                             ret["manager"] = msg.data["manager"]
                             ret["manager"]["status"] = "running"
                             ret["workers"] = msg.data["workers"]
@@ -284,4 +317,58 @@ class AppStatus(Rest):
         logger.warn("no manager response within timeout(%s sec)", AppStatus.MANAGER_STATUS_TIMEOUT)
         return ret
 
+    @staticmethod
+    @api_route(path="/hash", methods=["POST"], role="read_role", swag_ret=["addr","hash","index",
+                "worker"])
+    def api_get_address_hash(addr):
+        """ check status of manager process including all active fabrics """
+        try:
+            ret = AppStatus.get_address_hash(addr)
+            if ret is not None:
+                return jsonify(ret)
+        except Exception as e:
+            logger.error("Traceback:\n%s", traceback.format_exc())
+        abort(500, "failed to send message or invalid manager response")
+
+    @staticmethod
+    def get_address_hash(addr):
+        """ return calculated hash and worker index for provided address string and worker count """
+        ret = {
+            "addr": addr,
+            "hash": 0,
+            "index": 0,
+            "worker": "",
+        }
+        seq = get_random_sequence()
+        logger.debug("get addr hash (seq:0x%x, addr:%s)", seq, addr)
+        tx_msg = eptMsg(MSG_TYPE.GET_WORKER_HASH, data={"addr":addr}, seq=seq)
+        redis = get_redis()
+        p = redis.pubsub(ignore_subscribe_messages=True)
+        p.subscribe(MANAGER_CTRL_RESPONSE_CHANNEL)
+        redis.publish(MANAGER_CTRL_CHANNEL, tx_msg.jsonify())
+        start_ts = time.time()
+        try:
+            while start_ts + AppStatus.MANAGER_STATUS_TIMEOUT > time.time():
+                data = p.get_message(timeout=1)
+                if data is not None:
+                    channel = data["channel"]
+                    if channel == MANAGER_CTRL_RESPONSE_CHANNEL:
+                        msg = eptMsg.parse(data["data"]) 
+                        if msg.msg_type == MSG_TYPE.WORKER_HASH:
+                            logger.debug("received addr hash response (seq:0x%x)", msg.seq)
+                            # validate this is the addr and sequence number our user requested
+                            if msg.seq == seq and "addr" in msg.data and msg.data["addr"] == addr:
+                                ret["hash"] = msg.data.get("hash", 0)
+                                ret["index"] = msg.data.get("index", 0)
+                                ret["worker"] = msg.data.get("worker", "")
+                                return ret
+                            else:
+                                logger.debug("rx hash (0x%x/%s) incorrect, expected (0x%x/%s)",
+                                    msg.seq, msg.data.get("addr", 0), seq, addr)
+        except Exception as e:
+            logger.debug("Traceback:\n%s", traceback.format_exc())
+            logger.debug("error: %s", e)
+        finally:
+            if redis is not None and hasattr(redis, "connection_pool"):
+                redis.connection_pool.disconnect()
 

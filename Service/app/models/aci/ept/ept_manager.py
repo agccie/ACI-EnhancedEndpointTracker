@@ -8,6 +8,7 @@ from .. utils import terminate_process
 from . common import HELLO_INTERVAL
 from . common import HELLO_TIMEOUT
 from . common import MANAGER_CTRL_CHANNEL
+from . common import MANAGER_CTRL_RESPONSE_CHANNEL
 from . common import MANAGER_WORK_QUEUE
 from . common import SEQUENCE_TIMEOUT
 from . common import SUPPRESS_FABRIC_RESTART
@@ -27,9 +28,10 @@ from . ept_subscriber import eptSubscriber
 from multiprocessing import Process
 
 import logging
-import threading
+import re
 import signal
 import time
+import threading
 import traceback
 
 # module level logging
@@ -56,6 +58,8 @@ class eptManager(object):
         self.queue_stats = {
             WORKER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, queue=WORKER_CTRL_CHANNEL),
             MANAGER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, queue=MANAGER_CTRL_CHANNEL),
+            MANAGER_CTRL_RESPONSE_CHANNEL: eptQueueStats.load(proc=self.worker_id, 
+                                                queue=MANAGER_CTRL_RESPONSE_CHANNEL),
             MANAGER_WORK_QUEUE: eptQueueStats.load(proc=self.worker_id, queue=MANAGER_WORK_QUEUE),
             "total": eptQueueStats.load(proc=self.worker_id, queue="total"),
         }
@@ -190,7 +194,7 @@ class eptManager(object):
             logger.error("Traceback:\n%s", traceback.format_exc())
 
     def handle_manager_ctrl(self, msg):
-        logger.debug("ctrl message: %s, %s", msg.msg_type.value, msg.data)
+        logger.debug("ctrl message: %s, seq:0x%x, %s", msg.msg_type.value, msg.seq, msg.data)
         if msg.msg_type == MSG_TYPE.GET_MANAGER_STATUS:
             # return worker status along with current seq per queue and queue length
             data = {
@@ -207,8 +211,8 @@ class eptManager(object):
                 ]
             }
             ret = eptMsg(MSG_TYPE.MANAGER_STATUS, data=data, seq=msg.seq)
-            self.redis.publish(MANAGER_CTRL_CHANNEL, ret.jsonify())
-            self.increment_stats(MANAGER_CTRL_CHANNEL, tx=True)
+            self.redis.publish(MANAGER_CTRL_RESPONSE_CHANNEL, ret.jsonify())
+            self.increment_stats(MANAGER_CTRL_RESPONSE_CHANNEL, tx=True)
 
         elif msg.msg_type == MSG_TYPE.FABRIC_START:
             # start monitoring for fabric
@@ -222,6 +226,27 @@ class eptManager(object):
             # restart a running (or stopped) fabric
             self.stop_fabric(msg.data["fabric"], reason=msg.data.get("reason", None))
             self.start_fabric(msg.data["fabric"], reason=msg.data.get("reason", None))
+
+        elif msg.msg_type == MSG_TYPE.GET_WORKER_HASH:
+            # requires addr field only and returns hash, index, and selected worker
+            if "addr" in msg.data:
+                if "worker" in self.worker_tracker.active_workers:
+                    _hash = sum(ord(i) for i in msg.data["addr"])
+                    index = _hash % len(self.worker_tracker.active_workers["worker"])
+                    worker = self.worker_tracker.active_workers["worker"][index]
+                    data = {
+                        "addr": msg.data["addr"],
+                        "hash": _hash,
+                        "index": index,
+                        "worker": worker.worker_id,
+                    }
+                    ret = eptMsg(MSG_TYPE.WORKER_HASH, data=data, seq=msg.seq)
+                    self.redis.publish(MANAGER_CTRL_RESPONSE_CHANNEL, ret.jsonify())
+                    self.increment_stats(MANAGER_CTRL_RESPONSE_CHANNEL, tx=True)
+            else:
+                logger.warn("worker hash request with no address field")
+        else:
+            logger.debug("ignoring msg type received on manager ctrl: %s", msg.msg_type)
 
     def minimum_workers_ready(self):
         # return true if worker is ready for each required role.
@@ -408,7 +433,7 @@ class WorkerTracker(object):
         # at a regular interval, check for new workers to add to active worker queue along with
         # removal of inactive workers.  This runs in a background thread independent of hello.  
         # Therefore, the time to detect a new worker is potential 2x update timer
-        # This also triggers fabric check on manager to ensure all subscriber processes are still
+        # This also executes fabric check on manager to ensure all subscriber processes are still
         # running.
         ts = time.time()
         remove_workers = []
@@ -420,14 +445,15 @@ class WorkerTracker(object):
             elif not w.active:
                 # new worker that needs to be added to active list
                 if w.role not in self.active_workers: self.active_workers[w.role] = []
-                logger.info("new worker: %s, index: %d", w, len(self.active_workers[w.role]))
                 self.active_workers[w.role].append(w)
                 w.active = True
                 new_workers = True
-                # no need to trigger fabric restart here, it will be picked up by check_fabric
-                #for f, fab in self.manager.fabrics.items():
-                #    if fab["waiting_for_retry"]:
-                #        self.manager.start_fabric(f, reason="new worker '%s' online" % wid)
+                # sort active workers by worker_id for deterministic ordering
+                self.active_workers[w.role] = sorted(self.active_workers[w.role], 
+                                                key=lambda w: int(re.sub("[^0-9]","",w.worker_id)))
+                logger.info("new worker: %s, active_workers: [%s]", w, 
+                                    ",".join([sw.worker_id for sw in self.active_workers[w.role]]))
+
             #elif w.last_head_check + SEQUENCE_TIMEOUT < ts:
             #    # check if seq is stuck on any queue which indicates a problem with the worker
             #    for i, last_head in enumerate(w.last_head):
@@ -442,24 +468,27 @@ class WorkerTracker(object):
             #            w.last_head[i] = head
             #    self.last_head_check = ts
 
-        # remove workers from known_workers and active_workers
+        # inactive remove workers from known_workers and active_workers
         for w in remove_workers:
             logger.debug("removing worker from known_workers: %s", w)
             self.known_workers.pop(w.worker_id, None)
             if w.role in self.active_workers and w in self.active_workers[w.role]:
                 logger.debug("removing worker from active_workers[%s]: %s", w.role, w)
                 self.active_workers[w.role].remove(w)
-            # if a worker has died, when need to trigger a monitor restart for all fabrics and 
-            # flush out current worker queues to prevent stale work in redis incase worker comes
-            # back online
+
+            # TODO, rebalance work for this worker to a new worker - for now flush and restart
             for i, q in enumerate(w.queues):
                 logger.debug("deleting work from queue: %s", q)
                 with w.queue_locks[i]:
                     self.redis.delete(q)
+
+        # if a worker has died, then trigger monitor restart for all fabrics
+        if len(remove_workers)>0:
+            inactive = "[%s]" % ",".join([w.worker_id for w in remove_workers])
             # restart all fabrics
             minimum_ready = self.manager.minimum_workers_ready()
             for f in self.manager.fabrics.keys():
-                self.manager.stop_fabric(f, reason="worker '%s' no longer active" % w.worker_id)
+                self.manager.stop_fabric(f, reason="worker '%s' no longer active" % inactive)
                 if minimum_ready:
                     self.manager.start_fabric(f, reason="restarting after active worker change")
                 else:

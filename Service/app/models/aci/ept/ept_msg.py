@@ -21,6 +21,8 @@ class MSG_TYPE(Enum):
     FABRIC_START        = "fabric_start"    # request from API to manager to start fabric monitor
     FABRIC_STOP         = "fabric_stop"     # request from API to manager to stop fabric monitor
     FABRIC_RESTART      = "fabric_restart"  # request from API or subscriber to manager for restart
+    GET_WORKER_HASH     = "get_worker_hash" # request from API to manager to get worker addr hash
+    WORKER_HASH         = "worker_hash"     # response from manager to GET_WORKER_HASH
     REFRESH_EPT         = "refresh_ept"     # refresh endpoint
     DELETE_EPT          = "delete_ept"      # delete endpoint and all dependencies from db, also 
                                             # ensures worker cache for this endpoint are properly 

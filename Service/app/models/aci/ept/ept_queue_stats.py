@@ -155,33 +155,6 @@ class eptQueueStats(Rest):
             """,
             "meta": stats_queue_meta,
         },
-
-        # for api swagger reference only
-        "addr": {
-            "reference": True,
-            "type": str,
-            "description": """ 
-            IP or mac address string for hash check. Note, for accurate results ensure MAC addresses
-            are in upper-case format (AA:BB:CC:DD:EE:FF), IPv4 address are in standard dotted-decimal
-            format (W.X.Y.Z), and IPv6 addresses are in lower-case format (2001::a:b:c:d)
-            """
-        },
-        "workers": {
-            "reference": True,
-            "type": int,
-            "default": 10,
-            "description": """number of active workers used by hash check """,
-        },
-        "hash": {
-            "reference": True,
-            "type": int,
-            "description": """ address hash calculation result """,
-        },
-        "index": {
-            "reference": True,
-            "type": int,
-            "description": """ index of worker from hash calculation """,
-        },
     }
 
     def init_queue(self):
@@ -235,13 +208,3 @@ class eptQueueStats(Rest):
         self.total_tx_msg = total_tx
         self.total_rx_msg = total_rx
         self.save()
-
-    @classmethod
-    @api_route(path="/hash", methods=["POST"], swag_ret=["hash","index"])
-    def get_address_hash(cls, addr, workers):
-        """ return calculated hash and worker index for provided address string and worker count """
-        _hash = sum(ord(i) for i in addr)
-        index = _hash % workers
-        return jsonify({"hash": _hash, "index": index})
-
-

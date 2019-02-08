@@ -2,6 +2,7 @@
 common ept functions
 """
 import logging
+import os
 import re
 import threading
 import time
@@ -27,6 +28,7 @@ WATCH_INTERVAL                      = 1.0
 CACHE_STATS_INTERVAL                = 300.0
 SEQUENCE_TIMEOUT                    = 100.0
 MANAGER_CTRL_CHANNEL                = "mctrl"
+MANAGER_CTRL_RESPONSE_CHANNEL       = "r_mctrl"
 MANAGER_WORK_QUEUE                  = "mq"
 SUBSCRIBER_CTRL_CHANNEL             = "sctrl"
 WORKER_CTRL_CHANNEL                 = "wctrl"
@@ -468,6 +470,11 @@ def get_ipv6_prefix(ipv6):
     for n in (upper + [0]*pad + lower): addr = (addr << 16) + n
     mask = (~(pow(2,128-mask)-1)) & 0xffffffffffffffffffffffffffffffff
     return (addr&mask, mask)
+
+
+def get_random_sequence():
+    # using os.urandom return a pseudo random sequeunce number
+    return sum(ord(c)<<4*i for i, c in enumerate(os.urandom(8))) & 0xffffffff
 
 
 ###############################################################################

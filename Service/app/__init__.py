@@ -4,39 +4,42 @@ from flask import abort
 from flask import jsonify
 from flask import make_response
 
-_app_config = None
+_app = None
+_full_app = None
+def _base_app(config_filename="config.py"):
+    # get a base app file importing user config
+    global _app
+    if _app is not None:
+        return _app
+    _app = Flask(__name__, instance_relative_config=True)
+    _app.config.from_object("config")
+    # try to import instance config file
+    try:
+        _app.config.from_pyfile(config_filename)
+    except IOError: pass
+    # try to import secret file which overrides instance file
+    try:
+        _app.config.from_pyfile("/home/app/config.py", silent=True)
+    except IOError: pass
+    # validate and/or set keys. These are treated as passphrases which are converted to 16B keys
+    ekey= "{0:0>32}".format("".join(["%02x" % ord(c) for c in _app.config.get("EKEY", "")]))[:-32]
+    eiv = "{0:0>32}".format("".join(["%02x" % ord(c) for c in _app.config.get("EIV",  "")]))[:-32]
+    _app.config["EKEY"] = ekey
+    _app.config["EIV"] = eiv
+    return _app
+
 def create_app_config(config_filename="config.py"):
     # get app config without initiating entire app
-    global _app_config
-    if _app_config is not None:
-        return _app_config
+    return _base_app().config
 
-    app = Flask(__name__, instance_relative_config=True)
-    app.config.from_object("config")
-    # pass if unable to load instance file
-    try: app.config.from_pyfile(config_filename)
-    except IOError: pass
-    # import private config when running in APP_MODE
-    try: app.config.from_pyfile("/home/app/config.py", silent=True)
-    except IOError: pass
-    _app_config = app.config
-    return _app_config
-
-_app = None
 def create_app(config_filename="config.py"):
-    global _app
-    global _app_config
-    if _app is not None: return _app
-    app = Flask(__name__, instance_relative_config=True)
-    app.config.from_object("config")
-    # pass if unable to load instance file
-    try: app.config.from_pyfile(config_filename)
-    except IOError: pass
-    # import private config when running in APP_MODE
-    try: app.config.from_pyfile("/home/app/config.py", silent=True)
-    except IOError: pass
-    # save global pointer for app_config as well
-    _app_config = app.config
+    # create full app
+    global _full_app
+    if _full_app is not None:
+        return _full_app
+
+    # app based on previously init app
+    app = _base_app() 
 
     # add custom converter (filename) so attribute keys can be type 'filename'
     app.url_map.converters["filename"] = FilenameConverter
@@ -109,9 +112,8 @@ def create_app(config_filename="config.py"):
         from flask_cors import CORS
         CORS(app, supports_credentials=True, automatic_options=True)
 
-    _app = app
+    _full_app = app
     return app
-
 
 def register_error_handler(app):    
     """ register error handler's for common error codes to app """

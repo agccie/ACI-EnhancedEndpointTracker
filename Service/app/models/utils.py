@@ -195,16 +195,16 @@ def hash_password(p):
     except Exception as e:
         logger.warn("failed to generate hash: %s" % e)
 
-def aes_encrypt(data, **kwargs):
+def aes_encrypt(data, ekey=None, eiv=None):
     # return AES encrypted data hexstring (None on failure)
     from Crypto.Cipher import AES
     import struct, binascii
-    ekey = kwargs.get("ekey", None)
-    eiv = kwargs.get("eiv", None)
     config = get_app_config()
     try:
-        if ekey is None: ekey = config["EKEY"]
-        if eiv is None: eiv = config["EIV"]
+        if ekey is None: 
+            ekey = config["EKEY"]
+        if eiv is None: 
+            eiv = config["EIV"]
         ekey = ("%s" % ekey).decode("hex")
         eiv = ("%s" % eiv).decode("hex")
         ec = AES.new(ekey, AES.MODE_CBC, eiv)
@@ -219,19 +219,18 @@ def aes_encrypt(data, **kwargs):
         return edata
     except Exception as e:
         logger.error("aes_encrypt %s" % e)
-
     return None
         
-def aes_decrypt(edata, **kwargs):
+def aes_decrypt(edata, ekey=None, eiv=None):
     # return AES decrypted data from data hexstring (None on failure)
     from Crypto.Cipher import AES
     import struct, binascii
-    ekey = kwargs.get("ekey", None)
-    eiv = kwargs.get("eiv", None)
     config = get_app_config()
     try:
-        if ekey is None: ekey = config["EKEY"]
-        if eiv is None: eiv = config["EIV"]
+        if ekey is None: 
+            ekey = config["EKEY"]
+        if eiv is None: 
+            eiv = config["EIV"]
         ekey = ("%s" % ekey).decode("hex")
         eiv = ("%s" % eiv).decode("hex")
         ec = AES.new(ekey, AES.MODE_CBC, eiv)

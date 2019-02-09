@@ -365,6 +365,8 @@ class eptSubscriber(object):
         if not self.build_mo():
             self.fabric.add_fabric_event("failed", "failed to collect MOs")
             return
+        # check if subscriptions died during previous step
+        self.subscriber_is_alive() 
 
         # build node db and vpc db
         self.fabric.add_fabric_event(init_str, "building node db")
@@ -374,30 +376,40 @@ class eptSubscriber(object):
         if not self.build_vpc_db():
             self.fabric.add_fabric_event("failed", "failed to build node pc to vpc db")
             return
+        # check if subscriptions died during previous step
+        self.subscriber_is_alive() 
 
         # build tunnel db
         self.fabric.add_fabric_event(init_str, "building tunnel db")
         if not self.build_tunnel_db():
             self.fabric.add_fabric_event("failed", "failed to build tunnel db")
             return
+        # check if subscriptions died during previous step
+        self.subscriber_is_alive() 
 
         # build vnid db along with vnsLIfCtxToBD db which relies on vnid db
         self.fabric.add_fabric_event(init_str, "building vnid db")
         if not self.build_vnid_db():
             self.fabric.add_fabric_event("failed", "failed to build vnid db")
             return
+        # check if subscriptions died during previous step
+        self.subscriber_is_alive() 
 
         # build epg db
         self.fabric.add_fabric_event(init_str, "building epg db")
         if not self.build_epg_db():
             self.fabric.add_fabric_event("failed", "failed to build epg db")
             return
+        # check if subscriptions died during previous step
+        self.subscriber_is_alive() 
 
         # build subnet db
         self.fabric.add_fabric_event(init_str, "building subnet db")
         if not self.build_subnet_db():
             self.fabric.add_fabric_event("failed", "failed to build subnet db")
             return
+        # check if subscriptions died during previous step
+        self.subscriber_is_alive() 
 
         # slow objects (including std mo objects) initialization completed
         self.initializing = False
@@ -412,6 +424,8 @@ class eptSubscriber(object):
         if not self.build_endpoint_db():
             self.fabric.add_fabric_event("failed", "failed to build initial endpoint db")
             return
+        # check if subscriptions died during previous step
+        self.subscriber_is_alive() 
 
         # epm objects intialization completed
         self.epm_initializing = False
@@ -443,9 +457,7 @@ class eptSubscriber(object):
 
         while True:
             # ensure that all subscriptions are active
-            if not self.subscriber.is_alive():
-                logger.warn("subscription no longer alive for %s", self.fabric.fabric)
-                return
+            self.subscriber_is_alive()
 
             if self.epm_eof_tracking is not None:
                 # still actively tracking workers, check if we've exceeded max build time
@@ -465,6 +477,12 @@ class eptSubscriber(object):
 
             # sleep for check interval
             time.sleep(self.subscription_check_interval)
+
+    def subscriber_is_alive(self):
+        """ check if subscriber is alive and raise exception if it has died """
+        if not self.subscriber.is_alive():
+            logger.warn("subscription no longer alive for %s", self.fabric.fabric)
+            raise Exception("subscriber is not longer alive")
 
     def get_workers_with_pending_ack(self):
         """ check epm_eof_start and get list of workers that have not yet sent an ack """

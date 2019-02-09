@@ -25,8 +25,8 @@ class ClusterConfig(object):
     LOGGING_MAX_SIZE = "50m"
     LOGGING_MAX_FILE = "10"
 
-    def __init__(self):
-        self.nodes = {}         # indexed by node id, {"id":int, "hostname":"addr"}
+    def __init__(self, node_count=1):
+        self.node_count = node_count
         self.app_workers = 5
         self.app_watchers = 1
         self.app_subnet = "192.0.2.0/27"
@@ -59,9 +59,7 @@ class ClusterConfig(object):
             # walk through keys, fail if there are any unexpected keys so user knows the config is
             # invalid (this is better than sliently ignoring a configuration user is trying to make)
             for k in config:
-                if k == "nodes":
-                    self.add_nodes(config[k])
-                elif k == "app":
+                if k == "app":
                     self.add_app(config[k])
                 elif k == "database":
                     self.add_database(config[k])
@@ -70,54 +68,16 @@ class ClusterConfig(object):
                 else:
                     logger.info("unexpected key '%s'", k)
                     raise Exception("invalid config file")
-        # majority of validation has already been performed. Last step is to validate nodes are 
-        # contiguous, start at '1', and '1' is localhost or 127.0.0.1 
-        node_ids = self.nodes.keys()
-        for i in xrange(1, max(self.nodes.keys())+1):
-            if i not in self.nodes:
-                raise Exception("expected node id '%s' in list of nodes between 1 and %s" % (
-                    i, max(self.nodes.keys())))
-
-        # node-1 can be any address, should be localhost but not enforced
-        #if self.nodes[1]["hostname"] != "localhost" and self.nodes[1]["hostname"] != "127.0.0.1":
-        #    raise Exception("node 1 (%s) must have hostname 'localhost'"%self.nodes[1]["hostname"])
-
-        # ensure that there are no duplicate IPs
-        index_hostname = {}
-        for nid in self.nodes:
-            if self.nodes[nid]["hostname"] in index_hostname:
-                raise Exception("duplicate node hostname: %s" % self.nodes[nid]["hostname"])
 
         # ensure that shardsvr_replicas is <= number of nodes
-        if self.shardsvr_replicas > len(self.nodes):
-            raise Exception("shardsvr replica (%s) must be less than numer of nodes (%s)" % (
-                self.shardsvr_replicas, len(self.nodes)))
+        if self.shardsvr_replicas > self.node_count:
+            logger.info("setting shardsvr replica count to %s", self.node_count)
+            self.shardsvr_replicas = self.node_count
 
         # ensure that configsvr_replicas is <= number of nodes
-        if self.configsvr_replicas > len(self.nodes):
-            raise Exception("configsvr replica (%s) must be less than numer of nodes (%s)" % (
-                self.configsvr_replicas, len(self.nodes)))
-
-    def add_nodes(self, config):
-        """ add one or more nodes from config """
-        logger.debug("add nodes to config: %s", config)
-        if type(config) is not list:
-            raise Exception("nodes must be a list")
-        for n in config:
-            # expect only id and hostname within node config
-            if "id" not in n:
-                raise Exception("'id' field required in each node")
-            if "hostname" not in n:
-                raise Exception("'hostname' field required in each node")
-            node = {"id": 0, "hostname": ""}
-            for k in n:
-                if k not in node: raise Exception("unexpected attribute '%s' for node" % k)
-                node[k] = n[k]
-            if type(node["id"]) is not int or node["id"]<1 or node["id"] > ClusterConfig.MAX_NODES:
-                raise Exception("invalid node id '%s', should be an integer between 1 and %s" % (
-                    node["id"], ClusterConfig.MAX_NODES))
-            self.nodes[node["id"]] = node
-            logger.debug("adding node_id %s = %s", node["id"], node["hostname"])
+        if self.configsvr_replicas > self.node_count:
+            logger.info("setting configsvr replica count to %s", self.node_count)
+            self.configsvr_replicas = self.node_count
 
     def add_app(self, config):
         """ add app attributes from config """
@@ -222,7 +182,6 @@ class ClusterConfig(object):
 
     def get_shared_environment(self):
         """ return shared environment list """
-        node_count = len(self.nodes)
         shared_environment = {
             "HOSTED_PLATFORM": "SWARM",
             "REDIS_HOST": "redis",
@@ -246,7 +205,6 @@ class ClusterConfig(object):
 
     def build_compose(self):
         """ build compose file used for docker swarm service """
-        node_count = len(self.nodes)
         shared_environment = self.get_shared_environment()
 
         # static logging referenced by each service
@@ -311,7 +269,7 @@ class ClusterConfig(object):
         for s in xrange(0, self.shardsvr_shards):
             for r in xrange(0, self.shardsvr_replicas):
                 svc = "db_sh_%s_%s" % (s, r)
-                anchor = ((s + r) % node_count) + 1
+                anchor = ((s + r) % self.node_count) + 1
                 env = copy.copy(shared_environment)
                 env.append("LOCAL_REPLICA=%s" % r)
                 env.append("LOCAL_SHARD=%s" % s)
@@ -348,7 +306,7 @@ class ClusterConfig(object):
         # configure configsvr service (replicas only)
         for r in xrange(0, self.configsvr_replicas):
             svc = "db_cfg_%s" % r
-            anchor = (r % node_count) + 1
+            anchor = (r % self.node_count) + 1
             cmd = "/home/app/src/Service/start.sh -r db -l %s" % stdout
             env = copy.copy(shared_environment)
             env.append("LOCAL_REPLICA=%s" % r)

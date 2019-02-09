@@ -20,8 +20,6 @@ def setup_logger(logger, loglevel="debug", logfile=None):
         full debug enabled
     """
 
-    fmt ="%(process)d||%(asctime)s.%(msecs).03d||%(levelname)s||"
-    fmt+="%(filename)s:(%(lineno)d)||%(message)s"
     datefmt="%Z %Y-%m-%d %H:%M:%S"
 
     # quiet all other loggers...
@@ -33,6 +31,10 @@ def setup_logger(logger, loglevel="debug", logfile=None):
     
     # stream handler to stdout at user provided log level
     fmt ="%(asctime)s.%(msecs).03d||%(levelname)s||%(message)s"
+    if loglevel == "debug":
+        fmt ="%(process)d||%(asctime)s.%(msecs).03d||%(levelname)s||"
+        fmt+="%(filename)s:(%(lineno)d)||%(message)s"
+
     shandler = logging.StreamHandler(sys.stdout)
     shandler.setFormatter(logging.Formatter(fmt=fmt, datefmt=datefmt))
     loglevel = {
@@ -70,6 +72,13 @@ if __name__ == "__main__":
         dest="config", 
         default=default_config,
         help="cluster config file in yaml format",
+    )
+    parser.add_argument(
+        "-n","--nodes",
+        dest="nodes",
+        default=1,
+        type=int,
+        help="number of nodes in the cluster (default 1 node)"
     )
     parser.add_argument(
         "-a","--action",
@@ -115,13 +124,13 @@ if __name__ == "__main__":
     logger.info("Logfile: %s", args.logfile)
 
     # validate config file
-    config = ClusterConfig()
+    config = ClusterConfig(node_count=args.nodes)
     try:
         # all actions (techsupport/config/init/deploy) all required configuration to be parsed
         config.import_config(args.config)
         config.build_compose()
         if args.action == "config":
-            logger.info("configuration build complete")
+            pass
         elif args.action == "deploy":
             swarm = Swarmer(config, username=args.username, password=args.password)
             swarm.init_swarm()

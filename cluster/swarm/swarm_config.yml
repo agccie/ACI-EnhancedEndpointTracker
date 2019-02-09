@@ -1,14 +1,4 @@
 
-# nodes participating in cluster. Node 1 is always the localhost. Each node defined must have 
-# docker installed, must be reachable by the deployment script, and must be accessible via ssh
-nodes:
-    - id: 1
-      hostname: "192.168.2.78"
-    - id: 2
-      hostname: "192.168.2.75"
-    - id: 3
-      hostname: "192.168.2.72"
-
 # app configuration (note, this is specific to container bring up, majority of app config is
 # available within the app UI)
 app:

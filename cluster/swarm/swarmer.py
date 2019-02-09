@@ -24,12 +24,7 @@ class Swarmer(object):
         self.node_addr = None       # local node-addr
         self.node_socket = None     # local node-addr+port for registering worker nodes
         self.token = None           # registration token
-
-        # reindex config.nodes with string id's to match against string labels
-        config_nodes = {}
-        for nid in self.config.nodes:
-            config_nodes["%s" % nid] = self.config.nodes[nid]
-        self.config.nodes = config_nodes
+        self.node_hostnames = {}    # indexed by string node value with node hostname (exclude 1)
 
     def get_credentials(self):
         # prompt user for username/password if not previously provided
@@ -52,6 +47,23 @@ class Swarmer(object):
         if not c.login(max_attempts=3):
             raise Exception("failed to connect to node %s@%s" % (self.username, hostname))
         return c
+
+    def get_node_hostnames(self):
+        # if node_count > 1 then need to prompt user for address/hostname of each node
+        if self.config.node_count>0:
+            for node_id in xrange(2, self.config.node_count+1):
+                # prompt user for hostname/ip address for this node
+                node_id = "%s" % node_id
+                hostname = self.node_hostnames.get(node_id, "") 
+                while hostname is None or len(hostname)==0: 
+                    hostname = raw_input("\nEnter hostname/ip address for node %s: "%node_id).strip()
+                    if len(hostname) == 0:
+                        logger.warn("invalid hostname for node %s, please try again", node_id)
+                    elif hostname == self.node_addr:
+                        logger.warn("%s is addr of local node, please enter hostname for node %s",
+                            hostname, node_id)
+                        hostname = ""
+                self.node_hostnames[node_id] = hostname
 
     def init_swarm(self):
         # determine the swarm status of this node. If in a swarm but not the manager, raise an error
@@ -134,20 +146,21 @@ class Swarmer(object):
                     index_label[node_label].node_id, nid))
             index_addr[n.addr] = n
             index_label[node_label] = n
+            self.node_hostnames[node_label] = n.addr
         logger.debug("index_label: %s", index_label)
 
         # validate each node in the config or add it if missing
-        for node_label in sorted(self.config.nodes):
-            # already validate we're on node-id 1, never need to add 1 as worker
-            if node_label == "1": continue
-            hostname = self.config.nodes[node_label]["hostname"]
-            if node_label not in index_label:
-                swarm_node_id = self.add_worker(hostname, node_label)
-                cmd = "docker node update --label-add node=%s %s" % (node_label, swarm_node_id)
-                if run_command(cmd) is None:
-                    raise Exception("failed to add docker node label node=%s to %s" % (node_label,
-                        swarm_node_id))
-        logger.info("docker cluster initialized with %s node(s)", len(self.config.nodes))
+        if self.config.node_count>1:
+            self.get_node_hostnames()
+            for node_label in sorted(self.node_hostnames):
+                hostname = self.node_hostnames[node_label]
+                if node_label not in index_label:
+                    swarm_node_id = self.add_worker(hostname, node_label)
+                    cmd = "docker node update --label-add node=%s %s" % (node_label, swarm_node_id)
+                    if run_command(cmd) is None:
+                        raise Exception("failed to add docker node label node=%s to %s" % (
+                            node_label, swarm_node_id))
+        logger.info("docker cluster initialized with %s node(s)", self.config.node_count)
 
     def add_worker(self, hostname, nid):
         """ attempt to connect to remote node and add to docker swarm """

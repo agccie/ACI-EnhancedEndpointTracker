@@ -9,6 +9,7 @@ from . user import User
 from pymongo import ASCENDING
 from pymongo import MongoClient
 from pymongo.errors import OperationFailure
+from pymongo.errors import ServerSelectionTimeoutError
 from werkzeug.exceptions import BadRequest
 
 import logging
@@ -199,37 +200,49 @@ def db_init_replica_set(rs, configsvr=False, primary=True, timeout=60, retry_int
             m["priority"] = 2
         config["members"].append(m)
 
-    # try to connect to device 0
-    uri = "mongodb://%s" % devices[0]
-    client = MongoClient(uri, socketTimeoutMS=socketTimeoutMS, connectTimeoutMS=connectTimeoutMS,
-                serverSelectionTimeoutMS=serverSelectionTimeoutMS)
-    try:
-        ret = client.admin.command("replSetGetStatus")
-        logger.debug("replica set already initialized")
-        return True
-    except OperationFailure as op_status:
-        if op_status.code == 94:
-            logger.debug("replica set not yet initialized")
-            # try to initiate replica set with retry on error code 93
-            ts = time.time()
-            while ts + timeout > time.time():
-                try:
-                    ret = client.admin.command("replSetInitiate", config)
-                    logger.debug("replica set initialization success: %s", config)
-                    return True
-                except OperationFailure as op:
-                    logger.debug("initiate operation failure (%s): %s", op.code, op.details)
-                    if op.code == 74:
-                        logger.debug("one or more nodes in replica set not yet available")
-                    else:
-                        logger.warn("failed to initialize replica set")
-                        return False
-                logger.debug("retry replica set initiate in %s seconds", retry_interval)
-                time.sleep(retry_interval)
-            logger.warn("failed to initiate replica set after %s seconds", timeout)
-        else:
-            logger.warn("failed to determine current replica state status: (%s) %s", op_status.code,
-                op_status.details)
+    device_index = 0
+    while device_index < len(devices):
+        # try to connect to each possible device in replica
+        uri = "mongodb://%s" % devices[device_index]
+        client = MongoClient(uri, socketTimeoutMS=socketTimeoutMS,connectTimeoutMS=connectTimeoutMS,
+                    serverSelectionTimeoutMS=serverSelectionTimeoutMS)
+        logger.debug("connecting to %s", uri)
+        try:
+            ret = client.admin.command("replSetGetStatus")
+            logger.debug("replica set already initialized")
+            return True
+        except OperationFailure as op_status:
+            if op_status.code == 94:
+                logger.debug("replica set not yet initialized")
+                # try to initiate replica set with retry on error code 93
+                ts = time.time()
+                while ts + timeout > time.time():
+                    try:
+                        ret = client.admin.command("replSetInitiate", config)
+                        logger.debug("replica set initialization success: %s", config)
+                        return True
+                    except OperationFailure as op:
+                        logger.debug("initiate operation failure (%s): %s", op.code, op.details)
+                        if op.code == 74:
+                            logger.debug("one or more nodes in replica set not yet available")
+                        else:
+                            logger.warn("failed to initialize replica set")
+                            return False
+                    logger.debug("retry replica set initiate in %s seconds", retry_interval)
+                    time.sleep(retry_interval)
+                logger.warn("failed to initiate replica set after %s seconds", timeout)
+            else:
+                logger.warn("failed to determine current replica state status: (%s) %s", 
+                        op_status.code, op_status.details)
+            return False
+        except ServerSelectionTimeoutError as e:
+            logger.warn("server selection timeout to node: %s", e)
+            device_index+= 1
+        except Exception as e:
+            logger.debug("Traceback:\n%s", traceback.format_exc())
+            break
+            
+    logger.warn("failed to initialize replica set %s", rs)
     return False
 
 

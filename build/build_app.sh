@@ -89,6 +89,19 @@ function build_all_in_one_image(){
     set -e
     dockerfile=".tmpDocker"
     build_standalone_container
+
+    PRIVATE_CONFIG="/home/app/config.py"
+    if [ `which md5sum` ] ; then
+        EKEY=`dd if=/dev/urandom bs=1 count=32 2>/dev/null | md5sum | egrep -o "^[a-f0-9]+"`
+        EIV=`dd if=/dev/urandom bs=1 count=32 2>/dev/null | md5sum | egrep -o "^[a-f0-9]+"`
+    elif [ `which md5` ] ; then
+        EKEY=`dd if=/dev/urandom bs=1 count=32 2>/dev/null | md5 | egrep -o "^[a-f0-9]+"`
+        EIV=`dd if=/dev/urandom bs=1 count=32 2>/dev/null | md5 | egrep -o "^[a-f0-9]+"`
+    else
+        EKEY=`dd if=/dev/urandom bs=1 count=32 2>/dev/null | base64`
+        EIV=`dd if=/dev/urandom bs=1 count=32 2>/dev/null | base64`
+    fi
+
     # create tmp dockerfile
 cat >$dockerfile <<EOL
 FROM $docker_image_name
@@ -98,6 +111,9 @@ RUN mkdir -p \$SRC_DIR/Service && mkdir -p \$SRC_DIR/UIAssets.src && mkdir -p \$
 COPY ./Service/ \$SRC_DIR/Service/
 COPY ./UIAssets/ \$SRC_DIR/UIAssets.src/
 COPY ./build/ \$SRC_DIR/build/
+# set random key
+RUN echo "EKEY=\"$EKEY\"" > $PRIVATE_CONFIG; \
+    echo "EIV=\"$EIV\"" >> $PRIVATE_CONFIG
 # trigger frontend build
 RUN \$SRC_DIR/build/build_frontend.sh \
     -s \$SRC_DIR/UIAssets.src \
@@ -115,7 +131,7 @@ CMD \$SRC_DIR/Service/start.sh
 EXPOSE 443/tcp
 EOL
     # build container image
-    local cmd="docker build -t $external_docker_image_name -f $dockerfile ."
+    local cmd="docker build --squash -t $external_docker_image_name -f $dockerfile ."
     log "executing docker build: $cmd"
     eval $cmd
     rm -f $dockerfile

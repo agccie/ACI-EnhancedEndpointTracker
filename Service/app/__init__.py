@@ -22,8 +22,8 @@ def _base_app(config_filename="config.py"):
         _app.config.from_pyfile("/home/app/config.py", silent=True)
     except IOError: pass
     # validate and/or set keys. These are treated as passphrases which are converted to 16B keys
-    ekey= "{0:0>32}".format("".join(["%02x" % ord(c) for c in _app.config.get("EKEY", "")]))[:-32]
-    eiv = "{0:0>32}".format("".join(["%02x" % ord(c) for c in _app.config.get("EIV",  "")]))[:-32]
+    ekey= "{0:0>32}".format("".join(["%02x" % ord(c) for c in _app.config.get("EKEY", "")]))[-32:]
+    eiv = "{0:0>32}".format("".join(["%02x" % ord(c) for c in _app.config.get("EIV",  "")]))[-32:]
     _app.config["EKEY"] = ekey
     _app.config["EIV"] = eiv
     return _app

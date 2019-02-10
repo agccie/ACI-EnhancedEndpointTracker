@@ -55,6 +55,8 @@ import traceback
 # module level logging
 logger = logging.getLogger(__name__)
 
+class eptSubscriberExitError(Exception): pass
+
 class eptSubscriber(object):
     """ builds initial fabric state and subscribes to events to ensure db is in sync with fabric.
         epm events are sent to workers to analyze.
@@ -182,6 +184,8 @@ class eptSubscriber(object):
                 self.epm_thread.daemon = True
                 self.epm_thread.start()
             self._run()
+        except eptSubscriberExitError as e:
+            logger.warn("subscriber exit: %s", e)
         except (Exception, SystemExit, KeyboardInterrupt) as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
         finally:
@@ -482,7 +486,7 @@ class eptSubscriber(object):
         """ check if subscriber is alive and raise exception if it has died """
         if not self.subscriber.is_alive():
             logger.warn("subscription no longer alive for %s", self.fabric.fabric)
-            raise Exception("subscriber is not longer alive")
+            raise eptSubscriberExitError("subscriber is not longer alive")
 
     def get_workers_with_pending_ack(self):
         """ check epm_eof_start and get list of workers that have not yet sent an ack """

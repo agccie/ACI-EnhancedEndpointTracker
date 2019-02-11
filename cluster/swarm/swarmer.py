@@ -1,12 +1,15 @@
 
 from .connection import Connection
+from .lib import format_timestamp
 from .lib import run_command
 from .lib import pretty_print
 import getpass
 import json
 import logging
+import os
 import re
 import time
+import uuid
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -33,7 +36,7 @@ class Swarmer(object):
         while self.password is None or len(self.password)==0:
             self.password = getpass.getpass("Enter ssh password: ").strip()
 
-    def get_connection(self, hostname):
+    def get_connection(self, hostname, protocol="ssh"):
         # return ssh connection object to provided hostname, raise exception on error
         
         logger.debug("get connection to %s", hostname)
@@ -41,7 +44,7 @@ class Swarmer(object):
         c = Connection(hostname)
         c.username = self.username
         c.password = self.password
-        c.protocol = "ssh"
+        c.protocol = protocol
         c.port = 22
         c.prompt = "[#>\$] *$"
         if not c.login(max_attempts=3):
@@ -309,6 +312,124 @@ class Swarmer(object):
         logger.debug("pausing for 15 seconds to give all services time to actually start")
         time.sleep(15)
 
+    def collect_techsupport(self, name="tsod", path="/tmp/"):
+        """ collect techsupport (collection of logs) from all nodes in the cluster and save to 
+            provided path. This requires the following steps:
+                - get list of active nodes in the cluster
+                - for each node, execute list of commands and bundle into file
+                - scp all files over to local node and place into path directory
+            return boolean success
+        """
+        js = self.get_swarm_info()
+        self.node_id = js["NodeID"]
+        self.node_addr = js["NodeAddr"]
+        if len(self.node_id) == 0:
+            err = "This node is not part of a swarm, please initialize swarm before collecting "
+            err+= "a techsupport."
+            logger.error(err)
+            return False
+
+        # tmp techsupport name
+        ts = "%s-%s" % (name, format_timestamp(time.time()))
+        # get active nodes in the cluster
+        self.get_nodes()
+        if len(self.nodes) > 0:
+            logger.info("collecting techsupport %s from %s nodes", ts, len(self.nodes))
+            # need ssh credentials to access other nodes before continuing...
+            self.get_credentials()
+        else:
+            logger.info("collecting techsupport %s from local node", ts)
+
+        # make result folder to store techsupport data
+        final_path = os.path.abspath("%s/%s" % (path, ts))
+        os.makedirs(final_path)
+
+        otmp = "/tmp/%s" % uuid.uuid4()
+        # collect techsupport from each node
+        for node_id in sorted(self.nodes, key=lambda node_id: self.nodes[node_id].addr):
+            node = self.nodes[node_id]
+            label = "node-%s" % node.labels.get("node", node.node_id)
+            logger.info("collecting techsupport data from %s (%s)", label, node.addr)
+            # tmp directory for data collection
+            c = None
+            scp = Connection("scp")
+            try:
+                tmp = "%s/%s" % (otmp, label)
+                # connection is either ssh connection or just local bash shell.
+                if node.node_id == self.node_id:
+                    c = self.get_connection("localhost", protocol="bash")
+                else:
+                    c = self.get_connection(node.addr)
+                # make a temporary directory for this ts and collect all commands
+                logger.debug("creating temporary directory for data collection: %s", tmp)
+                c.cmd("mkdir -p %s" % tmp)
+                commands = [
+                    "mkdir -p %s" % tmp,
+                    "cp /var/log/* %s/" % tmp,
+                    "dmesg > %s/dmesg.log" % tmp,
+                    "df -h > %s/df_h.log" % tmp,
+                    "journalctl -u docker.service > %s/docker.service.log" % tmp,
+                    "docker system df > %s/docker_system_df.log" % tmp,
+                    "docker stats --no-stream --no-trunc > %s/docker_stats.log" % tmp,
+                    "docker ps --no-trunc > %s/docker_ps.log" % tmp,
+                    "docker service inspect $(docker service ls -q) > %s/docker_service.log" % tmp,
+                    "docker inspect $(docker ps -q) > %s/docker_container_inspect.log" % tmp,
+                    "docker volume inspect $(docker volume ls -q) > %s/docker_volume_inspect.log" % tmp,
+                    # bash script to collect the logs from all containers running on this host
+                    "IFS=$'\\n'",
+                    "containers=$(docker ps --format '{{.ID}} {{.Names}}')",
+                    "for x in $containers ; do",
+	            "IFS=' ' read -r -a _x1 <<< \"$x\"",
+	            "IFS='.' read -r -a _x2 <<< \"${_x1[1]}\"",
+	            'cid=${_x1[0]}',
+	            'name=${_x2[0]}',
+	            'docker exec -it $cid bash -c \'rm /tmp/local.tgz ; tar -zcvf /tmp/local.tgz /home/app/log/* \'',
+	            'docker cp $cid:/tmp/local.tgz %s/$name.tgz' % tmp,
+                    "IFS=$'\\n'",
+                    'done',
+                    # compress all the files in tmp to single file
+                    "cd %s ; tar -zcvf %s.tgz ./* ; mv %s.tgz /tmp/" % (otmp, label, label),
+                ]
+                for command in commands:
+                    logger.debug("executing collection command: %s", command)
+                    ret = c.cmd(command)
+                    if ret != "prompt":
+                        logger.warn("command failed with ret %s", ret)
+                        # quit on error
+                        break
+
+                # try to scp collected files
+                if node.node_id == self.node_id:
+                    c.cmd("mv /tmp/%s.tgz %s/" % (label, final_path))
+                else:
+                    # need to scp the file from the home directory and then (on success) remove it
+                    _scp = "scp %s@%s:/tmp/%s.tgz %s/" % (c.username, c.hostname, label, final_path)
+                    logger.debug("copy file: %s", _scp)
+                    scp.username = c.username
+                    scp.password = c.password
+                    scp.protocol = _scp
+                    scp.prompt = "[#>\$] *$"
+                    scp.login(max_attempts=3, timeout=180)
+                    # check if copy was successful
+                    if not os.path.exists("%s/%s.tgz" % (final_path, label)):
+                        logger.error("failed to copy %s.tgz", label)
+
+            except Exception as e:
+                logger.error("failed to collect data from %s", node)
+            finally:
+                # try to clean up tmp directory
+                if c is not None:
+                    logger.debug("attempting to cleanup tmp directory %s", otmp)
+                    c.cmd("rm -rfv %s" % otmp, timeout=10)
+                    c.close()
+                if scp is not None:
+                    scp.close()
+
+        # bundle final results in final_path into single file
+        logger.info("bundling final results")
+        run_command("cd %s/../ ; tar -zcvf %s.tgz %s/* ; mv %s.tgz /tmp/ ; rm -rfv %s" % (
+                    final_path, ts, ts, ts, final_path), ignore=True)
+        logger.info("techsupport location: /tmp/%s.tgz" % ts)
         
 class DockerNode(object):
 

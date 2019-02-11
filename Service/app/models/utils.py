@@ -266,11 +266,9 @@ def current_tz_string():
     ohour = abs(int(offset/3600))
     omin = int(((abs(offset))-ohour*3600)%60)
     if offset>0:
-        _tz_string = "+%s:%s" % ('{0:>02d}'.format(ohour),
-                           '{0:>02d}'.format(omin))
+        _tz_string = "+%s:%s" % ('{0:>02d}'.format(ohour), '{0:>02d}'.format(omin))
     else:
-        _tz_string =  "-%s:%s" % ('{0:>02d}'.format(ohour),
-                           '{0:>02d}'.format(omin))
+        _tz_string =  "-%s:%s" % ('{0:>02d}'.format(ohour), '{0:>02d}'.format(omin))
     return _tz_string
 
 def parse_timestamp(ts_str):

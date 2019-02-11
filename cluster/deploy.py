@@ -127,17 +127,20 @@ if __name__ == "__main__":
     config = ClusterConfig(node_count=args.nodes)
     try:
         # all actions (techsupport/config/init/deploy) all required configuration to be parsed
-        config.import_config(args.config)
-        config.build_compose()
         if args.action == "config":
-            pass
+            config.import_config(args.config)
+            config.build_compose()
         elif args.action == "deploy":
+            config.import_config(args.config)
+            config.build_compose()
             swarm = Swarmer(config, username=args.username, password=args.password)
             swarm.init_swarm()
             swarm.deploy_service()
             logger.info("deployment complete")
         elif args.action == "techsupport":
-            logger.info("collection techsupport")
+            swarm = Swarmer(config, username=args.username, password=args.password)
+            swarm.collect_techsupport()
+
     except Exception as e:
         logger.debug("Traceback:\n%s", traceback.format_exc())
         logger.error("Unable to deploy cluster: %s", e)

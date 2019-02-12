@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import time
+import traceback
 import uuid
 
 # module level logging
@@ -312,7 +313,7 @@ class Swarmer(object):
         logger.debug("pausing for 15 seconds to give all services time to actually start")
         time.sleep(15)
 
-    def collect_techsupport(self, name="tsod", path="/tmp/"):
+    def collect_techsupport(self, name="tsod", path="/tmp/", logfile=None):
         """ collect techsupport (collection of logs) from all nodes in the cluster and save to 
             provided path. This requires the following steps:
                 - get list of active nodes in the cluster
@@ -368,14 +369,23 @@ class Swarmer(object):
                     "cp /var/log/* %s/" % tmp,
                     "dmesg > %s/dmesg.log" % tmp,
                     "df -h > %s/df_h.log" % tmp,
-                    "journalctl -u docker.service > %s/docker.service.log" % tmp,
-                    "docker system df > %s/docker_system_df.log" % tmp,
+                    "journalctl -u docker.service > %s/docker.journalctl.log" % tmp,
+                    "docker system info > %s/docker_system.log" % tmp,
+                    "docker system df >> %s/docker_system.log" % tmp,
+                    "docker node ls >> %s/docker_system.log" % tmp,
+                    "docker system events --since 2019-01-01 --until `date +\"%%Y-%%m-%%dT%%H:%%M:%%S\"` >> %s/docker_system.log" % tmp,
                     "docker stats --no-stream --no-trunc > %s/docker_stats.log" % tmp,
                     "docker ps --no-trunc > %s/docker_ps.log" % tmp,
-                    "docker service inspect $(docker service ls -q) > %s/docker_service.log" % tmp,
+                    "docker service ls > %s/docker_service.log" % tmp,
+                    "docker service inspect $(docker service ls -q) >> %s/docker_service.log" % tmp,
                     "docker inspect $(docker ps -q) > %s/docker_container_inspect.log" % tmp,
                     "docker volume inspect $(docker volume ls -q) > %s/docker_volume_inspect.log" % tmp,
                     # bash script to collect the logs from all containers running on this host
+                    "services=$(docker service ls --format {{.Name}})",
+                    "for svc in $services ; do ",
+                    "docker service ps $svc > %s/docker_service_$svc.log" % tmp,
+                    "docker service logs $svc >> %s/docker_service_$svc.log" % tmp,
+                    "done",
                     "IFS=$'\\n'",
                     "containers=$(docker ps --format '{{.ID}} {{.Names}}')",
                     "for x in $containers ; do",
@@ -383,8 +393,9 @@ class Swarmer(object):
 	            "IFS='.' read -r -a _x2 <<< \"${_x1[1]}\"",
 	            'cid=${_x1[0]}',
 	            'name=${_x2[0]}',
-	            'docker exec -it $cid bash -c \'rm /tmp/local.tgz ; tar -zcvf /tmp/local.tgz /home/app/log/* \'',
+                    'docker exec -it $cid bash -c "mkdir -p /tmp/$name ; cp -rf /home/app/log/* /tmp/$name/ ; cd /tmp/ ; tar -zcvf /tmp/local.tgz $name "',
 	            'docker cp $cid:/tmp/local.tgz %s/$name.tgz' % tmp,
+                    'docker exec -it $cid bash -c "rm -rf /tmp/$name "',
                     "IFS=$'\\n'",
                     'done',
                     # compress all the files in tmp to single file
@@ -416,6 +427,7 @@ class Swarmer(object):
 
             except Exception as e:
                 logger.error("failed to collect data from %s", node)
+                logger.debug("Traceback:\n%s", traceback.format_exc())
             finally:
                 # try to clean up tmp directory
                 if c is not None:
@@ -427,9 +439,41 @@ class Swarmer(object):
 
         # bundle final results in final_path into single file
         logger.info("bundling final results")
+        if logfile is not None:
+            run_command("cp %s %s/" % (logfile, final_path))
         run_command("cd %s/../ ; tar -zcvf %s.tgz %s/* ; mv %s.tgz /tmp/ ; rm -rfv %s" % (
                     final_path, ts, ts, ts, final_path), ignore=True)
         logger.info("techsupport location: /tmp/%s.tgz" % ts)
+
+    def wipe(self):
+        """ remove current stack deployment and then clean up all volumes and stopped containers """
+        # to cleanup we will need ssh credentials if node count > 0 
+        self.get_nodes()
+        if len(self.nodes) > 0:
+            self.get_credentials()
+        # validate credentials  by creating ssh connection to each node and saving to node object
+        for node_id in self.nodes:
+            node = self.nodes[node_id]
+            if node.node_id == self.node_id:
+                node.connection = self.get_connection("localhost", protocol="bash")
+            else:
+                node.connection = self.get_connection(node.addr)
+
+        logger.info("removing stack %s", self.config.app_name)
+        run_command("docker stack rm %s" % self.config.app_name)
+        # command should block until it completes but we will give it 30 extra seconds
+        sleep=30
+        logger.debug("waiting %s seconds for services to go down", sleep)
+        time.sleep(sleep)
+        # remove all containers and all volumes from each node
+        for node_id in sorted(self.nodes, key=lambda node_id: self.nodes[node_id].addr):
+            node = self.nodes[node_id]
+            logger.debug("removing containers from %s", node)
+            node.connection.cmd("docker rm $(docker ps -aq)", ignore=True)
+            logger.debug("removing volumes from %s", node)
+            node.connection.cmd("docker volume rm $(docker volume ls -q)", ignore=True)
+        logger.info("cleanup complete")
+
         
 class DockerNode(object):
 
@@ -437,6 +481,7 @@ class DockerNode(object):
         self.labels = {}
         self.role = None
         self.addr = None
+        self.connection = None
         self.node_id =  kwargs.get("ID", None)
         self.hostname = kwargs.get("Hostname", None)
         self.availability = kwargs.get("Availability", None)

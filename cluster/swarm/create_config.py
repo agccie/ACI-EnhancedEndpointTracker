@@ -71,12 +71,12 @@ class ClusterConfig(object):
 
         # ensure that shardsvr_replicas is <= number of nodes
         if self.shardsvr_replicas > self.node_count:
-            logger.info("setting shardsvr replica count to %s", self.node_count)
+            logger.debug("overriding shardsvr replica count to %s", self.node_count)
             self.shardsvr_replicas = self.node_count
 
         # ensure that configsvr_replicas is <= number of nodes
         if self.configsvr_replicas > self.node_count:
-            logger.info("setting configsvr replica count to %s", self.node_count)
+            logger.debug("overriding configsvr replica count to %s", self.node_count)
             self.configsvr_replicas = self.node_count
 
     def add_app(self, config):

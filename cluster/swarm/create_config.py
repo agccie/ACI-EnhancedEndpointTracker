@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class ClusterConfig(object):
     """ manage parsing user config.yml to swarm compose file """
 
-    APP_IMAGE = "agccie/enhancedendpointtracker:latest"
+    BASE_APP_IMAGE = "agccie/enhancedendpointtracker"
 
     # limits to prevent accidental overprovisioning
     MAX_NODES = 10
@@ -25,7 +25,9 @@ class ClusterConfig(object):
     LOGGING_MAX_SIZE = "50m"
     LOGGING_MAX_FILE = "10"
 
-    def __init__(self, node_count=1):
+    def __init__(self, node_count=1, version="latest"):
+        # set version from base app image
+        self.version = "%s:%s" % (ClusterConfig.BASE_APP_IMAGE, version)
         self.node_count = node_count
         self.app_workers = 5
         self.app_watchers = 1
@@ -237,7 +239,7 @@ class ClusterConfig(object):
 
         # configure webservice (ports are configurable by user)
         web_service = {
-            "image": ClusterConfig.APP_IMAGE,
+            "image": self.version,
             "command": "/home/app/src/Service/start.sh -r web -l %s" % stdout,
             "ports": [],
             "deploy": {"replicas": 1},
@@ -254,7 +256,7 @@ class ClusterConfig(object):
 
         # configure redis service (static)
         redis_service = {
-            "image": ClusterConfig.APP_IMAGE,
+            "image": self.version,
             "command": "/home/app/src/Service/start.sh -r redis -l %s" % stdout,
             "deploy": {"replicas": 1, "endpoint_mode": "dnsrr"},
             "logging": copy.deepcopy(default_logging),
@@ -278,7 +280,7 @@ class ClusterConfig(object):
                 env.append("DB_ROLE=shardsvr")
                 cmd = "/home/app/src/Service/start.sh -r db -l %s" % stdout
                 config["services"][svc] = {
-                    "image": ClusterConfig.APP_IMAGE,
+                    "image": self.version,
                     "command": cmd,
                     "logging": copy.deepcopy(default_logging),
                     "deploy": {
@@ -315,7 +317,7 @@ class ClusterConfig(object):
             env.append("DB_MEMORY=%s" % self.configsvr_memory)
             env.append("DB_ROLE=configsvr")
             config["services"][svc] = {
-                "image": ClusterConfig.APP_IMAGE,
+                "image": self.version,
                 "command": cmd,
                 "logging": copy.deepcopy(default_logging),
                 "deploy": {
@@ -348,7 +350,7 @@ class ClusterConfig(object):
         env.append("DB_MEMORY=%s" % self.configsvr_memory)
         env.append("DB_ROLE=mongos")
         config["services"]["db"] = {
-            "image": ClusterConfig.APP_IMAGE,
+            "image": self.version,
             "command": cmd,
             "logging": copy.deepcopy(default_logging),
             "deploy": {
@@ -362,7 +364,7 @@ class ClusterConfig(object):
 
         # configure manager, watcher, and workers
         config["services"]["mgr"] = {
-            "image": ClusterConfig.APP_IMAGE,
+            "image": self.version,
             "command": "/home/app/src/Service/start.sh -r mgr -l -c 1 -i 0 -%s" % stdout,
             "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
             "logging": copy.deepcopy(default_logging),
@@ -375,7 +377,7 @@ class ClusterConfig(object):
         for i in xrange(0, self.app_watchers):
             svc = "x%s" % i
             config["services"][svc] = {
-                "image": ClusterConfig.APP_IMAGE,
+                "image": self.version,
                 "command": "/home/app/src/Service/start.sh -r watcher -l -c 1 -i %s %s"%(i, stdout),
                 "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
                 "logging": copy.deepcopy(default_logging),
@@ -390,7 +392,7 @@ class ClusterConfig(object):
         for i in xrange(0, self.app_workers):
             svc = "w%s" % i
             config["services"][svc] = {
-                "image": ClusterConfig.APP_IMAGE,
+                "image": self.version,
                 "command": "/home/app/src/Service/start.sh -r worker -l -c 1 -i %s %s" % (i,stdout),
                 "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
                 "logging": copy.deepcopy(default_logging),

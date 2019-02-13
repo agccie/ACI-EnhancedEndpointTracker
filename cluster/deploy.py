@@ -79,6 +79,12 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
+        "-v","--version",
+        dest="version",
+        default="latest",
+        help="EnhancedEndpointTracker container version to deploy. Example, 'latest' or '2.0.11'"
+    )
+    parser.add_argument(
         "--swarm_config",
         dest="swarm_config",
         default=default_config,
@@ -156,7 +162,7 @@ if __name__ == "__main__":
                 args.nodes = 1
 
         # validate config file
-        config = ClusterConfig(node_count=args.nodes)
+        config = ClusterConfig(node_count=args.nodes, version=args.version)
 
         # all actions (techsupport/config/init/deploy) all required configuration to be parsed
         if args.config:

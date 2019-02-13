@@ -86,6 +86,7 @@ def create_app(config_filename="config.py"):
     from .models.aci.mo.mgmtInB import mgmtInB
     from .models.aci.mo.mgmtRsMgmtBD import mgmtRsMgmtBD
     from .models.aci.mo.pcAggrIf import pcAggrIf
+    from .models.aci.mo.pcRsMbrIfs import pcRsMbrIfs
     from .models.aci.mo.tunnelIf import tunnelIf
     from .models.aci.mo.vnsEPpInfo import vnsEPpInfo
     from .models.aci.mo.vnsLIfCtx import vnsLIfCtx

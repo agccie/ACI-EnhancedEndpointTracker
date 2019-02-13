@@ -65,8 +65,9 @@ class DependencyNode(object):
                 regex_map is dict mapping ept db attribute to regex used to extract value. It must
                     contain a named regex group 'value' which is used to extract the value.
 
-                callback is optional function triggered only on mo update and provides two args,
-                the mo object and ept object
+                callback is optional function triggered on mo update and provides three args:
+                    arg[0] = the mo object (this may have be in a deleted state - check exists())
+                    arg[1] = the ept object (this can be None if there is no ept mapping)
         """
         if db is not None and attributes is not None:
             logger.debug("initializing ept db map: %s to %s", self.classname, db._classname)
@@ -82,12 +83,12 @@ class DependencyNode(object):
                 self.ept_key = key
             if self.ept_key not in self.ept_attributes:
                 self.ept_attributes[self.ept_key] = self.ept_key
-            if callback is not None:
-                if not callable(callback):
-                    raise Exception("callback not callable: %s, %s", callback, self)
-                self.callback = callback
         else:
-            logger.error("received map request without db or attributes: %s, %s", db, attributes)
+            logger.debug("received map for %s without db or attributes", self.classname)
+        if callback is not None:
+            if not callable(callback):
+                raise Exception("callback not callable: %s, %s", callback, self)
+            self.callback = callback
 
     def set_ept_object(self, mo):
         # get ept object that maps to provided mo object. Note this may not currently exist in db
@@ -110,6 +111,7 @@ class DependencyNode(object):
         """
         updates = []
         updated = False
+        ept = None
         if hasattr(mo, "ept") and mo.ept is not None:
             ept = mo.ept
             logger.debug("sync_mo_to_ept %s(%s) to %s", mo._classname, mo.dn, ept._classname)
@@ -195,8 +197,10 @@ class DependencyNode(object):
                 if updated: 
                     ept.save()
                     updates.append(ept)
-                    if self.callback is not None:
-                        self.callback(mo, ept)
+
+        # trigger callback unconditionally
+        if self.callback is not None:
+            self.callback(mo, ept)
 
         # add self to parents dict and then call each child mo to perform their sync
         if hasattr(mo, "children") and len(mo.children)>0:

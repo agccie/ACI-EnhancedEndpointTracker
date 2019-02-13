@@ -90,6 +90,10 @@ class eptTunnel(Rest):
 
     @staticmethod
     def mo_sync(mo, tunnel):
+        # if mo or tunnel is deleted, then this is a no-op
+        if not mo.exists():
+            return
+
         # when sync event happens for tunnel, perform remote mapping
         logger.debug("mo_sync for tunnel node 0x%04x, intf: %s, dst: %s", tunnel.node, tunnel.intf,
                 tunnel.dst)

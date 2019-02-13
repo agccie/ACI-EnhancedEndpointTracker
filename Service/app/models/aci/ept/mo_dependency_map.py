@@ -46,6 +46,7 @@ n_fvIpAttr = DependencyNode("fvIpAttr")
 # pc/vpc objects
 n_vpcRsVpcConf = DependencyNode("vpcRsVpcConf")
 n_pcAggrIf = DependencyNode("pcAggrIf")
+n_pcRsMbrIfs = DependencyNode("pcRsMbrIfs")
 # tunnel mappings
 n_tunnelIf = DependencyNode("tunnelIf")
 
@@ -102,6 +103,7 @@ dependency_map = {
     "fvIpAttr": n_fvIpAttr,
     "vpcRsVpcConf": n_vpcRsVpcConf,
     "pcAggrIf": n_pcAggrIf,
+    "pcRsMbrIfs": n_pcRsMbrIfs,
     "tunnelIf": n_tunnelIf,
 }
 
@@ -237,6 +239,12 @@ ept_map = {
         "regex_map": {
             "node": "topology/pod-[0-9]+/node-(?P<value>[0-9]+)/",
         },
+    },
+    # sync pc member interfaces 
+    "pcRsMbrIfs": {
+        "db": None,
+        "attributes": {},
+        "callback": eptPc.sync_pc_member
     },
     # tunnel if mapping to eptTunnel
     "tunnelIf": {

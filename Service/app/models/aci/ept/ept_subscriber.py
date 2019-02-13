@@ -113,8 +113,10 @@ class eptSubscriber(object):
             "vnsEPpInfo",
             "fvSubnet",
             "fvIpAttr",
-            # no dependencies
+            # pcAggr needs to be created before RsMbr interfaces
             "pcAggrIf",
+            "pcRsMbrIfs",
+            # no dependencies
             "tunnelIf",
             "vpcRsVpcConf",
             "datetimeFormat",
@@ -551,7 +553,8 @@ class eptSubscriber(object):
         # need to rebuild vpc db which requires a rebuild of local mo vpcRsVpcConf mo first
         success1 = self.mo_classes["vpcRsVpcConf"].rebuild(self.fabric, session=self.session)
         success2 = self.mo_classes["pcAggrIf"].rebuild(self.fabric, session=self.session)
-        if not success1 or not success2 or not self.build_vpc_db():
+        success3 = self.mo_classes["pcRsMbrIfs"].rebuild(self.fabric, session=self.session)
+        if not success1 or not success2 or not success3 or not self.build_vpc_db():
             self.fabric.add_fabric_event("failed", "failed to build node pc to vpc db")
             return self.hard_restart("failed to build node pc to vpc db")
 
@@ -983,10 +986,26 @@ class eptSubscriber(object):
         """
         logger.debug("initializing pc/vpc db")
         # vpcRsVpcConf exists within self.mo_classses and already defined in dependency_map
-        return (
-            self.initialize_ept_collection(eptVpc,"vpcRsVpcConf",set_ts=True, flush=True) and \
-            self.initialize_ept_collection(eptPc,"pcAggrIf",set_ts=True, flush=True)
-        )
+        if  self.initialize_ept_collection(eptVpc,"vpcRsVpcConf",set_ts=True, flush=True) and \
+            self.initialize_ept_collection(eptPc,"pcAggrIf",set_ts=True, flush=True):
+            # need to build member interfaces for eptPc from pcRsMbrIfs. Maintain a list of member
+            # interfaces keyed by parent. Then walk through all eptPc objects and add member.
+            logger.debug("bulding eptPc member interfaces from pcRsMbrfIfs")
+            pcs = {}
+            for mo in self.mo_classes["pcRsMbrIfs"].find(fabric=self.fabric.fabric):
+                if mo.parent not in pcs:
+                    pcs[mo.parent] = []
+                pcs[mo.parent].append(mo.tSKey)
+            bulk_objects = []
+            for pc in eptPc.find(fabric=self.fabric.fabric):
+                if pc.name in pcs:
+                    pc.members = pcs[pc.name]
+                    bulk_objects.append(pc)
+            if len(bulk_objects)>0:
+                eptPc.bulk_save(bulk_objects, skip_validation=True)
+            return True
+        else:
+            return False
 
     def build_vnid_db(self):
         """ initialize vnid database. return bool success

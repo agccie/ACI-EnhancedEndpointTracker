@@ -7,6 +7,7 @@ from app.models.aci.fabric import Fabric
 
 from app.models.aci.ept.ept_epg import eptEpg
 from app.models.aci.ept.ept_node import eptNode
+from app.models.aci.ept.ept_pc import eptPc
 from app.models.aci.ept.ept_subnet import eptSubnet
 from app.models.aci.ept.ept_tunnel import eptTunnel
 from app.models.aci.ept.ept_vnid import eptVnid
@@ -30,6 +31,8 @@ from app.models.aci.mo.fvIpAttr import fvIpAttr
 from app.models.aci.mo.vnsLIfCtx import vnsLIfCtx
 from app.models.aci.mo.vnsRsLIfCtxToBD import vnsRsLIfCtxToBD
 from app.models.aci.mo.tunnelIf import tunnelIf
+from app.models.aci.mo.pcAggrIf import pcAggrIf
+from app.models.aci.mo.pcRsMbrIfs import pcRsMbrIfs
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -80,7 +83,10 @@ def func_prep(request, app):
         fvSubnet.delete(_filters={})
         fvIpAttr.delete(_filters={})
         tunnelIf.delete(_filters={})
-        
+        eptPc.delete(_filters={})
+        pcAggrIf.delete(_filters={})
+        pcRsMbrIfs.delete(_filters={})
+
     request.addfinalizer(teardown)
     return
 
@@ -473,10 +479,8 @@ def test_dependency_validate_l3ext_encap_vrf_is_mapped(app, func_prep):
     assert dut2.vnid == ext_vnid
    
 def test_dependency_tunnel_if_callback(app, func_prep):
-    # validate
-
     # create a dummy node and ensure that tunnel event sync updates eptTunnel with correct remote
-    # node value
+    # node value.  Then, delete the tunnel and ensure it is correctly deleted
     assert eptNode.load(fabric=tfabric,node=199,pod_id=1,role="leaf",addr="10.0.0.199").save()
 
     dmap["tunnelIf"].sync_event(tfabric, get_create_event({
@@ -494,3 +498,65 @@ def test_dependency_tunnel_if_callback(app, func_prep):
     assert len(tunnel)==1
     tunnel = tunnel[0]
     assert tunnel.remote == 199
+
+    dmap["tunnelIf"].sync_event(tfabric, get_create_event({
+        "dn": "topology/pod-1/node-101/sys/tunnel-[tunnel199]",
+        "status": "deleted",
+    }))
+    tunnel = eptTunnel.find(fabric=tfabric, node=101, intf="tunnel199")
+    assert len(tunnel)==0
+
+def test_dependency_pc_member_callback(app, func_prep):
+    # create a pcAggrIf for a node and then add/remove pcRsMbrIfs and verify members are updated
+    dn="topology/pod-1/node-199/sys/aggr-[po8]"
+    mbr1 = "eth1/1"
+    mbr2 = "eth1/2"
+    mbr3 = "eth1/3"
+    assert eptPc.load(fabric=tfabric,name=dn,node=199,intf="po8",intf_name="ag-po1001").save()
+    dmap["pcRsMbrIfs"].sync_event(tfabric, get_create_event({
+        "dn":"%s/rsmbrIfs-[topology/pod-1/node-199/sys/phys-[%s]]" % (dn, mbr1),
+        "tSKey": mbr1,
+        "status":"created"
+    }))
+
+    pc = eptPc.find(fabric=tfabric,name=dn)
+    assert len(pc)==1
+    assert len(pc[0].members)==1 and mbr1 in pc[0].members
+
+    dmap["pcRsMbrIfs"].sync_event(tfabric, get_create_event({
+        "dn":"%s/rsmbrIfs-[topology/pod-1/node-199/sys/phys-[%s]]" % (dn, mbr1),
+        "status":"deleted"
+    }))
+    pc = eptPc.find(fabric=tfabric,name=dn)
+    assert len(pc)==1
+    assert len(pc[0].members)==0
+
+    # add multiple members and ensure they are updated
+    dmap["pcRsMbrIfs"].sync_event(tfabric, get_create_event({
+        "dn":"%s/rsmbrIfs-[topology/pod-1/node-199/sys/phys-[%s]]" % (dn, mbr1),
+        "tSKey": mbr1,
+        "status":"created"
+    }))
+    dmap["pcRsMbrIfs"].sync_event(tfabric, get_create_event({
+        "dn":"%s/rsmbrIfs-[topology/pod-1/node-199/sys/phys-[%s]]" % (dn, mbr2),
+        "tSKey": mbr2,
+        "status":"created"
+    }))
+    dmap["pcRsMbrIfs"].sync_event(tfabric, get_create_event({
+        "dn":"%s/rsmbrIfs-[topology/pod-1/node-199/sys/phys-[%s]]" % (dn, mbr3),
+        "tSKey": mbr3,
+        "status":"created"
+    }))
+    pc = eptPc.find(fabric=tfabric,name=dn)
+    assert len(pc)==1
+    assert len(pc[0].members)==3 and mbr1 in pc[0].members and mbr2 in pc[0].members \
+            and mbr3 in pc[0].members
+
+    dmap["pcRsMbrIfs"].sync_event(tfabric, get_create_event({
+        "dn":"%s/rsmbrIfs-[topology/pod-1/node-199/sys/phys-[%s]]" % (dn, mbr2),
+        "status":"deleted"
+    }))
+    pc = eptPc.find(fabric=tfabric,name=dn)
+    assert len(pc)==1
+    assert len(pc[0].members)==2 and mbr1 in pc[0].members and mbr3 in pc[0].members
+

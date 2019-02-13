@@ -43,6 +43,11 @@ class eptPc(Rest):
             "type": str,
             "description": "policy name for port-channel interface",
         },
+        "members": {
+            "type": list,
+            "subtype": str,
+            "description": "list of member interfaces for this port-channel",
+        },
         "ts": {
             "type": float,
             "description": "epoch timestamp the object was created or updated",
@@ -55,3 +60,31 @@ class eptPc(Rest):
         """ set create time on object """
         data["ts"] = time.time()
         return data
+
+    @staticmethod
+    def sync_pc_member(mo, pc=None):
+        """ receive a pcRsMbrIf mo and either add or remove the interface from eptPc members list """
+        # need to first check if there is a eptPc object corresponding to this mo
+        #        # when sync event happens for tunnel, perform remote mapping
+        logger.debug("sync pc member %s (exists: %r) for %s", mo.tSKey, mo.exists(), mo.parent)
+        pc = eptPc.find(fabric=mo.fabric, name=mo.parent)
+        if len(pc)>=1:
+            pc = pc[0]
+            mbr = mo.tSKey  
+            if mo.exists():
+                # if mo is not deleted and mbr is not in members list, then add it
+                if mbr not in pc.members:
+                    logger.debug("adding %s to members list(%s)", mbr, pc.members)
+                    pc.members.append(mbr)
+                    pc.save()
+            else:
+                # else if mo is deleted AND mbr is a member, then remove it
+                if mbr in pc.members:
+                    logger.debug("removing %s from members list(%s)", mbr, pc.members)
+                    pc.members.remove(mbr)
+                    pc.save()
+        else:
+            logger.debug("ignoring update for non-existing eptPc object")
+
+
+

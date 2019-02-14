@@ -25,30 +25,30 @@
     </div>
     <div class="base-margin-bottom row">
         <div class="col-md-4">
-            <div class="card">
-                <div class="card__header text-huge text-center text--success">
+            <div class="panel panel--bordered">
+                <div class="text-huge text-center text--success">
                     <span *ngIf="loading"> - </span>
                     <span *ngIf="!loading">{{ fabric?.mac | number }}</span>
                 </div>
-                <div class="card__body text-large text-center">Mac</div>
+                <div class="text-large text-center base-margin">Mac</div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card">
-                <div class="card__header text-huge text-center text--success">
+            <div class="panel panel--bordered">
+                <div class="text-huge text-center text--success">
                     <span *ngIf="loading"> - </span>
                     <span *ngIf="!loading">{{ fabric?.ipv4 | number }}</span>
                 </div>
-                <div class="card__body text-large text-center">IPv4</div>
+                <div class="text-large text-center base-margin">IPv4</div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card">
-                <div class="card__header text-huge text-center text--success">
+            <div class="panel panel--bordered">
+                <div class="text-huge text-center text--success">
                         <span *ngIf="loading"> - </span>
                         <span *ngIf="!loading">{{ fabric?.ipv6 | number }}</span>
                 </div>
-                <div class="card__body text-large text-center">IPv6</div>
+                <div class="text-large text-center base-margin">IPv6</div>
             </div>
         </div>
     </div>

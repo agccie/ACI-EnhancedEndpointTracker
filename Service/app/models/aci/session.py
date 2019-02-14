@@ -596,11 +596,13 @@ class Subscriber(threading.Thread):
             refreshed = False
             try:
                 with self._lock:
-                    refreshed = self._session.get("/api/subscriptionRefresh.json?id=%s" % _id).ok
+                    resp = self._session.get("/api/subscriptionRefresh.json?id=%s" % _id)
+                    if not resp.ok:
+                        logger.debug("failed to refresh id %s: %s %s", _id, resp, resp.text)
+                        refreshed_all = False
+                        break
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
                 logger.warn("requests exception on refresh of %s: %s", _id, e)
-            if not refreshed:
-                logger.debug("failed to refresh subscription id %s", _id)
                 refreshed_all = False
                 break
         if not refreshed_all:

@@ -567,6 +567,7 @@ class eptSubscriber(object):
         # clear appropriate caches
         self.send_flush(eptNode)
         self.send_flush(eptVpc)
+        self.send_flush(eptPc)
         self.send_flush(eptTunnel)
 
         self.fabric.add_fabric_event("running")
@@ -1189,49 +1190,58 @@ class eptSubscriber(object):
     def handle_fabric_node(self, classname, attr):
         """ handle events for fabricNode
             If a new leaf becomes active then trigger a hard restart to rebuild endpoint database
-            as there's no way of knowing when endpoint events were missed on the new node (also,
-            we need to restart both slow and epm subscriptions to get events from the new node).
+            as there's no way of knowing when endpoint events were missed on the new node 
             If an existing leaf becomes inactive, then create delete jobs for all endpoint learns 
-            for this leaf
+            for this leaf.
+            If name changed, then update corresponding eptNode object (no flush required)
         """
         logger.debug("handle fabricNode event: %s", attr["dn"])
-        if "dn" in attr and "fabricSt" in attr:
+        if "dn" in attr:
             r1 = re.search("topology/pod-(?P<pod>[0-9]+)/node-(?P<node>[0-9]+)", attr["dn"])
-            status = attr["fabricSt"]
+            status = attr.get("fabricSt",None)
+            name = attr.get("name", None)
             if r1 is None:
                 logger.warn("failed to extract node id from fabricNode dn: %s", attr["dn"])
                 return
             # get db entry for this node
-            node = eptNode.load(fabric=self.fabric.fabric, node=int(r1.group("node")))
-            if node.exists():
-                if node.role != "leaf":
-                    logger.debug("ignoring fabricNode event for '%s'", node.role)
-                else:
-                    # if this is an active event, then trigger a hard restart else trigger pseudo
-                    # delete jobs for all previous entries on node.  This includes XRs to account
-                    # for bounce along with generally cleanup of node state.
-                    if status == "active":
-                        # TODO - perform soft reset and per node epm query instead of full reset
-                        self.hard_restart(reason="leaf '%s' became active" % node.node)
+            node_id = int(r1.group("node"))
+            node = eptNode.load(fabric=self.fabric.fabric, node=node_id)
+            if name is not None and node.exists() and node.name != name:
+                # update node name
+                logger.debug("node %s name updated from %s to %s", node_id, node.name, name)
+                node.name = name
+                node.save()
+            if status is not None:
+                if node.exists():
+                    if node.role != "leaf":
+                        logger.debug("ignoring fabricNode event for '%s'", node.role)
                     else:
-                        logger.debug("node %s '%s', sending watch_node event", node.node, status)
-                        msg = eptMsgWorkWatchNode("%s"%node.node,"watcher",{},WORK_TYPE.WATCH_NODE)
-                        msg.node = node.node
-                        msg.ts = attr["_ts"]
-                        msg.status = status
-                        self.send_msg(msg)
-            else:
-                if status != "active":
-                    logger.debug("ignorning '%s' event for unknown node: %s",status,r1.group("node"))
+                        # if this is an active event, then trigger a hard restart else trigger pseudo
+                        # delete jobs for all previous entries on node.  This includes XRs to account
+                        # for bounce along with generally cleanup of node state.
+                        if status == "active":
+                            # TODO - perform soft reset and per node epm query instead of full reset
+                            self.hard_restart(reason="leaf '%s' became active" % node.node)
+                        else:
+                            logger.debug("node %s '%s', sending watch_node event", node.node,status)
+                            msg = eptMsgWorkWatchNode("%s"%node.node,"watcher",{},
+                                                        WORK_TYPE.WATCH_NODE)
+                            msg.node = node.node
+                            msg.ts = attr["_ts"]
+                            msg.status = status
+                            self.send_msg(msg)
                 else:
-                    # a new node became active, double check that is a leaf and if so trigger a 
-                    # hard restart
-                    new_node_dn = "topology/pod-%s/node-%s" % (r1.group("pod"), r1.group("node"))
-                    new_attr = get_attributes(session=self.session, dn=new_node_dn)
-                    if new_attr is not None and "role" in new_attr and new_attr["role"] == "leaf":
-                        self.hard_restart(reason="new leaf '%s' became active" % r1.group("node"))
+                    if status != "active":
+                        logger.debug("ignorning '%s' event for unknown node: %s",status,node_id)
                     else:
-                        logger.debug("ignorning active event for non-leaf")
+                        # a new node became active, double check that is a leaf and if so trigger a 
+                        # hard restart
+                        new_node_dn = "topology/pod-%s/node-%s" % (r1.group("pod"),node_id)
+                        new_attr = get_attributes(session=self.session, dn=new_node_dn)
+                        if new_attr is not None and "role" in new_attr and new_attr["role"]=="leaf":
+                            self.hard_restart(reason="new leaf '%s' became active"%node_id)
+                        else:
+                            logger.debug("ignorning active event for non-leaf")
         else:
             logger.debug("ignoring fabricNode event (fabricSt or dn not present in attributes)")
 

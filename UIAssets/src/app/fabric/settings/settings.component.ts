@@ -5,7 +5,7 @@ import {FabricService} from "../../_service/fabric.service";
 import {ActivatedRoute, Router} from "@angular/router";
 import {ModalService} from '../../_service/modal.service';
 import {concat, forkJoin} from 'rxjs';
-import {FabricList} from '../../_model/fabric';
+import {FabricList, Fabric} from '../../_model/fabric';
 import {FabricSettingsList} from '../../_model/fabric-settings';
 import {PreferencesService} from "../../_service/preferences.service";
 
@@ -40,18 +40,21 @@ export class SettingsComponent implements OnInit {
             const fabricName = params.get('fabric');
             if (fabricName != null) {
                 this.isLoading = true;
+                this.fabricService.fabric.init();
+                this.fabricService.fabric.fabric = fabricName;
+                const fabricStatusObservable = this.backendService.getFabricStatus(this.fabricService.fabric);
                 const getFabricObservable = this.backendService.getFabricByName(fabricName);
                 const getFabricSettingsObservable = this.backendService.getFabricSettings(fabricName, 'default');
-                forkJoin(getFabricObservable, getFabricSettingsObservable).subscribe(
-                    ([fabricData, settingsData]) => {
+                forkJoin(getFabricObservable, getFabricSettingsObservable, fabricStatusObservable).subscribe(
+                    ([fabricData, settingsData, fabricStatus]) => {
                         this.isLoading = false;
                         let fabric_list = new FabricList(fabricData);
                         let settings_list = new FabricSettingsList(settingsData);
                         if (fabric_list.objects.length > 0 && settings_list.objects.length > 0) {
-                            this.fabricService.fabric.init();
                             this.fabricService.fabricSettings.init();
                             this.fabricService.fabric.sync(fabric_list.objects[0]);
                             this.fabricService.fabricSettings.sync(settings_list.objects[0]);
+                            this.fabricService.fabric.status = fabricStatus['status'];
                         } else {
                             this.modalService.setModalError({
                                 "body": 'Could not fetch fabric settings, invalid results returned.'
@@ -139,7 +142,7 @@ export class SettingsComponent implements OnInit {
         const updateSettingsObservable = this.backendService.updateFabricSettings(this.fabricService.fabricSettings);
         forkJoin(updateObservable, updateSettingsObservable).subscribe(
             (data) => {
-                // unconditionally trigger  settingsReload to apply changes to backend processes
+                // unconditionally trigger settingsReload to apply changes to backend processes
                 this.backendService.settingsReload(this.fabricService.fabricSettings).subscribe();
                 this.backendService.verifyFabric(this.fabricService.fabric).subscribe(
                     (verifyData) => {
@@ -151,7 +154,32 @@ export class SettingsComponent implements OnInit {
                             this.backendService.buildController(this.fabricService.fabric).subscribe();
                         }
                         if ("success" in verifyData && verifyData["success"]) {
-                            //no prompt for restart after implementing settingsReload API
+                            //if not running then prompt the user to start.  If already running then settingsReload
+                            //already applied the changes to the backend (with exception of credentials which requires
+                            //full monitor restart anyways).
+                            if(this.fabricService.fabric.status=="stopped"){
+                                let that = this;
+                                this.modalService.setModalConfirm({
+                                    "title": "Success",
+                                    "body": "Changes successfully applied. Would you like to start the monitor now?",
+                                    "callback": function () {
+                                        that.isLoading = true;
+                                        let reason = 'monitor config change start';
+                                        that.backendService.startFabric(that.fabricService.fabric, reason).subscribe(
+                                            () => {
+                                                that.isLoading = false;
+                                                that.router.navigate(['/fabric', that.fabricService.fabric.fabric]);
+                                            },
+                                            (restartError) => {
+                                                that.isLoading = false;
+                                                that.modalService.setModalError({
+                                                    "body": "Failed to restart fabric. " + restartError['error']['error']
+                                                });
+                                            }
+                                        )
+                                    }
+                                });
+                            }
                         } else {
                             let apic_label_class = "label--warning-alt";
                             let apic_label_text = "failed";

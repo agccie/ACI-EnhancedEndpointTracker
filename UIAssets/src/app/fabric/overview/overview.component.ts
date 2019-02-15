@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, OnDestroy} from '@angular/core';
 import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
@@ -6,13 +6,14 @@ import {Fabric, FabricList} from "../../_model/fabric";
 import {forkJoin, interval} from "rxjs";
 import {ModalService} from '../../_service/modal.service';
 import {switchMap, map} from "rxjs/operators";
+import {repeatWhen, delay, takeWhile} from "rxjs/operators";
 
 @Component({
     selector: 'app-overview',
     templateUrl: './overview.component.html',
 })
 
-export class OverviewComponent implements OnInit {
+export class OverviewComponent implements OnInit , OnDestroy{
     userRole: number = 0;
     rows: any;
     pageSize: number;
@@ -20,11 +21,12 @@ export class OverviewComponent implements OnInit {
     sorts = [{prop: 'timestamp', dir: 'desc'}];
     loading = true;
     restartLoading = false;
-    fabric: Fabric;
+    fabric: Fabric = new Fabric();
     fabricFound: boolean;
     fabricName: string;
     managerRunning: boolean = true;
     fabricRunning: boolean;
+    backgroundPollEnable: boolean = false;
 
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
@@ -39,6 +41,10 @@ export class OverviewComponent implements OnInit {
     ngOnInit() {
         this.getFabric();
         this.getManagerStatus();
+    }
+
+    ngOnDestroy(){
+        this.backgroundPollEnable = false;
     }
 
     refresh() {
@@ -71,31 +77,32 @@ export class OverviewComponent implements OnInit {
                         let fabric_list = new FabricList(data);
                         if (fabric_list.objects.length > 0) {
                             this.fabricFound = true;
-                            this.fabric = fabric_list.objects[0];
+                            this.fabric.sync(fabric_list.objects[0]);
                             this.rows = this.fabric.events;
                             const fabricStatusObservable = this.backendService.getFabricStatus(this.fabric);
                             const macObservable = this.backendService.getActiveMacAndIps(this.fabric, 'mac');
                             const ipv4Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv4');
                             const ipv6Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv6');
                             forkJoin([fabricStatusObservable, macObservable, ipv4Observable, ipv6Observable]).subscribe(
-                                (results) => {
-                                    this.loading = false;
-                                    this.fabric.status = results[0]['status'];
-                                    this.fabric.uptime = results[0]['uptime'];
-                                    this.fabric.mac = results[1]['count'];
-                                    this.fabric.ipv4 = results[2]['count'];
-                                    this.fabric.ipv6 = results[3]['count'];
+                                ([fabricStatus, macCount, ipv4Count, ipv6Count]) => {
+                                    this.fabric.uptime = fabricStatus['uptime'];
+                                    this.fabric.status = fabricStatus['status'];
                                     this.fabricRunning = (this.fabric.status == 'running');
+                                    this.fabric.mac = macCount['count'];
+                                    this.fabric.ipv4 = ipv4Count['count'];
+                                    this.fabric.ipv6 = ipv6Count['count'];
+                                    this.loading = false;
+                                    if(!this.backgroundPollEnable){
+                                        this.backgroundPollFabric();
+                                    }
                                 },
                                 (error) => {
-                                    this.loading = false;
                                     this.modalService.setModalError({
-                                        "body": 'Failed to load fabric state. ' + error['error']['error']
+                                        "body": 'Failed to get fabric status. '+error["error"]["error"]
                                     });
                                 }
-                            );
+                            )
                         } else {
-                            this.loading = false;
                             this.modalService.setModalError({
                                 "body": 'Failed to load fabric, invalid results returned.'
                             });
@@ -110,36 +117,16 @@ export class OverviewComponent implements OnInit {
             }
         });
     }
-
-    public pollStatus() {
-        return interval(1000).pipe(switchMap(() =>
-            this.backendService.getFabricStatus(this.fabric).pipe(map(
-                (data) => data
-            ))
-        ))
-    }
-
+    
     // start fabric and poll status until we're at the desired status or max polls exceeded
     public startFabric() {
-        let desiredStatus = "running";
-        let maxRetries = 5 ; 
         this.restartLoading = true;
-        this.backendService.startFabric(this.fabric).subscribe(
-            (data) => {
-                const poller = this.pollStatus().subscribe(
-                    (data) => {
-                        maxRetries--;
-                        if(maxRetries<=0 || ("status" in data && data["status"]==desiredStatus)){
-                            this.restartLoading = false;
-                            poller.unsubscribe();
-                            this.getFabric();
-                        }
-                    }, 
-                    (error) => {
-                        //some poller problem
-                        poller.unsubscribe();
-                    }
-                )
+        this.backendService.startFabric(this.fabric).pipe(
+            delay(1500)
+        ).subscribe(
+            () => {
+                this.restartLoading = false;
+                this.getFabric();
             },
             (error) => {
                 this.restartLoading = false;
@@ -162,25 +149,13 @@ export class OverviewComponent implements OnInit {
     }
 
     public stopFabric() {
-        let desiredStatus = "stopped"
-        let maxRetries = 5 ; 
         this.restartLoading = true;
-        this.backendService.stopFabric(this.fabric).subscribe(
-            (data) => {
-                const poller = this.pollStatus().subscribe(
-                    (data) => {
-                        maxRetries--;
-                        if(maxRetries<=0 || ("status" in data && data["status"]==desiredStatus)){
-                            this.restartLoading = false;
-                            poller.unsubscribe();
-                            this.getFabric();
-                        }
-                    }, 
-                    (error) => {
-                        //some poller problem
-                        poller.unsubscribe();
-                    }
-                )
+        this.backendService.stopFabric(this.fabric).pipe(
+            delay(1500)
+        ).subscribe(
+            () => {
+                this.restartLoading = false;
+                this.getFabric();
             },
             (error) => {
                 this.restartLoading = false;
@@ -188,8 +163,36 @@ export class OverviewComponent implements OnInit {
                     "body": 'Failed to stop monitor. ' + error['error']['error']
                 });
             }
-        );
+        )
     }
 
-
+    // sliently refresh status and fabric events at regular interval
+    backgroundPollFabric(){
+        this.backgroundPollEnable = true;
+        const fabricEventsObservable = this.backendService.getFabricByName(this.fabric.fabric);
+        const fabricStatusObservable = this.backendService.getFabricStatus(this.fabric);
+        const macObservable = this.backendService.getActiveMacAndIps(this.fabric, 'mac');
+        const ipv4Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv4');
+        const ipv6Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv6');
+        forkJoin([fabricEventsObservable, fabricStatusObservable, macObservable, ipv4Observable, ipv6Observable]).pipe(
+            repeatWhen(delay(5000)),
+            takeWhile(()=> this.backgroundPollEnable)
+        ).subscribe(
+            ([fabricEvents, fabricStatus, macCount, ipv4Count, ipv6Count]) => {
+                let fabricList = new FabricList(fabricEvents);
+                if (fabricList.objects.length == 1) {
+                    this.rows = fabricList.objects[0].events;
+                }
+                this.fabric.uptime = fabricStatus['uptime'];
+                this.fabric.status = fabricStatus['status'];
+                this.fabricRunning = (this.fabric.status == 'running');
+                this.fabric.mac = macCount['count'];
+                this.fabric.ipv4 = ipv4Count['count'];
+                this.fabric.ipv6 = ipv6Count['count'];
+            },
+            (error) => {
+                this.backgroundPollEnable = false;
+            }
+        )
+    }
 }

@@ -1263,7 +1263,7 @@ class eptSubscriber(object):
         # processing endpoints.  This minimizes amount of time we lose data without having to buffer
         # all events that are recieved during get requests.
         paused = self.settings.queue_init_epm_events
-        data = []
+        total_create = 0
         for c in self.epm_subscription_classes:
             if c == "epmRsMacEpToIpEpAtt":
                 gen = get_class(self.session, c, stream=True, orderBy="%s.dn" % c)
@@ -1304,6 +1304,7 @@ class eptSubscriber(object):
                 create_msgs = []
             # print total for reference
             logger.debug("build_endpoint_db total %s create for %s", create_count, c)
+            total_create+= create_count
 
         # stream delete jobs
         delete_count = 0
@@ -1323,6 +1324,9 @@ class eptSubscriber(object):
         # print total for reference
         logger.debug("build_endpoint_db total %s delete jobs", delete_count)
         logger.debug("build_endpoint_db total time: %.3f", time.time()-start_time)
+        # add fabric event so user is aware of number of create/delete events that will be processed
+        overview = "analyzing %s endpoint records" % (total_create + delete_count)
+        self.fabric.add_fabric_event("initializing", overview)
         return True
 
     def refresh_endpoint(self, vnid, addr, addr_type, qnum=1):

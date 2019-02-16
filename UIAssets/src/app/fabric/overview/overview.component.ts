@@ -24,7 +24,7 @@ export class OverviewComponent implements OnInit , OnDestroy{
     fabric: Fabric = new Fabric();
     fabricFound: boolean;
     fabricName: string;
-    queueLen: number = 0;
+    queueLen: number = -1;
     managerRunning: boolean = true;
     fabricRunning: boolean;
     backgroundPollEnable: boolean = false;

@@ -1,8 +1,12 @@
-import {Component, OnInit, TemplateRef, ViewChild} from "@angular/core";
+import {Component,OnInit} from "@angular/core";
+import {Router} from '@angular/router';
 import {BackendService} from "../_service/backend.service";
 import {PreferencesService} from "../_service/preferences.service";
 import {QueueList} from "../_model/queue";
 import {ModalService} from "../_service/modal.service";
+import {Subject} from "rxjs";
+import {debounceTime} from 'rxjs/operators';
+import {FabricService} from "../_service/fabric.service";
 
 @Component({
     templateUrl: './queue.component.html',
@@ -16,23 +20,41 @@ export class QueueComponent implements OnInit {
     pageNumber: number;
     pageSize: number;
     count: number;
-    sorts = [{prop: 'dn', dir: 'asc'}];
-    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
+    sorts = [{prop: 'total_rx_msg', dir: 'desc'}];
+    searchTerm: string = "";
+    searchInput: Subject<string> = new Subject();
+    discoveredFabric: string = "";
 
-    constructor(private backendService: BackendService, private prefs: PreferencesService, private modalService: ModalService) {
+    constructor(private router: Router, private backendService: BackendService, private prefs: PreferencesService, 
+            public fabricService: FabricService, private modalService: ModalService) {
         this.rows = [];
         this.queues = [];
         this.pageSize = this.prefs.pageSize;
         this.pageNumber = 0;
+        this.searchTerm = "";
     }
 
     ngOnInit(): void {
         this.getQueues()
+        this.searchInput.pipe(
+            debounceTime(500)
+        ).subscribe(searchTextValue => {
+            this.searchTerm = searchTextValue.toLowerCase();
+            this.getQueues();
+        });
+    }
+
+    goBack(){
+        if(this.fabricService.fabric.fabric.length>0){
+            this.router.navigate(['/fabric', this.fabricService.fabric.fabric, 'settings', 'connectivity']);
+        } else {
+            this.router.navigate(['/']);
+        }
     }
 
     getQueues(pageOffset = this.pageNumber, sorts = this.sorts) {
         this.loading = true;
-        this.backendService.getQueues(pageOffset, sorts).subscribe((results: QueueList) => {
+        this.backendService.getQueues(pageOffset, this.pageSize, sorts, this.searchTerm).subscribe((results: QueueList) => {
             const objects = results.objects;
             let tempRows = [];
             for (let obj of objects) {
@@ -41,6 +63,8 @@ export class QueueComponent implements OnInit {
             this.count = results.count;
             this.queues = tempRows;
             this.rows = tempRows;
+            this.pageNumber = pageOffset;
+            this.sorts = sorts;
             this.loading = false;
         }, (err) => {
             this.loading = false;
@@ -50,11 +74,9 @@ export class QueueComponent implements OnInit {
         });
     }
 
-    updateFilter(event) {
-        const val = event.target.value.toLowerCase();
-        this.rows = this.queues.filter(function (d) {
-            return d.queue.toLowerCase().indexOf(val) !== -1 || !val;
-        });
+    searchOnKeyUp(event){
+        const searchTextValue = event.target.value.toLowerCase();
+        this.searchInput.next(searchTextValue);
     }
 
     setPage(event) {

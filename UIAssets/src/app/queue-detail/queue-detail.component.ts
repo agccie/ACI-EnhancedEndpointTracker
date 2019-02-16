@@ -1,4 +1,4 @@
-import {Component, OnInit, TemplateRef, ViewChild} from "@angular/core";
+import {Component, OnInit} from "@angular/core";
 import {BackendService} from "../_service/backend.service";
 import {PreferencesService} from "../_service/preferences.service";
 import {Queue, QueueList} from "../_model/queue";
@@ -21,6 +21,8 @@ export class QueueDetailComponent implements OnInit {
     sorts = [{prop: 'dn', dir: 'asc'}];
     queue: Queue;
     dn: string;
+    selectedProcess: string;
+    selectedQueue: string;
     highcharts = Highcharts;
     chartConstructor = 'stockChart';
     chartOptions = {
@@ -70,7 +72,6 @@ export class QueueDetailComponent implements OnInit {
     currentGraph: string;
     dropDownValue: string;
     statsTypes: Map<string, {}>;
-    @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, private activatedRoute: ActivatedRoute,
                 public modalService: ModalService) {
@@ -92,19 +93,27 @@ export class QueueDetailComponent implements OnInit {
     ngOnInit(): void {
         this.loading = true;
         this.activatedRoute.paramMap.subscribe(params => {
-            this.dn = params.get('dn');
-            if (this.dn != null) {
-                this.backendService.getQueue(this.dn).subscribe((results: QueueList) => {
-                    this.queue = results.objects[0]['ept.queue'];
-                    this.loading = false;
-                }, (err) => {
-                    this.loading = false;
-                    this.modalService.setModalError({
-                        "body": 'Failed to load queues ' + err['error']['error']
-                    });
-                });
-            }
+            this.selectedProcess = params.get('process');
+            this.selectedQueue = params.get('queue');
+            this.chartOptions['title']['text'] = this.selectedProcess+'-'+this.selectedQueue;
+            this.getQueueData()
         });
+    }
+
+    getQueueData(){
+        this.loading = true;
+        this.backendService.getQueue(this.selectedProcess, this.selectedQueue).subscribe((results: QueueList) => {
+            this.queue = results.objects[0]['ept.queue'];
+            this.loading = false;
+        }, (err) => {
+            this.modalService.setModalError({
+                "body": 'Failed to load queues ' + err['error']['error']
+            });
+        });
+    }
+
+    goBack(){
+        this.router.navigate(['/queues'])
     }
 
     public onChartInstance(chart: any) {

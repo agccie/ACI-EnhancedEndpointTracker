@@ -1,34 +1,37 @@
-<h4>
-    <a class="btn btn--icon btn--primary" [routerLink]="['/']">
-        <span class="icon-back"></span>
-    </a>
-    Available queues
-    <button class="btn btn--icon btn--small btn--primary" (click)='getQueues()'>
-        <span class="icon-refresh"></span>
-    </button>
+<h4 class="base-margin-bottom">
+    Process Queues
 </h4>
-<br>
+<div class="row half-margin-bottom">
+    <div class="col-md-12">
+        <form>
+            <div class="form-group input--icon">
+                <div class="form-group__text">
+                    <input id="search" type="search" placeholder="Search Queue"
+                           (keyup)='searchOnKeyUp($event)' required>
+                    <button type="button" class="link">
+                        <span class="icon-search"></span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-md-12">
         <div class="panel panel--raised">
-            <div class="row">
+            <div class="row half-margin-bottom">
                 <div class="col-md-12">
-                    <form>
-                        <div class="form-group input--icon">
-                            <div class="form-group__text">
-                                <input id="search" type="search" placeholder="Search Queue"
-                                       (keyup)='updateFilter($event)' required>
-                                <button type="button" class="link">
-                                    <span class="icon-search"></span>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-12">
-                    &nbsp;
+                    <button class="btn btn--icon btn--small btn--default"  
+                            data-balloon="Back" data-balloon-pos="down"
+                            (click)='goBack()'>
+                            <span class="icon-back"></span>
+                    </button><button class="btn btn--icon btn--small btn--default" 
+                            data-balloon="Refresh" data-balloon-pos="down"
+                            [disabled]="loading"
+                            (click)='getQueues()'>
+                            <span class="icon-refresh"></span>
+                    </button>
                 </div>
             </div>
             <div class="row">
@@ -57,14 +60,6 @@
                                 pagerNext: 'icon-step-forward'
                               }"
                     >
-                        <ngx-datatable-column prop="dn" name="DN" [sortable]="true" [flexGrow]="0.2">
-                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
-                                         let-row="row">
-                              <span>
-                                  {{ value }}
-                              </span>
-                            </ng-template>
-                        </ngx-datatable-column>
                         <ngx-datatable-column prop="proc" name="Process" [sortable]="true" [flexGrow]="0.1">
                             <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
                                          let-row="row">
@@ -110,7 +105,7 @@
                         </ngx-datatable-column>
                         <ngx-datatable-column name="Actions" [flexGrow]="0.1">
                             <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
-                                <a [routerLink]="['/queue',row.dn]">
+                                <a class="btn btn--small btn--icon btn--primary" [routerLink]="['/queue',row.proc, row.queue]">
                                     <span class="icon-graph"></span>
                                 </a>
                             </ng-template>
@@ -121,39 +116,3 @@
         </div>
     </div>
 </div>
-<ng-template #errorMsg>
-    <div class="modal__body">
-        <div class="col-xl-12">
-            <div class="alert alert--success" *ngIf="modalService.modalIcon === 'success'">
-                <div class="alert__icon icon-check-outline"></div>
-                <div class="alert__message text-left">
-                    <h4>{{ modalService.modalTitle }}</h4>
-                    <div>{{ modalService.modalBody }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="alert alert--danger" *ngIf="modalService.modalIcon === 'error'">
-            <div class="alert__icon icon-error-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-        <div class="alert alert--info" *ngIf="modalService.modalIcon === 'info'">
-            <div class="alert__icon icon-info-outline"></div>
-            <div class="alert__message text-left">
-                <h4>{{ modalService.modalTitle }}</h4>
-                <div>{{ modalService.modalBody }}</div>
-            </div>
-        </div>
-
-        <div class="modal__footer" *ngIf="!modalService.decisionBox">
-            <button class="btn" (click)="modalService.hideModal()">Ok</button>
-        </div>
-        <div class="modal__footer" *ngIf="modalService.decisionBox">
-            <button class="btn btn--primary" (click)="modalService.runCallback()">Proceed</button>
-            <button class="btn btn--secondary" (click)="modalService.hideModal()">Cancel</button>
-        </div>
-
-    </div>
-</ng-template>

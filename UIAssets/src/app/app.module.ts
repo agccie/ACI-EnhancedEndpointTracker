@@ -110,7 +110,7 @@ const appRoutes: Routes = [
         canActivate: [AuthGuardService]
     },
     {
-        path: 'queue/:dn',
+        path: 'queue/:process/:queue',
         component: QueueDetailComponent,
         canActivate: [AuthGuardService]
     },

@@ -262,17 +262,20 @@ export class BackendService {
         return this.http.get(url);
     }
 
-    getQueues(pageOffset: number, sorts): Observable<QueueList> {
-        if (sorts.length === 0) {
-            return this.http.get<QueueList>(this.baseUrl + '/ept/queue?include=dn,proc,queue,start_timestamp,total_rx_msg,total_tx_msg&page-size=10&page=' + pageOffset);
-        } else {
-            const sortsStr = this.getSortsArrayAsString(sorts);
-            return this.http.get<QueueList>(this.baseUrl + '/ept/queue?include=dn,proc,queue,start_timestamp,total_rx_msg,total_tx_msg&sort=' + sortsStr + '&page-size=10&page=' + pageOffset);
+    getQueues(pageOffset: number, pageSize: number=10, sorts: any={}, term: string=""): Observable<QueueList> {
+        let url = this.baseUrl + '/ept/queue?include=dn,proc,queue,start_timestamp,total_rx_msg,total_tx_msg&page-size='+pageSize+'&page=' + pageOffset;
+        if(sorts.length > 0){
+            url+= '&sort='+this.getSortsArrayAsString(sorts);
         }
+        if(term.length > 0){
+            term = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
+            url+= '&filter=or(regex("proc","(?i)'+term+'"), regex("queue","(?i)'+term+'"))';
+        }
+        return this.http.get<QueueList>(url)
     }
 
-    getQueue(dn: string): Observable<QueueList> {
-        return this.http.get<QueueList>(this.baseUrl + dn);
+    getQueue(proc: string, queue: string): Observable<QueueList> {
+        return this.http.get<QueueList>(this.baseUrl + '/uni/proc-'+proc+'/queue-'+queue);
     }
 
     getPerNodeHistory(fabric, node, vnid, address) {

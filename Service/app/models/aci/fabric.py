@@ -141,7 +141,7 @@ class Fabric(Rest):
         "uptime": {
             "reference": True,
             "type": float,
-            "description": "uptime in seconds measuring how long monitor has been running"
+            "description": "uptime in seconds measuring how long monitor has been running",
         },
         "reason": {
             "reference": True,
@@ -164,30 +164,22 @@ class Fabric(Rest):
         f.stop_fabric_monitor()
         return filters
 
-    @api_route(path="status", methods=["GET"], swag_ret=["status", "uptime"], role=Role.USER)
+    @api_route(path="status", methods=["GET"], role=Role.USER, swag_ret=["status", "uptime"])
     def get_fabric_status(self, api=True):
         """ get current fabric status (running/stopped) along with uptime. """
         # if api is False, is_running bool is returned
         try:
-            is_running = False
-            manager_status = AppStatus.check_manager_status()
-            # fabric not found within manager status implies it is not running
-            for fab in manager_status["fabrics"]:
-                if fab["fabric"] == self.fabric:
-                    if fab["alive"]:
-                        is_running = True
-                    break
             uptime = 0
-            if is_running:
-                uptime = time.time() - self.restart_ts
-                if uptime<0: uptime = 0
+            is_alive = AppStatus.check_fabric_is_alive(self.fabric)
+            if is_alive:
+                uptime = max(0, time.time() - self.restart_ts)
             if api:
                 return jsonify({
-                    "status": "running" if is_running else "stopped",
-                    "uptime": uptime
+                    "status": "running" if is_alive else "stopped",
+                    "uptime": uptime,
                 })
             else:
-                return is_running
+                return is_alive
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
             abort(500, "failed to send message or invalid manager response") 

@@ -1,6 +1,9 @@
 """
 common ept functions
 """
+from . ept_msg import MSG_TYPE
+from . ept_msg import eptMsg
+
 import logging
 import os
 import re
@@ -37,6 +40,11 @@ RAPID_CALCULATE_INTERVAL            = 15.0
 MAX_SEND_MSG_LENGTH                 = 10240
 EPM_EVENT_HANDLER_INTERVAL          = 0.01
 EPM_EVENT_HANDLER_ENABLED           = True
+
+# when API requests msg queue length, manager can read the full data off each queue and accurate
+# msgs within bulk messages for accurate count. There is a performance hit to this so the
+# alternative is counting the number of messages in each queue where a bulk message counts as one.
+ACCURATE_QUEUE_LENGTH               = True  
 
 # transitory timers:
 #   max_epm_build   maximum amount of time to wait for ACK from all worker processes to indiciate
@@ -196,6 +204,28 @@ def db_alive(db):
     except Exception as e:
         logger.debug("failed to connect to mongo db: %s", e)
         return False
+
+def get_queue_length(rdb, queue, accurate=True):
+    """ get number of pending messages in queue. Requires an active connection to redis and the name
+        of the queue to collect message length. Set accurate to true to inspect each message 
+        individually and include sub-messages from eptBulk.  Note, ACCURATE_QUEUE_LENGTH must be 
+        enabled as well.
+    """
+    if accurate and ACCURATE_QUEUE_LENGTH:
+        # to support accurate message count for eptMsgBulk, we need to inspect each message
+        # we may revisit this at a later time but for now, we will use lrange to pull all messages 
+        # and count them and any sub-messages.
+        count = 0
+        for data in rdb.lrange(queue, 0, -1):
+            # need to reparse message and check fabric
+            msg = eptMsg.parse(data, brief=True) 
+            if msg.msg_type == MSG_TYPE.BULK:
+                count+= msg.msg_count
+            else:
+                count+=1
+        return count
+    else:
+        return rdb.llen(queue) 
 
 ###############################################################################
 #

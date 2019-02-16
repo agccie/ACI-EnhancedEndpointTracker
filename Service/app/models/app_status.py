@@ -32,7 +32,8 @@ queue_len_meta = {
     "subtype": int,
     "description": """
     number of pending messages in queue. Note, queue_len uses same indexed as queues.  I.e., index
-    1 of queue_len represents pending messages for queues at index 1
+    1 of queue_len represents pending messages for queues at index 1. With support for batch msgs,
+    a single message in the queue may be contain up to 10K additional mesages.
     """,
 }
 
@@ -40,7 +41,9 @@ queue_len_meta = {
 class AppStatus(Rest):
     """ validate that all required backend services are running for this application """
 
-    MANAGER_STATUS_TIMEOUT = 3
+    # timeout for manager status with accurate count to inspect all inflight msgs may be a while...
+    MANAGER_STATUS_TIMEOUT = 60    
+    MANAGER_STATUS_BRIEF_TIMEOUT = 3
 
     META_ACCESS = {
         "read": False,
@@ -127,6 +130,10 @@ class AppStatus(Rest):
                         "queue_len": queue_len_meta,
                     },
                 },
+                "total_queue_len": {
+                    "type": int,
+                    "description": """sum of all inflight messages across all queues"""
+                },
                 "workers": {
                     "type": list,
                     "subtype": dict,
@@ -162,6 +169,11 @@ class AppStatus(Rest):
                     },
                 },
             },
+        },
+        "total_queue_len": {
+            "reference": True,
+            "type": int,
+            "description": """sum of all inflight messages across all queues""",
         },
         "addr": {
             "reference": True,
@@ -270,11 +282,66 @@ class AppStatus(Rest):
         abort(500, "failed to send message or invalid manager response")
 
     @staticmethod
-    def check_manager_status():
+    @api_route(path="/queue", methods=["GET"], role="read_role", swag_ret=["total_queue_len"])
+    def api_get_queue_len():
+        """ get total number of pending work events across all queues """
+        try:
+            ret = AppStatus.check_manager_status(brief=False)
+            if ret is not None:
+                return jsonify({"total_queue_len": ret.get("total_queue_len", 0)})
+        except Exception as e:
+            logger.error("Traceback:\n%s", traceback.format_exc())
+        abort(500, "failed to send message or invalid manager response")
+
+    @staticmethod
+    def check_fabric_is_alive(fabric):
+        """ check status of single fabric from manager perspective. If not response is received 
+            after timeout then False is returned.  Else, corresponding alive status is returned.
+        """
+        seq = get_random_sequence()
+        msg = eptMsg(MSG_TYPE.GET_FABRIC_STATUS, seq=seq, data={"fabric":fabric})
+        logger.debug("get fabric status (seq:0x%x) fabric: %s", seq, fabric)
+        redis = get_redis()
+        p = redis.pubsub(ignore_subscribe_messages=True)
+        p.subscribe(MANAGER_CTRL_RESPONSE_CHANNEL)
+        redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
+        start_ts = time.time()
+        timeout = AppStatus.MANAGER_STATUS_TIMEOUT 
+        try:
+            while start_ts + timeout > time.time():
+                data = p.get_message(timeout=1)
+                if data is not None:
+                    channel = data["channel"]
+                    if channel == MANAGER_CTRL_RESPONSE_CHANNEL:
+                        msg = eptMsg.parse(data["data"]) 
+                        if msg.msg_type == MSG_TYPE.FABRIC_STATUS:
+                            # validate this is the addr and sequence number our user requested
+                            if msg.seq == seq and "fabric" in msg.data and \
+                                msg.data["fabric"] == fabric:
+                                logger.debug("fabric status (0x%x) alive:%r", seq, msg.data["alive"])
+                                if msg.data["alive"]: 
+                                    return True
+                                else:
+                                    return False
+                            else:
+                                logger.debug("rx seq/fabric (0x%x/%s), expected (0x%x/%s)",
+                                    msg.seq, msg.data.get("fabric", ""), seq, fabric)
+        except Exception as e:
+            logger.debug("Traceback:\n%s", traceback.format_exc())
+            logger.debug("error: %s", e)
+        finally:
+            if redis is not None and hasattr(redis, "connection_pool"):
+                redis.connection_pool.disconnect()
+        logger.warn("no manager response within timeout(%s sec)", timeout)
+        return False
+
+    @staticmethod
+    def check_manager_status(brief=True):
         """ check status of manager process including all active fabrics 
             to do this, need to setup a listener on MANAGER_CTRL_CHANNEL and listen for 
             MANAGER_STATUS message. This should be seen immediately but will wait up to 
-            AppStatus.MANAGER_STATUS_TIMEOUT threshold
+            AppStatus.MANAGER_STATUS_TIMEOUT threshold or MANAGER_STATUS_BRIEF_TIMEOUT
+            Set brief to True to exclude queue statistics.
         """
         ret = {
             "manager": {
@@ -285,16 +352,21 @@ class AppStatus(Rest):
             },
             "workers": [],
             "fabrics": [],
+            "total_queue_len": 0,
         }
         seq = get_random_sequence()
-        logger.debug("get manager status (seq:0x%x)", seq)
+        msg = eptMsg(MSG_TYPE.GET_MANAGER_STATUS, seq=seq, data={"brief": brief})
+        logger.debug("get manager status (seq:0x%x) brief:%r", seq, brief)
         redis = get_redis()
         p = redis.pubsub(ignore_subscribe_messages=True)
         p.subscribe(MANAGER_CTRL_RESPONSE_CHANNEL)
-        redis.publish(MANAGER_CTRL_CHANNEL, eptMsg(MSG_TYPE.GET_MANAGER_STATUS,seq=seq).jsonify())
+        redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
         start_ts = time.time()
+        timeout = AppStatus.MANAGER_STATUS_TIMEOUT 
         try:
-            while start_ts + AppStatus.MANAGER_STATUS_TIMEOUT > time.time():
+            if brief:
+                timeout = AppStatus.MANAGER_STATUS_BRIEF_TIMEOUT
+            while start_ts + timeout > time.time():
                 data = p.get_message(timeout=1)
                 if data is not None:
                     channel = data["channel"]
@@ -306,6 +378,7 @@ class AppStatus(Rest):
                             ret["manager"]["status"] = "running"
                             ret["workers"] = msg.data["workers"]
                             ret["fabrics"] = msg.data["fabrics"]
+                            ret["total_queue_len"] = msg.data["total_queue_len"]
                             return ret
         except Exception as e:
             logger.debug("Traceback:\n%s", traceback.format_exc())
@@ -314,7 +387,7 @@ class AppStatus(Rest):
             if redis is not None and hasattr(redis, "connection_pool"):
                 redis.connection_pool.disconnect()
 
-        logger.warn("no manager response within timeout(%s sec)", AppStatus.MANAGER_STATUS_TIMEOUT)
+        logger.warn("no manager response within timeout(%s sec)", timeout)
         return ret
 
     @staticmethod

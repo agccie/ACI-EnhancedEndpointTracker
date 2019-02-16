@@ -193,8 +193,6 @@ class eptWorker(object):
         logger.debug("[%s] listening for jobs on queues: %s", self, self.queues)
         while True: 
             (q, data) = self.redis.blpop(self.queues)
-            if q in self.queue_stats:
-                self.increment_stats(q, tx=False)
             # to support msg type BULK, assume an array of messages received
             msg_list = []
             try:
@@ -204,6 +202,9 @@ class eptWorker(object):
                     msg_list = omsg.msgs
                 else:
                     msg_list = [omsg]
+                # increment rx stats for received message
+                if q in self.queue_stats:
+                    self.increment_stats(q, tx=False, count=len(msg_list))
                 for msg in msg_list:
                     # exception on one msg must not block processing of other messages in block
                     try:

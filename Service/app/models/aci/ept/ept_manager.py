@@ -16,6 +16,7 @@ from . common import WORKER_CTRL_CHANNEL
 from . common import WORKER_UPDATE_INTERVAL
 from . common import BackgroundThread
 from . common import db_alive
+from . common import get_queue_length
 from . common import wait_for_db
 from . common import wait_for_redis
 from . ept_msg import MSG_TYPE
@@ -196,23 +197,20 @@ class eptManager(object):
     def handle_manager_ctrl(self, msg):
         logger.debug("ctrl message: %s, seq:0x%x, %s", msg.msg_type.value, msg.seq, msg.data)
         if msg.msg_type == MSG_TYPE.GET_MANAGER_STATUS:
-            # return worker status along with current seq per queue and queue length
-            data = {
-                "manager": {
-                    "manager_id": self.worker_id,
-                    "queues": [MANAGER_WORK_QUEUE],
-                    "queue_len": [self.redis.llen(MANAGER_WORK_QUEUE)],
-                },
-                "workers": self.worker_tracker.get_worker_status(),
-                "fabrics": [{
-                        "fabric":f, 
-                        "alive": fab["process"] is not None and fab["process"].is_alive(),
-                    } for f, fab in self.fabrics.items()
-                ]
-            }
-            ret = eptMsg(MSG_TYPE.MANAGER_STATUS, data=data, seq=msg.seq)
-            self.redis.publish(MANAGER_CTRL_RESPONSE_CHANNEL, ret.jsonify())
-            self.increment_stats(MANAGER_CTRL_RESPONSE_CHANNEL, tx=True)
+            # publish manager status in background thread (to ensure we don't block other requests)
+            # note if brief is set to False, then this request can take significant time to read 
+            # and analyze all requests queued.
+            kwargs = {"seq": msg.seq, "brief": msg.data.get("brief", True)}
+            tmp = threading.Thread(target=self.publish_manager_status, name="status", kwargs=kwargs)
+            tmp.daemon = True
+            tmp.start()
+
+        elif msg.msg_type == MSG_TYPE.GET_FABRIC_STATUS:
+            # publish alive status for single fabric
+            if "fabric" in msg.data:
+                self.publish_fabric_status(msg.data["fabric"], seq=msg.seq)
+            else:
+                logger.warn("fabric status request without fabric present")
 
         elif msg.msg_type == MSG_TYPE.FABRIC_START:
             # start monitoring for fabric
@@ -247,6 +245,60 @@ class eptManager(object):
                 logger.warn("worker hash request with no address field")
         else:
             logger.debug("ignoring msg type received on manager ctrl: %s", msg.msg_type)
+
+    def publish_manager_status(self, seq=0, brief=False):
+        # get manager status in background thread and publish result on ctrl response channel
+        try:
+            start_ts = time.time()
+            data = {
+                "manager": {
+                    "manager_id": self.worker_id,
+                    "queues": [MANAGER_WORK_QUEUE],
+                    "queue_len":[get_queue_length(self.redis,MANAGER_WORK_QUEUE,accurate=not brief)],
+                },
+                "workers": self.worker_tracker.get_worker_status(brief=brief),
+                "fabrics": [{
+                        "fabric":f, 
+                        "alive": fab["process"] is not None and fab["process"].is_alive(),
+                    } for f, fab in self.fabrics.items()
+                ]
+            }
+            total_queue_len = sum(data["manager"]["queue_len"])
+            for w in data["workers"]:
+                if "queue_len" in w:
+                    total_queue_len+= sum(w["queue_len"])
+            data["total_queue_len"] = total_queue_len
+            logger.debug("manager status (ts: %.3f, seq:0x%x, queue: %s, workers: %s, fabrics: %s)", 
+                    time.time()-start_ts, seq, total_queue_len, 
+                    len(data["workers"]),
+                    len(data["fabrics"])
+                )
+            ret = eptMsg(MSG_TYPE.MANAGER_STATUS, data=data, seq=seq)
+            self.redis.publish(MANAGER_CTRL_RESPONSE_CHANNEL, ret.jsonify())
+            self.increment_stats(MANAGER_CTRL_RESPONSE_CHANNEL, tx=True)
+        except Exception as e:
+            logger.debug("[%s] failed to get manager status", self)
+            logger.error("Traceback:\n%s", traceback.format_exc())
+
+    def publish_fabric_status(self, fabric, seq=0):
+        # publish alive status for a single fabric to ctrl response channel
+        try:
+            alive = False
+            if fabric in self.fabrics:
+                fab = self.fabrics[fabric]
+                if fab["process"] is not None and fab["process"].is_alive():
+                    alive = True
+            data = {
+                "fabric": fabric,
+                "alive": alive
+            }
+            logger.debug("fabric %s alive:%r (seq:0x%x)", fabric, alive, seq)
+            ret = eptMsg(MSG_TYPE.FABRIC_STATUS, data=data, seq=seq)
+            self.redis.publish(MANAGER_CTRL_RESPONSE_CHANNEL, ret.jsonify())
+            self.increment_stats(MANAGER_CTRL_RESPONSE_CHANNEL, tx=True)
+        except Exception as e:
+            logger.debug("[%s] failed to get manager status", self)
+            logger.error("Traceback:\n%s", traceback.format_exc())
 
     def minimum_workers_ready(self):
         # return true if worker is ready for each required role.
@@ -626,13 +678,13 @@ class WorkerTracker(object):
                     else:
                         self.flush_queue(fabric, worker.queues[qnum], lock=worker.queue_locks[qnum])
 
-    def get_worker_status(self):
+    def get_worker_status(self, brief=False):
         # return list of dict representation of TrackedWorker objects along with queue_len list 
         # which is number of jobs currently in each queue
         status = []
         for wid, w in self.known_workers.items():
             js = w.to_json()
-            js["queue_len"] = [self.redis.llen(q) for q in w.queues]
+            js["queue_len"] = [get_queue_length(self.redis, q, accurate=not brief) for q in w.queues]
             status.append(js)
         return status
             

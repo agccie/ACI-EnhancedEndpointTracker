@@ -17,7 +17,9 @@ class MSG_TYPE(Enum):
     WORK                = "work"            # main work message
     HELLO               = "hello"           # hello from worker to manager
     MANAGER_STATUS      = "mgr_status"      # manager status response
+    FABRIC_STATUS       = "fab_status"      # manager status response for fabric status
     GET_MANAGER_STATUS  = "get_mgr_status"  # request to get manager status from API to manager
+    GET_FABRIC_STATUS   = "get_fab_status"  # request to get fabric status from API to manager 
     FABRIC_START        = "fabric_start"    # request from API to manager to start fabric monitor
     FABRIC_STOP         = "fabric_stop"     # request from API to manager to stop fabric monitor
     FABRIC_RESTART      = "fabric_restart"  # request from API or subscriber to manager for restart
@@ -80,7 +82,7 @@ class eptMsg(object):
         return "%s.0x%08x" % (self.msg_type.value, self.seq)
 
     @staticmethod
-    def parse(data):
+    def parse(data, brief=False):
         # parse data received on message queue and return corresponding eptMsg
         # allow exception to raise on invalid data
         js = json.loads(data)
@@ -89,7 +91,7 @@ class eptMsg(object):
         elif js["msg_type"] == MSG_TYPE.HELLO.value:
             return eptMsgHello.from_msg_json(js)
         elif js["msg_type"] == MSG_TYPE.BULK.value:
-            return eptMsgBulk(MSG_TYPE.BULK, js["data"], js["seq"])
+            return eptMsgBulk(MSG_TYPE.BULK, js["data"], js["seq"], brief=brief)
         elif js["msg_type"] == MSG_TYPE.REFRESH_EPT.value:
             return eptMsgSubOp(MSG_TYPE.REFRESH_EPT, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.DELETE_EPT.value:
@@ -110,14 +112,17 @@ class eptMsg(object):
 
 class eptMsgBulk(eptMsg):
     """ list of eptMsg objects that share a common destination and qnum """
-    def __init__(self, msg_type=MSG_TYPE.BULK, data={}, seq=1):
+    def __init__(self, msg_type=MSG_TYPE.BULK, data={}, seq=1, brief=False):
         super(eptMsgBulk, self).__init__(msg_type, data, seq)
         self.msg_type = MSG_TYPE.BULK
+        self.msgs_count = 0
         self.msgs = []
         # each msg in msgs should be of type eptMsg in jsonify format that needs to be parsed
         if "msgs" in data and len(data["msgs"])>0:
-            for m in data["msgs"]:
-                self.msgs.append(eptMsg.parse(m))
+            self.msg_count = len(data["msgs"])
+            if not brief:
+                for m in data["msgs"]:
+                    self.msgs.append(eptMsg.parse(m))
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """

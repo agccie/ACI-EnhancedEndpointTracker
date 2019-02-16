@@ -83,9 +83,23 @@
                         <h4 class="text-bold">{{ fabric.fabric }}</h4>
                     </div>
                     <div class="col-md-4 text-right">
-                        <h6 class="qtr-margin-top">
-                            <span class="text-bold">Uptime</span>
-                            {{ fabric.uptime | uptimeDays }}
+                        <h6>
+                            <div class="row qtr-margin-top">
+                                <div class="col-md-8 text-right">
+                                    <span class="text-bold">Uptime:</span>
+                                </div>
+                                <div class="col-md-4 text-left">
+                                    {{ fabric.uptime | uptimeDays }}
+                                </div>
+                            </div>
+                            <div class="row qtr-margin-top">
+                                <div class="col-md-8 text-right">
+                                    <span class="text-bold">Queued:</span>
+                                </div>
+                                <div class="col-md-4 text-left">
+                                        {{ queueLen | number }}
+                                </div>
+                            </div>
                         </h6>
                     </div>
                 </div>

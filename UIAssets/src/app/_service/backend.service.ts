@@ -26,6 +26,10 @@ export class BackendService {
         return this.http.get(this.baseUrl + '/app-status/');
     }
 
+    getAppQueueLen(): Observable<any>{
+        return this.http.get(this.baseUrl + '/app-status/queue');
+    }
+
     getAppVersion(): Observable<Version> {
         return this.http.get<Version>(this.baseUrl + '/app-status/version');
     }

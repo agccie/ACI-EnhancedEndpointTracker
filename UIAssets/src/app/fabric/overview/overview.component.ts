@@ -24,9 +24,11 @@ export class OverviewComponent implements OnInit , OnDestroy{
     fabric: Fabric = new Fabric();
     fabricFound: boolean;
     fabricName: string;
+    queueLen: number = 0;
     managerRunning: boolean = true;
     fabricRunning: boolean;
     backgroundPollEnable: boolean = false;
+    backgroundQlenPollEnable: boolean = false;
 
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
@@ -45,6 +47,7 @@ export class OverviewComponent implements OnInit , OnDestroy{
 
     ngOnDestroy(){
         this.backgroundPollEnable = false;
+        this.backgroundQlenPollEnable = false;
     }
 
     refresh() {
@@ -94,6 +97,9 @@ export class OverviewComponent implements OnInit , OnDestroy{
                                     this.loading = false;
                                     if(!this.backgroundPollEnable){
                                         this.backgroundPollFabric();
+                                    }
+                                    if(!this.backgroundQlenPollEnable){
+                                        this.backgroundPollQlen();
                                     }
                                 },
                                 (error) => {
@@ -171,14 +177,11 @@ export class OverviewComponent implements OnInit , OnDestroy{
         this.backgroundPollEnable = true;
         const fabricEventsObservable = this.backendService.getFabricByName(this.fabric.fabric);
         const fabricStatusObservable = this.backendService.getFabricStatus(this.fabric);
-        const macObservable = this.backendService.getActiveMacAndIps(this.fabric, 'mac');
-        const ipv4Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv4');
-        const ipv6Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv6');
-        forkJoin([fabricEventsObservable, fabricStatusObservable, macObservable, ipv4Observable, ipv6Observable]).pipe(
-            repeatWhen(delay(5000)),
+        forkJoin([fabricEventsObservable, fabricStatusObservable]).pipe(
+            repeatWhen(delay(1000)),
             takeWhile(()=> this.backgroundPollEnable)
         ).subscribe(
-            ([fabricEvents, fabricStatus, macCount, ipv4Count, ipv6Count]) => {
+            ([fabricEvents, fabricStatus]) => {
                 let fabricList = new FabricList(fabricEvents);
                 if (fabricList.objects.length == 1) {
                     this.rows = fabricList.objects[0].events;
@@ -186,13 +189,40 @@ export class OverviewComponent implements OnInit , OnDestroy{
                 this.fabric.uptime = fabricStatus['uptime'];
                 this.fabric.status = fabricStatus['status'];
                 this.fabricRunning = (this.fabric.status == 'running');
+            },
+            (error) => {
+                console.log("refresh error occurred");
+                console.log(error)
+                this.backgroundPollEnable = false;
+                return this.backgroundPollFabric();
+            }
+        )
+    }
+
+    // sliently refresh queue len at slower interval
+    backgroundPollQlen(){
+        this.backgroundQlenPollEnable = true;
+        const qlenObservable = this.backendService.getAppQueueLen();
+        const macObservable = this.backendService.getActiveMacAndIps(this.fabric, 'mac');
+        const ipv4Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv4');
+        const ipv6Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv6');
+        forkJoin([qlenObservable, macObservable, ipv4Observable, ipv6Observable]).pipe(
+            repeatWhen(delay(15000)),
+            takeWhile(()=> this.backgroundPollEnable)
+        ).subscribe(
+            ([qlen, macCount, ipv4Count, ipv6Count]) => {
+                this.queueLen = qlen['total_queue_len'];
                 this.fabric.mac = macCount['count'];
                 this.fabric.ipv4 = ipv4Count['count'];
                 this.fabric.ipv6 = ipv6Count['count'];
             },
             (error) => {
-                this.backgroundPollEnable = false;
+                console.log("refresh qlen error occurred");
+                console.log(error)
+                this.backgroundQlenPollEnable = false;
+                return this.backgroundPollQlen();
             }
         )
     }
+
 }

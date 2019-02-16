@@ -97,7 +97,10 @@
                                     <span class="text-bold">Queued:</span>
                                 </div>
                                 <div class="col-md-4 text-left">
-                                        {{ queueLen | number }}
+                                    <span *ngIf="queueLen>0">
+                                        {{ queueLen | number}}
+                                    </span>
+                                    <span *ngIf="queueLen==0"> - </span>
                                 </div>
                             </div>
                         </h6>

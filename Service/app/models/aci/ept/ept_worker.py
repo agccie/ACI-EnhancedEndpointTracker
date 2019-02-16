@@ -698,7 +698,7 @@ class eptWorker(object):
         # if analyze_rapid is enabled and cached_rapid.rapid_count is 0, then no rapid calculation
         # has been performed yet and we need to update all values and trigger analysis. Else,
         # just update rapid_count. note cached_rapid is None if analyze_rapid is disabled
-        if cached_rapid is not None and endpoint is not None:
+        if not msg.force and cached_rapid is not None and endpoint is not None:
             if cached_rapid.rapid_count == 0:
                 cached_rapid.rapid_count = endpoint["rapid_count"] + 1
                 cached_rapid.rapid_lts = endpoint["rapid_lts"]

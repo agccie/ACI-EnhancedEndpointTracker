@@ -1380,8 +1380,7 @@ class eptSubscriber(object):
                 msg.qnum = qnum
                 msg.force = True
 
-            self.send_msg(create_msgs)
-            self.send_msg(delete_msgs)
+            self.send_msg(create_msgs+delete_msgs)
         else:
             logger.debug("failed to get epm objects")
 

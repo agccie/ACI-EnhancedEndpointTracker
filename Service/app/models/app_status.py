@@ -53,6 +53,7 @@ class AppStatus(Rest):
         "read_role": Role.USER,
     }
     META = {
+        # for api swagger reference only
         "version": {
             "reference": True,
             "type": dict,
@@ -61,6 +62,10 @@ class AppStatus(Rest):
                 "version": {
                     "type": str,
                     "description": "app version",
+                },
+                "app_id": {
+                    "type": str,
+                    "description": "app name/id",
                 },
                 "commit": {
                     "type": str,
@@ -92,7 +97,6 @@ class AppStatus(Rest):
                 },
             },
         },
-        # for api swagger reference only
         "manager_status": {
             "reference": True,
             "type": dict,
@@ -260,6 +264,7 @@ class AppStatus(Rest):
             version = current_app.config.get("APP_VERSION", "")
         return jsonify({
             "version": version,
+            "app_id": current_app.config.get("APP_ID", ""),
             "commit": current_app.config.get("APP_COMMIT", ""),
             "date": current_app.config.get("APP_COMMIT_DATE", ""),
             "timestamp": current_app.config.get("APP_COMMIT_DATE_EPOCH", 0),

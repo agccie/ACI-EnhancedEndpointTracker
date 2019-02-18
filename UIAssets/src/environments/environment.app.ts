@@ -4,5 +4,5 @@ export const environment = {
   apic_proxy: '/appcenter/Cisco/EnhancedEndpointTracker/proxy.json',
   production: true,
   aci_vendor: 'Cisco',
-  aci_appId:' EnhancedEndpointTracker'
+  aci_appId: 'EnhancedEndpointTracker'
 };

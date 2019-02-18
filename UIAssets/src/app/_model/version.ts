@@ -1,4 +1,5 @@
 export class Version {
+    app_id: string = "";
     author: string = "";
     branch: string = "";
     commit: string = "";
@@ -14,6 +15,7 @@ export class Version {
 
     //initialize or re-initialize all attributes to default values
     init() {
+        this.app_id = "";
         this.author = "";
         this.branch = "";
         this.commit = "";

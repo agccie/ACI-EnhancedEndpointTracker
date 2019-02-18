@@ -4,8 +4,8 @@ import {BackendService} from "../../_service/backend.service";
 import {FabricService} from "../../_service/fabric.service";
 import {ActivatedRoute, Router} from "@angular/router";
 import {ModalService} from '../../_service/modal.service';
-import {concat, forkJoin} from 'rxjs';
-import {FabricList, Fabric} from '../../_model/fabric';
+import {forkJoin} from 'rxjs';
+import {FabricList} from '../../_model/fabric';
 import {FabricSettingsList} from '../../_model/fabric-settings';
 import {PreferencesService} from "../../_service/preferences.service";
 

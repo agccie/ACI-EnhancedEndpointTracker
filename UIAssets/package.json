@@ -8,6 +8,7 @@
     "prebuild": "npm run clean",
     "build": "ng build --prod",
     "build-app": "ng build -c app",
+    "build-app-mini": "ng build -c app.mini",
     "build-standalone": "ng build -c standalone",
     "clean": "rm -f dist/*",
     "test": "ng test",

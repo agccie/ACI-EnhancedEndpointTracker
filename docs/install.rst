@@ -70,7 +70,7 @@ and run it:
 
 The command will start an instance of EnhancedEndpointTracker with the web server running on port 
 5000. Login to the web UI at `https://localhost:5000 <https://localhost:5000>`_.  See the usage 
-      section for further details regarding how to use the app.
+section for further details regarding how to use the app.
 
 Cluster Mode
 ^^^^^^^^^^^^
@@ -78,6 +78,11 @@ Cluster Mode
 The EnhancedEndpointTracker app can be deployed in a distributed cluster. Users can deploy in their 
 own cluster or use a `prebuilt OVA <https://cisco.app.box.com/s/6us23gzr8nwplrmtjmpp5xaos1wywa22>`_.  
 This section will focus on the OVA.
+
+The recommended sizing for the VM is as follows:
+   * 8 vCPU
+   * 16G memory
+   * 75G harddisk, thick provisioned
 
 The OVA contains the following components preinstalled:
 
@@ -89,11 +94,6 @@ The OVA contains the following components preinstalled:
 * A copy of the EnhancedEndpointTracker 
   `source code <https://github.com/agccie/ACI-EnhancedEndpointTracker>`_ located in 
   */opt/cisco/src* directory
-
-The recommended sizing for the VM is as follows:
-   * 8 vCPU
-   * 16G memory
-   * 75G harddisk, thick provisioned
 
 Once the OVA is deployed, access the console with the credentials below. Note, you will be required 
 to change the password on first login.
@@ -111,27 +111,25 @@ To get started with the OVA, perform the following steps:
 If you are deploying the cluster with more than one node, ensure there is connectivity between each 
 node in the cluster and the following ports are allowed:
 
-  * TCP port 2377 for cluster management
-  * TCP and UDP port 7046 for communication between nodes
-  * UDP port 4789 for overlay traffic
-  * TCP port 22 for auto-deployment and setup
+  * **TCP** port **2377** for cluster management
+  * **TCP** and **UDP** port **7046** for communication between nodes
+  * **UDP** port **4789** for overlay traffic
+  * **TCP** port **22** for auto-deployment and setup
 
 Configure VM Networking
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
-The VM is simply a Ubuntu 18.04 install.  Users can use any mechanism they prefer to initialize the 
+The OVA is simply a Ubuntu 18.04 install. Users can use any mechanism they prefer to initialize the 
 network.  The example below uses network manager TUI which is preinstalled on the VM.
 
 * Enter **sudo nmtui**
-* Choose edit a connection 
+* Choose 'Edit a connection' 
 
 |standalone-console-nmtui-p1|
 
 * Edit the appropriate connection. By default, the connection type is likely **Automatic** (DHCP) 
   but if you need to set a static IP address you will need to change the mode to **Manual** and the 
   set the appropriate info.
-
-|standalone-console-nmtui-p2|
 
 |standalone-console-nmtui-p3|
 
@@ -194,53 +192,14 @@ events and analysis may be incorrect.  You can use **ntpd** to configure ntp ser
                        RTC in local TZ: no
 
 
-Cluster Mode
-^^^^^^^^^^^^
-
-The EnhancedEndpointTracker app can be deployed in a distributed cluster. Users can deploy in their 
-own cluster or use a `prebuilt OVA <https://cisco.app.box.com/s/6us23gzr8nwplrmtjmpp5xaos1wywa22>`_.  
-This section will focus on the OVA.
-
-The OVA contains the following components preinstalled:
-
-* Docker CE 18.09.02
-* Python 2.7
-* Ntp
-* Network manager 
-* EnhancedEndpointTracker docker image specific to the version of the OVA 
-* A copy of the EnhancedEndpointTracker 
-  `source code <https://github.com/agccie/ACI-EnhancedEndpointTracker>`_ located in */opt/cisco/src* 
-  directory
-
-Once the OVA is deployed, access the console with the credentials below. Note, you will be required 
-to change the password on first login.
-
-* username: **eptracker**
-* password: **cisco**
-
-To get started with the OVA, perform the following steps:
-
-  * Configure host networking and hostname
-  * (Optional) Configure NTP
-  * Configure the cluster and deploy the stack
-  * Manage the app via the web GUI
-
-If you are deploying the cluster with more than one node, ensure there is connectivity between each 
-node in the cluster and the following ports are allowed:
-
-  * TCP port 2377 for cluster management
-  * TCP and UDP port 7046 for communication between nodes
-  * UDP port 4789 for overlay traffic
-  * TCP port 22 for auto-deployment and setup
-
 Configure the cluster and deploy the stack
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``cluster`` mode with the OVA uses docker swarm for the overlay and network orchestration. Even if 
 there is only a single node, the swarm needs to be configured.  This can be done manually or via 
-scripts already available on the VM. Ensure that networking has been configured on all nodes and 
-they are able to communicate on the ports previously listed. The high level process for **manually** 
-deploying the swarm is as follows:
+scripts already available on the VM. Before starting, ensure that networking has been configured on 
+all nodes and they are able to communicate on the ports previously listed. The high level process 
+for deploying the swarm is as follows:
 
 * Configure the VM as a swarm leader
 * Export the manager token to all other nodes and add them to the swarm
@@ -251,9 +210,9 @@ deploying the swarm is as follows:
   distributed across the cluster nodes.
 * Deploy the stack.
 
-Note, all containers deployed in the stack rely on the same container: 
-``agccie/enhancedendpointtracker``.  This is available on docker hub and is also available 
-pre-installed on the OVA.  There is no internet requirement to get the app deployed on the OVA.
+All containers deployed in the stack rely on the ``agccie/enhancedendpointtracker:<version>`` 
+container. This is available on docker hub and is also available pre-installed on the OVA. There is 
+no internet requirement to get the app deployed on the OVA.
 
 There is a script already available on the OVA to assist with the deployment. Before executing the 
 script, ensure that you have set the desired number of workers, db shard and replica count along
@@ -301,8 +260,8 @@ with memory limits. The defaults are sufficient for most setups:
               replicas: 3
               memory: 2.0 
  
-To **automatically** configure the swarm and deploy the service, use the ``app-deploy`` script 
-already available on the OVA. The example below assumes a 3-node cluster.
+To automatically configure the swarm and deploy the service, use the ``app-deploy`` script. The 
+example below assumes a 3-node cluster.
 
   .. code-block:: bash
 
@@ -312,13 +271,13 @@ already available on the OVA. The example below assumes a 3-node cluster.
       UTC 2019-02-16 23:38:25.318||INFO||compose file complete: /tmp/compose.yml
       UTC 2019-02-16 23:38:25.421||INFO||initializing swarm master
        
-      Enter hostname/ip address for node 2: 192.168.4.112
-       
+      Enter hostname/ip address for node 2: 192.168.4.112  <--- you will be prompted for each node IP
       Enter hostname/ip address for node 3: 192.168.4.113
-      UTC 2019-02-16 23:38:37.340||INFO||Adding worker to cluster (id:2, hostname:192.168.4.112)
-      Enter ssh username: eptracker
+
+      Enter ssh username: eptracker   <------ you will be prompted for ssh username/password
       Enter ssh password:
-       
+
+      UTC 2019-02-16 23:38:37.340||INFO||Adding worker to cluster (id:2, hostname:192.168.4.112)
       UTC 2019-02-16 23:38:46.400||INFO||Adding worker to cluster (id:3, hostname:192.168.4.113)
       UTC 2019-02-16 23:38:49.547||INFO||docker cluster initialized with 3 node(s)
       UTC 2019-02-16 23:38:49.548||INFO||deploying app services, please wait...
@@ -331,11 +290,11 @@ already available on the OVA. The example below assumes a 3-node cluster.
           credentials on each node.
 
 Manager the App via the web-GUI
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-After deployment is complete, open a web browser to https://<IP-address-of-any-node-in-cluster>/. 
-The app can be fully managed from the UI.  See the usage section for further details regarding how 
-to use the app.
+After deployment is complete, open a web browser to the IP address of any node in the cluster. Using
+the example above we could access the app on node-3 via to https://192.168.4.113/. The app can be 
+fully managed from the UI. See the usage section for further details regarding how to use the app.
 
 
 

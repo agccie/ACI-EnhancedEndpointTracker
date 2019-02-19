@@ -73,7 +73,7 @@ class eptWorker(object):
         register_signal_handlers()
         self.worker_id = "%s" % worker_id
         self.role = role
-        self.db = get_db(uniq=True, overwrite_global=True, write_concern=False)
+        self.db = get_db(uniq=True, overwrite_global=True, write_concern=True)
         self.redis = get_redis()
         # dict of eptWorkerFabric objects
         self.fabrics = {}

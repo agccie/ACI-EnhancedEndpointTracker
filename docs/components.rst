@@ -7,15 +7,17 @@ separate containers distributed over multiple nodes in ``full`` or ``cluster`` m
 
 |backend-components-p1|
 
-* mongoDB 
-  
+mongoDB 
+-------
+
   `mongoDB <https://www.mongodb.com/>`_ ``3.6`` is used for persistent storage of data.  In 
   ``mini`` mode this is a single mongo process with journaling disabled and wireTiger cache size 
   limit to 1.5G memory.  In ``cluster`` mode, it runs as a distributed database utilizing mongos, 
   configsvr in replica set, and multiple shards configured in replica sets. Sharding is enabled for 
   a subset of collections, generally based on endpoint address.
 
-* redisDB
+redisDB
+-------
 
   `redisDB <https://redis.io/>`_ is in an memory key-store database. It is used as a fast IPC 
   between components. There are two main messaging implementations in this app. 
@@ -32,14 +34,16 @@ separate containers distributed over multiple nodes in ``full`` or ``cluster`` m
   Python `Flask <http://flask.pocoo.org/>`_ and `Apache <https://httpd.apache.org/>`_ are used for 
   the web service.  
 
-* ``eptManager``
+``eptManager``
+--------------
 
   ``eptManager`` is a python process that is responsible for starting, stopping, and monitoring 
   ``eptSubscriber`` proceses along with tracking the status of all available ``eptWorker`` 
   processes. It is also responsible queuing and distributing all work that is dispatched to worker 
   processes. There is only a single instance of ``eptManager`` deployed within the app.
 
-* ``eptSubscriber``
+``eptSubscriber``
+-----------------
 
   ``eptSubscriber`` is a python process responsible for communication with the APIC. It collects 
   the initial state from the APIC and stores into the db. It establishes and monitors a websocket 
@@ -49,7 +53,8 @@ separate containers distributed over multiple nodes in ``full`` or ``cluster`` m
   There is a single ``eptSubscriber`` process running for each configured fabric.  This process is 
   always a subprocess running in the same container as ``eptManager``.
 
-* ``eptWorker``
+``eptWorker``
+-------------
 
   There is a configurable number of ``eptWorker`` processes that can be executed. Each ``eptWorker`` 
   must have a unique id and will be deployed with a role of either a **worker** or **watcher** 
@@ -63,7 +68,6 @@ separate containers distributed over multiple nodes in ``full`` or ``cluster`` m
 
 The full source code for the Flask web-service implementation and all ept components is available on 
 `Github <https://github.com/agccie/ACI-EnhancedEndpointTracker>`_.
-
 
 .. |backend-components-p1| image:: imgs/backend-components-p1.png
    :align: middle 

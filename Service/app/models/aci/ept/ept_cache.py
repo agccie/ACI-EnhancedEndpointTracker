@@ -94,15 +94,39 @@ class eptCache(object):
                 self.epg_cache.flush()
                 self.offsubnet_cache.flush()
         elif collection_name == eptSubnet._classname:
-            # need to remove on or all entries in offsubnet cache based on matching subnet.bd
-            if name is not None: 
+            # eptSubnet maps to subnet_cache which is the only current cache that maps to a list. If
+            # one entry is flushed, we don't know if that was an add or create so we need to
+            # invalidate (remove) the full list of subnets for the corresponding bd. To do this,
+            # we need to know the bd for the corresponding subnet. If not found in cache and not
+            # found in eptSubnet table, then we need to flush the entire cache. Else, we can flush
+            # just the subnets corresponding to the affected bd.
+            # the offsubnet cache also needs to be updated, however it already supports a flush on
+            # a per bd basis so we will be flushing just that bd or the full cache.
+            flush_bd = None
+            if name is not None:
                 subnets = self.subnet_cache.search(name, name=True)
-                if not isinstance(subnets, hitCacheNotFound) and subnets is not None \
-                    and len(subnets)>0:
-                    # subnet_cache key is bd so we can just look at the first one
-                    self.offsubnet_flush(subnets[0].bd)
-                self.subnet_cache.remove(name, name=True)
-            else: 
+                if not isinstance(subnets, hitCacheNotFound) and subnets is not None and \
+                    len(subnets)>0:
+                    # subnet_cache is indexed by key(bd) or name(dn) where key is a unique value but
+                    # name is many-to-one relationship. We expect all eptSubnet objects returned by
+                    # the cache lookup to have the same bd.
+                    flush_bd = subnets[0].bd
+                    logger.debug("deriving bd 0x%x from cached subnet %s",flush_bd,subnets[0].name)
+                else:
+                    # assuming the flush event was not for a delete, then we expect an existing
+                    # eptSubnet object still present in the db which we can use to derive the bd.
+                    obj = eptSubnet.find(fabric=self.fabric, name=name)
+                    if len(obj)>0:
+                        flush_bd = obj[0].bd
+                        logger.debug("deriving bd 0x%x from db subnet %s", flush_bd, obj[0].name)
+            # flush subnet_cache and offsubnet_cache for specific bd or all bds
+            if flush_bd is not None:
+                logger.debug("flushing subnet_cache and offsubnet_cache for bd 0x%x", flush_bd)
+                keystr = self.get_key_str(bd=flush_bd)
+                self.subnet_cache.remove(keystr)
+                self.offsubnet_flush(flush_bd)
+            else:
+                logger.debug("flushing full subnet_cache and offsubnet_cache")
                 self.subnet_cache.flush()
                 self.offsubnet_cache.flush()
         else:
@@ -272,9 +296,8 @@ class eptCache(object):
         return offsubnet
 
     def offsubnet_flush(self, bd):
-        """ offsubnet_cache contains offsubnetCachedObjects with key of vrf,pctag,ip.  Flush occurs
-            based on bd so need to walk through all nodes in list and remove nodes with provided
-            bd.
+        """ offsubnet_cache contains offsubnetCachedObjects with key of vrf,pctag,ip. Flush occurs
+            based on bd so need to walk through all nodes in list and remove nodes with provided bd.
         """
         remove_nodes = []
         for n in self.offsubnet_cache.get_node_list():
@@ -489,12 +512,14 @@ class hitCache(object):
             node = self.key_hash.get(key, None)
         if node is not None:
             self._remove_node(node)
+            self.evict_count+=1
         if not preserve_none:
             none_keys = self.none_hash.keys()
             for k in none_keys:
                 node = self.none_hash.get(k, None)
                 if node is not None:
                     self._remove_node(node)
+                    self.evict_count+=1
 
     def _set_node_child(self, node, child):
         # add a child to a specific node, updatoing tail pointer if needed

@@ -150,7 +150,7 @@ parser = eptEpmEventParser(tfabric, overlay_vnid)
 def app(request, app):
 
     app.config["LOGIN_ENABLED"] = False
-    create_test_environment()
+    #create_test_environment()
 
     # teardown called after all tests in session have completed
     def teardown(): 
@@ -168,9 +168,17 @@ def func_prep(request, app):
     # perform proper proper prep/cleanup
     # will delete all mo objects we're using as part of dependency testing
     logger.debug("%s %s setup", "."*80, __name__)
+    create_test_environment()
 
     def teardown(): 
         logger.debug("%s %s teardown", ":"*80, __name__)
+        eptNode.delete(_filters={})
+        eptTunnel.delete(_filters={})
+        eptPc.delete(_filters={})
+        eptVpc.delete(_filters={})
+        eptVnid.delete(_filters={})
+        eptEpg.delete(_filters={})
+        eptSubnet.delete(_filters={})
         eptQueueStats.delete(_filters={})
         # deleting eptEndpoint triggers delete for appropriate dependent objects
         # (history, stale, offsubnet, move, rapid, remediate)
@@ -2088,4 +2096,80 @@ def test_create_ept_msg_bulk(app, func_prep):
         assert m.msg_type == MSG_TYPE.WORK
         assert m.wt == WORK_TYPE.EPM_IP_EVENT
         assert m.addr == ip
+
+def test_flush_offsubnet_cache(app, func_prep):
+    # when adding a new subnet to a running client, ensure that the offsubnet_cache is properly 
+    # flushed such that new learns are correctly detected as on subnet.  Similarly, if the subnet
+    # is deleted, then ensure that corresponding events for the endpoint are detected as offsubnet.
+
+    # initial state for bd1/epg1
+    #   subnet s1v4 - uni/tn-ag/bd-bd1/subnet-[10.1.1.1/24] 
+    #   subnet s1v6 - uni/tn-ag/bd-bd1/subnet-[2001:10:1:1::1/64] 
+    dut = get_worker()
+    mac = "00:00:01:02:03:04"
+    ip = "10.1.1.101"
+    ip2= "10.1.2.101"
+
+    # initial local learn on node-101
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # ensure eptHistory and eptEndpoint objects are created
+    h = eptHistory.find(fabric=tfabric, addr=ip)
+    assert len(h)==1
+    logger.debug(pretty_print(h[0].to_json()))
+    assert not h[0].is_offsubnet 
+
+    # create a new eptSubnet and simulate eptSubscriber flush
+    prefix="10.1.2.1/24"
+    assert eptSubnet.load(fabric=tfabric,
+        name="%s/subnet-[%s]" % (bd1_name, prefix),
+        bd=bd1_vnid,
+        ip=prefix
+    ).save()
+    data = {"cache": eptSubnet._classname, "name": "%s/subnet-[%s]" % (bd1_name, prefix)}
+    msg = eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE, fabric=tfabric)
+    dut.set_msg_worker_fabric(msg)
+    dut.flush_cache(msg)
+
+    # create for ip on new subnet
+    msg = get_epm_event(101, ip2, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/1", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    msg = get_epm_event(101, mac, ip=ip2, wt=WORK_TYPE.EPM_RS_IP_EVENT, epg=1, ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+
+    # ensure eptHistory and eptEndpoint objects are created
+    h = eptHistory.find(fabric=tfabric, addr=ip2)
+    assert len(h)==1
+    logger.debug(pretty_print(h[0].to_json()))
+    assert not h[0].is_offsubnet 
+
+    # now if we delete bd1 10.1.1.1/24 subnet this should remove ip1 from cache and next lookup
+    # should trigger offsubnet
+    prefix1="10.1.1.1/24"
+    assert eptSubnet.load(fabric=tfabric,
+        name="%s/subnet-[%s]" % (bd1_name, prefix1),
+        bd=bd1_vnid,
+        ip=prefix
+    ).remove()
+    data = {"cache": eptSubnet._classname, "name": "%s/subnet-[%s]" % (bd1_name, prefix1)}
+    msg = eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE, fabric=tfabric)
+    dut.set_msg_worker_fabric(msg)
+    dut.flush_cache(msg)
+
+    # create for ip on new subnet
+    msg = get_epm_event(101, ip, wt=WORK_TYPE.EPM_IP_EVENT, epg=1, intf="eth1/2", ts=1.0)
+    dut.set_msg_worker_fabric(msg)
+    dut.handle_endpoint_event(msg)
+    h = eptHistory.find(fabric=tfabric, addr=ip)
+    assert len(h)==1
+    logger.debug(pretty_print(h[0].to_json()))
+    assert h[0].is_offsubnet 
+
 

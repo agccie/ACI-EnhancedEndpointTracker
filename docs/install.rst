@@ -33,7 +33,7 @@ the per-node endpoint count via the following moquery on the APIC:
 
     apic# moquery -c epmDb -x query-target=subtree -x target-subtree-class=epmIpEp,epmMacEp,epmRsMacEpToIpEpAtt -x rsp-subtree-include=count
 
-If the running ``mini`` mode and it is exceeding the memory limits, you may see the symptoms below:
+If running ``mini`` mode and it is exceeding the memory limits, you may see the symptoms below:
 
 * Consistent monitor restarts due to "subscriber no longer running"
 * Monitor restart due to "worker 'w0' not longer active"
@@ -55,6 +55,14 @@ a few different deployment options:
   nodes. This allows the app to scale with the size of the fabric. This is similar to the ``full`` 
   mode executing on the APIC but can be deployed in any custom environment that supports container 
   orchestration. 
+
+  If you are deploying the cluster with more than one node, ensure there is connectivity between
+  each node in the cluster and the following ports are allowed:
+
+  * **TCP** port **2377** for cluster management
+  * **TCP** and **UDP** port **7046** for communication between nodes
+  * **UDP** port **4789** for overlay traffic
+  * **TCP** port **22** for auto-deployment and setup
 
 All-in-One Mode
 ^^^^^^^^^^^^^^^
@@ -86,20 +94,14 @@ The recommended sizing for the VM is as follows:
 
 The OVA contains the following components preinstalled:
 
-* Docker CE 18.09.02
-* Python 2.7
-* Ntp
-* Network manager 
-* EnhancedEndpointTracker docker image specific to the version of the OVA 
-* A copy of the EnhancedEndpointTracker 
-  `source code <https://github.com/agccie/ACI-EnhancedEndpointTracker>`_ located in 
-  */opt/cisco/src* directory
-
-Once the OVA is deployed, access the console with the credentials below. Note, you will be required 
-to change the password on first login.
-
-* username: **eptracker**
-* password: **cisco**
+   * Docker CE 18.09.02
+   * Python 2.7
+   * ntpd
+   * Network manager 
+   * EnhancedEndpointTracker docker image specific to the version of the OVA 
+   * A copy of the EnhancedEndpointTracker 
+     `source code <https://github.com/agccie/ACI-EnhancedEndpointTracker>`_ located in 
+     */opt/cisco/src* directory
 
 To get started with the OVA, perform the following steps:
 
@@ -108,16 +110,14 @@ To get started with the OVA, perform the following steps:
   * Configure the cluster and deploy the stack
   * Manage the app via the web GUI
 
-If you are deploying the cluster with more than one node, ensure there is connectivity between each 
-node in the cluster and the following ports are allowed:
-
-  * **TCP** port **2377** for cluster management
-  * **TCP** and **UDP** port **7046** for communication between nodes
-  * **UDP** port **4789** for overlay traffic
-  * **TCP** port **22** for auto-deployment and setup
-
 Configure VM Networking
 ~~~~~~~~~~~~~~~~~~~~~~~
+
+Once the OVA is deployed, access the console with the credentials below. Note, you will be required 
+to change the password on first login.
+
+* username: **eptracker**
+* password: **cisco**
 
 The OVA is simply a Ubuntu 18.04 install. Users can use any mechanism they prefer to initialize the 
 network.  The example below uses network manager TUI which is preinstalled on the VM.
@@ -295,7 +295,6 @@ Manager the App via the web-GUI
 After deployment is complete, open a web browser to the IP address of any node in the cluster. Using
 the example above we could access the app on node-3 via to https://192.168.4.113/. The app can be 
 fully managed from the UI. See the usage section for further details regarding how to use the app.
-
 
 
 .. |standalone-console-nmtui-p1| image:: imgs/standalone-console-nmtui-p1.png

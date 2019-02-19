@@ -198,6 +198,7 @@ function build_app() {
         # override app.json with app_mini
         log "overriding app.json with app_mini.json"
         cp -p ./app_mini.json $TMP_DIR/$APP_ID/app.json
+        cp -p ./app_mini.json $TMP_DIR/$APP_ID/Service/app.json
     fi
 
     # create media and legal files
@@ -210,6 +211,16 @@ function build_app() {
     fi
     if [ "$(ls -A ./Media/Readme)" ] ; then
         cp -p ./Media/Readme/* $TMP_DIR/$APP_ID/Media/Readme/
+        # if this is app_mini, then we need to append those details to the readme.txt file
+        if [ -f $TMP_DIR/$APP_ID/Media/Readme/readme.txt ] && [ "$app_mini" == "1" ] ; then
+            local readme=$TMP_DIR/$APP_ID/Media/Readme/readme.txt
+            local mtxt=""
+            mtxt="$mtxt Mini mode is intended for backwards compatibility with APIC 2.x and 3.x.\n"
+            mtxt="$mtxt See external documentation for scaling recommendations. Use the standard\n"
+            mtxt="$mtxt app for APIC 4.0 and above or checkout the standalone verison.\n"
+            (echo -e $mtxt ; cat $readme ) > $readme.tmp
+            mv $readme.tmp $readme
+        fi
     fi
     if [ "$(ls -A ./Media/License)" ] ; then
         cp -p ./Media/License/* $TMP_DIR/$APP_ID/Media/License/
@@ -239,7 +250,11 @@ function build_app() {
             echo "hello" > $bf_dst/app-start.html
             cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
         else
-            ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
+            if [ "$app_mini" == "1" ] ; then
+                ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app-mini"
+            else
+                ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
+            fi
             # need to manually copy over logo.png into UIAssets folder
             if [ -f "$BASE_DIR/UIAssets/logo.png" ] ; then
                 cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
@@ -367,6 +382,14 @@ if [ "$APP_FULL_VERSION" == "" ] ; then
 fi
 app_original_filename=$APP_VENDOR_DOMAIN-$APP_ID-$APP_VERSION.aci
 app_final_filename=$APP_VENDOR_DOMAIN-$APP_ID-$APP_FULL_VERSION.aci
+
+# after app build, need to append Mini to app name if app_mini
+if [ "$app_mini" == "1" ] ; then
+    mini="Mini"
+    app_original_filename=$APP_VENDOR_DOMAIN-$APP_ID$mini-$APP_VERSION.aci
+    app_final_filename=$APP_VENDOR_DOMAIN-$APP_ID$mini-$APP_FULL_VERSION.aci
+fi
+
 # reset APP_VERSION to APP_FULL_VERSION for docker info to reflect patch
 APP_VERSION=$APP_FULL_VERSION
 
@@ -380,10 +403,13 @@ elif [ "$build_all_in_one" == "1" ] ; then
 else
     check_build_tools
     build_app
+
     if [ -f $TMP_DIR/$app_original_filename ] ; then
         mv $TMP_DIR/$app_original_filename ./$app_final_filename
     elif [ -f $TMP_DIR/$app_final_filename ] ; then
         mv $TMP_DIR/$app_final_filename ./$app_final_filename
+    else
+        log "$TMP_DIR/$app_original_filename and $app_final_filename not found"
     fi
     log "build complete: $app_final_filename"
 

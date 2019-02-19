@@ -39,8 +39,14 @@ function build_frontend() {
     rm -rf $TMP_DIR/node_modules
     cd $TMP_DIR
     npm install
-    if [ "$build_mode" == "app" ] ; then
-        npm run build-app
+    if [ "$build_mode" == "app" ] || [ "$build_mode" == "app-mini" ] ; then
+        if [ "$build_mode" == "app-mini" ] ; then
+            log "executing 'npm run build-app-mini'"
+            npm run build-app-mini
+        else
+            log "executing 'npm run build-app'"
+            npm run build-app
+        fi
         log "copying build dist to $DST_DIR"
         if [ "$(ls -A $TMP_DIR/dist)" ] ; then
             cp -rp $TMP_DIR/dist/. $DST_DIR/
@@ -55,6 +61,7 @@ function build_frontend() {
             return 1
         fi
     else
+        log "executing 'npm run build-standalone'"
         npm run build-standalone
         log "copying build dist to $DST_DIR"
         cp -rp $TMP_DIR/dist/. $DST_DIR/
@@ -87,7 +94,7 @@ while getopts "$optspec" optchar; do
         ;;
     m)
         build_mode=$OPTARG
-        if [ "$build_mode" != "standalone" ] && [ "$build_mode" != "app" ] ; then
+        if [ "$build_mode" != "standalone" ] && [ "$build_mode" != "app" ]  && [ "$build_mode" != "app-mini" ] ; then
             echo "invalid build mode '$build_mode'." >&2
             exit 1
         fi

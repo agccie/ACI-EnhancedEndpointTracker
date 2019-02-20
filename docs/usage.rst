@@ -118,7 +118,7 @@ sort and page through results as needed.
 .. |fabric-endpoint-pages| image:: imgs/fabric-endpoint-pages.png
    :align: middle
 
-.. |fabric-endpoint-moves-pages| image:: imgs/fabric-endpoint-moves-pages.png
+.. |fabric-endpoint-moves-page| image:: imgs/fabric-endpoint-moves-page.png
    :align: middle
 
 Endpoint Details

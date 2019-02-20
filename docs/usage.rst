@@ -89,6 +89,125 @@ displayed at the top of the Dashboard page.
 .. |fabric-typeahead-endpoint-search| image:: imgs/fabric-typeahead-endpoint-search.png
    :align: middle
 
+.. _endpoints:
+
+Endpoints
+---------
+
+There are several analyses performed and as a result several endpoint tables that can be viewed.
+Each page supports various filtering, a total count for number of endpoints matching filter,
+flexible sorting on attributes of interest, and resizable columns.
+
+|fabric-endpoint-pages|
+
+**Browse** allows operators to view the **Current Endpoint State** of for the fabric. Use this page
+to walk through all active endpoints, filter on currently offsubnet, stale, or rapid endpoints.
+
+**Moves** shows all endpoints that have moved within the fabric. The table is sorted by most recent
+event but can also be sorted based on available column.  It is extremely useful to sorted based on
+move event count which will show any endpoints that are unstable in the fabric. In the example below
+we can see that ``10.1.1.101`` has moved ``37k`` times which indicates we may have
+a misconfiguration that needs to be addressed. 
+
+|fabric-endpoint-moves-page|
+
+There are additional pages for **Rapid**, **Offsubnet**, **Stale**, and **Cleared** records. Each of
+these pages are historical records for past detection events. Similar to **Moves**, operators can
+sort and page through results as needed.
+
+.. |fabric-endpoint-pages| image:: imgs/fabric-endpoint-pages.png
+   :align: middle
+
+.. |fabric-endpoint-moves-pages| image:: imgs/fabric-endpoint-moves-pages.png
+   :align: middle
+
+Endpoint Details
+^^^^^^^^^^^^^^^^
+
+The power of the EnhancedEndpointTracker app is the **Endpoint Detail** page. This allows operators
+to see the current state of endpoint within the fabric along with the historical records of what has
+happened to the endpoint in the past. On the Overview section, the current state of the endpoint is
+listed.  As seen in the example below, this includes the current location of the endpoint in the
+fabric including VRF, EPG, pod, node, interface, encap, and rewrite information. All nodes where the
+endpoint is remotely learned (XR) is also available.  Also, a summary count of each event type that
+has occurred for this endpoint is displayed. If an endpoint is currently rapid, offsubnet, or stale
+it will be highlighted along with the list of affected nodes.
+
+|fabric-endpoint-detail|
+
+.. tip:: All columns are resizable. Simply click to the left of the column name and drag the column
+         to make it wider.
+
+* **History** displays the local learn events for the endpoint in the fabric along with delete
+  events
+
+* **Detailed** is a per-node history of events that has occurred for this endpoint. It provides an
+  additional search bar to filter on a specific attribute such as node, epg, pcTag, etc... This is
+  extremely helpful for experienced operators who need to know the state and history of the endpoint 
+  on a specific node.
+
+* **Move** displays the move events for this endpoint. Each row has the source and destination for
+  the move. 
+
+* **Rapid** displays the rapid events detected for this endpoint. The timestamp when the endpoint
+  was flagged as rapid along with the total number of epm events at that instance and the calculated
+  rate of events are also displayed
+
+* **OffSubnet** displays offsubnet events detected for this endpoint. The affected node, interface,
+  encap, and EPG are also displayed. It's common that a misconfigured endpoint fails subnet check on
+  the ingress leaf but still triggers a remote learn on another node. For this reason, the remote
+  node column is available so operators know which leaf the offsubnet endpoint originated from.
+
+* **Stale** displays stale events detected for this endpoint. Similar to the other tables, the
+  affected node, interface, encap, EPG, and remote node are captured. Generally, a stale endpoint is
+  a remote learn pointing to an incorrect leaf.  This table includes the expected remote node at the
+  time the stale event was detected.
+
+* **Cleared** displays the timestamp and reason an endpoint was cleared from the fabric by this app.
+
+There are a few actions that can be performed on an endpoint.
+
+|fabric-endpoint-actions|
+
+* **Dataplane Refresh** will query the APIC for the most recent state of the endpoint in the fabric
+  and update the app database. This is used as a sanity check to ensure that the state of the
+  endpoint reported in the app is 100% correct. There is no impact to this operation but it does
+  require that the fabric monitor is actively running.
+
+* **Delete Events** will delete the endpoint information from the app database. It has no impact on
+  the fabric. This is a useful mechanism to delete historical information on endpoints you no longer
+  care about. After the entry is removed from the app, a refresh is also triggered to ensure the app
+  stays in sync with the fabric. Therefore, you may notice that after the delete the endpoint is
+  immediately relearned by the app.
+
+* **Clear Endpoint** allows the operator to clear an endpoint from the fabric on one or more nodes.
+  This operation requires SSH credentials are configured under the fabric :ref:`settings`. When
+  clearing an endpoint, operators can provided a list of nodes. Operators can also use the available
+  toggles:
+
+  * **Clear on All Active Nodes** will clear the endpoint on all nodes that currently have the
+    endpoint learned. This includes both local learns and remote learns
+
+  * **Clear on All Offsubnet Nodes** will clear the endpoint on all nodes that have currently
+    learned the endpoint offsubnet
+
+  * **Clear on All Stale Nodes** will clear the endpoint on all nodes that are currently stale.
+
+    .. warning:: Clearing the endpoint will trigger an EPM delete in the fabric. This can cause a 
+                 traffic impact to the endpoint until it is relearned in the fabric. 
+
+  |clear-fabric-endpoint|
+
+
+.. |fabric-endpoint-detail| image:: imgs/fabric-endpoint-detail.png
+   :align: middle
+
+.. |fabric-endpoint-actions| image:: imgs/fabric-endpoint-actions.png
+   :align: middle
+
+.. |clear-fabric-endpoint| image:: imgs/clear-fabric-endpoint.png
+   :align: middle
+
 .. _settings:
 
 Settings

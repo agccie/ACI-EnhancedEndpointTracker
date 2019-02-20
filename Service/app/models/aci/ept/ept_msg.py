@@ -566,7 +566,7 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         self.vnid = int(data.get("vnid", 0))
         self.vrf = int(data.get("vrf", 0))
         self.bd = int(data.get("bd", 0))
-        self.force = bool(data.get("bool", False))
+        self.force = bool(data.get("force", False))
 
     def parse(self, overlay_vnid, classname, attr, ts):
         # parse event and set data dict to prepare 
@@ -656,11 +656,14 @@ class eptMsgWorkEpmEvent(eptMsgWork):
                 "encap": self.encap,
                 "ip": self.ip,
                 "vnid": self.vnid,
+                "force": self.force,
             }
         })
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.3f, node:0x%04x, 0x%06x, %s, %s]" % (self.msg_type.value, 
-            self.seq, self.fabric, self.wt.value, self.ts, self.node, self.vnid, self.addr, self.ip)
+        return "%s.0x%08x %s %s [ts:%.3f, node:0x%04x, 0x%06x, %s, %s] %s" % (self.msg_type.value, 
+            self.seq, self.fabric, self.wt.value, self.ts, self.node, self.vnid, self.addr, self.ip,
+            "[force]" if self.force else "",
+        )
 

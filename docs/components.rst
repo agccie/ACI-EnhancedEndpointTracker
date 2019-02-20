@@ -29,21 +29,22 @@ redisDB
   * Message queue via `rpush <https://redis.io/commands/rpush>`_ and 
     `blpop <https://redis.io/commands/blpop>`_ with support for queue prioritization.
 
-* web-service
+WebService
+-----------
 
   Python `Flask <http://flask.pocoo.org/>`_ and `Apache <https://httpd.apache.org/>`_ are used for 
   the web service.  
 
-``eptManager``
---------------
+eptManager
+----------
 
   ``eptManager`` is a python process that is responsible for starting, stopping, and monitoring 
   ``eptSubscriber`` proceses along with tracking the status of all available ``eptWorker`` 
   processes. It is also responsible queuing and distributing all work that is dispatched to worker 
   processes. There is only a single instance of ``eptManager`` deployed within the app.
 
-``eptSubscriber``
------------------
+eptSubscriber
+-------------
 
   ``eptSubscriber`` is a python process responsible for communication with the APIC. It collects 
   the initial state from the APIC and stores into the db. It establishes and monitors a websocket 
@@ -53,8 +54,8 @@ redisDB
   There is a single ``eptSubscriber`` process running for each configured fabric.  This process is 
   always a subprocess running in the same container as ``eptManager``.
 
-``eptWorker``
--------------
+eptWorker
+---------
 
   There is a configurable number of ``eptWorker`` processes that can be executed. Each ``eptWorker`` 
   must have a unique id and will be deployed with a role of either a **worker** or **watcher** 

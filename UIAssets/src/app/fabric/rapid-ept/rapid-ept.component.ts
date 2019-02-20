@@ -12,15 +12,16 @@ import {EndpointList} from 'src/app/_model/endpoint';
 
 export class RapidEptComponent implements OnInit {
     rows: any;
-    loading: any;
+    loading: boolean = false;
+    pageSize: number;
+    pageNumber: number = 0;
+    count: number = 0;
     sorts = [];
     @ViewChild('errorMsg') msgModal: TemplateRef<any>;
 
-    constructor(
-        private backendService: BackendService,
-        private activatedRoute: ActivatedRoute,
-        public pagingService: PagingService,
-        public modalService: ModalService) {
+    constructor(private backendService: BackendService, private activatedRoute: ActivatedRoute,public pagingService: PagingService,
+                public modalService: ModalService) {
+        this.pageSize = this.pagingService.pageSize;
     }
 
     ngOnInit() {
@@ -35,10 +36,10 @@ export class RapidEptComponent implements OnInit {
 
     getRapidEndpoints() {
         this.loading = true;
-        this.backendService.getFilteredEndpoints(this.pagingService.fabricName, this.sorts, false, false, false, false, 'rapid', this.pagingService.pageOffset, this.pagingService.pageSize).subscribe(
+        this.backendService.getFilteredEndpoints(this.pagingService.fabricName, this.sorts, false, false, false, false, 'rapid', this.pageNumber, this.pageSize).subscribe(
             (data) => {
                 let endpoint_list = new EndpointList(data);
-                this.pagingService.count = data['count'];
+                this.count = endpoint_list.count;
                 this.rows = endpoint_list.objects;
                 this.loading = false;
             }, (error) => {
@@ -51,7 +52,7 @@ export class RapidEptComponent implements OnInit {
     }
 
     setPage(event) {
-        this.pagingService.pageOffset = event.offset;
+        this.pageNumber = event.offset;
         this.getRapidEndpoints();
     }
 

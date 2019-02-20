@@ -54,6 +54,38 @@ eptSubscriber
   There is a single ``eptSubscriber`` process running for each configured fabric.  This process is 
   always a subprocess running in the same container as ``eptManager``.
 
+  The following objects are collected and monitored by the subscriber process:
+
+  * datetimeFormat
+  * epmIpEp
+  * epmMacEp
+  * epmRsMacEpToIpEpAtt
+  * fabricAutoGEp
+  * fabricExplicitGEp
+  * fabricNode
+  * fabricProtPol
+  * fvAEPg
+  * fvBD
+  * fvCtx
+  * fvIpAttr
+  * fvRsBd
+  * fvSubnet
+  * fvSvcBD
+  * l3extExtEncapAllocator
+  * l3extInstP
+  * l3extOut
+  * l3extRsEctx
+  * mgmtInB
+  * mgmtRsMgmtBD
+  * pcAggrIf
+  * pcRsMbrIfs
+  * tunnelIf
+  * vnsEPpInfo
+  * vnsLIfCtx
+  * vnsRsEPpInfoToBD
+  * vnsRsLIfCtxToBD
+  * vpcRsVpcConf
+
 eptWorker
 ---------
 

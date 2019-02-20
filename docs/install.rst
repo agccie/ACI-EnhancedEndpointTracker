@@ -25,6 +25,8 @@ After downloading the app, follow the directions for uploading and installing th
 * `2.x Install Instructions <https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/2-x/App_Center/developer_guide/b_Cisco_ACI_App_Center_Developer_Guide/b_Cisco_ACI_App_Center_Developer_Guide_chapter_0110.html#d7964e613a1635>`_
 * `3.x Install Instructions <https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/2-x/App_Center/developer_guide/b_Cisco_ACI_App_Center_Developer_Guide/b_Cisco_ACI_App_Center_Developer_Guide_chapter_0110.html#d11320e725a1635>`_ 
 
+.. note:: Ensure you select security domain **all** when installing on the APIC
+
 In you are executing the ``mini`` app, the APIC will enforce a **2G** memory limit and a **10G** 
 disk quota.  As a result, it may crash if there are a large number of endpoints or high number 
 events per second. As a best practice, it is recommended to deploy in ``full`` mode or 

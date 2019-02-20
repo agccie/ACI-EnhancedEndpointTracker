@@ -161,9 +161,9 @@ class eptQueueStats(Rest):
         # initialize counters (which occurs anytime corresponding process restarts)
         logger.debug("initialize queue: %s, %s", self.proc, self.queue)
         self.start_timestamp = time.time()
-        self.total_tx_msg = 0
-        self.total_rx_msg = 0
-        self.save()
+        #self.total_tx_msg = 0
+        #self.total_rx_msg = 0
+        self.save(refresh=True)
         self.db = get_db()
 
     def collect(self, qlen=0):
@@ -207,4 +207,4 @@ class eptQueueStats(Rest):
         # save db update 
         self.total_tx_msg = total_tx
         self.total_rx_msg = total_rx
-        self.save()
+        self.save(refresh=False)

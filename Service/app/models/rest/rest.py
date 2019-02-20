@@ -480,26 +480,26 @@ class Rest(object):
             else: keys["_id"] = self._id
         return keys
 
-    def save(self, skip_validation=False, allow_reload=True):
+    def save(self, skip_validation=False, refresh=True):
         """ save current instance of object to database.  If does not exists,
             then will attempt a create.  If already exists, then will perform
             an update.  
             
-            allow_reload triggers self.reload if any updates occurred. This is ignored on bulk save
+            refresh triggers self.reload if any updates occurred. This is ignored on bulk save
 
             skip_validation flag is forwarded to proper create/update methods. To improve 
             performance this can be enabled if source data is trusted and complete
 
             Returns boolean success
         """
-        return (self._save(skip_validation=skip_validation) is not None)
+        return (self._save(skip_validation=skip_validation, refresh=refresh) is not None)
 
-    def _save(self, bulk_prep=False, skip_validation=False, allow_reload=True):
+    def _save(self, bulk_prep=False, skip_validation=False, refresh=True):
         """ save current instance of object to database.  If does not exists,
             then will attempt a create.  If already exists, then will perform
             an update.  
 
-            allow_reload triggers self.reload if any updates occurred. This is ignored on bulk save
+            refresh triggers self.reload if any updates occurred. This is ignored on bulk save
 
             if bulk_prep is True, then instance of InsertOne, UpdateOne, or UpdateMany that is used
             in bulk_save operation. If bulk_prep is False, then bool(true) is returned on success
@@ -563,7 +563,8 @@ class Rest(object):
             # if there are callbacks for create/update then it's possible that the attribute values
             # were changed on save. we don't want to do this on bulk as it requires a db read which
             # will significantly offset the benefits of bulk.
-            if allow_reload and reload_required: self.reload()
+            if refresh and reload_required:
+                self.reload()
 
             # reset all current _original_attributes to current value so 
             # subsequent saves correctly reflect current state

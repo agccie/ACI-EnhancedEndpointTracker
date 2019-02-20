@@ -101,7 +101,7 @@ class eptTunnel(Rest):
         if len(remote) > 0:
             logger.debug("updating remote node to 0x%04x", remote[0].node)
             tunnel.remote = remote[0].node
-            tunnel.save()
+            tunnel.save(refresh=False)
         elif tunnel.encap == "vxlan" or "proxy" in tunnel.flags or "dci" in tunnel.flags:
             # ok to fail mapping for vxlan/proxy/dci
             logger.debug("failed to map tunnel to remote node (expected, flags: %s)", tunnel.flags)

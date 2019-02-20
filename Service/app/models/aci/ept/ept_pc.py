@@ -76,13 +76,13 @@ class eptPc(Rest):
                 if mbr not in pc.members:
                     logger.debug("adding %s to members list(%s)", mbr, pc.members)
                     pc.members.append(mbr)
-                    pc.save()
+                    pc.save(refresh=False)
             else:
                 # else if mo is deleted AND mbr is a member, then remove it
                 if mbr in pc.members:
                     logger.debug("removing %s from members list(%s)", mbr, pc.members)
                     pc.members.remove(mbr)
-                    pc.save()
+                    pc.save(refresh=False)
         else:
             logger.debug("ignoring update for non-existing eptPc object")
 

@@ -195,7 +195,7 @@ class DependencyNode(object):
                 except Exception as e:
                     logger.error("Traceback:\n%s", traceback.format_exc())
                 if updated: 
-                    ept.save()
+                    ept.save(refresh=True)
                     updates.append(ept)
 
         # trigger callback unconditionally
@@ -265,7 +265,9 @@ class DependencyNode(object):
                 if a in mo._attributes and getattr(mo,a) != attr[a]:
                     setattr(mo, a, attr[a])
                     mo_update = True
-            mo.save()
+            # mo's support before/after create callbacks to manipulate attributes
+            # therefore refresh is required on save
+            mo.save(refresh=True)
 
             if not mo_update:
                 # no local mo update so no ept object change or child dependencies can change

@@ -522,10 +522,10 @@ class eptWorker(object):
                 event.rw_mac = msg.addr
                 event.rw_bd = msg.bd
                 eptHistory(fabric=msg.fabric, node=msg.node, vnid=msg.vnid, addr=msg.ip, 
-                        type=msg.type, count=1, events=[event.to_dict()]).save()
+                        type=msg.type, count=1, events=[event.to_dict()]).save(refresh=False)
             else:
                 eptHistory(fabric=msg.fabric, node=msg.node, vnid=msg.vnid, addr=msg.addr, 
-                        type=msg.type, count=1, events=[event.to_dict()]).save()
+                        type=msg.type, count=1, events=[event.to_dict()]).save(refresh=False)
             per_node_history_events[msg.node] = [event]
 
             # no analysis required for new event if:
@@ -741,7 +741,7 @@ class eptWorker(object):
             dummy_event = eptEndpointEvent.from_dict({"vnid_name":msg.vnid_name}).to_dict()
             logger.debug("learn type set to %s", learn_type)
             eptEndpoint(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr,type=endpoint_type,
-                    first_learn=dummy_event, learn_type=learn_type).save()
+                    first_learn=dummy_event, learn_type=learn_type).save(refresh=False)
 
         # determine current complete local event
         local_event = None
@@ -982,7 +982,7 @@ class eptWorker(object):
             logger.debug("new move detected")
             endpoint_type = get_addr_type(msg.addr, msg.type)
             eptMove(fabric=msg.fabric, vnid=msg.vnid, addr=msg.addr, type=endpoint_type,
-                    count=1, events=[move_event]).save()
+                    count=1, events=[move_event]).save(refresh=False)
         else:
             db_src = eptMoveEvent.from_dict(db_move["events"][0]["src"])
             db_dst = eptMoveEvent.from_dict(db_move["events"][0]["dst"])

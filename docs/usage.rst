@@ -31,8 +31,8 @@ Fabrics
 
 Click the Home |home-icon| icon to access the home page and add fabrics to monitor. Multiple fabrics 
 can be monitored by a single app and you can search for an endpoint from the Home page across all 
-fabrics.  Simply click the Add icon and enter the fabric name.  Once submitted you will be 
-redirected to the settings page to further configure various monitoring options.
+fabrics.  Simply click the Add icon and enter the fabric name. Once submitted you will be 
+redirected to the :ref:`settings` page to further configure various monitoring options.
 
 |standalone-add-fabric|
 
@@ -46,6 +46,50 @@ redirected to the settings page to further configure various monitoring options.
 .. |home-icon| image:: imgs/home-icon.png
    :align: middle
    :width: 30
+
+
+.. _dashboard:
+
+Dashboard
+---------
+
+The dashboard page provides an overview of the current status of the fabric monitor. You can see an
+overall count for the total number of active endpoints, a history of the fabric monitor events,
+along with the uptime of the monitor. Operators can control the monitor via the Start |start-icon|
+and Stop |stop-icon| icons.
+
+.. tip:: Loopback addresses and pervasive SVIs are tracked but are not considered as active
+         endpoints within the fabric and do not count toward the total active count. Additionally,
+         if an endpoint has been deleted the records remain within the database and can be
+         searched/viewed but will not count toward the total active count.
+
+|fabric-dashboard|
+
+Operators can quickly find an endpoint of interest by typing in the corresponding MAC, IPv4, or IPv6
+address in the search bar at the top of the page. The search returns the number of endpoints matched
+along with the full address, endpoint type, encapsulation, VRF name, and EPG name where the endpoint
+is learned.
+
+|fabric-typeahead-endpoint-search|
+
+If the fabric is not running or ``eptManager`` is not active, then an appropriate message is
+displayed at the top of the Dashboard page.
+
+.. |start-icon| image:: imgs/start-icon.png
+   :align: middle
+   :width: 30
+
+.. |stop-icon| image:: imgs/stop-icon.png
+   :align: middle
+   :width: 30
+
+.. |fabric-dashboard| image:: imgs/fabric-dashboard.png
+   :align: middle
+
+.. |fabric-typeahead-endpoint-search| image:: imgs/fabric-typeahead-endpoint-search.png
+   :align: middle
+
+.. _settings:
 
 Settings
 --------
@@ -126,7 +170,7 @@ sent.  Fabric operators have full visibility into what clear events have occurre
 
 |fabric-settings-remediate|
 
-.. |fabric-settings-notifications| image:: imgs/fabric-settings-remediate.png
+.. |fabric-settings-remediate| image:: imgs/fabric-settings-remediate.png
    :align: middle
 
 Advanced
@@ -137,6 +181,8 @@ suitable for most deployments. However, there may be scenarios where this settin
 updated.  The following settings are available within the **Advanced** section. 
 
 If you are using the API then these settings would apply to the **eptSettings** object.
+
+|fabric-settings-advanced|
 
 Enable/Disable Specific Analysis
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -237,6 +283,11 @@ build time. It may be desirable to ignore the events during initialization, in w
 events can be disabled.
 
 * **Queue initial events** enables queueing of all standard MO events during build
-* **QUeue initial endpoint events** enables queuing of all EPM events during endpoint build
+* **Queue initial endpoint events** enables queuing of all EPM events during endpoint build
+
+.. |fabric-settings-advanced| image:: imgs/fabric-settings-advanced.png
+   :align: middle
+
+
 
 

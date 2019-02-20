@@ -58,8 +58,8 @@ For example, to get the list of configured fabrics referencing the existing cook
    {"count":1,"objects":[{"fabric":{"apic_hostname":"esc-aci-network.cisco.com:8062","dn":"/uni/fb-fab4","fabric":"fab4"}}]}
 
 
-API Access when running on the APIC
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+API Access on the APIC
+----------------------
 
 The APIC restricts stateful applications to use **GET** and **POST** methods only along with
 enforcing static URL endpoints.  Since this app uses RESTful **GET**, **POST**, **PATCH**, and 
@@ -78,17 +78,12 @@ The user must also have admin read access on the APIC and use the APIC aaaLogin 
 token for accessing the app API. The token must be included in all requests an HTTP header named 
 ``DevCookie``.
 
+* If running in ``mini`` mode, use the following url for all request:
 
-When running in ``app`` mode and deployed on the Cisco ACI APIC, the app is accessible via one of
-the following URLs:
+    https://APIC_IP/appcenter/Cisco/EnhancedEndpointTrackerMini/proxy.json
 
-* If running in ``mini`` mode:
-
-    http://<apic-ip>/appcenter/Cisco/EnhancedEndpointTrackerMini/proxy.json
-
-* If running in ``full`` mode:
-
-    http://<apic-ip>/appcenter/Cisco/EnhancedEndpointTracker/proxy.json
+* If running in ``full`` mode, use the following url for all requests:
+    http://APIC_IP/appcenter/Cisco/EnhancedEndpointTracker/proxy.json
 
 An example using curl on the APIC CLI:
 

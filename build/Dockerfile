@@ -21,6 +21,7 @@ RUN apt-get update && \
         curl \
         exim4 \
         git \
+        iputils-ping \
         libffi-dev \
         libssl-dev \
         logrotate \
@@ -30,6 +31,7 @@ RUN apt-get update && \
         python-dev \
         python-pip \
         rsyslog \
+        tcpdump \
         vim \
 	redis-server
 

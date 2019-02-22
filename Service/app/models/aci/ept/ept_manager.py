@@ -130,7 +130,7 @@ class eptManager(object):
 
         # start all fabrics with auto_start enabled
         for f in Fabric.find(auto_start=True):
-            self.start_fabric(f.fabric, reason="manager process start")
+            self.start_fabric(f.fabric, reason="manager process start", skip_suppress=True)
 
         logger.debug("manager %s ready for work", self.worker_id)
         # watch for work that needs to be dispatched to available workers
@@ -214,7 +214,8 @@ class eptManager(object):
 
         elif msg.msg_type == MSG_TYPE.FABRIC_START:
             # start monitoring for fabric
-            self.start_fabric(msg.data["fabric"], reason=msg.data.get("reason", None))
+            self.start_fabric(msg.data["fabric"], reason=msg.data.get("reason", None), 
+                             skip_suppress=True)
                 
         elif msg.msg_type == MSG_TYPE.FABRIC_STOP:
             # stop a running fabric
@@ -223,7 +224,8 @@ class eptManager(object):
         elif msg.msg_type == MSG_TYPE.FABRIC_RESTART:
             # restart a running (or stopped) fabric
             self.stop_fabric(msg.data["fabric"], reason=msg.data.get("reason", None))
-            self.start_fabric(msg.data["fabric"], reason=msg.data.get("reason", None))
+            self.start_fabric(msg.data["fabric"], reason=msg.data.get("reason", None),
+                              skip_suppress=True)
 
         elif msg.msg_type == MSG_TYPE.GET_WORKER_HASH:
             # requires addr field only and returns hash, index, and selected worker
@@ -309,7 +311,7 @@ class eptManager(object):
                 return False
         return True
 
-    def start_fabric(self, fabric, reason=None, restarting=False):
+    def start_fabric(self, fabric, reason=None, restarting=False, skip_suppress=False):
         # manager start monitoring provided fabric name.  
         # if auto_start is disabled, then references to this fabric will be removed from manager 
         # on failure. Else, if a new worker comes online the fabric may automatically restart.
@@ -328,7 +330,7 @@ class eptManager(object):
             if f.exists():
                 # check start suppression threshold
                 ts_delta = (time.time() - f.restart_ts)
-                if ts_delta < SUPPRESS_FABRIC_RESTART:
+                if ts_delta < SUPPRESS_FABRIC_RESTART and not skip_suppress:
                     logger.debug("suppressing fabric %s restart (%.3f < %.3f)", fabric, ts_delta, 
                             SUPPRESS_FABRIC_RESTART)
                     self.fabrics[fabric]["waiting_for_retry"] = True
@@ -374,6 +376,9 @@ class eptManager(object):
         f = Fabric.load(fabric=fabric)
         if f.exists():
             f.add_fabric_event("stopped", reason)
+            # on stop force restart ts delay by setting the 'last restart' to now.
+            f.restart_ts = time.time()
+            f.save()
         if fabric not in self.fabrics:
             logger.warn("stop requested for unknown fabric '%s'", fabric)
             return False

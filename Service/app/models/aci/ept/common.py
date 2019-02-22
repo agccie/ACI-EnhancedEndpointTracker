@@ -543,6 +543,7 @@ class BackgroundThread(threading.Thread):
     def run(self):
         logger.debug("starting background thread: %s", self.name)
         while not self._exit:
+            self.count+=1
             self.func(*self.args, **self.kwargs)
             if self.max_count > 0 and self.count >= self.max_count:
                 # stop execution when reaching max number of iterations

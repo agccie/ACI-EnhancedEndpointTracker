@@ -20,6 +20,8 @@ from . common import MAX_SEND_MSG_LENGTH
 from . common import MINIMUM_SUPPORTED_VERSION
 from . common import MO_BASE
 from . common import SUBSCRIBER_CTRL_CHANNEL
+from . common import WORKER_CTRL_CHANNEL
+from . common import HELLO_INTERVAL
 from . common import BackgroundThread
 from . common import get_vpc_domain_id
 from . common import parse_tz
@@ -28,6 +30,7 @@ from . ept_msg import WORK_TYPE
 from . ept_msg import eptEpmEventParser
 from . ept_msg import eptMsg
 from . ept_msg import eptMsgBulk
+from . ept_msg import eptMsgHello
 from . ept_msg import eptMsgWork
 from . ept_msg import eptMsgWorkDeleteEpt
 from . ept_msg import eptMsgWorkRaw
@@ -79,6 +82,11 @@ class eptSubscriber(object):
         self.manager_ctrl_channel_lock = threading.Lock()
         self.manager_work_queue_lock = threading.Lock()
         self.subscription_check_interval = 5.0   # interval to check subscription health
+
+        # broadcast hello for any managers (registration and keepalives)
+        self.hello_thread = None
+        self.hello_msg = eptMsgHello(self.fabric.fabric, "subscriber", [], time.time())
+        self.hello_msg.seq = 0
 
         # active workers indexed by role. Each role is a list of TrackedWorker objects.
         # Note, this is initial value of workers when subscriber is started. It may not be accurate 
@@ -176,6 +184,12 @@ class eptSubscriber(object):
             # allocate a unique db connection as this is running in a new process
             self.db = get_db(uniq=True, overwrite_global=True, write_concern=True)
             self.redis = get_redis()
+            # start hello thread
+            self.hello_thread = BackgroundThread(func=self.send_hello, name="hello", count=0,
+                                                interval = HELLO_INTERVAL)
+            self.hello_thread.daemon = True
+            self.hello_thread.start()
+            # start epm thread
             if EPM_EVENT_HANDLER_ENABLED:
                 self.epm_thread = BackgroundThread(
                     func=self.handle_epm_event_queue, 
@@ -194,8 +208,16 @@ class eptSubscriber(object):
             self.subscriber.unsubscribe()
             if self.db is not None:
                 self.db.client.close()
+            if self.hello_thread is not None:
+                self.hello_thread.exit()
             if self.epm_thread is not None:
                 self.epm_thread.exit()
+
+    def send_hello(self):
+        """ send hello/keepalives at regular interval """
+        self.hello_msg.seq+= 1
+        #logger.debug(self.hello_msg)
+        self.redis.publish(WORKER_CTRL_CHANNEL, self.hello_msg.jsonify())
 
     def handle_channel_msg(self, msg):
         """ handle msg received on subscribed channels """

@@ -350,13 +350,23 @@ class eptManager(object):
                 self.fabrics[fabric]["process"].daemon = True
                 self.fabrics[fabric]["process"].start()
                 self.fabrics[fabric]["waiting_for_retry"] = False
-                f.restart_ts = time.time()
+                # save start time to fabric object to suppress rapid restarts
+                start_ts = time.time()
+                f.restart_ts = start_ts
                 f.save()
                 # help notification to workers that new fabric is present - mostly needed for 
                 # watchers but can be sent to all workers to pre-load their caches with fabric 
                 # settings for this fabric.
                 start = eptMsg(MSG_TYPE.FABRIC_START, data={"fabric": fabric})
                 self.worker_tracker.broadcast(start)
+
+                # add fabric to worker_tracker.known_subscribers for hello tracking
+                tw = TrackedWorker(fabric)
+                tw.role = "subscriber"
+                tw.active = True
+                tw.start_time = start_ts
+                tw.last_hello = start_ts
+                self.worker_tracker.known_subscribers[fabric] = tw
                 return True
             else:
                 logger.warn("start requested for fabric '%s' which does not exist", fabric)
@@ -389,6 +399,8 @@ class eptManager(object):
             # need to force all workers to flush their caches for this fabric
             stop = eptMsg(MSG_TYPE.FABRIC_STOP, data={"fabric": fabric})
             self.worker_tracker.broadcast(stop)
+            # remove subscriber id from worker tracker known_subscribers
+            self.worker_tracker.known_subscribers.pop(fabric, None)
             # remove fabric from auto-start before flushing messages
             if not f.exists() or not f.auto_start: 
                 logger.debug("removing fabric '%s' from managed fabrics", fabric)
@@ -410,10 +422,16 @@ class eptManager(object):
         remove_list = []
         fabric_list = [(f, fab) for f, fab in self.fabrics.items()]
         for f, fab in fabric_list:
-            if fab["process"] is not None and not fab["process"].is_alive():
+            hello_timeout = not ( f in self.worker_tracker.known_subscribers and \
+                            self.worker_tracker.known_subscribers[f].active)
+            if fab["process"] is not None and (hello_timeout or not fab["process"].is_alive()):
                 # validate auto_start is enabled on the no-longer running fabric
-                logger.warn("fabric %s no longer running", f)
-                self.stop_fabric(f, reason="subscriber no longer running")
+                logger.warn("fabric %s no longer running (hello-timeout: %r)", f, hello_timeout)
+                # set different error based on whether process is dead or hello timeout
+                if hello_timeout:
+                    self.stop_fabric(f, reason="subscriber heartbeat timeout")
+                else:
+                    self.stop_fabric(f, reason="subscriber no longer running")
                 db_fab = Fabric.load(fabric=f)
                 if db_fab.auto_start:
                     self.start_fabric(f, reason="auto restarting", restarting=True)
@@ -453,6 +471,7 @@ class WorkerTracker(object):
     def __init__(self, manager=None):
         self.manager = manager
         self.redis = self.manager.redis
+        self.known_subscribers = {} # indexed by fabric-id
         self.known_workers = {}     # indexed by worker_id
         self.active_workers = {}    # list of active workers indexed by role
         self.update_interval = WORKER_UPDATE_INTERVAL # interval to check for new/expired workers
@@ -462,6 +481,23 @@ class WorkerTracker(object):
         self.update_thread.start()
 
     def handle_hello(self, hello):
+        # trigger appropriate worker/subscriber hello handler
+        if hello.role == "subscriber":
+            self.handle_subscriber_hello(hello)
+        else:
+            self.handle_worker_hello(hello)
+
+    def handle_subscriber_hello(self, hello):
+        # track hellos from subscribers.  Note, worker_id is the fabric name for this subscriber
+        # subscribers are added automatically when monitor is started. There is no dynamic 
+        # registraction of subscribers.  Therefore, we ignore unknown ids.
+        if hello.worker_id not in self.known_subscribers:
+            logger.debug("ignoring hello for unknown subscriber: %s", hello.worker_id)
+        else:
+            #logger.debug("received hello from %s", hello.worker_id)
+            self.known_subscribers[hello.worker_id].last_hello = time.time()
+
+    def handle_worker_hello(self, hello):
         # handle worker hello, add to known workers if unknown
         if hello.worker_id not in self.known_workers:
             if len(hello.queues) == 0:
@@ -541,22 +577,22 @@ class WorkerTracker(object):
 
         # if a worker has died, then trigger monitor restart for all fabrics
         if len(remove_workers)>0:
-            inactive = "[%s]" % ",".join([w.worker_id for w in remove_workers])
-            # restart all fabrics
-            minimum_ready = self.manager.minimum_workers_ready()
+            inactive = "[%s]" % ", ".join([w.worker_id for w in remove_workers])
+            # stop fabric (manager will restart when ready)
             for f in self.manager.fabrics.keys():
-                self.manager.stop_fabric(f, reason="worker '%s' no longer active" % inactive)
-                if minimum_ready:
-                    self.manager.start_fabric(f, reason="restarting after active worker change")
-                else:
-                    fab = Fabric.load(fabric=f)
-                    if not fab.auto_start:
-                        fab.add_fabric_event("stopped", "worker processes are not ready")
-                    else: 
-                        fab.add_fabric_event("waiting to start", "worker processes are not ready")
+                self.manager.stop_fabric(f, reason="worker heartbeat timeout %s" % inactive)
 
         if len(remove_workers)>0 or new_workers:
             logger.info("total workers: %s", len(self.known_workers))
+
+
+        # check hello from each subscriber. If any have timedout, set to inactive (manager func 
+        # will restart any subscribers that are inactive)
+        for sid, s in self.known_subscribers.items():
+            if s.last_hello + HELLO_TIMEOUT < ts:
+                logger.warn("subscriber timeout (last hello: %.3f) %s",ts-s.last_hello, s)
+                # set to inactive
+                s.active = False
 
         # trigger manager fabric processes check
         self.manager.check_fabric_processes()

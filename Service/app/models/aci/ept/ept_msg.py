@@ -187,7 +187,7 @@ class eptMsgHello(object):
         self.seq = seq
 
     def __repr__(self):
-        return "[%s] %s.0x%08x" % (self.worker_id, self.msg_type.value, self.seq)
+        return "[%s] %s.0x%08x %s" % (self.worker_id, self.msg_type.value, self.seq, self.role)
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """

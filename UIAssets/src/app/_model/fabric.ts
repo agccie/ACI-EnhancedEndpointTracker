@@ -58,6 +58,7 @@ export class Fabric {
     ssh_password: string;
     ssh_username: string;
     status: string;
+    display_status: string;
     mac: number;
     ipv4: number;
     ipv6: number;
@@ -80,6 +81,7 @@ export class Fabric {
         this.ssh_password = '';
         this.ssh_username = '';
         this.status = 'stopped';
+        this.display_status = 'stopped';
         this.events = [];
         this.mac = 0;
         this.ipv4 = 0;
@@ -102,6 +104,16 @@ export class Fabric {
             else if (attr in this) {
                 this[attr] = data[attr];
             }
+        }
+    }
+
+    // set the status attribute which also triggers update to display_status attribute
+    set_status(status:string, ) {
+        this.status = status;
+        if(this.status == 'running' && this.events.length>0){
+            this.display_status = this.events[0].status;
+        } else {
+            this.display_status == this.status;
         }
     }
 

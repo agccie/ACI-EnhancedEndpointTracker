@@ -75,7 +75,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
             (data) => {
                 this.loadingCount--;
                 if("status" in data){
-                    fabric.status = data["status"]
+                    fabric.set_status(data['status'])
                 }
                 if("uptime" in data){
                     fabric.uptime = data["uptime"]

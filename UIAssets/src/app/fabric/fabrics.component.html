@@ -1,0 +1,48 @@
+
+<div class="base-margin-bottom row">
+    <div class="col-md-12">
+        <div class="form-group">
+                <ng-select 
+                #endpointSearch
+                placeholder="Search MAC or IP for this fabric. I.e., 00:50:56:01:BB:12, 10.1.1.101, or 2001:a:b::65"
+                typeToSearchText="Type 4 or more characters"
+                notFoundText="Type 4 or more characters"
+                [items]="endpointList"
+                bindLabel="name"
+                [typeahead]="endpointInput$"
+                (change)="onEndPointChange($event)"
+                [loading] = "endpointLoading"
+                autofocus
+                >
+                <ng-template ng-header-tmp *ngIf="endpointHeader">
+                    Matched: <strong>{{ endpointMatchCount | number }}</strong>
+                </ng-template>
+                <ng-template ng-option-tmp let-item="item" let-index="index" let-search="searchTerm" *ngIf="endpointMatchCount>0">
+                    <div class="row">
+                        <div class="col-md-2">
+                            {{ item.addr }}
+                        </div>
+                        <div class="col-md-1">
+                            <endpoint-label [type]="item.type"></endpoint-label>
+                        </div>
+                        <div class="col-md-1">
+                            {{ item.first_learn.encap }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ item.first_learn.vnid_name }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ item.first_learn.epg_name }}
+                        </div>
+                    </div>
+                </ng-template>
+            </ng-select>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <router-outlet></router-outlet>
+    </div>
+</div>

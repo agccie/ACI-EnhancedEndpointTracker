@@ -1,0 +1,227 @@
+<div class="content-fluid" (click)="onContentClicked($event)">
+    <nav class="sidebar" [class.sidebar--mini]="sidebarCollapsed" *ngIf="fabricName && fabricName.length>0">
+        <div class="sidebar__header">
+            <a id="sidebar-toggle" class="sidebar-toggle hidden-xs hidden-sm"
+               (click)="onSidebarClicked($event)">
+                <span [class.icon-toggle-menu]="sidebarCollapsed" [class.icon-list-menu]="!sidebarCollapsed"></span>
+            </a>
+            <div class="sidebar__header-title">{{ fabricName }}</div>
+        </div>
+        <ul>
+            <li class="sidebar__item">
+                <a [routerLink]="['fabric', fabricName]">
+                    <span class="icon-computer"></span>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+            <li class="sidebar__drawer" [class.sidebar__drawer--opened]="endpointExpanded"
+                (click)="onEndpointExpand($event)">
+                <a>
+                    <span class="icon-virtual-machine"></span>
+                    <span>Endpoints</span>
+                </a>
+                <ul>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'endpoints']">
+                            <div class="row">
+                                <span class="icon-browser"></span>
+                                <span class="qtr-margin-left text-medium">Browse</span>
+                            </div>
+                        </a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'moves']">
+                            <div class="row">
+                                <span class="icon-panel-shift-right"></span>
+                                <span class="qtr-margin-left text-medium">Moves</span>
+                            </div>
+                        </a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'rapid-endpoints']">
+                            <div class="row">
+                                <span class="icon-too-fast"></span>
+                                <span class="qtr-margin-left text-medium">Rapid</span>
+                            </div>
+                        </a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'offsubnet-endpoints']">
+                            <div class="row">
+                                <span class="icon-jump-out"></span>
+                                <span class="qtr-margin-left text-medium">OffSubnet</span>
+                            </div>
+                        </a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'stale-endpoints']">
+                            <div class="row">
+                                <span class="icon-warning"></span>
+                                <span class="qtr-margin-left text-medium">Stale</span>
+                            </div>
+                        </a>
+                    </li>
+                    <li class="sidebar__item">
+                        <a [routerLink]="['fabric', fabricName,'cleared-endpoints']">
+                            <div class="row">
+                                <span class="icon-delete"></span>
+                                <span class="qtr-margin-left text-medium">Cleared</span>
+                            </div>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            <li class="sidebar__item">
+                <a [routerLink]="['fabric', fabricName,'settings','connectivity']">
+                    <span class="icon-tools"></span>
+                    <span>Settings</span>
+                </a>
+            </li>
+            <li class="sidebar__item">
+                <a (click)='showAbout()'>
+                    <span class="icon-help"></span>
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <div *ngIf="appLoading">
+      <div class="loading">
+        <h4 class="text-center half-margin">Loading EndpointTracker</h4>
+        <h6 class="text-center">{{ appLoadingStatus }}</h6>
+        <loading-dots></loading-dots>
+        <br>
+      </div>
+    </div>
+
+    <main *ngIf="!appLoading">
+        <header class="header header--compressed" *ngIf="!login_required && !app_mode">
+            <div class="header-bar container">
+                <a class="header-bar__logo">
+                    <span class="icon-cisco"></span>
+                </a>
+                <div class="header-bar__main">
+                    <div class="header-heading">
+                        <h1 class="page-title">Endpoint Tracker</h1>
+                    </div>
+                </div>
+                <div class="header-toolbar">
+                    <a class="btn btn--small btn--icon" title="Welcome" [routerLink]="['/']">
+                        <span data-balloon="Welcome" data-balloon-pos="down">
+                            <span class="icon-home"></span>
+                        </span>
+                    </a>
+                    <a class="btn btn--small btn--icon" title="Users" [routerLink]="['/users']">
+                        <span data-balloon="Users" data-balloon-pos="down">
+                          <span class="icon-user"></span>
+                        </span>
+                    </a>
+                    <a *ngIf="!app_mode" class="btn btn--small btn--icon" title="Logout" (click)="logout()">
+                        <span data-balloon="Logout" data-balloon-pos="down">
+                            <span class="icon-sign-out"></span>
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </header>
+        <div class="content">
+            <div class="container-fluid center-xs">
+                <div class="row half-margin-bottom half-margin-top">
+                    <div class="col-md-12 ">
+                        <router-outlet></router-outlet>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<ng-template #aboutModal>
+    <div class="row" *ngIf="loadingAbout">
+        <div class="col-md-12">
+            <loading-dots [text]="Loading"></loading-dots>
+        </div>
+    </div>
+    <div class="row" *ngIf="!loadingAbout">
+        <div class="col-md-12 text-left">
+            <h5 class="text-center">
+                <span class="text-bold">{{version.app_id}}</span>
+                <br>v{{ version.version }}
+            </h5>
+            <table class="table table--highlight base-margin">
+                <tbody>
+                    <tr *ngIf="!app_mode">
+                        <td class="text-bold">API</td>
+                        <td>
+                            <a target="_blank" href="/docs/">
+                                Swagger Docs
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-bold">Documentation</td>
+                        <td>
+                            <div>
+                                <a target="_blank" href="https://aci-enhancedendpointtracker.readthedocs.io/en/latest/">
+                                    https://aci-enhancedendpointtracker.readthedocs.io/en/latest/
+                                </a>
+                            </div>
+                            <div *ngIf="version.contact_url.length>0">
+                                <a target="_blank" [attr.href]="version.contact_url">
+                                    {{ version.contact_url }}
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-bold">Feedback</td>
+                        <td>
+                            <a [attr.href]="feedbackUrl">
+                                {{ version.contact_email }}
+                             </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-bold">Build Date</td>
+                        <td>
+                            {{ (version.timestamp | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                            ({{ (version.timestamp | amFromUnix) | amTimeAgo }})
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-bold">Branch</td>
+                        <td> {{ version.branch }} </td>
+                    </tr>
+                    <tr>
+                        <td class="text-bold">Commit</td>
+                        <td> {{ version.commit }} </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn--gray-ghost" (click)="modalService.hideModal()">Close</button>
+    </div>
+</ng-template>
+<ng-template #generalModal>
+    <div class="modal__body">
+        <h4 class="text-left">
+            <span class="text-bold" [ngClass]="modalService.modalHeaderClass">{{modalService.modalTitle}}</span>
+            <span class="text-large half-margin-left" *ngIf="modalService.modalSubTitle.length>0"> {{modalService.modalSubTitle}}</span>
+        </h4>
+        <div class="text-left text-large base-margin-top base-margin-right base-margin-left" *ngIf="modalService.modalBody.length>0">
+            <div [innerHtml]="modalService.modalBody"></div>
+        </div>
+        <div class="text-center" *ngIf="modalService.modalLoading">
+            <loading-dots></loading-dots>
+        </div>
+        <div *ngIf="!modalService.modalConfirm && !modalService.modalLoading" class="modal__footer">
+            <button class="btn btn--gray-ghost" (click)="modalService.hideModal()">Close</button>
+        </div>
+        <div *ngIf="modalService.modalConfirm && !modalService.modalLoading" class="modal__footer">
+            <button class="btn btn--gray-ghost" (click)="modalService.modalConfirmCallback()">Yes</button>
+            <button class="btn btn--primary" (click)="modalService.hideModal()">No</button>
+        </div>
+    </div>
+</ng-template>

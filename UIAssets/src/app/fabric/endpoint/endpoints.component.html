@@ -1,0 +1,101 @@
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel panel--raised">
+            <div class="row base-margin-bottom">
+                <div class="col-md-2">
+                        <button class="btn btn--icon btn--small btn--default" (click)='getEndpoints()'>
+                            <span class="icon-refresh"></span>
+                        </button>
+                </div>
+                <div class="col-md-8 text-center">
+                        <h4>Current Endpoint State</h4>
+                </div>
+                <div class="col-md-2"></div>
+            </div>
+            <div class="form-group form-group--inline">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="activeFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Active</span>
+                </label>
+            </div>
+            <div class="form-group form-group--inline">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="osFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">OffSubnet Endpoints</span>
+                </label>
+            </div>
+            <div class="form-group form-group--inline">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="stFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Stale Endpoints</span>
+                </label>
+            </div>
+            <div class="form-group form-group--inline">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="rapidFilter" (change)="onFilterToggle()">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Rapid</span>
+                </label>
+            </div>
+            <ngx-datatable
+                    [columnMode]="'force'"
+                    [headerHeight]="25"
+                    [footerHeight]="50"
+                    [rowHeight]="'auto'"
+                    [loadingIndicator]="loading"
+                    [rows]="rows"
+                    [externalPaging]="true"
+                    [externalSorting]="true"
+                    [count]="pagingService.count"
+                    [offset]="pagingService.pageOffset"
+                    [limit]="pagingService.pageSize"
+                    (page)="setPage($event)"
+                    (sort)="onSort($event)"
+                    [cssClasses]="{
+                  sortAscending: 'icon-chevron-down',
+                  sortDescending: 'icon-chevron-up',
+                  pagerLeftArrow: 'icon-step-prev',
+                  pagerRightArrow: 'icon-step-next',
+                  pagerPrevious: 'icon-step-backward',
+                  pagerNext: 'icon-step-forward'
+                  }">
+                <ngx-datatable-column prop="events[0].status" name="State" [sortable]="true" [width]="100">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <status-label *ngIf="!row.is_flagged && row.is_active && !row.is_ctrl" [status]="'active'"></status-label>
+                        <status-label *ngIf="!row.is_flagged && !row.is_active && !row.is_ctrl" [status]="'inactive'"></status-label>
+                        <status-label *ngIf="row.learn_type=='external'" [status]="'external'"></status-label>
+                        <status-label *ngIf="row.is_ctrl" [status]="row.learn_type"></status-label>
+                        <status-label *ngIf="row.is_offsubnet" [status]="'offsubnet'"></status-label>
+                        <status-label *ngIf="row.is_rapid" [status]="'rapid'"></status-label>
+                        <status-label *ngIf="row.is_stale" [status]="'stale'"></status-label>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [width]="100">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <endpoint-label [type]="value"></endpoint-label>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" >
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <a [routerLink]="['../history', row.vnid, row.addr]">
+                            {{ value }}
+                        </a>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="first_learn.vnid_name" name="VRF/BD" [sortable]="true" >
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row.events.length > 0 ? row.events[0].vnid_name : row.first_learn.vnid_name }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="events.0.epg_name" name="EPG" [sortable]="true" >
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ row.events.length > 0 ? (row.events[0].epg_name !== '' ? row.events[0].epg_name : '&mdash;') : (row.first_learn.epg_name !== '' ? row.first_learn.epg_name : '&mdash;') }}
+                    </ng-template>
+                </ngx-datatable-column>
+            </ngx-datatable>
+        </div>
+    </div>
+</div>

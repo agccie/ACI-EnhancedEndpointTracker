@@ -1,0 +1,181 @@
+import {BrowserModule} from '@angular/platform-browser';
+import {NgModule} from '@angular/core';
+import {NgxDatatableModule} from '@swimlane/ngx-datatable';
+import {AppComponent} from './app.component';
+import {FabricsComponent} from './fabric/fabrics.component';
+import {RouterModule, Routes} from '@angular/router';
+import {UsersComponent} from './users/users.component';
+import {EndpointHistoryComponent} from './fabric/history/endpoint-history.component';
+import {LoginComponent} from './login/login.component'
+import {FormsModule, ReactiveFormsModule} from '@angular/forms';
+import {MoveEventsComponent} from './fabric/history/move-events/move-events.component';
+import {OffSubnetEventsComponent} from './fabric/history/off-subnet-events/off-subnet-events.component';
+import {StaleEventsComponent} from './fabric/history/stale-events/stale-events.component';
+import {PerNodeHistoryComponent} from './fabric/history/per-node-history/per-node-history.component';
+import {AuthGuardService} from './_service/auth-guard.service';
+import {AccordionModule, ModalModule} from 'ngx-bootstrap';
+import {EndpointsComponent} from './fabric/endpoint/endpoints.component';
+import {MovesComponent} from './fabric/moves/moves.component';
+import {StaleEptComponent} from './fabric/stale-ept/stale-ept.component';
+import {OffsubnetEptComponent} from './fabric/offsubnet-ept/offsubnet-ept.component';
+import {BackendService} from './_service/backend.service';
+import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
+import {MomentModule} from 'ngx-moment';
+import {NgSelectModule} from '@ng-select/ng-select';
+import {BackendInterceptorService} from './_service/backend-interceptor.service';
+import {CookieService} from 'ngx-cookie-service';
+import {HashLocationStrategy, LocationStrategy} from '@angular/common';
+import {LocalLearnsComponent} from './fabric/history/local-learns/local-learns.component';
+import {WelcomeComponent} from "./welcome/welcome.component";
+import {OverviewComponent} from "./fabric/overview/overview.component";
+import {NotFoundComponent} from "./notfound/notfound.component";
+import {QueueComponent} from "./queue/queue.component";
+import {QueueDetailComponent} from "./queue-detail/queue-detail.component";
+import {HighchartsChartModule} from "highcharts-angular";
+import {QueryBuilderModule} from "angular2-query-builder";
+import {RapidEptComponent} from './fabric/rapid-ept/rapid-ept.component';
+import {ClearedEptComponent} from './fabric/cleared-ept/cleared-ept.component';
+import {RapidComponent} from './fabric/history/rapid/rapid.component';
+import {ClearedComponent} from './fabric/history/cleared/cleared.component';
+import {UptimeDaysPipe} from './_pipes/uptime-days.pipe';
+import {LocalNodePipe} from './_pipes/local-node.pipe';
+import {FabricService} from './_service/fabric.service';
+import {SettingsComponent} from "./fabric/settings/settings.component";
+import {ConnectivityComponent} from "./fabric/settings/connectivity/connectivity.component";
+import {NotificationComponent} from "./fabric/settings/notification/notification.component";
+import {RemediationComponent} from "./fabric/settings/remediation/remediation.component";
+import {AdvancedComponent} from "./fabric/settings/advanced/advanced.component";
+import {LoadingDotsComponent} from "./common/loading-dots.component";
+import {EndpointLabelComponent} from "./common/endpoint-label.component";
+import {StatusLabelComponent} from "./common/status-label.component";
+
+const appRoutes: Routes = [
+    {
+        path: 'login',
+        component: LoginComponent,
+    },
+    {
+        path: '',
+        canActivate: [AuthGuardService],
+        children: [
+            {path: '', component: WelcomeComponent}
+        ]
+    },
+    {
+        path: 'fabric/:fabric',
+        component: FabricsComponent,
+        canActivate: [AuthGuardService],
+        children: [
+            {path: '', component: OverviewComponent},
+            {path: 'endpoints', component: EndpointsComponent},
+            {path: 'moves', component: MovesComponent},
+            {path: 'stale-endpoints', component: StaleEptComponent},
+            {path: 'offsubnet-endpoints', component: OffsubnetEptComponent},
+            {path: 'rapid-endpoints', component: RapidEptComponent},
+            {path: 'cleared-endpoints', component: ClearedEptComponent},
+            {
+                path: 'settings',
+                component: SettingsComponent,
+                children: [
+                    {path: 'connectivity', component: ConnectivityComponent},
+                    {path: 'notifications', component: NotificationComponent},
+                    {path: 'remediate', component: RemediationComponent},
+                    {path: 'advanced', component: AdvancedComponent}
+                ]
+            },
+            {
+                path: 'history/:vnid/:address',
+                component: EndpointHistoryComponent,
+                children: [
+                    {path: '', redirectTo: 'history', pathMatch: 'full'},
+                    {path: 'history', component: LocalLearnsComponent},
+                    {path: 'detailed', component: PerNodeHistoryComponent},
+                    {path: 'moves', component: MoveEventsComponent},
+                    {path: 'offsubnet', component: OffSubnetEventsComponent},
+                    {path: 'stale', component: StaleEventsComponent},
+                    {path: 'rapid', component: RapidComponent},
+                    {path: 'cleared', component: ClearedComponent}
+                ]
+            }
+        ]
+    },
+    {
+        path: 'users',
+        component: UsersComponent,
+        canActivate: [AuthGuardService]
+    },
+    {
+        path: 'queues',
+        component: QueueComponent,
+        canActivate: [AuthGuardService]
+    },
+    {
+        path: 'queue/:process/:queue',
+        component: QueueDetailComponent,
+        canActivate: [AuthGuardService]
+    },
+    {path: '**', component: NotFoundComponent},
+];
+
+@NgModule({
+    declarations: [
+        AppComponent,
+        FabricsComponent,
+        UsersComponent,
+        EndpointHistoryComponent,
+        LoginComponent,
+        PerNodeHistoryComponent,
+        MoveEventsComponent,
+        OffSubnetEventsComponent,
+        StaleEventsComponent,
+        EndpointsComponent,
+        MovesComponent,
+        StaleEptComponent,
+        OffsubnetEptComponent,
+        SettingsComponent,
+        ConnectivityComponent,
+        NotificationComponent,
+        RemediationComponent,
+        AdvancedComponent,
+        LocalLearnsComponent,
+        WelcomeComponent,
+        OverviewComponent,
+        NotFoundComponent,
+        RapidEptComponent,
+        ClearedEptComponent,
+        NotFoundComponent,
+        QueueComponent,
+        QueueDetailComponent,
+        RapidComponent,
+        ClearedComponent,
+        UptimeDaysPipe,
+        LocalNodePipe,
+        LoadingDotsComponent,
+        EndpointLabelComponent,
+        StatusLabelComponent,
+    ],
+    imports: [
+        BrowserModule,
+        NgxDatatableModule,
+        RouterModule.forRoot(appRoutes),
+        FormsModule,
+        ReactiveFormsModule,
+        AccordionModule.forRoot(),
+        HttpClientModule,
+        MomentModule,
+        NgSelectModule,
+        HighchartsChartModule,
+        ModalModule.forRoot(),
+        QueryBuilderModule,
+    ],
+    providers: [
+        BackendService,
+        CookieService,
+        FabricService,
+        {provide: HTTP_INTERCEPTORS, useClass: BackendInterceptorService, multi: true},
+        {provide: LocationStrategy, useClass: HashLocationStrategy}
+    ],
+    bootstrap: [AppComponent]
+})
+export class AppModule {
+}

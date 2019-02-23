@@ -1,0 +1,77 @@
+<div class="row">
+    <div class="col-md-12 base-margin-bottom">
+        <div class="alert">
+            <div class="alert__icon icon-info-outline"></div>
+            <div class="alert__message">These are historical records. The endpoint may no longer be rapid.</div>
+        </div>
+    </div>
+    <div class="col-md-12">
+        <div class="panel panel--raised">
+            <div class="row base-margin-bottom">
+                <div class="col-md-2">
+                        <button class="btn btn--icon btn--small btn--default" (click)='getRapidEndpoints()'>
+                            <span class="icon-refresh"></span>
+                        </button>
+                </div>
+                <div class="col-md-8 text-center">
+                        <h4>Rapid Endpoints</h4>
+                </div>
+                <div class="col-md-2"></div>
+            </div>
+            <ngx-datatable
+                    [columnMode]="'force'"
+                    [headerHeight]="25"
+                    [footerHeight]="50"
+                    [rowHeight]="'auto'"
+                    [externalSorting]="true"
+                    [externalPaging]="true"
+                    [count]="count"
+                    [offset]="pageNumber"
+                    [limit]="pageSize"
+                    (page)="setPage($event)"
+                    (sort)="onSort($event)"
+                    [sorts]="sorts"
+                    [loadingIndicator]="loading"
+                    [rows]="rows"
+                    [cssClasses]="{
+                    sortAscending: 'icon-chevron-down',
+                    sortDescending: 'icon-chevron-up',
+                    pagerLeftArrow: 'icon-step-prev',
+                    pagerRightArrow: 'icon-step-next',
+                    pagerPrevious: 'icon-step-backward',
+                    pagerNext: 'icon-step-forward'
+                    }">
+                <ngx-datatable-column prop="events.0.ts" name="Time" [sortable]="true" [width]="175">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [width]="100">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <endpoint-label [type]="value"></endpoint-label>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" >
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <a [routerLink]="['../history', row.vnid, row.addr]">
+                            {{ value }}
+                        </a>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="count" name="Event Count" [sortable]="true" [width]="100">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ value | number }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="events.0.rate" name="Rate(/minute)" [sortable]="true" [width]="100">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ value | number : '1.0-0' }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="events.0.vnid_name" name="VRF/BD" [sortable]="true" >
+                </ngx-datatable-column>
+            </ngx-datatable>
+        </div>
+    </div>
+</div>
+  

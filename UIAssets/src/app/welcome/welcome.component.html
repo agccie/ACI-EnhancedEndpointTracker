@@ -1,0 +1,151 @@
+<div *ngIf="!managerRunning">
+    <div class="base-margin-bottom alert alert--danger">
+        <div class="alert__icon icon-error-outline"></div>
+        <div class="alert__message text-left">
+            <strong>Error</strong> Manager process is not running.  You may be unable to start/stop/monitor the fabric until this is resolved.
+        </div>
+    </div>
+</div>
+
+<h4 class="base-margin-bottom">
+    Fabrics
+</h4>
+<div class="row half-margin-bottom">
+   <div class="col-md-12">
+        <div class="form-group"> 
+            <ng-select 
+                #endpointSearch
+                placeholder="Search MAC or IP Address across all fabrics. I.e., 00:50:56:01:BB:12, 10.1.1.101, or 2001:a:b::65"
+                typeToSearchText="Type 4 or more characters"
+                notFoundText="Type 4 or more characters"
+                [items]="endpointList"
+                bindLabel="name"
+                [typeahead]="endpointInput$"
+                (change)="onEndPointChange($event)"
+                [loading] = "endpointLoading"
+                autofocus
+                >
+                <ng-template ng-header-tmp *ngIf="endpointHeader">
+                    Matched: <strong>{{ endpointMatchCount | number }}</strong>
+                </ng-template>
+                <ng-template ng-option-tmp let-item="item" let-index="index" let-search="searchTerm" *ngIf="endpointMatchCount>0">
+                    <div class="row">
+                        <div class="col-md-2">
+                            <strong>{{ item.fabric }}</strong>
+                        </div>
+                        <div class="col-md-2">
+                            {{ item.addr }}
+                        </div>
+                        <div class="col-md-1">
+                            <endpoint-label [type]="item.type"></endpoint-label>
+                        </div>
+                        <div class="col-md-1">
+                            {{ item.first_learn.encap }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ item.first_learn.vnid_name }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ item.first_learn.epg_name }}
+                        </div>
+                    </div>
+                </ng-template>
+            </ng-select>
+        </div>
+   </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel panel--raised">
+            <div class="row half-margin-bottom">
+                <div class="col-md-12">
+                    <button class="btn btn--icon btn--small btn--default" 
+                            data-balloon="Refresh" data-balloon-pos="down"
+                            (click)='getFabrics()' [disabled]='loadingCount>0'>
+                            <span class="icon-refresh"></span>
+                    </button><button class="btn btn--icon btn--small btn--primary"  
+                            [disabled]="userRole!=0 || loadingCount>0"
+                            data-balloon="Add Fabric" data-balloon-pos="down"
+                            (click)='showAddFabric()'>
+                            <span class="icon-add"></span>
+                    </button>
+                </div>
+            </div>
+            <loading-dots *ngIf="loadingCount>0"></loading-dots>
+            <div clas="row" *ngIf="loadingCount<=0" >
+                <div class="col-md-12">
+                    <ngx-datatable
+                            [columnMode]="'force'"
+                            [footerHeight]="50"
+                            [rowHeight]="'auto'"
+                            [rows]="rows"
+                            [sorts]="sorts"
+                            [cssClasses]="{
+                                    sortAscending: 'icon-chevron-down',
+                                    sortDescending: 'icon-chevron-up',
+                                    pagerLeftArrow: 'icon-step-prev',
+                                    pagerRightArrow: 'icon-step-next',
+                                    pagerPrevious: 'icon-step-backward',
+                                    pagerNext: 'icon-step-forward'
+                                  }"
+                    >
+                        <ngx-datatable-column prop="fabric" name="Name" [sortable]="true" [flexGrow]="0.4">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <a [routerLink]="['fabric', row.fabric]" >{{ row.fabric }}</a>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="display_status" name="Status" [sortable]="true" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <status-label [status]="value"></status-label>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="uptime" name="Uptime" [sortable]="true" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <span *ngIf="row.uptime > 0">{{ row.uptime | uptimeDays }}</span>
+                                <span *ngIf="row.uptime === 0">&mdash;</span>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="mac" name="# MAC" [sortable]="true" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{ row.mac !== '' ? (row.mac | number) : '&mdash;'}}
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="ipv4" name="# IPv4" [sortable]="true" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{ row.ipv4 !== '' ? (row.ipv4 | number) : '&mdash;'}}
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="ipv6" name="# IPv6" [sortable]="true" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                {{ row.ipv6 !== '' ? (row.ipv6 | number) : '&mdash;'}}
+                            </ng-template>
+                        </ngx-datatable-column>
+                    </ngx-datatable>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<ng-template #addFabric>
+    <form #fabricForm="ngForm" (ngSubmit)="submitFabric()">
+        <div class="modal-body">
+            <h6> Add a new fabric </h6>
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <div class="form-group__text">
+                            <input id="fabric" type="text" required [(ngModel)]="fabricName" name="name">
+                            <label for="fabric">Name</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <br>
+        <div class="modal-footer">
+            <button type="reset" class="btn btn--gray-ghost" (click)="modalService.hideModal()">Cancel</button>
+            <button type="submit" class="btn btn--primary" [disabled]="!fabricForm.form.valid">Submit</button>
+        </div>
+    </form>
+</ng-template>

@@ -1,8 +1,0 @@
-{
-    "commands":[
-        {
-            "cmd": "vsh -c \"clear system internal epm endpoint key vrf ag:v1 ip 10.1.1.101\"",
-            "output": "\nService not enabled\n\nCmd exec error.\nfab2-spine201#"
-        }
-    ]
-}

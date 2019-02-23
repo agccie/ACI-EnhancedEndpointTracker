@@ -1,0 +1,43 @@
+
+# app configuration (note, this is specific to container bring up, majority of app config is
+# available within the app UI)
+app:
+    # application service name
+    name: "ept"
+    # external ports for http and https.  Set to '0' to disable it.
+    http_port: 80
+    https_port: 443
+    # number of workers containers
+    workers: 10
+    # internal network for communication between app components. This subnet should only be changed
+    # if it overlaps with an existing network
+    subnet: "192.0.2.0/24"
+
+# mongodb cluster configuration
+database:
+    # shards is the number of db shards.
+    #
+    # replicas are per-shard.  A replica count of 1 has no redundancy. Recommended replica count
+    # is 3 for full redundancy.  Note, the replica count must be <= total nodes configured in the
+    # cluster.
+    #
+    # memory is a float measured in GB and is a per shard/per replica limit. 
+    # The aggregate memory of all containers running on a single node should be less than total 
+    # memory on the node or the db may crash.
+    shardsvr: 
+        shards: 3
+        replicas: 3
+        memory: 2.0
+
+    # configsvr holds meta data for db shards.  The replica count here is per configsrv service.
+    # Again, the number of replicas should be less than or equal to the number of nodes.
+    #
+    # memory is a float measured in GB and is per instance
+    configsvr:
+        replicas: 3
+        memory: 2.0
+
+# enable stdout for all containers logs instead of writing to local log directory
+logging:
+    stdout: no
+

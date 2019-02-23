@@ -1,0 +1,36 @@
+<ngx-datatable
+        #myTable
+        class="fullscreen"
+        [columnMode]="'force'"
+        [headerHeight]="25"
+        [footerHeight]="50"
+        [rowHeight]="'auto'"
+        [limit]="pageSize"
+        [loadingIndicator]="loading"
+        [rows]="rows"
+        [sorts]="sorts"
+        [cssClasses]="{
+            sortAscending: 'icon-chevron-down',
+            sortDescending: 'icon-chevron-up',
+            pagerLeftArrow: 'icon-step-prev',
+            pagerRightArrow: 'icon-step-next',
+            pagerPrevious: 'icon-step-backward',
+            pagerNext: 'icon-step-forward'
+          }"
+>
+    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [width]="175">
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            {{ (value | amFromUnix ) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="count" name="Total EPM Events" [sortable]="true" >
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            {{ value | number }}
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column prop="rate" name="Rate(per minute)" [sortable]="true" >
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            {{ value | number }}
+        </ng-template>
+    </ngx-datatable-column>
+</ngx-datatable>

@@ -8,7 +8,8 @@ ACI Enhanced Endpoint Tracker
    introduction
    install
    usage
-   development
+   api
+   components
 
 
 Indices and tables

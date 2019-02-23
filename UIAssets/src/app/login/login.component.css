@@ -1,0 +1,10 @@
+.loginBg {
+    background: rgba(100, 187, 227, 1);
+    background: -moz-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
+    background: -webkit-gradient(radial, center center, 0px, center center, 100%, color-stop(0%, rgba(100, 187, 227, 1)), color-stop(100%, rgba(0, 81, 115, 1)));
+    background: -webkit-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
+    background: -o-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
+    background: -ms-radial-gradient(center, ellipse cover, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
+    background: radial-gradient(ellipse at center, rgba(100, 187, 227, 1) 0%, rgba(0, 81, 115, 1) 100%);
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#64bbe3', endColorstr='#005173', GradientType=1);
+}

@@ -1,0 +1,151 @@
+<h4 class="base-margin-bottom">
+    Users
+</h4>
+<div class="row half-margin-bottom">
+    <div class="col-md-12">
+        <form>
+            <div class="form-group input--icon">
+                <div class="form-group__text">
+                    <input id="search" type="search" placeholder="Search User"
+                           (keyup)='updateFilter($event)' required>
+                    <button type="button" class="link">
+                        <span class="icon-search"></span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel panel--raised">
+            <div class="row half-margin-bottom">
+                <div class="col-md-12">
+                    <button class="btn btn--icon btn--small btn--default" 
+                            data-balloon="Refresh" data-balloon-pos="down"
+                            [disabled]="loading"
+                            (click)='getUsers()'>
+                            <span class="icon-refresh"></span>
+                    </button><button class="btn btn--icon btn--small btn--primary"  
+                            data-balloon="Add User" data-balloon-pos="down"
+                            [disabled]="userRole!=0 || loading"
+                            (click)='onAddUser()'>
+                            <span class="icon-add"></span>
+                    </button>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <ngx-datatable
+                            class="fullscreen"
+                            [columnMode]="'force'"
+                            [footerHeight]="50"
+                            [rowHeight]="'auto'"
+                            [limit]="pageSize"
+                            [loadingIndicator]="loading"
+                            [rows]="rows"
+                            [sorts]="usernameSort"
+                            [cssClasses]="{
+                                    sortAscending: 'icon-chevron-down',
+                                    sortDescending: 'icon-chevron-up',
+                                    pagerLeftArrow: 'icon-step-prev',
+                                    pagerRightArrow: 'icon-step-next',
+                                    pagerPrevious: 'icon-step-backward',
+                                    pagerNext: 'icon-step-forward'
+                            }"
+                        >
+                        <ngx-datatable-column prop="username" name="Username" [sortable]="true" [flexGrow]="0.6">
+                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
+                                         let-row="row">
+                                {{ value }}
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column prop="role" name="Role" [sortable]="true" [flexGrow]="0.3">
+                            <ng-template ngx-datatable-cell-template let-rowIndex="rowIndex" let-value="value"
+                                         let-row="row">
+                                <span>
+                                  {{ value==0?'Admin':value==1?'User':value==2?'Blacklist':value}}
+                                </span>
+                            </ng-template>
+                        </ngx-datatable-column>
+                        <ngx-datatable-column name="Actions" [flexGrow]="0.1">
+                            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                                <button class="btn btn--small btn--icon btn--primary"
+                                   [disabled]="userRole!=0 && row.username!=userName"
+                                   data-balloon="Update" data-balloon-pos="down"
+                                   (click)="onUpdateUser(row)">
+                                    <span class="icon-pencil"></span>
+                                </button>
+                                <button class="btn btn--small btn--icon btn--negative"
+                                   [disabled]="userRole!=0"
+                                   data-balloon="Delete" data-balloon-pos="down"
+                                   (click)='onDeleteUser(row)'>
+                                    <span class="icon-trash"></span>
+                                </button>
+                            </ng-template>
+                        </ngx-datatable-column>
+                    </ngx-datatable>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<ng-template #updateUserTemplate>
+    <form #userForm="ngForm" (ngSubmit)="onSubmit()">
+        <div class="modal-body">
+            <h4 *ngIf="updateUser.is_new"> Add a new user </h4>
+            <h4 *ngIf="!updateUser.is_new"> Edit user </h4>
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <div class="form-group__text">
+                            <input id="username" type="text" [disabled]="!updateUser.is_new" [required]="updateUser.is_new"
+                                   [(ngModel)]="updateUser.username" name="username">
+                            <label for="username">Username</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="form-group__text">
+                            <input id="password" type="password" [required]="updateUser.is_new" [(ngModel)]="updateUser.password"
+                                   name="password">
+                            <label for="password">Password</label>
+                        </div>
+                    </div>
+                    <div class="form-group" [ngClass]="{'form-group--error':updateUser.password !== updateUser.password_confirm}">
+                        <div class="form-group__text">
+                            <input id="password_confirm" type="password" [required]="updateUser.is_new"
+                                   [(ngModel)]="updateUser.password_confirm"
+                                   name="password_confirm">
+                            <label for="password_confirm">Confirm password</label>
+                        </div>
+                    </div>
+                    <div class="form-group" *ngIf="userRole == 0">
+                        <div class="form-group__text select">
+                            <select class="form-control" id="role" required [(ngModel)]="updateUser.role" name="role"
+                                [disabled]="updateUser.username==userName">
+                                <option *ngFor="let role of allUserRoles" [value]="role.id" [selected]="updateUser.role==role.id">
+                                    {{ role.name }}
+                                </option>
+                            </select>
+                            <label for="role">Role</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <br>
+        <div class="modal-footer">
+            <loading-dots *ngIf="loading"></loading-dots>
+            <button type="reset" class="btn btn--gray-ghost" 
+                *ngIf="!loading"
+                (click)="modalService.hideModal()">
+                Cancel
+            </button>
+            <button type="submit" class="btn btn--primary" 
+                *ngIf="!loading"
+                [disabled]="!userForm.form.valid">
+                Submit
+            </button>
+        </div>
+    </form>
+</ng-template>

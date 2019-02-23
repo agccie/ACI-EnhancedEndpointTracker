@@ -1,0 +1,233 @@
+<div class="panel panel--bordered">
+    <loading-dots *ngIf="loading"></loading-dots>
+    <div *ngIf="!loading">
+        <div class="row">
+            <div class="col-md-12">
+                <button class="btn btn--icon btn--small btn--default half-margin-right" (click)='refresh()'>
+                    <span class="icon-refresh"></span>
+                </button>
+                <endpoint-label [type]="endpoint.type"></endpoint-label>&nbsp;
+                <span class="text-xlarge" style="vertical-align: middle">{{ endpoint.addr }}</span>&nbsp;
+                <status-label *ngIf="endpoint.is_ctrl" [status]="endpoint.learn_type"></status-label>
+                <div class="dropdown dropdown--left pull-right" [class.active]="dropdownActive"
+                     (click)="dropdownActive = !dropdownActive"
+                     (blur)="disableDropDown()"
+                     >
+                    <button class="btn btn--small btn--primary">Actions</button>
+                    <div class="dropdown__menu">
+                        <a (click)="onDataplaneRefreshEndpoint()" class="icon icon-refresh">
+                            <span class="qtr-margin-left">Dataplane Refresh</span>
+                        </a>
+                        <a (click)="onDeleteEndpoint()" class="icon icon-trash">
+                            <span class="qtr-margin-left">Delete Events</span>
+                        </a>
+                        <a  (click)="onClearEndpoint()" class="icon icon-exclamation-triangle">
+                            <span class="qtr-margin-left">Clear Endpoint</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div *ngIf="endpoint.is_offsubnet">
+            <div class="row qtr-margin-top">
+                <div class="col-md-1 text-left">
+                    <status-label [status]="'offsubnet'"></status-label>
+                </div>
+                <div class="col-md-11">
+                    <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
+                    <span *ngFor='let node of offsubnetNodeList' class="label label--dkgray">{{ node }}</span>
+                </div>
+            </div>
+        </div>
+        <div *ngIf="endpoint.is_stale">
+            <div class="row qtr-margin-top">
+                <div class="col-md-1 text-left">
+                    <status-label [status]="'stale'"></status-label>
+                </div>
+                <div class="col-md-11">
+                    <span style="vertical-align: middle;">&nbsp; Nodes &nbsp;</span>
+                    <span *ngFor='let node of staleNodeList' class="label label--dkgray">{{ node }}</span>
+                </div>
+            </div>
+        </div>
+        <div *ngIf="endpoint.is_rapid">
+            <div class="row qtr-margin-top">
+                <div class="col-md-12">
+                    <status-label [status]="'rapid'"></status-label>
+                </div>
+            </div>
+        </div>
+        <div>
+            <div class="row qtr-margin-top">
+                <div class="col-md-12">
+                    Fabric <strong>{{ endpoint.fabric }}</strong>
+                    <span class="qtr-margin-left" *ngIf="endpoint.type=='mac'">
+                        BD <strong>{{ endpoint.vnid_name }}</strong>
+                    </span>
+                    <span class="qtr-margin-left" *ngIf="endpoint.type!='mac'">
+                        VRF <strong>{{ endpoint.vnid_name }}</strong> 
+                    </span>
+                    <span *ngIf="!endpoint?.is_ctrl" class="qtr-margin-left">
+                        EPG <strong>{{ endpoint.epg_name }} </strong>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div *ngIf="!endpoint.is_ctrl">
+            <div class="row qtr-margin-top">
+                <div class="col-md-12">
+                    <span *ngIf="endpoint.is_local">
+                        Local on <strong>pod-{{ endpoint.local_pod }}</strong>  
+                        node <strong>{{ endpoint.local_node | localNode }}</strong> 
+                        interface <strong>{{ endpoint.local_interface }}</strong> 
+                        encap <strong>{{ endpoint.local_encap }} </strong>
+                        <span *ngIf="endpoint.type!=mac && endpoint.local_rw_bd>0">
+                            mac 
+                            <a [routerLink]="['/fabric',endpoint.fabric,'history',endpoint.local_rw_bd,endpoint.local_rw_mac]">
+                                {{ endpoint.local_rw_mac }}
+                            </a>
+                        </span>
+                    </span>
+                    <span *ngIf="!endpoint.is_local">
+                        Not local on any node.
+                    </span>
+                </div>
+                <div class="qtr-margin-top col-md-12">
+                    <span *ngIf="xrNodeList.length>0">
+                        Remotely learned on 
+                        <strong>{{ xrNodeList.length | number}}</strong>
+                        {{ xrNodeList.length == 1 ? "node": "nodes"}}.
+                        <span style="vertical-align: middle;">
+                            <a (click)="toggleXrNodeList()" [attr.data-balloon]="prefs.displayXrNodes?'hide nodes':'show all remote nodes'" 
+                                data-balloon-pos="down">
+                                <span class="icon-xsmall" [ngClass]="prefs.displayXrNodes?'icon-chevron-up':'icon-chevron-down'"></span>
+                            </a>
+                        </span>
+                    </span>
+                    <span *ngIf="xrNodeList.length==0">
+                        Not remotely learned on any node.
+                    </span>
+                </div>
+                <div class="qtr-margin-top col-md-12" *ngIf="xrNodeList.length>0 && prefs.displayXrNodes">
+                    <span *ngFor='let node of xrNodeList' class="label label--dkgray">{{ node }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="row qtr-margin-top" *ngIf="!endpoint.is_ctrl">
+            <div class="col-md-12">
+                <span class="label">{{ total_moves | number }}</span>
+                <span class="half-margin-left half-margin-right">Moves</span>
+                <span class="label">{{ total_rapid | number }}</span>
+                <span class="half-margin-left half-margin-right">Rapid events</span>
+                <span class="label">{{ total_offsubnet | number}}</span>
+                <span class="half-margin-left half-margin-right">OffSubnet events</span>
+                <span class="label">{{ total_stale | number }}</span>
+                <span class="half-margin-left half-margin-right">Stale events</span>
+                <span class="label">{{ total_remediate | number }}</span>
+                <span class="half-margin-left half-margin-right">Clear events</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="panel base-margin-top">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="secondary-tabs">
+                <ul class="tabs">
+                    <li *ngFor="let tab of tabs ; let i=index" id="i" class="tab" routerLinkActive="active">
+                        <a tabindex="i" [routerLink]="[tab.path]">
+                            <div class="tab__heading">
+                                <a class="btn btn--icon btn--small"><span [attr.class]=tab.icon></span></a>
+                                {{ tab.name }}
+                            </div>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <router-outlet (activate)='onActivate($event)'>
+            </router-outlet>
+        </div>
+    </div>
+</div>
+<ng-template #clearModal>
+    <div class="modal__header">
+        <h2>Clear Endpoint</h2>
+    </div>
+    <div>
+        <p>This action is may impact dataplane traffic on the fabric until the endpoint is relearned.</p>
+    </div>
+    <div class="modal__body">
+        <div class="form-group">
+            <label for="endpoints">Nodes</label>
+            <ng-select
+                class="override"
+                bindLabel="label"
+                bindValue="value"
+                placeholder="Enter range or comma seperated nodes to be cleared (e.g. 100-106, 301, 303)"
+                [isOpen]="false"
+                [multiple]="true"
+                [addTag]="addClearNodes"
+                [items]="[]"
+                [(ngModel)]="clearNodes"
+                >
+            </ng-select>
+        </div>
+        <div class="base-margin">
+            <div class="row half-margin-top">
+            <div class="form-group">
+                <label class="switch">
+                    <input type="checkbox" [(ngModel)]="clearActiveNodes">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">Clear on all nodes where the endpoint is currently learned</span>
+                </label>
+            </div>
+            </div>
+            <div class="row half-margin-top">
+            <div class="form-group">
+                <label class="switch" [ngClass]="offsubnetNodeList.length==0 ? 'disabled':''">
+                    <input type="checkbox" [(ngModel)]="clearOffsubnetNodes">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">
+                        <span *ngIf="offsubnetNodeList.length==0" class="text-muted">
+                            Not currently offsubnet on any node
+                        </span>
+                        <span *ngIf="offsubnetNodeList.length>0">
+                            Clear on all currently offsubnet nodes
+                        </span>
+                    </span>
+                </label>
+            </div>
+            </div>
+            <div class="row half-margin-top">
+            <div class="form-group">
+                <label class="switch" [ngClass]="staleNodeList.length==0 ? 'disabled':''">
+                    <input type="checkbox" [(ngModel)]="clearStaleNodes">
+                    <span class="switch__input"></span>
+                    <span class="switch__label">
+                        <span *ngIf="staleNodeList.length==0" class="text-muted">
+                            Not currently stale on any node
+                        </span>
+                        <span *ngIf="staleNodeList.length>0">
+                            Clear on all currently stale nodes
+                        </span>
+                    </span>
+                </label>
+            </div>
+            </div>
+        </div>
+        <div class="text-center" *ngIf="clearNodesLoading">
+            <loading-dots></loading-dots>
+        </div>
+        <div class="modal__footer" *ngIf="!clearNodesLoading">
+            <button class="btn btn--gray-ghost" (click)="modalService.hideModal()">Cancel</button>
+            <button class="btn btn--negative" (click)="clearEndpoint()" [disabled]="clearNodes.length==0 && !clearActiveNodes && !clearStaleNodes && !clearOffsubnetNodes">
+                Clear Endpoint
+            </button>
+        </div>
+    </div>
+</ng-template>

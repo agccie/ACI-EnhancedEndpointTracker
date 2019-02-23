@@ -1,3 +1,0 @@
-{"_id":{"$oid":"570c0d2e06a3116710b4d138"},"dn":"/F_rule2","read_groups":[],"inherit_read":true,"write_users":[],"inherit_write":true,"read_users":[],"owner":"agossett","write_groups":[]}
-{"_id":{"$oid":"570c0e2306a31167c4bff093"},"dn":"/F_rule1","read_groups":["F_group2"],"inherit_read":true,"write_users":[],"inherit_write":true,"read_users":[],"owner":"F_user1","write_groups":["F_group4"]}
-{"_id":{"$oid":"570c0e5406a31167c4bff094"},"dn":"/F_rule1/sub2/sub3","read_groups":["F_group6"],"inherit_read":true,"write_users":["F_user5"],"inherit_write":false,"read_users":["F_user5"],"owner":"F_user3","write_groups":["F_group7"]}

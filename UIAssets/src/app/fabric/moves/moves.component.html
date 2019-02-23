@@ -1,0 +1,68 @@
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel panel--raised">
+            <div class="row base-margin-bottom">
+                <div class="col-md-2">
+                        <button class="btn btn--icon btn--small btn--default" (click)='getMoves()'>
+                            <span class="icon-refresh"></span>
+                        </button>
+                </div>
+                <div class="col-md-8 text-center">
+                        <h4>Moves</h4>
+                </div>
+                <div class="col-md-2"></div>
+            </div>
+            <ngx-datatable
+                    [columnMode]="'force'"
+                    [headerHeight]="25"
+                    [footerHeight]="50"
+                    [rowHeight]="'auto'"
+                    [limit]="pageSize"
+                    [loadingIndicator]="loading"
+                    [rows]="rows"
+                    [externalPaging]="true"
+                    [externalSorting]="true"
+                    [count]="count"
+                    [offset]="pageNumber"
+                    (page)="setPage($event)"
+                    (sort)="onSort($event)"
+                    [sorts]="sorts"
+                    [cssClasses]="{
+                    sortAscending: 'icon-chevron-down',
+                    sortDescending: 'icon-chevron-up',
+                    pagerLeftArrow: 'icon-step-prev',
+                    pagerRightArrow: 'icon-step-next',
+                    pagerPrevious: 'icon-step-backward',
+                    pagerNext: 'icon-step-forward'
+                    }">
+                <ngx-datatable-column prop="events.0.dst.ts" name="Time" [sortable]="true" [width]="175">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="type" name="Type" [sortable]="true" [width]="100">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <endpoint-label [type]="value"></endpoint-label>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="addr" name="Address" [sortable]="true" >
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        <a [routerLink]="['../history',row.vnid, row.addr]">
+                            {{ value }}
+                        </a>
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="count" name="Event Count" [sortable]="true" [width]="100">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ value | number }}
+                    </ng-template>
+                </ngx-datatable-column>
+                <ngx-datatable-column prop="events.0.dst.vnid_name" name="VRF/BD" [sortable]="true">
+                    <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                        {{ value }}
+                    </ng-template>
+                </ngx-datatable-column>
+            </ngx-datatable>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,76 @@
+<ngx-datatable
+        #myTable
+        class="fullscreen"
+        [columnMode]="'force'"
+        [headerHeight]="25"
+        [footerHeight]="50"
+        [rowHeight]="'auto'"
+        [limit]="pageSize"
+        [loadingIndicator]="loading"
+        [rows]="rows"
+        [sorts]="sorts"
+        [cssClasses]="{
+            sortAscending: 'icon-chevron-down',
+            sortDescending: 'icon-chevron-up',
+            pagerLeftArrow: 'icon-step-prev',
+            pagerRightArrow: 'icon-step-next',
+            pagerPrevious: 'icon-step-backward',
+            pagerNext: 'icon-step-forward'
+          }"
+>
+    <ngx-datatable-column prop="ts" name="Time" [sortable]="true" [width]="175">
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ (row.dst.ts | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="Direction" [sortable]="false" [width]="100">
+        <ng-template ngx-datatable-cell-template>
+            <div>Source</div>
+            <div>Destination</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="Local Node" prop="node" [sortable]="false" [width]="100">
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ row.src.node | localNode }}</div>
+            <div>{{ row.dst.node | localNode }}</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="Interface" [sortable]="false">
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ row.src.intf_name !== '' ? row.src.intf_name : '&mdash;'}}</div>
+            <div>{{ row.dst.intf_name !== '' ? row.dst.intf_name : '&mdash;'}}</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="Encap" [sortable]="false" [width]="100">
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ row.src.encap !== '' ? row.src.encap : '&mdash;'}}</div>
+            <div>{{ row.dst.encap !== '' ? row.dst.encap : '&mdash;'}}</div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="pcTAG" [sortable]="false" [width]="100">
+            <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                <div>{{ row.src.pctag > 0 ? row.src.pctag : '&mdash;'}}</div>
+                <div>{{ row.dst.pctag > 0 ? row.dst.pctag : '&mdash;'}}</div>
+            </ng-template>
+        </ngx-datatable-column>
+    <ngx-datatable-column *ngIf="endpoint?.type !== 'mac'" name="MAC" [sortable]="false" >
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>
+                <a *ngIf="row.src.rw_bd>0"
+                   [routerLink]="['/fabric',this.endpoint.fabric,'history',row.src.rw_bd,row.src.rw_mac]">{{ row.src.rw_mac }}</a>
+                <span *ngIf="row.src.rw_bd ==0">&mdash;</span>
+            </div>
+            <div>
+                <a *ngIf="row.dst.rw_bd >0"
+                   [routerLink]="['/fabric',this.endpoint.fabric,'history',row.dst.rw_bd,row.dst.rw_mac]">{{ row.dst.rw_mac }}</a>
+                <span *ngIf="row.dst.rw_bd === 0">&mdash;</span>
+            </div>
+        </ng-template>
+    </ngx-datatable-column>
+    <ngx-datatable-column name="EPG" [sortable]="false" >
+        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+            <div>{{ row.src.epg_name !== '' ? row.src.epg_name : '&mdash;'}}</div>
+            <div>{{ row.dst.epg_name !== '' ? row.dst.epg_name : '&mdash;'}}</div>
+        </ng-template>
+    </ngx-datatable-column>
+</ngx-datatable>

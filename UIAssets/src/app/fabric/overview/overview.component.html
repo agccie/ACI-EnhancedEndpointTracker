@@ -1,0 +1,142 @@
+<div *ngIf="!loading && !fabricFound">
+    <div class="alert alert--warning">
+        <div class="alert__icon icon-warning-outline"></div>
+        <div class="alert__message text-left">
+            Fabric {{ fabricName }} not found.
+        </div>
+    </div>
+</div>
+<div *ngIf="fabricFound">
+    <div *ngIf="!managerRunning">
+        <div class="base-margin-bottom alert alert--danger">
+            <div class="alert__icon icon-error-outline"></div>
+            <div class="alert__message text-left">
+                <strong>Error</strong> Manager process is not running.  You may be unable to start/stop/monitor the fabric until this is resolved.
+            </div>
+        </div>
+    </div>
+    <div *ngIf="!fabricRunning">
+        <div class="base-margin-bottom alert alert--warning">
+            <div class="alert__icon icon-warning-outline"></div>
+            <div class="alert__message text-left">
+                <strong>Warning</strong> Endpoint Tracker is not currently running for this fabric
+            </div>
+        </div>
+    </div>
+    <div class="base-margin-bottom row">
+        <div class="col-md-4">
+            <div class="panel panel--bordered">
+                <div class="text-huge text-center text--success">
+                    <span *ngIf="loading"> - </span>
+                    <span *ngIf="!loading">{{ fabric?.mac | number }}</span>
+                </div>
+                <div class="text-large text-center base-margin">Mac</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="panel panel--bordered">
+                <div class="text-huge text-center text--success">
+                    <span *ngIf="loading"> - </span>
+                    <span *ngIf="!loading">{{ fabric?.ipv4 | number }}</span>
+                </div>
+                <div class="text-large text-center base-margin">IPv4</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="panel panel--bordered">
+                <div class="text-huge text-center text--success">
+                        <span *ngIf="loading"> - </span>
+                        <span *ngIf="!loading">{{ fabric?.ipv6 | number }}</span>
+                </div>
+                <div class="text-large text-center base-margin">IPv6</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="base-margin-bottom row">
+        <div class="col-md-12">
+            <div class="panel panel--raised">
+                <div class="row" *ngIf="loading || restartLoading">
+                    <div class="col-md-12">
+                        <loading-dots></loading-dots>
+                    </div>
+                </div>
+                <div class="row" *ngIf="!loading && !restartLoading">
+                    <div class="col-md-4">
+                        <button class="btn btn--icon btn--small btn--default" 
+                                data-balloon="Refresh" data-balloon-pos="down"
+                                (click)='refresh()'>
+                                <span class="icon-refresh"></span>
+                        </button><button class="btn btn--icon btn--small btn--primary" 
+                                data-balloon="Start Monitor" data-balloon-pos="down"
+                                [disabled]="userRole!=0"
+                                (click)='startFabric()'>
+                                <span class="icon-right-arrow-contained"></span>
+                        </button><button class="btn btn--icon btn--small btn--negative" 
+                                data-balloon="Stop Monitor" data-balloon-pos="down"
+                                [disabled]="userRole!=0"
+                                (click)='onStopFabric()'>
+                                <span class="icon-stop"></span>
+                        </button>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h4 class="text-bold">{{ fabric.fabric }}</h4>
+                    </div>
+                    <div class="col-md-4 text-right">
+                        <h6>
+                            <div class="row qtr-margin-top">
+                                <div class="col-md-8 text-right">
+                                    <span class="text-bold">Uptime:</span>
+                                </div>
+                                <div class="col-md-4 text-left">
+                                    {{ fabric.uptime | uptimeDays }}
+                                </div>
+                            </div>
+                            <div class="row qtr-margin-top">
+                                <div class="col-md-8 text-right">
+                                    <span class="text-bold">Queued:</span>
+                                </div>
+                                <div class="col-md-4 text-left">
+                                    <span *ngIf="queueLen>=0">
+                                        {{ queueLen | number}}
+                                    </span>
+                                    <span *ngIf="queueLen<0"> - </span>
+                                </div>
+                            </div>
+                        </h6>
+                    </div>
+                </div>
+                <ngx-datatable *ngIf="!loading && !restartLoading"
+                        [columnMode]="'force'"
+                        [headerHeight]="25"
+                        [footerHeight]="50"
+                        [rowHeight]="'auto'"
+                        [limit]="pageSize"
+                        [loadingIndicator]="loading"
+                        [rows]="rows"
+                        [sorts]="sorts"
+                        [cssClasses]="{
+                        sortAscending: 'icon-chevron-down',
+                        sortDescending: 'icon-chevron-up',
+                        pagerLeftArrow: 'icon-step-prev',
+                        pagerRightArrow: 'icon-step-next',
+                        pagerPrevious: 'icon-step-backward',
+                        pagerNext: 'icon-step-forward'
+                        }">
+                    <ngx-datatable-column prop="timestamp" name="Time" [sortable]="true" [width]="175">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                            {{ (value | amFromUnix) | amDateFormat: 'MMM DD YYYY - HH:mm:ss' }}
+                        </ng-template>
+                    </ngx-datatable-column>
+                    <ngx-datatable-column prop="status" name="Status" [sortable]="true" [width]="100">
+                        <ng-template let-row="row" let-value="value" ngx-datatable-cell-template>
+                            <status-label [status]="value"></status-label>
+                        </ng-template>
+                    </ngx-datatable-column>
+                    <ngx-datatable-column prop="description" name="Description" [sortable]="true" >
+                    </ngx-datatable-column>
+                </ngx-datatable>
+            </div>
+        </div>
+    </div>
+</div>

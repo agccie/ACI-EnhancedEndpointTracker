@@ -1,0 +1,88 @@
+<div class="col-md-12">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="panel panel--bordered">
+                <div class="text-huge text-center text--success">
+                    <span *ngIf="!loading">
+                        {{ (queue.start_timestamp | amFromUnix) | amTimeAgo }}
+                    </span>
+                    <span *ngIf="loading">-</span>
+                </div>
+                <div class="text-large text-center base-margin">Last restart</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="panel panel--bordered">
+                <div class="text-huge text-center text--success">
+                    <span *ngIf="!loading">
+                        {{ queue.total_rx_msg | number }}
+                    </span>
+                    <span *ngIf="loading">-</span>
+                </div>
+                <div class="text-large text-center base-margin"># RX msgs</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="panel panel--bordered">
+                <div class="text-huge text-center text--success">
+                    <span *ngIf="!loading">
+                        {{ queue.total_tx_msg | number }}
+                    </span>
+                    <span *ngIf="loading">-</span>
+                </div>
+                <div class="text-large text-center base-margin"># TX msgs</div>
+            </div>
+        </div>
+    </div>
+    <div class="row base-margin-top">
+        <div class="col-md-12">
+            <div class="form-group dropdown" [class.active]="dropdownActive" (click)="dropdownActive = !dropdownActive">
+                <div class="form-group__text select">
+                    <input id="select-size-default" [value]="dropDownValue">
+                    <label for="select-size-default">Time resolution</label>
+                </div>
+                <div class="dropdown__menu">
+                    <a *ngFor="let statsType of statsTypes | keyvalue"
+                       (click)="makeCharts(statsType.key)"
+                       [class.selected]="currentGraph == statsType.key"
+                    >
+                        {{ statsType.value.value }}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row base-margin-top">
+        <div class="col-md-12">
+            <div class="panel panel--raised">
+                <div class="row">
+                    <div class="col-md-12">
+                        <button class="btn btn--icon btn--small btn--default"  
+                                data-balloon="Back" data-balloon-pos="down"
+                                (click)='goBack()'>
+                                <span class="icon-back"></span>
+                        </button><button class="btn btn--icon btn--small btn--default" 
+                                data-balloon="Refresh" data-balloon-pos="down"
+                                [disabled]="loading"
+                                (click)='getQueueData()'>
+                                <span class="icon-refresh"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <loading-dots *ngIf="loading"></loading-dots>
+                        <highcharts-chart *ngIf="!loading"
+                                [Highcharts]="highcharts"
+                                [options]="chartOptions"
+                                [constructorType]="chartConstructor"
+                                (chartInstance)="onChartInstance($event)"
+                                style="width: 100%; height: 500px; display: block;"
+                        ></highcharts-chart>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

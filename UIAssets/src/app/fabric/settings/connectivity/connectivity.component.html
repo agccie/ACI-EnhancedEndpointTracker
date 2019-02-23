@@ -1,0 +1,60 @@
+<div class="row half-margin-bottom">
+    <div class="col-md-6">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="text" id="hostname" [disabled]="app_mode" [(ngModel)]="service.fabric.apic_hostname">
+                <label for="hostname">Hostname</label>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row half-margin-bottom" *ngIf="app_mode">
+    <div class="col-md-6">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="text" id="certificate" [disabled]="app_mode" [(ngModel)]="service.fabric.apic_cert">
+                <label for="certificate">Certificate File</label>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row half-margin-bottom">
+    <div class="col-md-6">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="text" id="apic_username" [disabled]="app_mode" [(ngModel)]="service.fabric.apic_username">
+                <label for="apic_username">APIC Username</label>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row half-margin-bottom" *ngIf="!app_mode">
+    <div class="col-md-6">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="password" id="apic_password" [(ngModel)]="service.fabric.apic_password">
+                <label for="apic_password">APIC Password</label>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row half-margin-bottom">
+    <div class="col-md-6">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="text" id="ssh_username" [(ngModel)]="service.fabric.ssh_username">
+                <label for="ssh_username">SSH Username</label>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row half-margin-bottom">
+    <div class="col-md-6">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="password" id="ssh_password" [(ngModel)]="service.fabric.ssh_password">
+                <label for="ssh_password">SSH Password</label>
+            </div>
+        </div>
+    </div>
+</div>

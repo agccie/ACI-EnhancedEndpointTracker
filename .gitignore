@@ -5,12 +5,21 @@
 
 # ignore private instance configurations 
 instance/*
-app.wsgi
+# ignore auto-copied app.json to Service/ or UIAssets/
+Service/app.json
+UIAssets/app.json
+UIAssets.build/
+UIAssets/node_modules
+UIAssets/.vscode*
+# ignore build info
+version.txt
 
 # ignore packager files and Media vidoes
 aci_app_packager.log
+cisco_aci_app_tools-1.2_min.tar.gz
 *.aci
 *.mp4
+.tmpDocker
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -23,7 +32,6 @@ __pycache__/
 # Distribution / packaging
 .Python
 env/
-build/
 develop-eggs/
 dist/
 downloads/
@@ -99,4 +107,7 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# ignore .idea from IDEs
+.idea
 

@@ -337,7 +337,7 @@ Users may prefer to manually configure the cluster in any environment that suppo
 orchestration. Deploying each container requires the container image which can be pulled from 
 `docker hub <https://hub.docker.com/r/agccie/enhancedendpointtracker>`_ or manually built using the 
 `Dockerfile <https://github.com/agccie/ACI-EnhancedEndpointTracker/tree/master/build>`_ on github.
-Once built, the entry point for the container must be `/home/app/src/Service/start.sh` and 
+Once built, the entry point for the container must be ``/home/app/src/Service/start.sh`` and 
 appropriate arguments and environmental variables are required.  
 
 Container arguments
@@ -365,36 +365,35 @@ Container arguments
       runs a single instance of mongo v3.6.10. There are several **required** environmental
       variables. If not provided the container will restart.
 
-      	    **DB_ROLE**
+      	    - **DB_ROLE**
 			The role can be ``mongos``, ``configsvr``, or ``shardsvr``. The application requires at 
             least one instance of each. If running as configsvr, the replica set name is statically 
             configured as **cfg**. If running as a sharsvr, the replcia set is statically configured
 			as 'sh$LOCAL_SHARD' where shard number starts at 0.
 
-			**DB_SHARD_COUNT**
+			- **DB_SHARD_COUNT**
 			the number of db shards. This is used by mgr process during db init.
 
-			**DB_CFG_SRV**
+			- **DB_CFG_SRV**
 			used by mongos instance to connect to configsvr replica set. This will be in the format 
-            ``cfg/<configsvr0-hostname:conffigsvr0-port, ...>``
-
-			For example, if there is a replica set of 3 config servers each exposed on port 27019 
-            with hostname db_cfg_0, db_cfg_1, db_cfg_2, then DB_CFG_SVR should be set to:
+            ``cfg/<configsvr0-hostname:configsvr0-port, ...>``. For example, if there is a replica 
+            set of 3 config servers each exposed on port 27019 with hostname db_cfg_0, db_cfg_1, 
+            db_cfg_2, then DB_CFG_SVR should be set to:
 			``cfg/db_cfg_0:27019,db_cfg_1:27019,db_cfg_2:27019``
 
-			**DB_MEMORY**
+			- **DB_MEMORY**
 			Amount of memory this instance of mongo is allowed to use. This is measured in GB and 
             can be a float.  For example, 1.5 would limit mongo instance to 1.5 GB of memory.
 
-			**LOCAL_PORT**
+			- **LOCAL_PORT**
 			local tcp port to expose running instance of mongo
 
-			**LOCAL_REPLICA**
+			- **LOCAL_REPLICA**
 			replica number for this mongo instance. **LOCAL_REPLICA** should be set to 0 for mongos 
             role. The configsvr and shardsvr are each deployed in replica sets so each instance will 
             have a **LOCAL_REPLICA** starting at 0.
 
-			**LOCAL_SHARD**
+			- **LOCAL_SHARD**
 			shard number for shardsvr instance. For mongos and configsvr this should be set to 0.
 
     ``mgr``
@@ -420,8 +419,8 @@ Container arguments
 **-i** ``identity``
 unique integer ``identity`` required for ``mgr``, ``watcher``, and ``worker`` components.
 
-.. note:: Ensure that there are no overlapping `identities` per role.  A duplicate id will result in 
-          race conditions that can trigger invalid analysis.
+.. note:: Ensure that there are no overlapping ``identities`` per role.  A duplicate id will result 
+        in race conditions that can trigger invalid analysis.
 
 **-c** ``count``
 count is an integer for the number of workers to run within a single container.  This is applicable 
@@ -434,7 +433,7 @@ are using stdout for all logging then this is not required.
 .. warning:: the application can perform extensive logging. If there is no component performing the
              log rotation then **-l** should be rpovided.
 
-.. note:: all logs are saved to `/home/app/log` or a sub folder within this directory.
+.. note:: all logs are saved to ``/home/app/log`` or a sub folder within this directory.
 
 **-s** ``stdout``
 enables all logging to stdout. Note that stdout is not currently supported with ``web`` role.

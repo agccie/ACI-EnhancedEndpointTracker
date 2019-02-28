@@ -1,3 +1,6 @@
+
+.. _componets:
+
 Components
 ==========
 

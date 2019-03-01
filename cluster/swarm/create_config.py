@@ -365,7 +365,7 @@ class ClusterConfig(object):
         # configure manager, watcher, and workers
         config["services"]["mgr"] = {
             "image": self.version,
-            "command": "/home/app/src/Service/start.sh -r mgr -l -c 1 -i 0 -%s" % stdout,
+            "command": "/home/app/src/Service/start.sh -r mgr -l -c 1 -i 0 %s" % stdout,
             "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
             "logging": copy.deepcopy(default_logging),
             "environment": copy.copy(shared_environment),

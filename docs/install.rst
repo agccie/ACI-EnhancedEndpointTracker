@@ -364,13 +364,13 @@ Container arguments
       ``db``
       runs a single instance of mongo v3.6.10. There are several **required** environmental
       variables. If not provided the container will restart. 
-      	* **DB_ROLE**
-        * **DB_SHARD_COUNT**
-		* **DB_CFG_SRV**
-		* **DB_MEMORY**
-		* **LOCAL_PORT**
-		* **LOCAL_REPLICA**
-		* **LOCAL_SHARD**
+          * **DB_ROLE**
+          * **DB_SHARD_COUNT**
+		  * **DB_CFG_SRV**
+		  * **DB_MEMORY**
+		  * **LOCAL_PORT**
+		  * **LOCAL_REPLICA**
+		  * **LOCAL_SHARD**
 
     ``mgr``
     runs an instance of manager process. There should only be a single instance of manager running 
@@ -422,30 +422,25 @@ executing.
 
 **HOSTED_PLATFORM**
     Should be statically set to *SWARM*. This is required for proper creation of various config 
-    instance files.
-    This should be set on all containers.
+    instance files. This should be set on all containers.
 
 **MONGO_HOST**
-	the hostname of the ``db`` role with **DB_ROLE** = *mongos*
-    This should be set on all containers.
+	the hostname of the ``db`` role with **DB_ROLE** = *mongos*. This should be set on all containers.
 	
 **MONGO_PORT**
-	the **LOCAL_PORT** number of the ``db`` role with **DB_ROLE** = *mongos*
-    This should be set on all containers.
+	the **LOCAL_PORT** number of the ``db`` role with **DB_ROLE** = *mongos*. This should be set on 
+    all containers.
 	
 **REDIS_HOST**
-	the hostname of the redis role container
-    This should be set on all containers.
+	the hostname of the redis role container. This should be set on all containers.
 	
 **REDIS_PORT**
-	the port number where redis is exposed
-    This should be set on all containers.
+	the port number where redis is exposed. This should be set on all containers.
 
 **DB_ROLE**	  
     The role can be ``mongos``, ``configsvr``, or ``shardsvr``. The application requires at 
     least one instance of each. If running as configsvr, the replica set name is statically 
-    configured as **cfg**. If running as a sharsvr, the replcia set is statically configured
-	as 'sh$LOCAL_SHARD' where shard number starts at 0.
+    configured as **cfg**. If running as a sharsvr, the replcia set is statically configured as 'sh$LOCAL_SHARD' where shard number starts at 0.
 
 **DB_SHARD_COUNT**	  
     the number of db shards. This is used by mgr process during db init.
@@ -454,8 +449,7 @@ executing.
     used by mongos instance to connect to configsvr replica set. This will be in the format 
     ``cfg/<configsvr0-hostname:configsvr0-port, ...>``. For example, if there is a replica 
     set of 3 config servers each exposed on port 27019 with hostname db_cfg_0, db_cfg_1, 
-    db_cfg_2, then DB_CFG_SVR should be set to:
-	``cfg/db_cfg_0:27019,db_cfg_1:27019,db_cfg_2:27019``
+    db_cfg_2, then DB_CFG_SVR should be set to ``cfg/db_cfg_0:27019,db_cfg_1:27019,db_cfg_2:27019``
 
 **DB_MEMORY**	  
     Amount of memory this instance of mongo is allowed to use. This is measured in GB and 

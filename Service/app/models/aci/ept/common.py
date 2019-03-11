@@ -38,8 +38,8 @@ WORKER_CTRL_CHANNEL                 = "wctrl"
 WORKER_UPDATE_INTERVAL              = 15.0
 RAPID_CALCULATE_INTERVAL            = 15.0
 MAX_SEND_MSG_LENGTH                 = 10240
-EPM_EVENT_HANDLER_INTERVAL          = 0.01
-EPM_EVENT_HANDLER_ENABLED           = True
+BG_EVENT_HANDLER_INTERVAL           = 0.01
+BG_EVENT_HANDLER_ENABLED            = True
 
 # when API requests msg queue length, manager can read the full data off each queue and accurate
 # msgs within bulk messages for accurate count. There is a performance hit to this so the

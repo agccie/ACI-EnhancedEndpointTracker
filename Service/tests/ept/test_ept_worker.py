@@ -476,12 +476,18 @@ def get_worker(role="worker"):
 
 def get_queue_msgs(queue=None, pop=False):
     # return list of all msgs on queue.  If pop is true then messages are removed from queue else
-    # just a read is performed.  Defaults to queue MANAGER_WORK_QUEUE
+    # just a read is performed.  Defaults to queue MANAGER_WORK_QUEUE. 
+    # this function will decode eptMsgBulk so caller does not need to distinguish between bulk 
+    # messages and single event messages, they will always receive a list of messages
     if queue is None:
         queue = MANAGER_WORK_QUEUE  
     msgs = []
     for data in redis.lrange(queue, 0, -1):
-        msgs.append(eptMsg.parse(data))
+        m = eptMsg.parse(data)
+        if m.msg_type == MSG_TYPE.BULK:
+            msgs+= m.msgs
+        else:
+            msgs.append(m)
     if pop:
         redis.delete(queue)
     return msgs

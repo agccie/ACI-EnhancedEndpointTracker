@@ -154,13 +154,13 @@ class eptManager(object):
                     if q == MANAGER_WORK_QUEUE and msg.msg_type == MSG_TYPE.WORK:
                         self.increment_stats(MANAGER_WORK_QUEUE, tx=False)
                         if msg.addr == 0:
-                            # an addr of 0 is a broadcast to all workers of specified role
-                            # send now (note, broadcast may be out of order if received in BULK 
-                            # with unicast updates
+                            # an addr of 0 is a broadcast to all workers of specified role.
+                            # Send broadcast now, not within a batch.
+                            # Note, broadcast may be out of order if received in BULK with ucast msg
                             self.worker_tracker.broadcast(msg, qnum=msg.qnum, role=msg.role)
                         else:
                             # create hash based on address and send to specific worker
-                            # need to ensure that we has on ip for EPM_RS_IP_EVENT so it goes to the 
+                            # need to ensure that we hash on ip for EPM_RS_IP_EVENT so it goes to the 
                             # correct worker...
                             if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
                                 _hash = sum(ord(i) for i in msg.ip)

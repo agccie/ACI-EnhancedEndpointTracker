@@ -1,6 +1,7 @@
 
 from ... utils import get_app_config
 from ... utils import get_db
+from .. utils import get_apic_session
 from .. utils import email
 from .. utils import syslog
 from . common import push_event
@@ -25,6 +26,7 @@ class eptWorkerFabric(object):
         self.cache = eptCache(fabric)
         self.db = get_db()
         self.watcher_paused = False
+        self.session = None
         self.init() 
 
     def init(self):
@@ -40,6 +42,20 @@ class eptWorkerFabric(object):
         if len(self.syslog_server) == 0:
             self.syslog_server = None
             self.syslog_port = None
+
+    def close(self):
+        """ stateful close when worker receives FABRIC_STOP for this fabric """
+        if self.db is not None:
+            self.db.client.close()
+        if self.session is not None:
+            self.session.close()
+
+    def start_session(self):
+        """ watcher process needs session object for mo sync """
+        logger.debug("starting worker fabric apic session")
+        self.session = get_apic_session(self.fabric)
+        if self.session is None:
+            logger.error("failed to get session object within worker fabric")
 
     def settings_reload(self):
         """ reload settings from db """

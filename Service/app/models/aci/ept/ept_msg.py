@@ -41,6 +41,7 @@ class MSG_TYPE(Enum):
 @enum_unique
 class WORK_TYPE(Enum):
     RAW                 = "raw"             # raw/unparsed epm event
+    STD_MO              = "std_mo"          # raw/unparsed standard mo event
     WATCH_NODE          = "watch_node"      # a new node has become active/inactive
     WATCH_MOVE          = "watch_move"      # an endpoint move event requires watch or notify
     WATCH_STALE         = "watch_stale"     # a stale endpoint event requires watch or notify
@@ -260,6 +261,7 @@ class eptMsgWork(object):
         elif wt==WORK_TYPE.EPM_MAC_EVENT:       mod = eptMsgWorkEpmEvent
         elif wt==WORK_TYPE.EPM_RS_IP_EVENT:     mod = eptMsgWorkEpmEvent
         elif wt == WORK_TYPE.RAW:               mod = eptMsgWorkRaw
+        elif wt == WORK_TYPE.STD_MO:            mod = eptMsgWorkStdMo
         elif wt == WORK_TYPE.WATCH_MOVE:        mod = eptMsgWorkWatchMove
         elif wt == WORK_TYPE.WATCH_OFFSUBNET:   mod = eptMsgWorkWatchOffSubnet
         elif wt == WORK_TYPE.WATCH_STALE:       mod = eptMsgWorkWatchStale
@@ -269,10 +271,16 @@ class eptMsgWork(object):
         return mod(*args, **kwargs)
 
 class eptMsgWorkRaw(eptMsgWork):
-    """ raw/unparsed epm event """
+    """ raw/unparsed epm or standard mo event """
     def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
         super(eptMsgWorkRaw, self).__init__(addr, role, data, wt, qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.RAW
+
+class eptMsgWorkStdMo(eptMsgWork):
+    """ raw/unparsed epm or standard mo event """
+    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+        super(eptMsgWorkStdMo, self).__init__(addr, role, data, wt, qnum=qnum,seq=seq,fabric=fabric)
+        self.wt = WORK_TYPE.STD_MO
 
 class eptMsgWorkDeleteEpt(eptMsgWork):
     """ fixed message type for DELETE_EPT """

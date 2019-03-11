@@ -871,16 +871,17 @@ class eptSubscriber(object):
     def build_node_db(self):
         """ initialize node collection and vpc nodes. return bool success """
         logger.debug("initializing node db")
-        if not self.initialize_ept_collection(eptNode, "topSystem", attribute_map = {
+        if not self.initialize_ept_collection(eptNode, "fabricNode", attribute_map = {
                 "addr": "address",
                 "name": "name",
                 "node": "id",
-                "oob_addr": "oobMgmtAddr",
-                "pod_id": "podId",
+                "pod_id": "dn",
                 "role": "role",
-                "state": "state",
+                "state": "fabricSt",
+            }, regex_map = {
+                "pod_id": "topology/pod-(?P<value>[0-9]+)/node-[0-9]+",
             }, flush=True):
-            logger.warn("failed to build node db from topSystem")
+            logger.warn("failed to build node db from fabricNode")
             return False
 
         # maintain list of all nodes for id to addr lookup 
@@ -990,13 +991,16 @@ class eptSubscriber(object):
                 t.remote = all_nodes[t.dst].node
                 bulk_objects.append(t)
             else:
-                # tunnel type of vxlan (instead of ivxlan), or flags of dci(multisite) or 
+                # tunnel type of vxlan (instead of ivxlan), or flags of dci(multisite)/golf/mcast or 
                 # proxy(spines) can be safely ignored, else print a warning
-                if t.encap == "vxlan" or "proxy" in t.flags or "dci" in t.flags:
+                if t.encap == "vxlan" or "proxy" in t.flags or "dci" in t.flags or \
+                    "golf" in t.flags or "fabric-ext" in t.flags or "underlay-mcast" in t.flags:
                     #logger.debug("failed to map tunnel to remote node: %s", t)
                     pass
-                else:
-                    logger.debug("failed to map tunnel to remote node: %s", t)
+                # if we are unable to map the tunnel for a spine, that is also ok to ignore
+                elif t.src in all_nodes and all_nodes[t.src].role == "leaf":
+                    logger.warn("failed to map tunnel to remote node: %s", t)
+
         if len(bulk_objects)>0:
             eptTunnel.bulk_save(bulk_objects, skip_validation=False)
         return True

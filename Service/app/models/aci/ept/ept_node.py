@@ -41,11 +41,6 @@ class eptNode(Rest):
             "type":str, 
             "description": "node name as seen in fabric node vector",
         },
-        "oob_addr": {
-            "type": str,
-            "default": "0.0.0.0",
-            "description": "node out-of-band management address",
-        },
         "state": {
             "type": str,
             "description": "fabricNode state indicating whether it is in-service or inactive",

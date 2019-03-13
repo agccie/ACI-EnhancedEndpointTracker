@@ -404,6 +404,17 @@ events can be disabled.
 * **Queue initial events** enables queueing of all standard MO events during build
 * **Queue initial endpoint events** enables queuing of all EPM events during endpoint build
 
+Session Timeout
+~~~~~~~~~~~~~~~
+
+By default the APIC session is gracefully restarted based on the aaaLogin maximumLifetimeSeconds 
+attribute. Users can override the session timeout to a value lower than the aaaLogin lifetime by 
+setting a limit on the session time. **Note** the fabric monitor needs to be restarted for this 
+setting to take affect.
+
+* **Session Timeout** maximum time in seconds before new login and websocket is started for APIC
+  session
+
 .. |fabric-settings-advanced| image:: imgs/fabric-settings-advanced.png
    :align: middle
 

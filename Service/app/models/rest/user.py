@@ -47,7 +47,7 @@ class User(Rest):
             "key": True,
             "type": str,
             "regex": "^(?i)[a-z0-9\_.:]{1,128}$",
-            "default": "",
+            "default": "admin",
             "description": "user username",
         },
         "password": {
@@ -55,7 +55,7 @@ class User(Rest):
             "regex": "^.{1,256}$",
             "hash": True,
             "read": False,
-            "default": "password",
+            "default": "cisco",
             "description": "user password",
         },
         "role": {

@@ -51,8 +51,13 @@ class aaaUserDomain(object):
 
 class Session(object):
     """ Session class responsible for all communication with the APIC """
+
+    LIFETIME_MIN = 900              # minimum lifetime for session (15 minutes)
+    LIFETIME_MAX = 86400            # maximum lifetime for session (1 day)
+    LIFETIME_REFRESH = 0.95         # percentage of lifetime before refresh is started
+
     def __init__(self, url, uid, pwd=None, cert_name=None, key=None, verify_ssl=False,
-                 appcenter_user=False, proxies=None, resubscribe=True, graceful=True):
+                 appcenter_user=False, proxies=None, resubscribe=True, graceful=True, lifetime=0):
         """
             url (str)               apic url such as https://1.2.3.4
             uid (str)               apic username or certificate name 
@@ -70,6 +75,11 @@ class Session(object):
                                     acquires new login token and gracefully restarts subscriptions.
                                     During this time, there may be duplicate data on subscription 
                                     but no data should be lost.
+            lifetime (int)          maximum lifetime of the session before triggering a new login
+                                    or graceful resubscribe (if graceful is enabled). If set to 0,
+                                    then lifetime is set based on maximumLifetimeSeconds at login.
+                                    Else the minimum value of lifetime or maximumLifetimeSeconds is
+                                    used.
         """
         if not isinstance(url, basestring): url = str(url)
         if not isinstance(uid, basestring): uid = str(uid)
@@ -96,6 +106,7 @@ class Session(object):
         self.default_timeout = 120
         self.resubscribe = resubscribe
         self.graceful = graceful
+        self.lifetime = lifetime
         # indexed by aaaUserDomain name and contains all permission info discovered at login
         self.domains = {}               
 
@@ -189,8 +200,15 @@ class Session(object):
         self.token = str(ret_data['aaaLogin']['attributes']['token'])
         self.login_timeout = int(ret_data['aaaLogin']['attributes']['refreshTimeoutSeconds'])/2
         lifetime = float(ret_data['aaaLogin']['attributes']['maximumLifetimeSeconds'])
-        self.login_lifetime = time.time() + lifetime*0.95
-        logger.debug("lifetime set to %.3f (%.3f seconds)", self.login_lifetime, 0.95*lifetime)
+        if self.lifetime > 0:
+            lifetime = min(self.lifetime, lifetime)
+        lifetime = lifetime * Session.LIFETIME_REFRESH
+        if lifetime < Session.LIFETIME_MIN:
+            lifetime = Session.LIFETIME_MIN
+        elif lifetime > Session.LIFETIME_MAX:
+            lifetime = Session.LIFETIME_MAX
+        self.login_lifetime = time.time() + lifetime
+        logger.debug("lifetime set to %.3f (%.3f seconds)", self.login_lifetime, lifetime)
         # set domains from aaaUserDomain info
         self.domains = {}
         if 'children' in ret_data['aaaLogin'] and len(ret_data['aaaLogin']['children'])>0:

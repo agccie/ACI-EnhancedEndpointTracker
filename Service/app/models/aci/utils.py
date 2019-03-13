@@ -295,9 +295,11 @@ def get_apic_session(fabric, resubscribe=False):
         logger.debug("creating session on %s@%s",aci.apic_username,h)
         if apic_cert_mode:
             session = Session(h, aci.apic_username, appcenter_user=True, 
-                cert_name=aci.apic_username, key=aci.apic_cert, resubscribe=resubscribe)
+                cert_name=aci.apic_username, key=aci.apic_cert, resubscribe=resubscribe,
+                lifetime=aci.session_timeout)
         else:
-            session = Session(h, aci.apic_username, aci.apic_password, resubscribe=resubscribe)
+            session = Session(h, aci.apic_username, aci.apic_password, resubscribe=resubscribe,
+                lifetime=aci.session_timeout)
         try:
             if session.login(timeout=SESSION_LOGIN_TIMEOUT):
                 logger.debug("successfully connected on %s", h)

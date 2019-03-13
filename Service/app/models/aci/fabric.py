@@ -78,6 +78,17 @@ class Fabric(Rest):
             "read": False,
             "description": "password for ssh access to switch",
         },
+        "session_timeout": {
+            "type": int,
+            "default": 86400,
+            "min": 900,
+            "max": 86400,
+            "description": """ maximum lifetime in seconds for the APIC session before the
+                session/websocket needs to be refreshed. Note, if the value is set to a greater 
+                value than that discovered from aaaLogin, then aaaLogin maximumLifetimeSeconds will 
+                be used.
+            """,
+        },
         "auto_start": {
             "type": bool,
             "write": False,

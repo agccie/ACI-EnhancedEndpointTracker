@@ -180,3 +180,21 @@
         </div>
     </div>
 </div>
+<div class="row base-margin-bottom">
+    <div class="col-md-12">
+        By default the APIC session is gracefully restarted based on the aaaLogin maximumLifetimeSeconds 
+        attribute.  Users can override the session timeout to a value lower than the aaaLogin by setting 
+        the session timeout below. Note that the fabric monitor needs to be restarted for this setting to 
+        take affect.
+    </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-4">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" id="session_timeout" [(ngModel)]="service.fabric.session_timeout">
+                <label for="session_timeout">Session Timeout (seconds)</label>
+            </div>
+        </div>
+    </div>
+</div>

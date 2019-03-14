@@ -44,7 +44,7 @@ BG_EVENT_HANDLER_ENABLED            = True
 # when API requests msg queue length, manager can read the full data off each queue and accurate
 # msgs within bulk messages for accurate count. There is a performance hit to this so the
 # alternative is counting the number of messages in each queue where a bulk message counts as one.
-ACCURATE_QUEUE_LENGTH               = True  
+ACCURATE_QUEUE_LENGTH               = False
 
 # transitory timers:
 #   max_epm_build   maximum amount of time to wait for ACK from all worker processes to indiciate

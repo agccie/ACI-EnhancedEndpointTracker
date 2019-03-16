@@ -137,6 +137,42 @@ EOL
     rm -f $dockerfile
 }
 
+# build app.json mini config file and write to provided output directory
+function build_app_mini_json() {
+    outfile="$1/app.json"
+    log "write mini app.json to $outfile"
+    set +e
+out=`BASE_DIR="$BASE_DIR" python - <<END
+import os, sys, json, traceback
+fname = "%s/app.json" % os.environ["BASE_DIR"].strip()
+try:
+    if os.path.exists(fname):
+        with open(fname, "r") as f:
+            js = json.load(f)
+            # add "Mini" to appid and "-Mini" to name and (Mini) to shortdesc
+            js["appid"] = "%sMini" % js["appid"]
+            js["name"] = "%s-Mini" % js["name"]
+            js["shortdescr"] = "(Mini) %s" % js["shortdescr"]
+            # statically set apicversion to 2.2(1n)
+            js["apicversion"] = "2.2(1n)"
+            # remove clustermanager
+            js.pop("clustermanager", None)
+            # pretty print result to stdout
+            print json.dumps(js, sort_keys=True, indent=4, separators=(',', ':'))
+            sys.exit(0)
+except Exception as e:
+    print("\n%s" % traceback.format_exc())
+    sys.exit(1)
+END`
+    if [ "$?" == "1" ] ; then
+        log "failed to create app.json mini file: $out"
+        exit 1
+    fi   
+    set -e
+    log "$out"
+    echo -e "$out" > $outfile
+}
+
 # used to prep container image with bundled src code - executed from within container after git pull
 function build_app() {
     set -e
@@ -166,7 +202,7 @@ function build_app() {
         docker_image_name=$docker_image
     else
         log "building container"
-        docker_image_name=`echo "aci/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
+        docker_image_name=`echo "$APP_CONTAINER_NAMESPACE/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
         if [ "$enable_proxy" == "1" ] ; then
             ba=""
             if [ "$https_proxy" ] ; then ba="$ba --build-arg https_proxy=$https_proxy" ; fi
@@ -193,12 +229,17 @@ function build_app() {
     if [ "$app_mini" == "0" ] ; then
         # dynamically create clusterMgrConfig
         conf=$TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
-        python ./cluster/kron/create_config.py --image $docker_image_name > $conf
+        python ./cluster/kron/create_config.py \
+                --image $docker_image_name \
+                --name $APP_ID \
+                --short_name $APP_SHORT_NAME \
+                > $conf
     else
         # override app.json with app_mini
         log "overriding app.json with app_mini.json"
-        cp -p ./app_mini.json $TMP_DIR/$APP_ID/app.json
-        cp -p ./app_mini.json $TMP_DIR/$APP_ID/Service/app.json
+        build_app_mini_json "$TMP_DIR/$APP_ID/"
+        chmod 755 $TMP_DIR/$APP_ID/app.json
+        cp -p $TMP_DIR/$APP_ID/app.json $TMP_DIR/$APP_ID/Service/app.json
     fi
 
     # create media and legal files
@@ -252,12 +293,14 @@ function build_app() {
         else
             if [ "$app_mini" == "1" ] ; then
                 ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app-mini"
+                if [ -f "$BASE_DIR/UIAssets/logo_mini.png" ] ; then
+                    cp -p $BASE_DIR/UIAssets/logo_mini.png $bf_dst/logo.png
+                else
+                    cp -p $BASE_DIR/UIAssets/logo.png $bf_dst/logo.png
+                fi
             else
                 ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
-            fi
-            # need to manually copy over logo.png into UIAssets folder
-            if [ -f "$BASE_DIR/UIAssets/logo.png" ] ; then
-                cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
+                cp -p $BASE_DIR/UIAssets/logo.png $bf_dst/logo.png
             fi
         fi
     fi

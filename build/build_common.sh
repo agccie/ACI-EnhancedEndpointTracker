@@ -1,9 +1,15 @@
 #!/bin/bash
 
+function log() {
+    ts=`date '+%Y-%m-%dT%H:%M:%S'`
+    echo "$ts $@"
+}
+
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../"
 # change working directory to root of project
 cd $BASE_DIR
 
+# packager version
 app_pack="1.2_min"
 
 # these variables are set from app.json if found. Use app.json as single
@@ -12,12 +18,16 @@ APP_VENDOR_DOMAIN="Cisco"
 APP_ID="ExampleApp"
 APP_VERSION="1.0"
 APP_FULL_VERSION="1.0.1"
+APP_CONTAINER_NAMESPACE=""
+APP_SHORT_NAME=""
 
 # use python to read app.json and print each variable to stdout
 out=`BASE_DIR="$BASE_DIR" python - <<END
-import os, sys, json
-fname = "%s/app.json" % os.environ["BASE_DIR"].strip()
+import os, sys, json, traceback
 try:
+    fname = os.path.abspath("%s/app.json" % os.environ["BASE_DIR"].strip())
+    if not os.path.exists(fname):
+        fname = os.path.abspath("%s/Service/app.json" % os.environ["BASE_DIR"].strip())
     if os.path.exists(fname):
         with open(fname, "r") as f:
             js = json.load(f)
@@ -29,19 +39,29 @@ try:
                 print "APP_VERSION=%s" % js["version"]
             if "full_version" in js:
                 print "APP_FULL_VERSION=%s" % js["full_version"]
+            if "container_namespace" in js:
+                print "APP_CONTAINER_NAMESPACE=%s" % js["container_namespace"]
+            if "short_name" in js:
+                print "APP_SHORT_NAME=%s" % js["short_name"]
             sys.exit(0)
+    else:
+        raise Exception("file %s not found" % fname)
 except Exception as e:
-    print "fail: %s" % e
+    print("\n%s" % traceback.format_exc())
     sys.exit(1)
 END`
-if [ "$?" == "0" ] ; then
+if [ "$?" == "1" ] ; then
+    log "failed to read app.json: $out"
+else
     for l in $out ; do eval "$l" ; done
+fi   
+# app container is required, if we failed to parse it then stop execution on script
+if [ "$APP_CONTAINER_NAMESPACE" == "" ] || [ "$APP_SHORT_NAME" == "" ] ; then
+    log "APP_CONTAINER_NAMESPACE=$APP_CONTAINER_NAMESPACE"
+    log "APP_SHORT_NAME=$APP_SHORT_NAME"
+    log "failed to determine CONTAINER_NAMESPACE/SHORT_NAME from app.json"
+    exit 1
 fi
-
-function log() {
-    ts=`date '+%Y-%m-%dT%H:%M:%S'`
-    echo "$ts $@"
-}
 
 # ensure build environment has all required tools to perform build
 function check_build_tools() {

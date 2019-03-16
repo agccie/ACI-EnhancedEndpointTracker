@@ -11,11 +11,10 @@ logger = logging.getLogger(__name__)
 class KronConfig(object):
     """ manage parsing user kron_config.yml to create clusterMgrConfig file """
 
-    APP_IMAGE = "aci/enhancedendpointtracker:2.0"
-
-    def __init__(self, configfile):
-        self.name = "EnhancedEndpointTracker"
-        self.short_name = "ept"
+    def __init__(self, configfile=None, image=None, name=None, short_name=None):
+        self.image = image
+        self.name = name
+        self.short_name = short_name
         self.service_name = {}
         self.https_name = "apiserver-service"
         self.https_port = 8443
@@ -43,7 +42,12 @@ class KronConfig(object):
             for a in ["name", "short_name", "https_port", "redis_name", "redis_port", 
                     "worker_containers", "workers_per_container"]:
                 if a in config:
-                    setattr(self, a, config[a])
+                    # name/short_name arguments are prefered over the config file
+                    if a == "name" or a == "short_name":
+                        if getattr(self, a) is None:
+                            setattr(self, a, config[a])
+                    else:
+                        setattr(self, a, config[a])
             # force name and short_name to all lower case and set service_name
             self.name = self.name.lower()
             self.short_name = self.short_name.lower()
@@ -133,7 +137,7 @@ class KronConfig(object):
                     group: {
                         "containers": {
                              srv_name: {
-                                "image": KronConfig.APP_IMAGE,
+                                "image": self.image,
                                 "command": "/home/app/src/Service/start.sh",
                                 "args": srv_args,
                                 "environment": env,
@@ -250,12 +254,32 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=desc,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-    parser.add_argument("--kron", dest="kron", default=default_config, help="kron config file")
-    parser.add_argument("--image", dest="image", default=None, help="docker ept image")
+    parser.add_argument("--kron", 
+        dest="kron", 
+        default=default_config, 
+        help="kron config file"
+    )
+    parser.add_argument("--image", 
+        dest="image", 
+        required=True, 
+        help="docker image name"
+    )
+    parser.add_argument("--name",
+        dest="name",
+        help="kron app name. This overrides value in kron_config.yml",
+        default=None,
+    )
+    parser.add_argument("--short_name",
+        dest="short_name",
+        help="kron app abbreviated/short name. This overrides value in kron_config.yml",
+        default=None,
+    )
     args = parser.parse_args()
 
-    if args.image is not None:
-        KronConfig.APP_IMAGE = args.image
-
-    k = KronConfig(args.kron)
+    k = KronConfig(
+            configfile=args.kron, 
+            image=args.image, 
+            name=args.name,
+            short_name=args.short_name,
+        )
     print json.dumps(k.build_cluster_config(), indent=4, separators=(",", ":"), sort_keys=True)

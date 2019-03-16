@@ -427,7 +427,7 @@ class ClusterConfig(object):
             self.services[svc].set_service_type("worker")
 
         with open(self.compose_file, "w") as f:
-            yaml.dump(config, f, default_flow_style=False)
+            yaml.safe_dump(config, f, default_flow_style=False, allow_unicode=True)
             logger.info("compose file complete: %s", self.compose_file)
 
 class Service(object):

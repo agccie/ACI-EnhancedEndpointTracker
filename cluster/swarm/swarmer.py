@@ -32,8 +32,11 @@ class Swarmer(object):
 
     def get_credentials(self):
         # prompt user for username/password if not previously provided
+        default_username = getpass.getuser()
         while self.username is None or len(self.username)==0:
-            self.username = raw_input("Enter ssh username: ").strip()
+            self.username = raw_input("Enter ssh username [%s]: " % default_username).strip()
+            if len(self.username) == 0:
+                self.username = default_username
         while self.password is None or len(self.password)==0:
             self.password = getpass.getpass("Enter ssh password: ").strip()
 
@@ -334,7 +337,7 @@ class Swarmer(object):
         ts = "%s-%s" % (name, format_timestamp(time.time()))
         # get active nodes in the cluster
         self.get_nodes()
-        if len(self.nodes) > 0:
+        if len(self.nodes) > 1:
             logger.info("collecting techsupport %s from %s nodes", ts, len(self.nodes))
             # need ssh credentials to access other nodes before continuing...
             self.get_credentials()
@@ -449,7 +452,7 @@ class Swarmer(object):
         """ remove current stack deployment and then clean up all volumes and stopped containers """
         # to cleanup we will need ssh credentials if node count > 0 
         self.get_nodes()
-        if len(self.nodes) > 0:
+        if len(self.nodes) > 1:
             self.get_credentials()
         # validate credentials  by creating ssh connection to each node and saving to node object
         for node_id in self.nodes:

@@ -65,10 +65,13 @@ def setup_logger(logger, loglevel="debug", logfile=None):
 
 def prompt_user_for_node_count():
     """ prompt user for node count and return interger number of nodes """
+    default_count = 1
     while True:
-        node_count = raw_input("Number of nodes in cluster [1]: ").strip()
+        node_count = raw_input("Number of nodes in cluster [%s]: " % default_count).strip()
         if re.search("^[0-9]+$", node_count) and int(node_count)<ClusterConfig.MAX_NODES:
             return int(node_count)
+        elif len(node_count) == 0:
+            return default_count
         else:
             print("Invalid value(%s) for node. Please choose a value between 1 and %s" % (
                 node_count, ClusterConfig.MAX_NODES))
@@ -86,14 +89,14 @@ if __name__ == "__main__":
     app_name = None
     if os.path.exists(app_config):
         try:
-            with open(fname, "r") as f:
+            with open(app_config, "r") as f:
                 js = json.load(f)
                 for r in ["appid", "full_version", "container_namespace", "short_name"]:
                     if r not in js:
                         raise Exception("%s missing required attribute %s" % (app_config, r))
                 app_id = js["appid"]
                 app_version = js["full_version"]
-                app_container_namespace = js["app_container_namespace"]
+                app_container_namespace = js["container_namespace"]
                 app_name = js["short_name"]
                 app_image_base = ("%s/%s" % (app_container_namespace, app_id)).lower()
         except Exception as e:
@@ -159,6 +162,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n","--nodes",
         dest="nodes",
+        metavar="N",
         default=None,
         type=int,
         help="number of nodes in the cluster (default 1 node)"

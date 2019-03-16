@@ -877,7 +877,6 @@ class eptSubscriber(object):
                 "node": "id",
                 "pod_id": "dn",
                 "role": "role",
-                "state": "fabricSt",
             }, regex_map = {
                 "pod_id": "topology/pod-(?P<value>[0-9]+)/node-[0-9]+",
             }, flush=True):
@@ -888,6 +887,39 @@ class eptSubscriber(object):
         all_nodes = {}
         for n in eptNode.find(fabric=self.fabric.fabric):
             all_nodes[n.node] = n
+
+        # cross reference fabricNode (which includes inactive nodes) with topSystem which includes
+        # active nodes and accurate TEP for active nodes only.  Then merge firmware version
+        data1 = get_class(self.session, "topSystem")
+        data2 = get_class(self.session, "firmwareRunning")
+        if data1 is None or data2 is None or len(data1) == 0 or len(data2) == 0:
+            logger.warn("failed to read topSystem/firmwareRunning")
+            return False
+        for obj in data1:
+            attr = obj[obj.keys()[0]]["attributes"]
+            if "id" in attr and "address" in attr and "state" in attr:
+                node_id = int(attr["id"])
+                if node_id in all_nodes:
+                    all_nodes[node_id].addr = attr["address"]
+                    all_nodes[node_id].state = attr["state"]
+                else:
+                    logger.warn("ignorning unknown topSystem node id '%s'", node_id)
+            else:
+                logger.warn("invalid topSystem object (missing id or address): %s", attr)
+        for obj in data2:
+            attr = obj[obj.keys()[0]]["attributes"]
+            if "dn" in attr and "peVer" in attr:
+                r1 = re.search("topology/pod-[0-9]+/node-(?P<node_id>[0-9]+)", attr["dn"])
+                if r1 is not None:
+                    node_id = int(r1.group("node_id"))
+                    if node_id in all_nodes:
+                        all_nodes[node_id].version = attr["peVer"]
+                    else:
+                        logger.warn("ignoring unknown firmwareRunning node id %s", attr["dn"])
+                else:
+                    logger.warn("failed to parse node id from firmwareRunning dn %s", attr["dn"])
+            else:
+                logger.warn("invalid firmwareRunning object (missing dn or peVer): %s", attr)
 
         # create pseudo node for each vpc group from fabricAutoGEp and fabricExplicitGEp each of 
         # which contains fabricNodePEp
@@ -900,11 +932,10 @@ class eptSubscriber(object):
             data = get_class(self.session, vpc_type, rspSubtree="full", rspSubtreeClass=node_ep)
             if data is None or len(data) == 0:
                 logger.debug("no vpc configuration found")
-                return True
+                data = []
 
         # build all known vpc groups and set peer values with existing eptNodes that are members
         # of a vpc domain
-        bulk_objects = []
         for obj in data:
             if vpc_type in obj and "attributes" in obj[vpc_type]:
                 attr = obj[vpc_type]["attributes"]
@@ -933,9 +964,7 @@ class eptSubscriber(object):
                         )
                         child_nodes[0].peer = child_nodes[1].node
                         child_nodes[1].peer = child_nodes[0].node
-                        bulk_objects.append(child_nodes[0])
-                        bulk_objects.append(child_nodes[1])
-                        bulk_objects.append(eptNode(fabric=self.fabric.fabric,
+                        all_nodes[vpc_domain_id] = eptNode(fabric=self.fabric.fabric,
                             addr=addr,
                             name=name,
                             node=vpc_domain_id,
@@ -952,14 +981,14 @@ class eptSubscriber(object):
                                     "addr": child_nodes[1].addr,
                                 },
                             ],
-                        ))
+                        )
                     else:
                         logger.warn("expected 2 %s child objects: %s", node_ep,obj)
                 else:
                     logger.warn("invalid %s object: %s", vpc_type, obj)
         
-        if len(bulk_objects)>0:
-            eptNode.bulk_save(bulk_objects, skip_validation=False)
+        # all nodes should have been updated (TEP info, version, and vpc updates)
+        eptNode.bulk_save([all_nodes[n] for n in all_nodes], skip_validation=False)
         return True
 
     def build_tunnel_db(self):
@@ -999,10 +1028,11 @@ class eptSubscriber(object):
                     pass
                 # if we are unable to map the tunnel for a spine, that is also ok to ignore
                 elif t.src in all_nodes and all_nodes[t.src].role == "leaf":
-                    logger.warn("failed to map tunnel to remote node: %s", t)
+                    logger.warn("failed to map tunnel for leaf to remote node: %s", t)
 
         if len(bulk_objects)>0:
             eptTunnel.bulk_save(bulk_objects, skip_validation=False)
+
         return True
 
     def build_vpc_db(self):

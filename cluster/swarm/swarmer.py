@@ -44,7 +44,9 @@ class Swarmer(object):
         # return ssh connection object to provided hostname, raise exception on error
         
         logger.debug("get connection to %s", hostname)
-        self.get_credentials()
+        # credentials only needed for ssh
+        if protocol == "ssh" or protocol == "scp":
+            self.get_credentials()
         c = Connection(hostname)
         c.username = self.username
         c.password = self.password
@@ -450,7 +452,8 @@ class Swarmer(object):
 
     def wipe(self):
         """ remove current stack deployment and then clean up all volumes and stopped containers """
-        # to cleanup we will need ssh credentials if node count > 0 
+        js = self.get_swarm_info()
+        self.node_id = js["NodeID"]
         self.get_nodes()
         if len(self.nodes) > 1:
             self.get_credentials()

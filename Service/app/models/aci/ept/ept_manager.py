@@ -531,17 +531,18 @@ class WorkerTracker(object):
         # running.
         ts = time.time()
         remove_workers = []
-        new_workers = False
+        new_workers = []
         for wid, w in self.known_workers.items():
             if w.last_hello + HELLO_TIMEOUT < ts:
                 logger.warn("worker timeout (last hello: %.3f) %s",ts-w.last_hello, w)
                 remove_workers.append(w)
             elif not w.active:
                 # new worker that needs to be added to active list
-                if w.role not in self.active_workers: self.active_workers[w.role] = []
+                if w.role not in self.active_workers: 
+                    self.active_workers[w.role] = []
                 self.active_workers[w.role].append(w)
                 w.active = True
-                new_workers = True
+                new_workers.append(w)
                 # sort active workers by worker_id for deterministic ordering
                 self.active_workers[w.role] = sorted(self.active_workers[w.role], 
                                                 key=lambda w: int(re.sub("[^0-9]","",w.worker_id)))
@@ -576,16 +577,19 @@ class WorkerTracker(object):
                 with w.queue_locks[i]:
                     self.redis.delete(q)
 
-        # if a worker has died, then trigger monitor restart for all fabrics
-        if len(remove_workers)>0:
-            inactive = "[%s]" % ", ".join([w.worker_id for w in remove_workers])
+        # if a worker has died or new worker comes online, then trigger monitor restart
+        stop_message = None
+        if len(new_workers)>0: 
+            stop_message = "[%s]" % ", ".join([w.worker_id for w in new_workers])
+            stop_message = "new worker detected %s" % stop_message
+        elif len(remove_workers)>0:
+            stop_message = "[%s]" % ", ".join([w.worker_id for w in remove_workers])
+            stop_message = "worker heartbeat timeout %s" % stop_message
+        if stop_message is not None:
+            logger.info("total workers: %s", len(self.known_workers))
             # stop fabric (manager will restart when ready)
             for f in self.manager.fabrics.keys():
-                self.manager.stop_fabric(f, reason="worker heartbeat timeout %s" % inactive)
-
-        if len(remove_workers)>0 or new_workers:
-            logger.info("total workers: %s", len(self.known_workers))
-
+                self.manager.stop_fabric(f, reason=stop_message)
 
         # check hello from each subscriber. If any have timedout, set to inactive (manager func 
         # will restart any subscribers that are inactive)

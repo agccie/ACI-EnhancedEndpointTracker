@@ -254,6 +254,7 @@ class eptManager(object):
             start_ts = time.time()
             data = {
                 "manager": {
+                    "status": "running" if self.minimum_workers_ready() else "starting",
                     "manager_id": self.worker_id,
                     "queues": [MANAGER_WORK_QUEUE],
                     "queue_len":[get_queue_length(self.redis,MANAGER_WORK_QUEUE,accurate=not brief)],

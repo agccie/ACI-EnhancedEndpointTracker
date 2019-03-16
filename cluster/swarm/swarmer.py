@@ -59,13 +59,15 @@ class Swarmer(object):
 
     def get_node_hostnames(self):
         # if node_count > 1 then need to prompt user for address/hostname of each node
+        credentials_required = False
         if self.config.node_count>0:
             for node_id in xrange(2, self.config.node_count+1):
                 # prompt user for hostname/ip address for this node
                 node_id = "%s" % node_id
                 hostname = self.node_hostnames.get(node_id, "") 
                 while hostname is None or len(hostname)==0: 
-                    hostname = raw_input("\nEnter hostname/ip address for node %s: "%node_id).strip()
+                    credentials_required = True
+                    hostname = raw_input("\Enter hostname/ip address for node %s: "%node_id).strip()
                     if len(hostname) == 0:
                         logger.warn("invalid hostname for node %s, please try again", node_id)
                     elif hostname == self.node_addr:
@@ -73,6 +75,8 @@ class Swarmer(object):
                             hostname, node_id)
                         hostname = ""
                 self.node_hostnames[node_id] = hostname
+        if credentials_required:
+            self.get_credentials()
 
     def init_swarm(self):
         # determine the swarm status of this node. If in a swarm but not the manager, raise an error

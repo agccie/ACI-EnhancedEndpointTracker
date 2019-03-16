@@ -1159,6 +1159,7 @@ class eptWorker(object):
             logger.debug("skipping stale analyze for mac event")
             return
 
+        logger.debug("analyze stale")
         if len(update_local_result.local_events) == 0 or \
                 update_local_result.local_events[0].node == 0:
             local_node = 0
@@ -1226,8 +1227,17 @@ class eptWorker(object):
                                         remote_node_event.remote)
                                     stale_nodes[node] = event
                             else:
-                                logger.debug("stale on %s to %s", node, h_event.remote)
-                                stale_nodes[node] = event
+                                # if XR node is 0 then there was a tunnel mapping error. 
+                                # Theoretically this could be an invalid/no longer existing tunnel
+                                # but it's more likely that the app/worker is behind or out of sync
+                                # with recent tunnel updates. This could also be transient issue for
+                                # vpc peer where local flag has not been set.
+                                if h_event.remote == 0:
+                                    logger.debug("skipping stale on %s with unresolved XR node %s", 
+                                            node, h_event.remote)
+                                else:
+                                    logger.debug("stale on %s to %s", node, h_event.remote)
+                                    stale_nodes[node] = event
                 else:
                     # non-deleted event when endpoint is not currently learned within the fabric
                     if msg.wf.settings.stale_no_local:

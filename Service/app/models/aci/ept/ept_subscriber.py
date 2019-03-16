@@ -333,7 +333,8 @@ class eptSubscriber(object):
         # mismatch for controllers so warning is sufficient
         min_version = parse_apic_version(MINIMUM_SUPPORTED_VERSION)
         version = parse_apic_version(apic_version[0]["version"])
-        self.fabric.add_fabric_event(init_str, "apic version: %s" % apic_version[0]["version"])
+        self.fabric.add_fabric_event(init_str, "apic version: %s, apic count: %s" % (
+            apic_version[0]["version"], len(apic_version)))
         if version is None or min_version is None:
             logger.warn("failed to parse apic version: %s (min version: %s)", version, min_version)
             self.fabric.add_fabric_event("failed","unknown or unsupported apic version: %s" % (

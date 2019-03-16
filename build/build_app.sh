@@ -43,7 +43,7 @@ function build_standalone_container() {
 
     # build docker container
     log "building container"
-    docker_image_name=`echo "aci/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
+    docker_image_name=`echo "$APP_CONTAINER_NAMESPACE/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
     ba="--build-arg APP_MODE=0 "
     if [ "$enable_proxy" == "1" ] ; then
         if [ "$https_proxy" ] ; then ba="$ba --build-arg https_proxy=$https_proxy" ; fi

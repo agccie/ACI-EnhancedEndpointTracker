@@ -2,6 +2,7 @@
 Script to deploy app on Docker swarm
 """
 import argparse
+import json
 import logging
 import os
 import re
@@ -74,15 +75,80 @@ def prompt_user_for_node_count():
 
 if __name__ == "__main__":
 
+    # parse app.json for container info
+    app_config = os.path.abspath("%s/../app.json" % os.path.dirname(os.path.realpath(__file__)))
     default_config = "%s/swarm/swarm_config.yml" %os.path.dirname(os.path.realpath(__file__))
+
+    # parse app_config first to get container base name and app name
+    app_id = None
+    app_container_namespace = None
+    app_version = None
+    app_name = None
+    if os.path.exists(app_config):
+        try:
+            with open(fname, "r") as f:
+                js = json.load(f)
+                for r in ["appid", "full_version", "container_namespace", "short_name"]:
+                    if r not in js:
+                        raise Exception("%s missing required attribute %s" % (app_config, r))
+                app_id = js["appid"]
+                app_version = js["full_version"]
+                app_container_namespace = js["app_container_namespace"]
+                app_name = js["short_name"]
+                app_image_base = ("%s/%s" % (app_container_namespace, app_id)).lower()
+        except Exception as e:
+            print("exception parsing app config: %s" % e)
+            sys.exit(1)
+    else:
+        print("required file missing: %s" % app_config)
+        sys.exit(1)
+
     parser = argparse.ArgumentParser(description=__doc__, 
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "-v","--version",
         dest="version",
-        default="latest",
-        help="EnhancedEndpointTracker container version to deploy. Example, 'latest' or '2.0.11'"
+        default=app_version,
+        help="Container version to deploy. Default '%s'" % app_version
+    )
+    parser.add_argument(
+        "--name",
+        dest="name",
+        default=app_name,
+        help="app service short name (default '%s')" % app_name,
+    )
+    parser.add_argument(
+       "--worker",
+       dest="worker_count",
+       metavar="N",
+       default=None,
+       type=int,
+       help="the number worker processes",
+    )
+    parser.add_argument(
+        "--db_shard",
+        dest="db_shard",
+        metavar="N",
+        default=None,
+        type=int,
+        help="the number db shards to deploy",
+    )
+    parser.add_argument(
+        "--db_replica",
+        dest="db_replica",
+        metavar="N",
+        default=None,
+        type=int,
+        help="the number of replicas per db shard and db configsvr",
+    )
+    parser.add_argument(
+        "--db_memory",
+        dest="db_memory",
+        metavar="N",
+        default=None,
+        type=float,
+        help="the maximium memory allowed per db process",
     )
     parser.add_argument(
         "--swarm_config",
@@ -153,7 +219,26 @@ if __name__ == "__main__":
     setup_logger(logging.getLogger("swarm.connection"), loglevel="info", logfile=None)
     logger.debug("Logfile: %s", args.logfile)
 
+    # validate a few config arguments if provided
     try:
+        if args.worker_count is not None and args.worker_count > ClusterConfig.MAX_WORKERS:
+            raise Exception("invalid worker count %s, must be <= %s" % (args.worker_count, 
+                            ClusterConfig.MAX_WORKERS))
+        if args.db_shard is not None and args.db_shard > ClusterConfig.MAX_SHARDS:
+            raise Exception("invalid shard count %s, must be <= %s" % (args.db_shard, 
+                            ClusterConfig.MAX_SHARDS))
+        if args.db_replica is not None and args.db_replica > ClusterConfig.MAX_REPLICAS:
+            raise Exception("invalid shard count %s, must be <= %s" % (args.db_replica, 
+                            ClusterConfig.MAX_REPLICAS))
+        if args.db_memory is not None and args.db_memory > ClusterConfig.MAX_MEMORY:
+            raise Exception("invalid shard count %s, must be <= %s" % (args.db_memory, 
+                            ClusterConfig.MAX_MEMORY))
+    except Exception as e:
+        logger.error("Invalid argument. %s", e)
+        sys.exit(1)
+
+    try:
+        image = "%s:%s" % (app_image_base, args.version)
         # for create config and deploy, we need to get the number of intended nodes.
         if args.nodes is None:
             if args.deploy or args.config:
@@ -162,7 +247,14 @@ if __name__ == "__main__":
                 args.nodes = 1
 
         # validate config file
-        config = ClusterConfig(node_count=args.nodes, version=args.version)
+        config = ClusterConfig(image, 
+                    node_count=args.nodes, 
+                    app_name=args.name,
+                    worker_count=args.worker_count,
+                    db_shard=args.db_shard,
+                    db_replica=args.db_replica,
+                    db_memory=args.db_memory
+                )
 
         # all actions (techsupport/config/init/deploy) all required configuration to be parsed
         if args.config:

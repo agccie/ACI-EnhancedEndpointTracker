@@ -67,7 +67,7 @@ class Swarmer(object):
                 hostname = self.node_hostnames.get(node_id, "") 
                 while hostname is None or len(hostname)==0: 
                     credentials_required = True
-                    hostname = raw_input("\Enter hostname/ip address for node %s: "%node_id).strip()
+                    hostname = raw_input("Enter hostname/ip address for node %s: "%node_id).strip()
                     if len(hostname) == 0:
                         logger.warn("invalid hostname for node %s, please try again", node_id)
                     elif hostname == self.node_addr:

@@ -55,9 +55,13 @@ class Session(object):
     LIFETIME_MIN = 900              # minimum lifetime for session (15 minutes)
     LIFETIME_MAX = 86400            # maximum lifetime for session (1 day)
     LIFETIME_REFRESH = 0.95         # percentage of lifetime before refresh is started
+    DEFAULT_SUBSCRIPTION_REFRESH = 60   # default subscription refresh time
+    MIN_SUBSCRIPTION_REFRESH = 30       # min refresh to 30 seconds
+    MAX_SUBSCRIPTION_REFRESH = 36000    # limit to refresh time to 10 hours
 
     def __init__(self, url, uid, pwd=None, cert_name=None, key=None, verify_ssl=False,
-                 appcenter_user=False, proxies=None, resubscribe=True, graceful=True, lifetime=0):
+                 appcenter_user=False, proxies=None, resubscribe=True, graceful=True, lifetime=0,
+                 subscription_refresh_time=60):
         """
             url (str)               apic url such as https://1.2.3.4
             uid (str)               apic username or certificate name 
@@ -80,6 +84,13 @@ class Session(object):
                                     then lifetime is set based on maximumLifetimeSeconds at login.
                                     Else the minimum value of lifetime or maximumLifetimeSeconds is
                                     used.
+            subscription_refresh_time (int) Seconds for each subscription before it needs to be 
+                                    refreshed. If the value is greater than default 
+                                    SUBSCRITION_REFRESH, then it is provided as an http parameter
+                                    in the initial subscription setup. Note, this is only supported
+                                    in 4.0 and above. Caller should verify APIC/nodes are running
+                                    a supported version of code before extended the subscription
+                                    refresh time to custom value.
         """
         if not isinstance(url, basestring): url = str(url)
         if not isinstance(uid, basestring): uid = str(uid)
@@ -107,6 +118,13 @@ class Session(object):
         self.resubscribe = resubscribe
         self.graceful = graceful
         self.lifetime = lifetime
+        self.subscription_refresh_time = subscription_refresh_time
+        # limit subscription_refresh to min/max
+        if self.subscription_refresh_time > Session.MAX_SUBSCRIPTION_REFRESH:
+            self.subscription_refresh_time = Session.MAX_SUBSCRIPTION_REFRESH
+        elif self.subscription_refresh_time < Session.MIN_SUBSCRIPTION_REFRESH:
+            self.subscription_refresh_time = Session.MIN_SUBSCRIPTION_REFRESH
+
         # indexed by aaaUserDomain name and contains all permission info discovered at login
         self.domains = {}               
 
@@ -543,7 +561,6 @@ class Subscriber(threading.Thread):
         self._callbacks = {}
         self._ws = None
         self._ws_url = None
-        self._refresh_time = 30
         self._exit = False
         self._event_q = Queue()
         self.resubscribe = resubscribe
@@ -567,8 +584,8 @@ class Subscriber(threading.Thread):
     def run(self):
         """ run subscriber thread, listening for new subscription requests """
         while not self._exit:
-            # refresh required every 60 seconds, static to 30 seconds for this module
-            time.sleep(self._refresh_time)
+            # sleep for configured subscription refresh time
+            time.sleep(self._session.subscription_refresh_time)
             try:
                 if not self.refresh_subscriptions():
                     logger.warn("failed to refresh one or more subscription")
@@ -607,22 +624,31 @@ class Subscriber(threading.Thread):
         if self.restarting:
             logger.debug("skip refresh of %s subscriptions during restart",len(self._subscriptions))
             return True
-        logger.debug("refreshing %s subscriptions", len(self._subscriptions))
+        refresh_ts = time.time()
+        refreshed_count = 0
         subscriptions = [ _id for (k, _id) in self._subscriptions.items() ]
         refreshed_all = True
+        refresh = ""
+        if self._session.subscription_refresh_time > Session.DEFAULT_SUBSCRIPTION_REFRESH:
+            refresh = "&refresh-timeout=%s" % (
+                    self._session.subscription_refresh_time + Session.MIN_SUBSCRIPTION_REFRESH)
         for _id in subscriptions:
             refreshed = False
             try:
                 with self._lock:
-                    resp = self._session.get("/api/subscriptionRefresh.json?id=%s" % _id)
+                    resp = self._session.get("/api/subscriptionRefresh.json?id=%s%s"%(_id, refresh))
                     if not resp.ok:
                         logger.debug("failed to refresh id %s: %s %s", _id, resp, resp.text)
                         refreshed_all = False
                         break
+                    else:
+                        refreshed_count+=1
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
                 logger.warn("requests exception on refresh of %s: %s", _id, e)
                 refreshed_all = False
                 break
+        logger.debug("refreshed %s subscriptions in %0.3f sec (next %0.3f sec)", refreshed_count,
+                time.time()-refresh_ts, self._session.subscription_refresh_time)
         if not refreshed_all:
             return self._resubscribe()
         return refreshed_all
@@ -681,6 +707,15 @@ class Subscriber(threading.Thread):
             return tuple (subscriptionId, data) on success, else return (None, None)
         """
         try:
+            refresh = ""
+            if self._session.subscription_refresh_time > Session.DEFAULT_SUBSCRIPTION_REFRESH:
+                refresh = "refresh-timeout=%s" % (
+                    self._session.subscription_refresh_time + Session.MIN_SUBSCRIPTION_REFRESH)
+                if "?" in url:
+                    url = "%s&%s" % (url, refresh)
+                else:
+                    url = "%s?%s" % (url, refresh)
+
             resp = self._session.get(url)
             if not resp.ok:
                 logger.warn('could not send subscription to APIC for url %s', url)

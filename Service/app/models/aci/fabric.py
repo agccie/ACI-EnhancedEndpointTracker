@@ -78,6 +78,19 @@ class Fabric(Rest):
             "read": False,
             "description": "password for ssh access to switch",
         },
+        "subscription_refresh_time": {
+            "type": int,
+            "default": 60,
+            "min": 30,
+            "max": 36000,
+            "description": """ Subsription refresh time in seconds. 
+                Active subscriptions to APIC are regularly refreshed. Starting in ACI 4.0, the
+                refresh time is configurable up to the maximum lifetime of the subscription 
+                (24 hours). Increasing the refresh time reduces the number of queries sent to the 
+                APIC. All nodes in the fabric must be running 4.0 or above else the refresh is 
+                limited to 60 seconds.
+                """,
+        },
         "session_timeout": {
             "type": int,
             "default": 86400,

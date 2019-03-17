@@ -296,10 +296,10 @@ def get_apic_session(fabric, resubscribe=False):
         if apic_cert_mode:
             session = Session(h, aci.apic_username, appcenter_user=True, 
                 cert_name=aci.apic_username, key=aci.apic_cert, resubscribe=resubscribe,
-                lifetime=aci.session_timeout)
+                lifetime=aci.session_timeout,subscription_refresh_time=aci.subscription_refresh_time)
         else:
             session = Session(h, aci.apic_username, aci.apic_password, resubscribe=resubscribe,
-                lifetime=aci.session_timeout)
+                lifetime=aci.session_timeout,subscription_refresh_time=aci.subscription_refresh_time)
         try:
             if session.login(timeout=SESSION_LOGIN_TIMEOUT):
                 logger.debug("successfully connected on %s", h)
@@ -390,31 +390,39 @@ def get_ssh_connection(fabric, pod_id, node_id, session=None):
     logger.debug("successfully connected to %s node-%s", f.fabric, node_id)
     return c 
 
-def get_controller_version(session):
-    # return list of controllers and current running version
-    r = get_class(session, "firmwareCtrlrRunning")
-    ret = []
-    reg = "topology/pod-[0-9]+/node-(?P<node>[0-9]+)/"
-    if r is not None:
-        for obj in r:
-            if "firmwareCtrlrRunning" not in obj or \
-                "attributes" not in obj["firmwareCtrlrRunning"]:
-                logger.warn("invalid firmwareCtrlrRunning object: %s" % obj)
-                continue
-            attr = obj["firmwareCtrlrRunning"]["attributes"]
-            if "dn" not in attr or "type" not in attr and "version" not in attr:
-                logger.warn("firmwareCtrlrRunning missing fields: %s" % attr)
-                continue
-            r1 = re.search(reg, attr["dn"])
-            if r1 is None:
-                logger.warn("invalid dn firmwareCtrlrRunning: %s"%attr["dn"])
-                continue
-            # should never happen but let's double check
-            if attr["type"]!="controller":
-                logger.warn("invalid 'type' for firmwareCtrlrRunning: %s"%attr)
-                continue
-            ret.append({"node":r1.group("node"), "version": attr["version"]})
+def get_fabric_version(session):
+    # return dict indexed by device role with current running version. Roles will be either 
+    # 'controller' or 'switch'. Dict will contain list of {node, version} objects
+    ret = {}
+    reg = re.compile("topology/pod-[0-9]+/node-(?P<node>[0-9]+)/")
+    data = []
+    data1 = get_class(session, "firmwareCtrlrRunning")
+    data2 = get_class(session, "firmwareRunning")
+    if data1 is not None and len(data1)>0:
+        data += data1
+    else:
+        logger.warn("failed to get firmwareCtrlrRunning")
+    if data2 is not None and len(data2)>0:
+        data += data2
+    else:
+        logger.warn("failed to get firmwareRunning")
 
+    # walk through version objects and add to ret indexed based on type
+    for obj in data:
+        attr = obj[obj.keys()[0]]["attributes"]
+        if "dn" in attr and "type" in attr and ("version" in attr or "peVer" in attr):
+            r1 = reg.search(attr["dn"])
+            if r1 is not None:
+                if attr["type"] not in ret:
+                    ret[attr["type"]] = []
+                ret[attr["type"]].append({
+                    "node":int(r1.group("node")), 
+                    "version": attr["peVer"] if "peVer" in attr else attr["version"]
+                })
+            else:
+                logger.warn("failed to parse node id from firmware dn: %s", attr["dn"])
+        else:
+            logger.warn("invalid firmware object: %s", attr)
     return ret
 
 def parse_apic_version(version):
@@ -430,9 +438,9 @@ def parse_apic_version(version):
     r1 = re.search(reg, version)
     if r1 is None: return None
     return {
-        "major": r1.group("M"),
-        "minor": r1.group("m"),
-        "build": r1.group("p"),
+        "major": int(r1.group("M")),
+        "minor": int(r1.group("m")),
+        "build": int(r1.group("p")),
         "patch": r1.group("pp"),
     }
 

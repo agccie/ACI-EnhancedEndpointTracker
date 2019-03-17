@@ -5,7 +5,7 @@ from ... utils import get_redis
 from .. utils import get_apic_session
 from .. utils import get_attributes
 from .. utils import get_class
-from .. utils import get_controller_version
+from .. utils import get_fabric_version
 from .. utils import parse_apic_version
 from .. utils import validate_session_role
 from .. subscription_ctrl import SubscriptionCtrl
@@ -318,12 +318,20 @@ class eptSubscriber(object):
         self.fabric.add_fabric_event(init_str, connected_str)
 
         # get controller version, highlight mismatch and verify minimum version
-        apic_version = get_controller_version(self.session)
-        if len(apic_version) == 0:
+        fabric_version = get_fabric_version(self.session)
+        if len(fabric_version) == 0 or "controller" not in fabric_version:
             logger.warn("failed to determine apic version")
             self.fabric.add_fabric_event("failed", "failed to determine apic version")
             return
-        apic_version_set = set([n["version"] for n in apic_version])
+        apic_version = fabric_version["controller"]
+        switch_version = []
+        apic_version_set = set([n["version"] for n in fabric_version["controller"]])
+        switch_version_set = set()
+        if "switch" in fabric_version:
+            switch_version_set = set([n["version"] for n in fabric_version["switch"]])
+            switch_version = fabric_version["switch"]
+        logger.debug("apic version set: %s, switch version set: %s", apic_version_set, 
+                    switch_version_set)
         if len(apic_version_set)>1:
             logger.warn("version mismatch for %s: %s", self.fabric.fabric, apic_version_set)
             self.fabric.add_fabric_event("warning", "version mismatch: %s" % ", ".join([
@@ -358,6 +366,19 @@ class eptSubscriber(object):
             self.fabric.auto_start = False
             self.fabric.save()
             return
+        # if this is less than 4.0 then override session subscription_refresh_time to default or less
+        # we also need to check against every switch.
+        subscribe_check_ok = version["major"] >= 4
+        for v in [parse_apic_version(sv) for sv in switch_version_set]:
+            if v is not None and v["major"] < 4:
+                subscribe_check_ok = False
+                break
+        if not subscribe_check_ok:
+            if self.session.subscription_refresh_time > self.session.DEFAULT_SUBSCRIPTION_REFRESH:
+                logger.info("resetting subscription refresh from %s to %s", 
+                        self.session.subscription_refresh_time,
+                        self.session.DEFAULT_SUBSCRIPTION_REFRESH)
+                self.session.subscription_refresh_time = self.session.DEFAULT_SUBSCRIPTION_REFRESH
 
         # get overlay-vnid, fabricProtP (which requires hard reset on change), and tz
         overlay_attr = get_attributes(session=self.session, dn="uni/tn-infra/ctx-overlay-1")

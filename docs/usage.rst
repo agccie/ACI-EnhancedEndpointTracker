@@ -404,16 +404,23 @@ events can be disabled.
 * **Queue initial events** enables queueing of all standard MO events during build
 * **Queue initial endpoint events** enables queuing of all EPM events during endpoint build
 
-Session Timeout
-~~~~~~~~~~~~~~~
+Session Handling
+~~~~~~~~~~~~~~~~
 
 By default the APIC session is gracefully restarted based on the aaaLogin maximumLifetimeSeconds 
 attribute. Users can override the session timeout to a value lower than the aaaLogin lifetime by 
-setting a limit on the session time. **Note** the fabric monitor needs to be restarted for this 
-setting to take affect.
+setting a limit on the session time. 
+Starting in ACI 4.0, the refresh time is configurable up to the maximum lifetime of the subscription. 
+Increasing the refresh time reduces the number of queries sent to the APIC. This can be done by 
+setting the Refresh Time. All nodes in the fabric must be running 4.0 or above else refresh time is 
+limited to 60 seconds.
+
+
+.. note:: The fabric monitor needs to be restarted for session settings to take affect.
 
 * **Session Timeout** maximum time in seconds before new login and websocket is started for APIC
   session
+* **Subscription Refresh Time** time in seconds between subscription refreshes.
 
 .. |fabric-settings-advanced| image:: imgs/fabric-settings-advanced.png
    :align: middle

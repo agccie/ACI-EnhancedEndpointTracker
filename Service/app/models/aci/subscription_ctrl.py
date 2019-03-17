@@ -222,6 +222,7 @@ class SubscriptionCtrl(object):
     def _subscribe_wrapper(self):
         """ handle _subscribe with wrapper for ctrl restart signals """
         try:
+            threading.currentThread().name = "subctrl-bg"
             restarting = False
             while self.ctrl == SubscriptionCtrl.CTRL_CONTINUE:
                 self._subscribe(restarting=restarting)

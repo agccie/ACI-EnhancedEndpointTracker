@@ -72,6 +72,7 @@ class eptWorker(object):
     """
 
     def __init__(self, worker_id, role):
+        threading.currentThread().name = "main"
         logger.debug("init role %s id %s", role, worker_id)
         register_signal_handlers()
         self.worker_id = "%s" % worker_id
@@ -160,12 +161,12 @@ class eptWorker(object):
             wait_for_redis(self.redis)
             wait_for_db(self.db)
             # start stats thread
-            self.stats_thread = BackgroundThread(func=self.update_stats, name="stats", count=0, 
-                                                interval= eptQueueStats.STATS_INTERVAL)
+            self.stats_thread = BackgroundThread(func=self.update_stats, name="worker-stats", 
+                                                count=0, interval= eptQueueStats.STATS_INTERVAL)
             self.stats_thread.daemon = True
             self.stats_thread.start()
             # start hello thread
-            self.hello_thread = BackgroundThread(func=self.send_hello, name="hello", count=0,
+            self.hello_thread = BackgroundThread(func=self.send_hello, name="worker-hello", count=0,
                                                 interval = HELLO_INTERVAL)
             self.hello_thread.daemon = True
             self.hello_thread.start()

@@ -45,6 +45,7 @@ class eptManager(object):
     REQUIRED_ROLES = ["worker", "watcher"]
 
     def __init__(self, worker_id):
+        threading.currentThread().name = "mgr-main"
         logger.debug("init role manager id %s", worker_id)
         register_signal_handlers()
         self.worker_id = "%s" % worker_id
@@ -110,7 +111,7 @@ class eptManager(object):
         self.redis.flushall()
         wait_for_db(self.db)
         self.worker_tracker = WorkerTracker(manager=self)
-        self.stats_thread = BackgroundThread(func=self.update_stats, name="stats", count=0, 
+        self.stats_thread = BackgroundThread(func=self.update_stats, name="mgr-stats", count=0, 
                                             interval= eptQueueStats.STATS_INTERVAL)
         self.stats_thread.daemon = True
         self.stats_thread.start()
@@ -122,6 +123,7 @@ class eptManager(object):
         p = self.redis.pubsub(ignore_subscribe_messages=True)
         p.subscribe(**channels)
         self.subscribe_thread = p.run_in_thread(sleep_time=0.01, daemon=True)
+        self.subscribe_thread.name = "mgr-redis"
         logger.debug("[%s] listening for events on channels: %s", self, channels.keys())
 
         # wait for minimum workers to be ready
@@ -201,7 +203,7 @@ class eptManager(object):
             # note if brief is set to False, then this request can take significant time to read 
             # and analyze all requests queued.
             kwargs = {"seq": msg.seq, "brief": msg.data.get("brief", True)}
-            tmp = threading.Thread(target=self.publish_manager_status, name="status", kwargs=kwargs)
+            tmp = threading.Thread(target=self.publish_manager_status,name="mgr-status",kwargs=kwargs)
             tmp.daemon = True
             tmp.start()
 
@@ -412,7 +414,8 @@ class eptManager(object):
             # having worker perform the operation which could lead to race conditions. This needs
             # to happening in a different thread so it does not block hellos or other events 
             # received on the control thread.
-            tmp = threading.Thread(target=self.worker_tracker.flush_fabric, args=(fabric,))
+            tmp = threading.Thread(name="mgr-tmp", target=self.worker_tracker.flush_fabric,
+                                args=(fabric,))
             tmp.daemon = True
             tmp.start()
             return True
@@ -477,7 +480,7 @@ class WorkerTracker(object):
         self.active_workers = {}    # list of active workers indexed by role
         self.update_interval = WORKER_UPDATE_INTERVAL # interval to check for new/expired workers
         self.update_thread = BackgroundThread(func=self.update_active_workers, count=0, 
-                                            name="workerTracker", interval=self.update_interval)
+                                            name="mgr-tracker", interval=self.update_interval)
         self.update_thread.daemon = True
         self.update_thread.start()
 

@@ -447,6 +447,7 @@ class Login(threading.Thread):
             return self._session._send_login().ok
 
     def run(self):
+        threading.currentThread().name = "session-login"
         logger.debug("starting new login thread")
         while not self._exit:
             self.wait_until_next_cycle()
@@ -482,6 +483,7 @@ class EventHandler(threading.Thread):
         self._exit = True
 
     def run(self):
+        threading.currentThread().name = "session-event"
         while not self._exit:
             try:
                 event = self.subscriber._ws.recv()
@@ -583,6 +585,7 @@ class Subscriber(threading.Thread):
 
     def run(self):
         """ run subscriber thread, listening for new subscription requests """
+        threading.currentThread().name = "session-subscriber"
         while not self._exit:
             # sleep for configured subscription refresh time
             time.sleep(self._session.subscription_refresh_time)

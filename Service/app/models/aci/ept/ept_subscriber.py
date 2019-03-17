@@ -180,13 +180,14 @@ class eptSubscriber(object):
 
     def run(self):
         """ wrapper around run to handle interrupts/errors """
+        threading.currentThread().name = "sub-main"
         logger.info("starting eptSubscriber for fabric '%s'", self.fabric.fabric)
         try:
             # allocate a unique db connection as this is running in a new process
             self.db = get_db(uniq=True, overwrite_global=True, write_concern=True)
             self.redis = get_redis()
             # start hello thread
-            self.hello_thread = BackgroundThread(func=self.send_hello, name="hello", count=0,
+            self.hello_thread = BackgroundThread(func=self.send_hello, name="sub-hello", count=0,
                                                 interval = HELLO_INTERVAL)
             self.hello_thread.daemon = True
             self.hello_thread.start()
@@ -194,7 +195,7 @@ class eptSubscriber(object):
             if BG_EVENT_HANDLER_ENABLED:
                 self.bg_thread = BackgroundThread(
                     func=self.handle_background_event_queue, 
-                    name="bg_q",
+                    name="sub-event",
                     count=0, 
                     interval=BG_EVENT_HANDLER_INTERVAL
                 )
@@ -490,6 +491,7 @@ class eptSubscriber(object):
         p = self.redis.pubsub(ignore_subscribe_messages=True)
         p.subscribe(**channels)
         self.subscribe_thread = p.run_in_thread(sleep_time=0.01, daemon=True)
+        self.subscribe_thread.name = "sub-redis"
         logger.debug("[%s] listening for events on channels: %s", self, channels.keys())
 
         # send EPM EOF to all workers lowest prority queue to track when initial processing is done

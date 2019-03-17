@@ -183,9 +183,13 @@
 <div class="row base-margin-bottom">
     <div class="col-md-12">
         By default the APIC session is gracefully restarted based on the aaaLogin maximumLifetimeSeconds 
-        attribute.  Users can override the session timeout to a value lower than the aaaLogin by setting 
-        the session timeout below. Note that the fabric monitor needs to be restarted for this setting to 
-        take affect.
+        attribute. Users can override the <strong>session timeout</strong> to a value lower than the 
+        aaaLogin below.
+        Active subscriptions to APIC are regularly refreshed. Starting in ACI 4.0, the refresh time is 
+        configurable up to the maximum lifetime of the subscription. Increasing the refresh time reduces 
+        the number of queries sent to the APIC. This can be done by setting the <strong>Refresh Time</strong>.
+        All nodes in the fabric must be running 4.0 or above else refresh time is limited to 60 seconds.
+        Note that the fabric monitor needs to be restarted for session settings to take affect.
     </div>
 </div>
 <div class="row base-margin-bottom">
@@ -194,6 +198,14 @@
             <div class="form-group__text">
                 <input type="number" id="session_timeout" [(ngModel)]="service.fabric.session_timeout">
                 <label for="session_timeout">Session Timeout (seconds)</label>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" id="subscription_refresh_time" [(ngModel)]="service.fabric.subscription_refresh_time">
+                <label for="subscription_refresh_time">Session Refresh Time (seconds)</label>
             </div>
         </div>
     </div>

@@ -13,7 +13,6 @@ import {Version} from '../_model/version';
 })
 
 export class LoginComponent implements OnInit {
-    title: string = 'Endpoint Tracker';
     username = '';
     password = '';
     modalTitle = '';

@@ -117,6 +117,12 @@ del {
     cursor: pointer;
 }
 
+.loginPanel {
+    width:500px; 
+    position:relative; 
+    top:-50px;
+}
+
 .loading {
     position: absolute;
     top: 50%;

@@ -53,19 +53,19 @@ class eptSettings(Rest):
                 or relay through configured smtp_relay server with optional login credentials
                 """
         },
+        "smtp_server_port": {
+            "type": int,
+            "default": 587,
+            "description": """ SMTP server port for all smtp_types. Port 25 is often used for 
+                standard SMTP and port 456 and 587 used for SSL/TLS, respectively. This app will 
+                always try to negotiate TLS even if running on port 25.
+                """,
+        },
         "smtp_relay_server": {
             "type": str,
             "default": "",
             "regex": "(?i)^[a-z0-9_\.:\-]{0,512}$",
             "description": """ SMTP relay server """,
-        },
-        "smtp_relay_server_port": {
-            "type": int,
-            "default": 587,
-            "description": """ SMTP relay server port. Port 25 is often used for standard SMTP and 
-                port 456 and 587 used for SSL/TLS, respectively. This app will always try to 
-                negotiate TLS even if running on port 25.
-                """,
         },
         "smtp_relay_authenticate": {
             "type": bool,

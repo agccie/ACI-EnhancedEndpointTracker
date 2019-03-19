@@ -758,7 +758,7 @@ def send_emails(settings=None, dns_cache=None, emails=None):
 
     ts = time.time()
     smtp_server = None
-    smtp_port = 25
+    smtp_port = settings.smtp_server_port
     smtp_auth = False
     if settings.smtp_type == "direct":
         logger.debug("sending direct email to %s", receiver)
@@ -772,7 +772,6 @@ def send_emails(settings=None, dns_cache=None, emails=None):
             return err("failed to resolve MX record for domain '%s'" % domain)
     elif settings.smtp_type == "relay":
         smtp_server = settings.smtp_relay_server
-        smtp_port = settings.smtp_relay_server_port
         smtp_auth = settings.smtp_relay_authenticate
         if len(smtp_server) == 0:
             return err("smtp relay enabled with no smtp relay server configured")

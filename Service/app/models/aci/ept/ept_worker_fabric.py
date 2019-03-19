@@ -1,16 +1,23 @@
 
+from ... rest.settings import Settings
 from ... utils import get_app_config
 from ... utils import get_db
 from .. utils import get_apic_session
-from .. utils import email
+from .. utils import send_email
 from .. utils import syslog
+from . common import NOTIFY_INTERVAL
+from . common import NOTIFY_QUEUE_MAX_SIZE
+from . common import BackgroundThread
 from . common import push_event
 from . ept_cache import eptCache
 from . ept_msg import eptEpmEventParser
 from . ept_settings import eptSettings
+from six.moves.queue import Queue
+from six.moves.queue import Full
 
 import logging
 import time
+import traceback
 
 # module level logging
 logger = logging.getLogger(__name__)
@@ -23,10 +30,13 @@ class eptWorkerFabric(object):
         self.fabric = fabric
         self.start_ts = time.time()
         self.settings = eptSettings.load(fabric=fabric, settings="default")
+        self.global_settings = Settings.load()
         self.cache = eptCache(fabric)
         self.db = get_db()
         self.watcher_paused = False
         self.session = None
+        self.notify_queue = None
+        self.notify_thread = None
         self.init() 
 
     def init(self):
@@ -49,17 +59,38 @@ class eptWorkerFabric(object):
             self.db.client.close()
         if self.session is not None:
             self.session.close()
+        if self.notify_thread is not None:
+            self.notify_thread.exit()
+        # remove all objects from notify queue
+        if self.notify_queue is not None:
+            try:
+                logger.debug("clearing notify queue (size: %d)", self.notify_queue.qsize())
+                while not self.notify_queue.empty():
+                    self.notify_queue.get()
+            except Exception as e:
+                logger.debug("Traceback:\n%s", traceback.format_exc())
+                logger.error("failed to execute clear notify queue %s", e)
 
-    def start_session(self):
-        """ watcher process needs session object for mo sync """
+    def watcher_init(self):
+        """ watcher process needs session object for mo sync and notify queue"""
+        logger.debug("wf worker init for %s", self.fabric)
+        self.notify_queue = Queue(maxsize=NOTIFY_QUEUE_MAX_SIZE)
         logger.debug("starting worker fabric apic session")
         self.session = get_apic_session(self.fabric)
         if self.session is None:
             logger.error("failed to get session object within worker fabric")
 
+        # watcher will also send notifications within a background thread to ensure that 
+        # any delay in syslog or email does not backup other service events
+        self.notify_thread = BackgroundThread(func=self.execute_notify, name="notify", count=0, 
+                                            interval=NOTIFY_INTERVAL)
+        self.notify_thread.daemon = True
+        self.notify_thread.start()
+
     def settings_reload(self):
         """ reload settings from db """
-        logger.debug("worker fabric reloading settings for %s", self.fabric)
+        logger.debug("reloading settings for global and %s", self.fabric)
+        self.global_settings.reload()
         self.settings.reload()
         self.init()
 
@@ -147,13 +178,46 @@ class eptWorkerFabric(object):
         notify = self.notification_enabled(notify_type)
         if notify["enabled"]:
             if notify["email_address"] is not None:
-                email(
+                (success, err) = send_email(
+                    settings = self.global_settings,
                     msg=txt,
                     subject=subject,
                     sender=get_app_config().get("EMAIL_SENDER", None),
                     receiver=notify["email_address"],
                 )
+                if not success:
+                    logger.warn("failed to send email: %s", err)
             if notify["syslog_server"] is not None:
                 syslog(txt, server=notify["syslog_server"], server_port=notify["syslog_port"])
         else:
             logger.debug("skipping send notification as '%s' is not enabled", notify_type)
+
+    def queue_notification(self, notify_type, subject, txt):
+        # queue notification that will be sent at next iteration of NOTIFY_INTERVAL
+        if self.notify_queue is None:
+            logger.error("notify queue not initialized for worker fabric")
+            return
+        try:
+            logger.debug("enqueuing %s notification (queue size %d)", notify_type, 
+                self.notify_queue.qsize())
+            self.notify_queue.put_nowait((notify_type, subject, txt, time.time()))
+        except Full as e:
+            logger.error("failed to enqueue notification, queue is full (size: %s)", 
+                self.notify_queue.qsize())
+
+    def execute_notify(self):
+        # send any notifications sitting in queue, log number of notifications sent and max queue
+        # time.
+        count = 0
+        max_queue_time = 0
+        while not self.notify_queue.empty():
+            (notify_type, subject, txt, q_ts) = self.notify_queue.get()
+            count+= 1
+            q_time = time.time() - q_ts
+            if q_time > max_queue_time:
+                max_queue_time = q_time
+            self.send_notification(notify_type, subject, txt)
+        if count > 0:
+            logger.debug("sent %s notifications, max queue time %0.3f sec", count, max_queue_time)
+
+

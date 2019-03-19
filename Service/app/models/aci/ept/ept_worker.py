@@ -79,6 +79,7 @@ class eptWorker(object):
         self.role = role
         self.db = get_db(uniq=True, overwrite_global=True, write_concern=True)
         self.redis = get_redis()
+
         # dict of eptWorkerFabric objects
         self.fabrics = {}
         # broadcast hello for any managers (registration and keepalives)
@@ -171,12 +172,12 @@ class eptWorker(object):
             self.hello_thread.daemon = True
             self.hello_thread.start()
             if self.role == "watcher":
-                self.execute_watch()
                 # watcher needs to trigger execute watch at regular interval
                 self.watch_thread = BackgroundThread(func=self.execute_watch, name="watch", count=0,
                                                 interval=WATCH_INTERVAL)
                 self.watch_thread.daemon = True
                 self.watch_thread.start()
+
             # start listening to redis channels/queues
             self._run()
         except (Exception, SystemExit, KeyboardInterrupt) as e:
@@ -312,7 +313,7 @@ class eptWorker(object):
         logger.debug("[%s] start fabric: %s", self, fabric)
         self.fabrics[fabric] = eptWorkerFabric(fabric)
         if self.role == "watcher":
-            self.fabrics[fabric].start_session()
+            self.fabrics[fabric].watcher_init()
 
     def fabric_stop(self, fabric):
         """ stop only requires removing fabric from local fabrics, manager will handle removing any
@@ -1379,7 +1380,7 @@ class eptWorker(object):
             eptMoveEvent(**msg.src).notify_string(include_rw=(msg.type!="mac")),
             eptMoveEvent(**msg.dst).notify_string(include_rw=(msg.type!="mac")),
         )
-        msg.wf.send_notification("move", subject, txt)
+        msg.wf.queue_notification("move", subject, txt)
 
     def handle_watch_rapid(self, msg):
         """ receive an eptMsgWorkRapid message and immediately performs notification action. If
@@ -1397,7 +1398,7 @@ class eptWorker(object):
             msg.addr,
             msg.rate
         )
-        msg.wf.send_notification("rapid", subject, txt)
+        msg.wf.queue_notification("rapid", subject, txt)
         if msg.wf.settings.refresh_rapid:
             key = "%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr)
             msg.xts = msg.now + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID
@@ -1596,7 +1597,7 @@ class eptWorker(object):
                             msg.addr,
                             event.notify_string()
                         )
-                        msg.wf.send_notification(watch_type, subject, txt)
+                        msg.wf.queue_notification(watch_type, subject, txt)
 
                     # even if duplicate, add to clear list if remediation is enabled
                     if getattr(msg.wf.settings, remediate_attr):
@@ -1634,7 +1635,7 @@ class eptWorker(object):
                             event.vnid_name if len(event.vnid_name)>0 else "vnid:%d" % key["vnid"],
                             key["addr"],
                         )
-                        msg.wf.send_notification("clear", subject, txt)
+                        msg.wf.queue_notification("clear", subject, txt)
 
     def handle_endpoint_delete(self, msg):
         """ handle endpoint delete requests.  This needs to flush the local cache and delete all
@@ -1659,13 +1660,13 @@ class eptWorker(object):
         """ receive eptMsgWork with WORK_TYPE.TEST_EMAIL and send a test email """
         logger.debug("sending test email")
         txt = "%s test email" % msg.fabric
-        msg.wf.send_notification("any_email", txt, txt)
+        msg.wf.queue_notification("any_email", txt, txt)
 
     def handle_test_syslog(self, msg):
         """ receive eptMsgWork with WORK_TYPE.TEST_SYSLOG and send a test syslog """
         logger.debug("sending test syslog")
         txt = "%s test syslog" % msg.fabric
-        msg.wf.send_notification("any_syslog", txt, txt)
+        msg.wf.queue_notification("any_syslog", txt, txt)
 
     def handle_settings_reload(self, msg):
         """ receive eptMsgWork with WORK_TYPE.SETTINGS_RELOAD to reload local wf settings """

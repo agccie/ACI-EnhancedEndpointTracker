@@ -691,34 +691,144 @@ def syslog(msg, server="localhost", server_port=514, severity="info", process="E
     # return success
     return True
 
-def email(receiver=None, subject=None, msg=None, sender=None):
-    """ send an email and return boolean success """
-    if receiver is None:
-        logger.error("email recipient not specified")
-        return False
-    # build sendmail command
-    if subject is not None: 
-        subject = re.sub("\"", "\\\"", subject)
-        cmd = ["mail", "-s", subject]
-    else:
-        cmd = ["mail"]
-    if sender is not None and len(sender)>0:
-        cmd+= ["-r", sender]
+def send_email(settings=None, receiver=None, subject=None, msg=None, sender='noreply@aci.app'):
+    """ using Rest.Settings object with configured SMTP settings, send an email using the native
+        python smtplib. Return tuple (success=boolean, error=string)
+        Note smtp_username will override provided sender address if smtp_relay_authentication is
+        configured.
+    """
+    from email.mime.text import MIMEText
+    import dns.resolver
+    import errno
+    import socket
+    import smtplib
 
-    cmd.append(receiver)
+    # log and return error string on error
+    def err(err_msg):
+        logger.error(err_msg)
+        return (False, err_msg)
+
+    if settings is None:
+        return err("Global settings object not provided")
+    if msg is None and subject is None:
+        return err("Email requires msg or subject")
+    if receiver is None:
+        return err("email recipient not specified")
+
+    text = MIMEText(msg if msg is not None else subject)
+    text["To"] = receiver
+    if subject is not None:
+        text["Subject"] = subject
+
+    ts = time.time()
+    cached_record = settings.smtp_cached_record
+    smtp_server = None
+    smtp_port = 25
+    smtp_auth = False
+    if settings.smtp_type == "direct":
+        logger.debug("sending direct email to %s", receiver)
+        r1 = re.search("^[^@]+@(?P<domain>.{3,})$", receiver)
+        if r1 is None:
+            return err("failed to parse domain from email address: '%s'" % receiver)
+        domain = r1.group("domain")
+        logger.debug("extracting email domain %s", domain)
+        cached_domain = cached_record["domain"]
+        if cached_domain is None or cached_domain["domain"] != domain or ts > cached_domain["ttl"]:
+            logger.debug("resolving MX record for domain %s", domain)
+            try:
+                preferred = None
+                record = dns.resolver.query(domain, "MX")
+                for subrecord in record:
+                    if preferred is None or subrecord.preference < preferred.preference:
+                        preferred = subrecord
+                if preferred is None:
+                    raise Exception("no valid MX records found")
+                cached_domain = {
+                    "domain": domain, 
+                    "ttl": record.expiration, 
+                    "exchange": preferred.exchange.to_text()
+                }
+                settings.smtp_cached_record["domain"] = cached_domain
+                logger.debug("saving smtp cached domain record: %r", settings.save())
+            except Exception as e:
+                return err("failed to resolve MX record for domain '%s': %s" % (domain, e))
+        else:
+            logger.debug("using cached MX record for domain: %s", cached_domain["exchange"])
+        smtp_server = cached_domain["exchange"]
+    elif settings.smtp_type == "relay":
+        smtp_server = settings.smtp_relay_server
+        smtp_port = settings.smtp_relay_server_port
+        smtp_auth = settings.smtp_relay_authenticate
+        if len(smtp_server) == 0:
+            return err("smtp relay enabled with no smtp relay server configured")
+    else:
+        return err("invalid smtp type %s" % settings.smtp_type)
+
+    # best effort, try to do preliminary DNS lookup on smtp_server so we can cache this info as well
     try:
-        logger.debug("send mail: (%s), msg: %s", cmd, msg)
-        ps = subprocess.Popen(("echo", msg), stdout=subprocess.PIPE)
-        output = subprocess.check_output(cmd, stdin=ps.stdout, stderr=subprocess.STDOUT)
-        ps.wait()
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.warn("send mail error:\n%s", e)
-        logger.debug("stderr:\n%s", e.output)
-        return False
+        cached_server = cached_record["server"]
+        if cached_server is None or cached_server["hostname"] != smtp_server or \
+            ts > cached_server["ttl"]:
+            # if user provided an IP address for the smtp_server (in the case of relay) then we can
+            # directly cache a 'tmp' result instead of wasting time on DNS lookup
+            if re.search("^[0-9\.]+$", smtp_server):
+                logger.debug("skipping DNS lookup for IP address %s", smtp_server)
+                settings.smtp_cached_record["server"] = {
+                    "hostname": smtp_server,
+                    "ttl": ts + 31536000,       # IP cached for 1 year...
+                    "ip": smtp_server,
+                }
+                logger.debug("saving smtp cached server record: %r", settings.save())
+            else:
+                logger.debug("resolving A record for %s", smtp_server)
+                record = dns.resolver.query(smtp_server, "A")
+                if len(record) > 0:
+                    settings.smtp_cached_record["server"] = {
+                        "hostname": smtp_server,
+                        "ttl": record.expiration,
+                        "ip": record[0].address,
+                    }
+                    smtp_server = record[0].address
+                    logger.debug("saving smtp cached server record: %r", settings.save())
+        else:
+            logger.debug("using cached ip for server: %s", cached_server["ip"])
+            smtp_server = cached_server["ip"]
     except Exception as e:
-        logger.error("unknown error occurred: %s", e)
-        return False
+        logger.warn("failed to resolve A record for smtp server '%s': %s" % (smtp_server, e))
+
+    # send email with TLS and optional login if this is an SMTP relay and auth enabled
+    s = None
+    try:
+        logger.debug("sending email (%s:%s) %s: %s", smtp_server, smtp_port, receiver, msg) 
+        s = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
+        try:
+            s.starttls()
+            s.ehlo()
+        except (smtplib.SMTPHeloError, smtplib.SMTPException) as tls_error:
+            logger.warn("start tls failed, trying to proceed anyways: %s", tls_error)
+        if smtp_auth:
+            # override sender with smtp_relay_username
+            sender = settings.smtp_relay_username
+            try:
+                s.login(settings.smtp_relay_username, settings.smtp_relay_password)
+            except Exception as e:
+                return err("login error %s" % e)
+        ret = s.sendmail(sender, [receiver], text.as_string())
+        # we only support one receiver, therefore if there was no exception raised then the 
+        # email should have successfully been delivered to the receiver
+        return (True, "")
+    except socket.error as serr:
+        logger.debug("socket error: %s", serr)
+        if serr.errno == errno.ECONNREFUSED or serr.errno == errno.EADDRNOTAVAIL:
+            return err("connection to smtp server refused")
+        else:
+            return err("socket error %s" % serr)
+    except Exception as e:
+        return err("failed to send email: %s" % e)
+    finally:
+        if s is not None:
+            try: s.quit()
+            except Exception as e: pass
 
 ###############################################################################
 #
@@ -780,7 +890,7 @@ def clear_endpoint(fabric, pod, node, vnid, addr, addr_type="ip", vrf_name=""):
         # l2BD, vlanCktEp, vxlanCktEp object (good thing here is that we don't care which object 
         # type, each will have id attribute that is the PI vlan)
         # here we have two choices, first is APIC epmMacEp query which hits all nodes or, since ssh
-        # session is already up, we can execute directly on the leaf. For that later case, it will
+        # session is already up, we can execute directly on the leaf. For that latter case, it will
         # be easier to use moquery with grep then parsing json with extra terminal characters...
         cmd = "moquery -c epmMacEp -f 'epm.MacEp.addr==\"%s\"' | egrep '^dn' | egrep 'vxlan-%s'"%(
                 addr, vnid)

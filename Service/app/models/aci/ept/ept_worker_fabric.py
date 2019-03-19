@@ -1,15 +1,15 @@
 
-from ... rest.settings import Settings
 from ... utils import get_app_config
 from ... utils import get_db
 from .. utils import get_apic_session
-from .. utils import send_email
+from .. utils import send_emails
 from .. utils import syslog
 from . common import NOTIFY_INTERVAL
 from . common import NOTIFY_QUEUE_MAX_SIZE
 from . common import BackgroundThread
 from . common import push_event
 from . ept_cache import eptCache
+from . dns_cache import DNSCache
 from . ept_msg import eptEpmEventParser
 from . ept_settings import eptSettings
 from six.moves.queue import Queue
@@ -30,8 +30,8 @@ class eptWorkerFabric(object):
         self.fabric = fabric
         self.start_ts = time.time()
         self.settings = eptSettings.load(fabric=fabric, settings="default")
-        self.global_settings = Settings.load()
         self.cache = eptCache(fabric)
+        self.dns_cache = DNSCache()
         self.db = get_db()
         self.watcher_paused = False
         self.session = None
@@ -89,8 +89,7 @@ class eptWorkerFabric(object):
 
     def settings_reload(self):
         """ reload settings from db """
-        logger.debug("reloading settings for global and %s", self.fabric)
-        self.global_settings.reload()
+        logger.debug("reloading settings for %s", self.fabric)
         self.settings.reload()
         self.init()
 
@@ -172,25 +171,57 @@ class eptWorkerFabric(object):
             ret["syslog_port"] = self.syslog_port
         return ret
 
-    def send_notification(self, notify_type, subject, txt):
+    def send_notification(self, notify_type, subject=None, txt=None, bulk=None):
         # send proper notifications for this fabric.  set notify_type to none to skip enable check
-        # and force notification
+        # and force notification. user can set bulk to list of (subject/txt) tuples to send a list
+        # of notifications at the same time.  All notifications must be of the same notify_type.
+        success = True
+        errmsg = ""
         notify = self.notification_enabled(notify_type)
         if notify["enabled"]:
             if notify["email_address"] is not None:
-                (success, err) = send_email(
-                    settings = self.global_settings,
-                    msg=txt,
-                    subject=subject,
-                    sender=get_app_config().get("EMAIL_SENDER", None),
-                    receiver=notify["email_address"],
+                emails = []
+                if bulk is not None:
+                    for (bulk_subject, bulk_txt) in bulk:
+                        emails.append({
+                            "sender": get_app_config().get("EMAIL_SENDER", None),
+                            "receiver": notify["email_address"],
+                            "subject": bulk_subject,
+                            "msg": bulk_txt,
+                        })
+                else:
+                    emails.append({
+                        "sender": get_app_config().get("EMAIL_SENDER", None),
+                        "receiver": notify["email_address"],
+                        "subject": subject,
+                        "msg": txt,
+                    })
+                # send_email already supports a list of emails, so simply send all at once
+                (success, errmsg) = send_emails(
+                    settings = self.settings,
+                    dns_cache = self.dns_cache,
+                    emails=emails
                 )
                 if not success:
-                    logger.warn("failed to send email: %s", err)
+                    logger.warn("failed to send email: %s", errmsg)
             if notify["syslog_server"] is not None:
-                syslog(txt, server=notify["syslog_server"], server_port=notify["syslog_port"])
+                if bulk is not None:
+                    for (bulk_subject, bulk_txt) in bulk:
+                        syslog(bulk_txt, 
+                            dns_cache=self.dns_cache,
+                            server=notify["syslog_server"], 
+                            server_port=notify["syslog_port"],
+                        )
+                else:
+                    syslog(txt, 
+                        dns_cache=self.dns_cache,
+                        server=notify["syslog_server"],
+                        server_port=notify["syslog_port"],
+                    )
+            return (success, errmsg)
         else:
             logger.debug("skipping send notification as '%s' is not enabled", notify_type)
+            return (False, "notification not enabled")
 
     def queue_notification(self, notify_type, subject, txt):
         # queue notification that will be sent at next iteration of NOTIFY_INTERVAL
@@ -207,7 +238,10 @@ class eptWorkerFabric(object):
 
     def execute_notify(self):
         # send any notifications sitting in queue, log number of notifications sent and max queue
-        # time.
+        # time. We want to support bulk notifications (mainly for email to prevent multiple login
+        # on smpt_relay_auth setups) so this function will sort based on notify type and execute
+        # send notification with bulk flag.
+        msgs = {}  # indexed by notify type and contains tuple (subject,txt)
         count = 0
         max_queue_time = 0
         while not self.notify_queue.empty():
@@ -216,7 +250,11 @@ class eptWorkerFabric(object):
             q_time = time.time() - q_ts
             if q_time > max_queue_time:
                 max_queue_time = q_time
-            self.send_notification(notify_type, subject, txt)
+            if notify_type not in msgs:
+                msgs[notify_type] = []
+            msgs[notify_type].append((subject, txt))
+        for notify_type in msgs:
+            self.send_notification(notify_type, bulk=msgs[notify_type])
         if count > 0:
             logger.debug("sent %s notifications, max queue time %0.3f sec", count, max_queue_time)
 

@@ -593,18 +593,30 @@ def get_file_md5(path):
 ###############################################################################
 
 def syslog(msg, server="localhost", server_port=514, severity="info", process="EPT", 
-        facility=logging.handlers.SysLogHandler.LOG_LOCAL7):
+        facility=logging.handlers.SysLogHandler.LOG_LOCAL7, dns_cache=None):
     """ send a syslog message to remote server.  return boolean success
         for acceptible facilities see:
             https://docs.python.org/2/library/logging.handlers.html
             15.9.9. SysLogHandler
     """
+    from . ept.dns_cache import DNSCache
+
     if msg is None:
         logger.error("unable to send syslog: no message provided")
         return False
     if server is None:
         logger.error("unable to send syslog: no server provided")
         return False
+    if dns_cache is None:
+        dns_cache = DNSCache()
+
+    # best effort, try to do preliminary DNS lookup on server so we can cache this info between
+    # syslog messages. If dns lookup fails here then let syslog library tries its own DNS lookup
+    cached_server = dns_cache.dns_lookup(server, query_type="A")
+    if cached_server is not None:
+        logger.debug("using dns ip for server: %s", cached_server)
+        server = cached_server
+
     try:
         if(isinstance(server_port, int)):
             port = int(server_port)
@@ -691,14 +703,27 @@ def syslog(msg, server="localhost", server_port=514, severity="info", process="E
     # return success
     return True
 
-def send_email(settings=None, receiver=None, subject=None, msg=None, sender='noreply@aci.app'):
+def send_emails(settings=None, dns_cache=None, emails=None):
     """ using Rest.Settings object with configured SMTP settings, send an email using the native
-        python smtplib. Return tuple (success=boolean, error=string)
-        Note smtp_username will override provided sender address if smtp_relay_authentication is
-        configured.
+        python smtplib. 
+
+        settings(eptSettings)   eptSettings object with fabric specific smtp config
+        dns_cache(dnsCache)     optional dns cache object used for dns lookup and caching results
+        emails(list)            list of emails object each containing a dict of following attributes:
+                                receiver(str) email recipient address
+                                subject(str)  email subject
+                                msg(str)      email message
+                                sender(str)   email sender address. Note smtp_relay_username in 
+                                              settings object will override provided sender address 
+                                              if smtp_relay_authentication is enabled.
+
+        If there is more than one email provided then function will return on first failure or after
+        all emails have successfully been sent
+
+        Return tuple (success=boolean, error=string)
     """
+    from . ept.dns_cache import DNSCache
     from email.mime.text import MIMEText
-    import dns.resolver
     import errno
     import socket
     import smtplib
@@ -710,18 +735,28 @@ def send_email(settings=None, receiver=None, subject=None, msg=None, sender='nor
 
     if settings is None:
         return err("Global settings object not provided")
-    if msg is None and subject is None:
-        return err("Email requires msg or subject")
-    if receiver is None:
-        return err("email recipient not specified")
+    if dns_cache is None:
+        dns_cache = DNSCache()
+    if emails is None or type(emails) is not list or len(emails)==0:
+        return err("valid email list not provided")
 
-    text = MIMEText(msg if msg is not None else subject)
-    text["To"] = receiver
-    if subject is not None:
-        text["Subject"] = subject
+    valid_emails = []
+    for e in emails:
+        msg = e.get("msg", None)
+        subject = e.get("subject", None)
+        receiver = e.get("receiver", None)
+        sender = e.get("sender", "noreply@aci.app")
+        if msg is None or subject is None:
+            return err("email requires msg or subject: %s", e)
+        if receiver is None:
+            return err("email requires a receiver: %s", e)
+        text = MIMEText(msg if msg is not None else subject)
+        text["To"] = receiver
+        if subject is not None:
+            text["Subject"] = subject
+        valid_emails.append((sender, receiver, text))
 
     ts = time.time()
-    cached_record = settings.smtp_cached_record
     smtp_server = None
     smtp_port = 25
     smtp_auth = False
@@ -731,30 +766,10 @@ def send_email(settings=None, receiver=None, subject=None, msg=None, sender='nor
         if r1 is None:
             return err("failed to parse domain from email address: '%s'" % receiver)
         domain = r1.group("domain")
-        logger.debug("extracting email domain %s", domain)
-        cached_domain = cached_record["domain"]
-        if cached_domain is None or cached_domain["domain"] != domain or ts > cached_domain["ttl"]:
-            logger.debug("resolving MX record for domain %s", domain)
-            try:
-                preferred = None
-                record = dns.resolver.query(domain, "MX")
-                for subrecord in record:
-                    if preferred is None or subrecord.preference < preferred.preference:
-                        preferred = subrecord
-                if preferred is None:
-                    raise Exception("no valid MX records found")
-                cached_domain = {
-                    "domain": domain, 
-                    "ttl": record.expiration, 
-                    "exchange": preferred.exchange.to_text()
-                }
-                settings.smtp_cached_record["domain"] = cached_domain
-                logger.debug("saving smtp cached domain record: %r", settings.save())
-            except Exception as e:
-                return err("failed to resolve MX record for domain '%s': %s" % (domain, e))
-        else:
-            logger.debug("using cached MX record for domain: %s", cached_domain["exchange"])
-        smtp_server = cached_domain["exchange"]
+        logger.debug("extracted email domain %s", domain)
+        smtp_server = dns_cache.dns_lookup(domain, query_type="MX")
+        if smtp_server is None:
+            return err("failed to resolve MX record for domain '%s'" % domain)
     elif settings.smtp_type == "relay":
         smtp_server = settings.smtp_relay_server
         smtp_port = settings.smtp_relay_server_port
@@ -765,41 +780,16 @@ def send_email(settings=None, receiver=None, subject=None, msg=None, sender='nor
         return err("invalid smtp type %s" % settings.smtp_type)
 
     # best effort, try to do preliminary DNS lookup on smtp_server so we can cache this info as well
-    try:
-        cached_server = cached_record["server"]
-        if cached_server is None or cached_server["hostname"] != smtp_server or \
-            ts > cached_server["ttl"]:
-            # if user provided an IP address for the smtp_server (in the case of relay) then we can
-            # directly cache a 'tmp' result instead of wasting time on DNS lookup
-            if re.search("^[0-9\.]+$", smtp_server):
-                logger.debug("skipping DNS lookup for IP address %s", smtp_server)
-                settings.smtp_cached_record["server"] = {
-                    "hostname": smtp_server,
-                    "ttl": ts + 31536000,       # IP cached for 1 year...
-                    "ip": smtp_server,
-                }
-                logger.debug("saving smtp cached server record: %r", settings.save())
-            else:
-                logger.debug("resolving A record for %s", smtp_server)
-                record = dns.resolver.query(smtp_server, "A")
-                if len(record) > 0:
-                    settings.smtp_cached_record["server"] = {
-                        "hostname": smtp_server,
-                        "ttl": record.expiration,
-                        "ip": record[0].address,
-                    }
-                    smtp_server = record[0].address
-                    logger.debug("saving smtp cached server record: %r", settings.save())
-        else:
-            logger.debug("using cached ip for server: %s", cached_server["ip"])
-            smtp_server = cached_server["ip"]
-    except Exception as e:
-        logger.warn("failed to resolve A record for smtp server '%s': %s" % (smtp_server, e))
+    cached_server = dns_cache.dns_lookup(smtp_server, query_type="A")
+    if cached_server is not None:
+        logger.debug("using dns ip for smtp_server: %s", cached_server)
+        smtp_server = cached_server
 
     # send email with TLS and optional login if this is an SMTP relay and auth enabled
     s = None
     try:
-        logger.debug("sending email (%s:%s) %s: %s", smtp_server, smtp_port, receiver, msg) 
+        override_sender = None
+        logger.debug("sending email (%s,%s) auth:%r", smtp_server, smtp_port, smtp_auth)
         s = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
         try:
             s.starttls()
@@ -808,14 +798,20 @@ def send_email(settings=None, receiver=None, subject=None, msg=None, sender='nor
             logger.warn("start tls failed, trying to proceed anyways: %s", tls_error)
         if smtp_auth:
             # override sender with smtp_relay_username
-            sender = settings.smtp_relay_username
+            override_sender = settings.smtp_relay_username
             try:
                 s.login(settings.smtp_relay_username, settings.smtp_relay_password)
             except Exception as e:
                 return err("login error %s" % e)
-        ret = s.sendmail(sender, [receiver], text.as_string())
-        # we only support one receiver, therefore if there was no exception raised then the 
-        # email should have successfully been delivered to the receiver
+        # try to send each email in valid_emails list
+        for (sender, receiver, text) in valid_emails:
+            if override_sender is not None:
+                sender = override_sender
+            logger.debug("from %s to %s: %s", sender, receiver, text.get_payload())
+            ret = s.sendmail(sender, [receiver], text.as_string())
+            # we only support one receiver, therefore if there was no exception raised then the 
+            # email should have successfully been delivered to the receiver
+            logger.debug("email successfully sent")
         return (True, "")
     except socket.error as serr:
         logger.debug("socket error: %s", serr)
@@ -824,7 +820,7 @@ def send_email(settings=None, receiver=None, subject=None, msg=None, sender='nor
         else:
             return err("socket error %s" % serr)
     except Exception as e:
-        return err("failed to send email: %s" % e)
+        return err("exception: %s" % e)
     finally:
         if s is not None:
             try: s.quit()

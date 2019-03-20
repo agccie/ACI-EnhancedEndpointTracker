@@ -210,7 +210,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // in app mode, need to also wait until manager process is ready OR until maximum wait time 
     waitForManagerReady(){
-        let managerCheckCount = 10;
+        let managerCheckCount = 300;
         this.appLoadingStatus = "Waiting for manager process."
         this.backendService.getAppManagerStatus().pipe(
             repeatWhen(delay(1000)),

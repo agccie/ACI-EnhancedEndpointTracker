@@ -41,7 +41,6 @@ ALL_SERVICES=(
     "cron" 
     "mongodb"
     "redis-server"
-    "exim4"
 )
 
 # log message to stdout and to logfile
@@ -281,39 +280,6 @@ function init_db() {
     else
         set_status "error: failed to initialize db"
         exit_script
-    fi
-}
-
-# conditionally build frontend UI if not present
-function check_frontend(){
-    local src="$APP_DIR/src/UIAssets.src"
-    local dst="$APP_DIR/src/UIAssets"
-    local tmp="/tmp/build/"
-    if [ "$APP_MODE" == "0" ] ; then
-        log "checking for frontend UI build"
-        local cmd="$APP_DIR/src/build/build_frontend.sh -s $src -d $dst -t $tmp -m standalone"
-        if [ "$stdout" == "0" ] ; then
-            cmd="$cmd >> $LOG_FILE 2>> $LOG_FILE"
-        fi
-        if [ -z "$(ls -A $dst)" ] ; then
-            # bail out if frontend src files don't exist or already built
-            if [ ! -d $src ] ; then
-                set_status "frontend source ($src) does not exist"
-                exit_script
-            fi
-            log "building: $cmd"
-            set_status "building frontend UI, please wait"
-            eval $cmd
-            if [ -z "$(ls -A $dst)" ] ; then
-                set_status "frontend build failed"
-                exit_script
-            else
-                log "frontend build complete"
-            fi
-        else
-            log "frontend source already present, skipping build"
-            log "Note, manually trigger a build via: $cmd"
-        fi
     fi
 }
 
@@ -642,7 +608,6 @@ function main(){
         fi
         start_all_services
         init_db
-        check_frontend
         set_running
         run_all_in_one_mgr_workers
         log "sleeping..."
@@ -662,7 +627,6 @@ function main(){
             log "error: failed to start apache"
             exit_script
         fi
-        check_frontend
         set_running
         poll_web
     elif [ "$role" == "redis" ] ; then
@@ -705,8 +669,6 @@ function main(){
     elif [ "$role" == "watcher" ] ; then
         # run watcher script
         validate_identity
-        # watcher is responsible for notifications, if emails are enabled then exim4 needs to run
-        start_service "exim4"
         set_running
         cd $SCRIPT_DIR
         if [ "$stdout" == "0" ] ; then

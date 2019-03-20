@@ -32,7 +32,8 @@ function build_frontend() {
     fi
 
     # copy source into tmp directory and perform build
-    rm -r $TMP_DIR
+    log "creating tmp directory for frontend build at: $TMP_DIR"
+    rm -rf $TMP_DIR
     mkdir -p $TMP_DIR
     cp -rp $SRC_DIR/. $TMP_DIR/
     # remove node_modules cached if present in tmp working directory

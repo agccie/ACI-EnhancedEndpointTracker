@@ -20,6 +20,8 @@ app_vars = {
     "APP_COMMIT_AUTHOR":    "",
     "APP_COMMIT_BRANCH":    "",
     "APP_FULL_VERSION":     "",
+    "APP_CONTAINER_NAMESPACE": "",
+    "APP_SHORT_NAME":       "",
 }
 
 # read in env.sh file if present and set local environ objects (with filter)
@@ -39,6 +41,10 @@ if os.path.exists(appfile):
                 app_vars["APP_FULL_VERSION"] = js["full_version"]
             else:
                 app_vars["APP_FULL_VERSION"] = app_vars["APP_VERSION"]
+            if "container_namespace" in js:
+                app_vars["APP_CONTAINER_NAMESPACE"] = js["container_namespace"]
+            if "short_name" in js:
+                app_vars["APP_SHORT_NAME"] = js["short_name"]
             if "contact" in js:
                 if "contact-email" in js["contact"]:
                     app_vars["APP_CONTACT_EMAIL"] = js["contact"]["contact-email"]
@@ -116,6 +122,8 @@ APP_VENDOR_DOMAIN = os.environ.get("APP_VENDOR_DOMAIN", app_vars["APP_VENDOR_DOM
 APP_CONTACT_URL = os.environ.get("APP_CONTACT_URL", app_vars["APP_CONTACT_URL"])
 APP_CONTACT_EMAIL = os.environ.get("APP_CONTACT_EMAIL", app_vars["APP_CONTACT_EMAIL"])
 APP_FULL_VERSION = app_vars["APP_FULL_VERSION"]
+APP_CONTAINER_NAMESPACE = app_vars["APP_CONTAINER_NAMESPACE"]
+APP_SHORT_NAME = app_vars["APP_SHORT_NAME"]
 APP_COMMIT = app_vars["APP_COMMIT"]
 APP_COMMIT_DATE = app_vars["APP_COMMIT_DATE"]
 APP_COMMIT_DATE_EPOCH = app_vars["APP_COMMIT_DATE_EPOCH"]

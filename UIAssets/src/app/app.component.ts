@@ -86,22 +86,26 @@ export class AppComponent implements OnInit, OnDestroy {
         )
     }
 
-    showAbout() {
+    getVersionInfo() {
         this.loadingAbout = true;
-        this.modalService.openModal(this.aboutModal);
         this.backendService.getAppVersion().subscribe(
             (data) => {
                 this.loadingAbout = false;
                 this.version.sync(data);
                 // set feedbackUrl if contact_email is set
                 if(this.version.contact_email.length>0){
-                    this.feedbackUrl = "mailto:"+this.version.contact_email+"?Subject=Feedback for Enhanced Endpoint Tracker app";
+                    this.feedbackUrl = "mailto:"+this.version.contact_email+"?Subject=Feedback for "+this.version.app_id+" app";
                 }
             }, 
             (error) => {
                 this.loadingAbout = false;
             }
         );
+    }
+
+    showAbout() {
+        this.modalService.openModal(this.aboutModal);
+        this.getVersionInfo();
     }
 
     onSidebarClicked($event: MouseEvent) {
@@ -162,6 +166,7 @@ export class AppComponent implements OnInit, OnDestroy {
         ).subscribe(
             (data)=>{
                 this.appLoadingStatus = "App loading complete."
+                this.getVersionInfo();
                 if(this.app_mode){
                     this.waitForFabricDiscovery();
                 } else {
@@ -205,7 +210,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // in app mode, need to also wait until manager process is ready OR until maximum wait time 
     waitForManagerReady(){
-        let managerCheckCount = 10;
+        let managerCheckCount = 300;
         this.appLoadingStatus = "Waiting for manager process."
         this.backendService.getAppManagerStatus().pipe(
             repeatWhen(delay(1000)),

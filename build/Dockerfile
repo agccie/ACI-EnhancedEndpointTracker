@@ -1,50 +1,39 @@
-# VERSION 1.0
-FROM ubuntu:16.04
+# VERSION 2.0
+FROM ubuntu:18.04
 
 MAINTAINER Andy Gossett, agossett@cisco.com
 
-ENV GIT_SSL_NO_VERIFY "true"
 ARG APP_MODE=0
-ARG DEV_MODE=0
 ENV APP_MODE $APP_MODE
-ENV DEV_MODE $DEV_MODE
 ENV APP_DIR "/home/app"
 ENV DATA_DIR "$APP_DIR/data"
 ENV LOCAL_DATA_DIR "$APP_DIR/local-data"
 ENV LOG_DIR "$APP_DIR/log"
-ENV BACKEND_DIR "$APP_DIR/src/Service"
+ENV SRC_DIR "$APP_DIR/src"
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
     apt-get -y install apt-utils && \
     apt-get -y install \
         cron \
         curl \
-        exim4 \
-        git \
         iputils-ping \
-        libffi-dev \
-        libssl-dev \
+        iproute2 \
         logrotate \
         redis-server \
-        ntp \
         python \
-        python-dev \
         python-pip \
         rsyslog \
-        tcpdump \
-        vim \
-	redis-server
+        ssh \
+        tcpdump 
 
 # ensure required directories always exists within container even before bind mount
 RUN mkdir -p $LOG_DIR && \
     mkdir -p $DATA_DIR && \
     mkdir -p $LOCAL_DATA_DIR && \
-    mkdir -p $BACKEND_DIR
-
-# update config for exim4 for internet email
-RUN sed -i -e "s/dc_eximconfig_configtype.*/dc_eximconfig_configtype='internet'/g" /etc/exim4/update-exim4.conf.conf && \
-    sed -i -e "s/; ::1//g" /etc/exim4/update-exim4.conf.conf
-    
+    mkdir -p $SRC_DIR && \
+    mkdir -p $SRC_DIR/Service && \
+    mkdir -p $SRC_DIR/UIAssets
 
 # setup redis which only requires copying over config file
 COPY ./conf/redis.conf /etc/redis/redis.conf
@@ -82,7 +71,6 @@ RUN chmod 755 /etc/init.d/mongodb && \
     chown mongodb:mongodb $DATA_DIR/db && \
     chown mongodb:mongodb $LOCAL_DATA_DIR/db
 
-
 # setup logrotate for minute granularity and add custom logging directories
 RUN mkdir -p /etc/cron.minute && \
     chmod 755 /etc/cron.minute
@@ -98,20 +86,8 @@ RUN pip install --upgrade pip
 
 # copy python requirements and install
 # pull backend source and install requirements
-COPY ./requirements.txt $BACKEND_DIR/
-RUN pip install -r $BACKEND_DIR/requirements.txt
+COPY ./requirements.txt $SRC_DIR/Service/
+RUN pip install -r $SRC_DIR/Service/requirements.txt
 
-# node user for angular install
-RUN useradd node -m -s /bin/bash && \
-    chmod 775 /usr/bin && \
-    chown root:node /usr/bin
-
-# for angular build within containiner, install nodejs
-RUN if [ "$APP_MODE" = "0" ] ; then \
-        curl -sL https://deb.nodesource.com/setup_9.x | bash - ; \
-        apt-get install -y nodejs ; \
-        chown node:node /usr/lib/node_modules -R ; \
-    fi
-
-WORKDIR $BACKEND_DIR
-CMD $BACKEND_DIR/start.sh
+WORKDIR $SRC_DIR
+CMD $SRC_DIR/start.sh

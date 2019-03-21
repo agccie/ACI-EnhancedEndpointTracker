@@ -42,7 +42,7 @@ class AppStatus(Rest):
     """ validate that all required backend services are running for this application """
 
     # timeout for manager status with accurate count to inspect all inflight msgs may be a while...
-    MANAGER_STATUS_TIMEOUT = 60    
+    MANAGER_STATUS_TIMEOUT = 10
     MANAGER_STATUS_BRIEF_TIMEOUT = 3
 
     META_ACCESS = {
@@ -123,8 +123,8 @@ class AppStatus(Rest):
                     "meta": {
                         "status":{
                             "type": str,
-                            "description": "manager status (running|stopped)",
-                            "values": ["running", "stopped"],
+                            "description": "manager status (starting|running|stopped)",
+                            "values": ["starting", "running", "stopped"],
                         },
                         "manager_id": {
                             "type": str,
@@ -380,7 +380,6 @@ class AppStatus(Rest):
                         if msg.msg_type == MSG_TYPE.MANAGER_STATUS:
                             logger.debug("received manager status (seq:0x%x)", msg.seq)
                             ret["manager"] = msg.data["manager"]
-                            ret["manager"]["status"] = "running"
                             ret["workers"] = msg.data["workers"]
                             ret["fabrics"] = msg.data["fabrics"]
                             ret["total_queue_len"] = msg.data["total_queue_len"]

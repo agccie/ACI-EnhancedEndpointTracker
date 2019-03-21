@@ -28,6 +28,8 @@ MINIMUM_SUPPORTED_VERSION           = "2.2.1n"
 HELLO_INTERVAL                      = 5.0
 HELLO_TIMEOUT                       = 60.0
 WATCH_INTERVAL                      = 1.0
+NOTIFY_INTERVAL                     = 1.0
+NOTIFY_QUEUE_MAX_SIZE               = 4096
 CACHE_STATS_INTERVAL                = 300.0
 SEQUENCE_TIMEOUT                    = 100.0
 MANAGER_CTRL_CHANNEL                = "mctrl"
@@ -38,13 +40,13 @@ WORKER_CTRL_CHANNEL                 = "wctrl"
 WORKER_UPDATE_INTERVAL              = 15.0
 RAPID_CALCULATE_INTERVAL            = 15.0
 MAX_SEND_MSG_LENGTH                 = 10240
-EPM_EVENT_HANDLER_INTERVAL          = 0.01
-EPM_EVENT_HANDLER_ENABLED           = True
+BG_EVENT_HANDLER_INTERVAL           = 0.01
+BG_EVENT_HANDLER_ENABLED            = True
 
 # when API requests msg queue length, manager can read the full data off each queue and accurate
 # msgs within bulk messages for accurate count. There is a performance hit to this so the
 # alternative is counting the number of messages in each queue where a bulk message counts as one.
-ACCURATE_QUEUE_LENGTH               = True  
+ACCURATE_QUEUE_LENGTH               = False
 
 # transitory timers:
 #   max_epm_build   maximum amount of time to wait for ACK from all worker processes to indiciate
@@ -544,7 +546,11 @@ class BackgroundThread(threading.Thread):
         logger.debug("starting background thread: %s", self.name)
         while not self._exit:
             self.count+=1
-            self.func(*self.args, **self.kwargs)
+            try:
+                self.func(*self.args, **self.kwargs)
+            except Exception as e:
+                logger.debug("Traceback:\n%s", traceback.format_exc())
+                logger.error("failed to execute background process: %s", e)
             if self.max_count > 0 and self.count >= self.max_count:
                 # stop execution when reaching max number of iterations
                 return

@@ -295,9 +295,11 @@ def get_apic_session(fabric, resubscribe=False):
         logger.debug("creating session on %s@%s",aci.apic_username,h)
         if apic_cert_mode:
             session = Session(h, aci.apic_username, appcenter_user=True, 
-                cert_name=aci.apic_username, key=aci.apic_cert, resubscribe=resubscribe)
+                cert_name=aci.apic_username, key=aci.apic_cert, resubscribe=resubscribe,
+                lifetime=aci.session_timeout,subscription_refresh_time=aci.subscription_refresh_time)
         else:
-            session = Session(h, aci.apic_username, aci.apic_password, resubscribe=resubscribe)
+            session = Session(h, aci.apic_username, aci.apic_password, resubscribe=resubscribe,
+                lifetime=aci.session_timeout,subscription_refresh_time=aci.subscription_refresh_time)
         try:
             if session.login(timeout=SESSION_LOGIN_TIMEOUT):
                 logger.debug("successfully connected on %s", h)
@@ -388,31 +390,39 @@ def get_ssh_connection(fabric, pod_id, node_id, session=None):
     logger.debug("successfully connected to %s node-%s", f.fabric, node_id)
     return c 
 
-def get_controller_version(session):
-    # return list of controllers and current running version
-    r = get_class(session, "firmwareCtrlrRunning")
-    ret = []
-    reg = "topology/pod-[0-9]+/node-(?P<node>[0-9]+)/"
-    if r is not None:
-        for obj in r:
-            if "firmwareCtrlrRunning" not in obj or \
-                "attributes" not in obj["firmwareCtrlrRunning"]:
-                logger.warn("invalid firmwareCtrlrRunning object: %s" % obj)
-                continue
-            attr = obj["firmwareCtrlrRunning"]["attributes"]
-            if "dn" not in attr or "type" not in attr and "version" not in attr:
-                logger.warn("firmwareCtrlrRunning missing fields: %s" % attr)
-                continue
-            r1 = re.search(reg, attr["dn"])
-            if r1 is None:
-                logger.warn("invalid dn firmwareCtrlrRunning: %s"%attr["dn"])
-                continue
-            # should never happen but let's double check
-            if attr["type"]!="controller":
-                logger.warn("invalid 'type' for firmwareCtrlrRunning: %s"%attr)
-                continue
-            ret.append({"node":r1.group("node"), "version": attr["version"]})
+def get_fabric_version(session):
+    # return dict indexed by device role with current running version. Roles will be either 
+    # 'controller' or 'switch'. Dict will contain list of {node, version} objects
+    ret = {}
+    reg = re.compile("topology/pod-[0-9]+/node-(?P<node>[0-9]+)/")
+    data = []
+    data1 = get_class(session, "firmwareCtrlrRunning")
+    data2 = get_class(session, "firmwareRunning")
+    if data1 is not None and len(data1)>0:
+        data += data1
+    else:
+        logger.warn("failed to get firmwareCtrlrRunning")
+    if data2 is not None and len(data2)>0:
+        data += data2
+    else:
+        logger.warn("failed to get firmwareRunning")
 
+    # walk through version objects and add to ret indexed based on type
+    for obj in data:
+        attr = obj[obj.keys()[0]]["attributes"]
+        if "dn" in attr and "type" in attr and ("version" in attr or "peVer" in attr):
+            r1 = reg.search(attr["dn"])
+            if r1 is not None:
+                if attr["type"] not in ret:
+                    ret[attr["type"]] = []
+                ret[attr["type"]].append({
+                    "node":int(r1.group("node")), 
+                    "version": attr["peVer"] if "peVer" in attr else attr["version"]
+                })
+            else:
+                logger.warn("failed to parse node id from firmware dn: %s", attr["dn"])
+        else:
+            logger.warn("invalid firmware object: %s", attr)
     return ret
 
 def parse_apic_version(version):
@@ -428,9 +438,9 @@ def parse_apic_version(version):
     r1 = re.search(reg, version)
     if r1 is None: return None
     return {
-        "major": r1.group("M"),
-        "minor": r1.group("m"),
-        "build": r1.group("p"),
+        "major": int(r1.group("M")),
+        "minor": int(r1.group("m")),
+        "build": int(r1.group("p")),
         "patch": r1.group("pp"),
     }
 
@@ -583,18 +593,30 @@ def get_file_md5(path):
 ###############################################################################
 
 def syslog(msg, server="localhost", server_port=514, severity="info", process="EPT", 
-        facility=logging.handlers.SysLogHandler.LOG_LOCAL7):
+        facility=logging.handlers.SysLogHandler.LOG_LOCAL7, dns_cache=None):
     """ send a syslog message to remote server.  return boolean success
         for acceptible facilities see:
             https://docs.python.org/2/library/logging.handlers.html
             15.9.9. SysLogHandler
     """
+    from . ept.dns_cache import DNSCache
+
     if msg is None:
         logger.error("unable to send syslog: no message provided")
         return False
     if server is None:
         logger.error("unable to send syslog: no server provided")
         return False
+    if dns_cache is None:
+        dns_cache = DNSCache()
+
+    # best effort, try to do preliminary DNS lookup on server so we can cache this info between
+    # syslog messages. If dns lookup fails here then let syslog library tries its own DNS lookup
+    cached_server = dns_cache.dns_lookup(server, query_type="A")
+    if cached_server is not None:
+        logger.debug("using dns ip for server: %s", cached_server)
+        server = cached_server
+
     try:
         if(isinstance(server_port, int)):
             port = int(server_port)
@@ -681,34 +703,127 @@ def syslog(msg, server="localhost", server_port=514, severity="info", process="E
     # return success
     return True
 
-def email(receiver=None, subject=None, msg=None, sender=None):
-    """ send an email and return boolean success """
-    if receiver is None:
-        logger.error("email recipient not specified")
-        return False
-    # build sendmail command
-    if subject is not None: 
-        subject = re.sub("\"", "\\\"", subject)
-        cmd = ["mail", "-s", subject]
-    else:
-        cmd = ["mail"]
-    if sender is not None and len(sender)>0:
-        cmd+= ["-r", sender]
+def send_emails(settings=None, dns_cache=None, emails=None):
+    """ using Rest.Settings object with configured SMTP settings, send an email using the native
+        python smtplib. 
 
-    cmd.append(receiver)
+        settings(eptSettings)   eptSettings object with fabric specific smtp config
+        dns_cache(dnsCache)     optional dns cache object used for dns lookup and caching results
+        emails(list)            list of emails object each containing a dict of following attributes:
+                                receiver(str) email recipient address
+                                subject(str)  email subject
+                                msg(str)      email message
+                                sender(str)   email sender address. Note smtp_relay_username in 
+                                              settings object will override provided sender address 
+                                              if smtp_relay_authentication is enabled.
+
+        If there is more than one email provided then function will return on first failure or after
+        all emails have successfully been sent
+
+        Return tuple (success=boolean, error=string)
+    """
+    from . ept.dns_cache import DNSCache
+    from email.mime.text import MIMEText
+    import errno
+    import socket
+    import smtplib
+
+    # log and return error string on error
+    def err(err_msg):
+        logger.error(err_msg)
+        return (False, err_msg)
+
+    if settings is None:
+        return err("Global settings object not provided")
+    if dns_cache is None:
+        dns_cache = DNSCache()
+    if emails is None or type(emails) is not list or len(emails)==0:
+        return err("valid email list not provided")
+
+    valid_emails = []
+    for e in emails:
+        msg = e.get("msg", None)
+        subject = e.get("subject", None)
+        receiver = e.get("receiver", None)
+        sender = e.get("sender", "noreply@aci.app")
+        if msg is None or subject is None:
+            return err("email requires msg or subject: %s", e)
+        if receiver is None:
+            return err("email requires a receiver: %s", e)
+        text = MIMEText(msg if msg is not None else subject)
+        text["To"] = receiver
+        if subject is not None:
+            text["Subject"] = subject
+        valid_emails.append((sender, receiver, text))
+
+    ts = time.time()
+    smtp_server = None
+    smtp_port = settings.smtp_server_port
+    smtp_auth = False
+    if settings.smtp_type == "direct":
+        logger.debug("sending direct email to %s", receiver)
+        r1 = re.search("^[^@]+@(?P<domain>.{3,})$", receiver)
+        if r1 is None:
+            return err("failed to parse domain from email address: '%s'" % receiver)
+        domain = r1.group("domain")
+        logger.debug("extracted email domain %s", domain)
+        smtp_server = dns_cache.dns_lookup(domain, query_type="MX")
+        if smtp_server is None:
+            return err("failed to resolve MX record for domain '%s'" % domain)
+    elif settings.smtp_type == "relay":
+        smtp_server = settings.smtp_relay_server
+        smtp_auth = settings.smtp_relay_authenticate
+        if len(smtp_server) == 0:
+            return err("smtp relay enabled with no smtp relay server configured")
+    else:
+        return err("invalid smtp type %s" % settings.smtp_type)
+
+    # best effort, try to do preliminary DNS lookup on smtp_server so we can cache this info as well
+    cached_server = dns_cache.dns_lookup(smtp_server, query_type="A")
+    if cached_server is not None:
+        logger.debug("using dns ip for smtp_server: %s", cached_server)
+        smtp_server = cached_server
+
+    # send email with TLS and optional login if this is an SMTP relay and auth enabled
+    s = None
     try:
-        logger.debug("send mail: (%s), msg: %s", cmd, msg)
-        ps = subprocess.Popen(("echo", msg), stdout=subprocess.PIPE)
-        output = subprocess.check_output(cmd, stdin=ps.stdout, stderr=subprocess.STDOUT)
-        ps.wait()
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.warn("send mail error:\n%s", e)
-        logger.debug("stderr:\n%s", e.output)
-        return False
+        override_sender = None
+        logger.debug("sending email (%s,%s) auth:%r", smtp_server, smtp_port, smtp_auth)
+        s = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
+        try:
+            s.starttls()
+            s.ehlo()
+        except (smtplib.SMTPHeloError, smtplib.SMTPException) as tls_error:
+            logger.warn("start tls failed, trying to proceed anyways: %s", tls_error)
+        if smtp_auth:
+            # override sender with smtp_relay_username
+            override_sender = settings.smtp_relay_username
+            try:
+                s.login(settings.smtp_relay_username, settings.smtp_relay_password)
+            except Exception as e:
+                return err("login error %s" % e)
+        # try to send each email in valid_emails list
+        for (sender, receiver, text) in valid_emails:
+            if override_sender is not None:
+                sender = override_sender
+            logger.debug("from %s to %s: %s", sender, receiver, text.get_payload())
+            ret = s.sendmail(sender, [receiver], text.as_string())
+            # we only support one receiver, therefore if there was no exception raised then the 
+            # email should have successfully been delivered to the receiver
+            logger.debug("email successfully sent")
+        return (True, "")
+    except socket.error as serr:
+        logger.debug("socket error: %s", serr)
+        if serr.errno == errno.ECONNREFUSED or serr.errno == errno.EADDRNOTAVAIL:
+            return err("connection to smtp server refused")
+        else:
+            return err("socket error %s" % serr)
     except Exception as e:
-        logger.error("unknown error occurred: %s", e)
-        return False
+        return err("exception: %s" % e)
+    finally:
+        if s is not None:
+            try: s.quit()
+            except Exception as e: pass
 
 ###############################################################################
 #
@@ -770,7 +885,7 @@ def clear_endpoint(fabric, pod, node, vnid, addr, addr_type="ip", vrf_name=""):
         # l2BD, vlanCktEp, vxlanCktEp object (good thing here is that we don't care which object 
         # type, each will have id attribute that is the PI vlan)
         # here we have two choices, first is APIC epmMacEp query which hits all nodes or, since ssh
-        # session is already up, we can execute directly on the leaf. For that later case, it will
+        # session is already up, we can execute directly on the leaf. For that latter case, it will
         # be easier to use moquery with grep then parsing json with extra terminal characters...
         cmd = "moquery -c epmMacEp -f 'epm.MacEp.addr==\"%s\"' | egrep '^dn' | egrep 'vxlan-%s'"%(
                 addr, vnid)

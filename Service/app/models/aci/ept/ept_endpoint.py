@@ -369,6 +369,8 @@ class eptEndpoint(Rest):
             threads.append(t)
         for t in threads: t.join()
         for node in process:
+            # cleanup worker fabric 
+            process[node]["worker_fabric"].close()
             if not process[node]["ret"]: 
                 error_rows.append("failed to clear endpoint on node %s" % node)
         return jsonify({

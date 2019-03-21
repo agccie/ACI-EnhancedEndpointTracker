@@ -110,7 +110,7 @@ The OVA contains the following components preinstalled:
 To get started with the OVA, perform the following steps:
 
   * Configure host networking and hostname
-  * (Optional) Configure NTP
+  * (Optional) Configure NTP and Timezone
   * Configure the cluster and deploy the stack
   * Manage the app via the web GUI
 
@@ -153,48 +153,56 @@ network.  The example below uses network manager TUI which is preinstalled on th
 
 |standalone-console-nmtui-p9|
 
-(Optional) Configure NTP
-~~~~~~~~~~~~~~~~~~~~~~~~
+(Optional) Configure NTP and Timezone
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 All timestamps for the app are based on the timestamp of the server itself.  If you are running the 
 app on a cluster with more than 1 VM or if the time on the VM is unreliable, then timestamps for 
-events and analysis may be incorrect.  You can use **ntpd** to configure ntp servers on the host.
+events and analysis may be incorrect.  You can use **timedatectl** to configure your timezone and
+the ntp servers.
 
-* Use vim or your favorite editor to set the required NTP servers under */etc/ntp.conf*
+* List the available options and set to the desired timezone.
+
+  .. code-block:: bash
+    
+        eptracker@ept-node1:~$ timedatectl list-timezones | grep New
+        America/New_York
+        America/North_Dakota/New_SalemA
+
+        eptracker@ept-node1:~$ sudo timedatectl set-timezone America/New_York
+
+* Use vim or your favorite editor to set the required NTP servers under */etc/systemd/timesyncd.conf*
 
   .. code-block:: bash
 
-      eptracker@ept-node1$ sudo vim /etc/ntp.conf
+      eptracker@ept-node1$ sudo vim /etc/systemd/timesyncd.conf
 
-* Add each ntp server to the end of the file and save the results.  For example:
+* Uncomment the NTP line and add the appropriate list of NTP servers. For example:
 
   .. code-block:: bash
 
-      eptracker@ept-node1$ cat /etc/ntp.conf | egrep "^server"
-      server 172.18.108.15
-      server 172.18.108.14
+      eptracker@ept-node1$ cat /etc/systemd/timesyncd.conf | egrep -A 1 Time
+      [Time]
+      NTP=172.16.1.1
 
 * Restart the ntp process and validate the configuration was successful. **Note**, it may take 
-  several minutes before ntp synchronizes the clock:
+  several a few minutes before ntp synchronizes the clock:
 
   .. code-block:: bash
 
-      eptracker@ept-node1:~$ sudo service ntp restart
-      eptracker@ept-node1:~$ ntpq -p
-           remote           refid      st t when poll reach   delay   offset  jitter
-      ==============================================================================
-      calo-timeserver .XFAC.          16 u    - 1024    0    0.000    0.000   0.000
-      calo-timeserver .XFAC.          16 u  27h 1024    0    0.000    0.000   0.000
+      eptracker@ept-node1:~$ sudo timedatectl set-ntp true
+      eptracker@ept-node1:~$ sudo systemctl restart systemd-timesyncd
 
-      eptracker@ept-node1:~$ timedatectl status
-                            Local time: Mon 2019-02-18 02:42:33 UTC
-                        Universal time: Mon 2019-02-18 02:42:33 UTC
-                              RTC time: Mon 2019-02-18 02:42:33
-                             Time zone: Etc/UTC (UTC, +0000)
-             System clock synchronized: yes
-      systemd-timesyncd.service active: yes  <--------- synchronized
-                       RTC in local TZ: no
+        eptracker@ept-node1:~$ timedatectl status
+                              Local time: Wed 2019-03-13 12:26:50 EDT
+                          Universal time: Wed 2019-03-13 16:26:50 UTC
+                                RTC time: Wed 2019-03-13 16:26:51
+                               Time zone: America/New_York (EDT, -0400)
+               System clock synchronized: yes
+        systemd-timesyncd.service active: yes  <--------- synchronized
+                         RTC in local TZ: no
 
+.. _swarm_config:
 
 .. _swarm_config:
 
@@ -296,6 +304,10 @@ example below assumes a 3-node cluster.
 .. note:: The ``app-deploy`` script requires that all nodes in the cluster have the same 
           username/password configured.  Once the deployment is complete, you can set unique 
           credentials on each node.
+
+.. tip:: The ``app-deploy`` script is simply an alias to ``/opt/cisco/src/cluster/deploy.py``
+        script with some auto-detection for which version to deploy based on the version of the OVA.
+
 
 Manager the App via the web-GUI
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -485,7 +497,7 @@ with **docker 18.09.2**.
     .. code-block:: bash
 
         # update apt and install required packages
-        sudo apt-get update && apt-get install \
+        sudo apt-get update && sudo apt-get install \
             apt-transport-https \
             ca-certificates \
             curl \

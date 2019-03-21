@@ -3,7 +3,7 @@
 # available within the app UI)
 app:
     # application service name
-    name: "ept"
+    name: "base"
     # external ports for http and https.  Set to '0' to disable it.
     http_port: 80
     https_port: 443

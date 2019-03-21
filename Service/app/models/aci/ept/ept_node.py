@@ -41,24 +41,24 @@ class eptNode(Rest):
             "type":str, 
             "description": "node name as seen in fabric node vector",
         },
-        "oob_addr": {
-            "type": str,
-            "default": "0.0.0.0",
-            "description": "node out-of-band management address",
-        },
         "state": {
             "type": str,
             "description": "fabricNode state indicating whether it is in-service or inactive",
         },
         "role": {
             "type": str,
-            "values": ["controller", "leaf", "spine", "vpc"],
+            "values": ["unsupported", "controller", "leaf", "spine", "vpc"],
             "description": "node role to differentiate between controllers, leafs, and spines",
         },
         "addr": {
             "type": str,
             "default": "0.0.0.0",
             "description": "32-bit physical TEP ipv4 address of node",
+        },
+        "version": {
+            "type": str,
+            "default": "",
+            "description": "currently running PE version",
         },
         "peer": {
             "type": int,

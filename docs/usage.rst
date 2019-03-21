@@ -243,8 +243,13 @@ Notifications
 There are very flexible notification options. Users can choose to be notified via syslog and email 
 for each of the analysis and detection mechanisms available. **Once you've saved the settings** you 
 can test both syslog and email servers by clicking the *Send test syslog* and *send test email* 
-buttons, respectively. Ensure that the fabric monitor is actively running before attempting to test 
-notifications.
+buttons, respectively. 
+
+By default email notifications are sent directly to the mail server corresponding to configured
+email address. By default SMTP messages are sent on port **587** with TLS encryption but can be
+configured for standard port **25** or any required custom port. Many public mail exchanges will
+not accept email directly from unknown hosts. You can configure email notifications to be sent
+through an SMTP relay along with required SMTP authentication.
 
 In the example below, syslog notifications are generated for all events and an email is sent if a 
 stale endpoint is detected.
@@ -266,7 +271,8 @@ DNS lookups performed before the message is sent. The following ports need to be
 
 * DNS lookup (**UDP** port **53**) for MX-record of email servers to reach configured email domain
 * DNS lookup for corresponding A-record of each returned email server
-* SMTP (**TCP** port **25**) connection to send the email to the selected email server
+* SMTP (**TCP** port **587** or custom configured port) connection to send the email to the selected 
+  email server
 
 .. note:: When executing in app mode, the container is executed on the APIC and the source IP of 
           syslog/email notifications will be translated to the APIC inband or out-of-band address. 
@@ -403,6 +409,24 @@ events can be disabled.
 
 * **Queue initial events** enables queueing of all standard MO events during build
 * **Queue initial endpoint events** enables queuing of all EPM events during endpoint build
+
+Session Handling
+~~~~~~~~~~~~~~~~
+
+By default the APIC session is gracefully restarted based on the aaaLogin maximumLifetimeSeconds 
+attribute. Users can override the session timeout to a value lower than the aaaLogin lifetime by 
+setting a limit on the session time. 
+Starting in ACI 4.0, the refresh time is configurable up to the maximum lifetime of the subscription. 
+Increasing the refresh time reduces the number of queries sent to the APIC. This can be done by 
+setting the Refresh Time. All nodes in the fabric must be running 4.0 or above else refresh time is 
+limited to 60 seconds.
+
+
+.. note:: The fabric monitor needs to be restarted for session settings to take affect.
+
+* **Session Timeout** maximum time in seconds before new login and websocket is started for APIC
+  session
+* **Subscription Refresh Time** time in seconds between subscription refreshes.
 
 .. |fabric-settings-advanced| image:: imgs/fabric-settings-advanced.png
    :align: middle

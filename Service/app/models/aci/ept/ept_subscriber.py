@@ -3,16 +3,15 @@ from ... utils import get_db
 from ... utils import get_redis
 
 from .. utils import get_apic_session
-from .. utils import get_apic_session
 from .. utils import get_attributes
 from .. utils import get_class
-from .. utils import get_controller_version
+from .. utils import get_fabric_version
 from .. utils import parse_apic_version
 from .. utils import validate_session_role
 from .. subscription_ctrl import SubscriptionCtrl
 
-from . common import EPM_EVENT_HANDLER_INTERVAL
-from . common import EPM_EVENT_HANDLER_ENABLED
+from . common import BG_EVENT_HANDLER_INTERVAL
+from . common import BG_EVENT_HANDLER_ENABLED
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_WORK_QUEUE
 from . common import MAX_EPM_BUILD_TIME
@@ -34,6 +33,7 @@ from . ept_msg import eptMsgHello
 from . ept_msg import eptMsgWork
 from . ept_msg import eptMsgWorkDeleteEpt
 from . ept_msg import eptMsgWorkRaw
+from . ept_msg import eptMsgWorkStdMo
 from . ept_msg import eptMsgWorkWatchNode
 from . ept_epg import eptEpg
 from . ept_history import eptHistory
@@ -75,8 +75,9 @@ class eptSubscriber(object):
         self.db = None
         self.redis = None
         self.session = None
-        self.epm_thread = None      # background thread used to batch epm event messages
+        self.bg_thread = None           # background thread used to batch epm/std_mo event messages
         self.epm_event_queue = Queue()
+        self.std_mo_event_queue = Queue()
         self.epm_parser = None  # initialized once overlay vnid is known
         self.soft_restart_ts = 0    # timestamp of last soft_restart
         self.manager_ctrl_channel_lock = threading.Lock()
@@ -179,26 +180,27 @@ class eptSubscriber(object):
 
     def run(self):
         """ wrapper around run to handle interrupts/errors """
+        threading.currentThread().name = "sub-main"
         logger.info("starting eptSubscriber for fabric '%s'", self.fabric.fabric)
         try:
             # allocate a unique db connection as this is running in a new process
             self.db = get_db(uniq=True, overwrite_global=True, write_concern=True)
             self.redis = get_redis()
             # start hello thread
-            self.hello_thread = BackgroundThread(func=self.send_hello, name="hello", count=0,
+            self.hello_thread = BackgroundThread(func=self.send_hello, name="sub-hello", count=0,
                                                 interval = HELLO_INTERVAL)
             self.hello_thread.daemon = True
             self.hello_thread.start()
-            # start epm thread
-            if EPM_EVENT_HANDLER_ENABLED:
-                self.epm_thread = BackgroundThread(
-                    func=self.handle_epm_event_queue, 
-                    name="epm_q",
+            # start background event handler thread
+            if BG_EVENT_HANDLER_ENABLED:
+                self.bg_thread = BackgroundThread(
+                    func=self.handle_background_event_queue, 
+                    name="sub-event",
                     count=0, 
-                    interval=EPM_EVENT_HANDLER_INTERVAL
+                    interval=BG_EVENT_HANDLER_INTERVAL
                 )
-                self.epm_thread.daemon = True
-                self.epm_thread.start()
+                self.bg_thread.daemon = True
+                self.bg_thread.start()
             self._run()
         except eptSubscriberExitError as e:
             logger.warn("subscriber exit: %s", e)
@@ -210,8 +212,8 @@ class eptSubscriber(object):
                 self.db.client.close()
             if self.hello_thread is not None:
                 self.hello_thread.exit()
-            if self.epm_thread is not None:
-                self.epm_thread.exit()
+            if self.bg_thread is not None:
+                self.bg_thread.exit()
 
     def send_hello(self):
         """ send hello/keepalives at regular interval """
@@ -317,12 +319,20 @@ class eptSubscriber(object):
         self.fabric.add_fabric_event(init_str, connected_str)
 
         # get controller version, highlight mismatch and verify minimum version
-        apic_version = get_controller_version(self.session)
-        if len(apic_version) == 0:
+        fabric_version = get_fabric_version(self.session)
+        if len(fabric_version) == 0 or "controller" not in fabric_version:
             logger.warn("failed to determine apic version")
             self.fabric.add_fabric_event("failed", "failed to determine apic version")
             return
-        apic_version_set = set([n["version"] for n in apic_version])
+        apic_version = fabric_version["controller"]
+        switch_version = []
+        apic_version_set = set([n["version"] for n in fabric_version["controller"]])
+        switch_version_set = set()
+        if "switch" in fabric_version:
+            switch_version_set = set([n["version"] for n in fabric_version["switch"]])
+            switch_version = fabric_version["switch"]
+        logger.debug("apic version set: %s, switch version set: %s", apic_version_set, 
+                    switch_version_set)
         if len(apic_version_set)>1:
             logger.warn("version mismatch for %s: %s", self.fabric.fabric, apic_version_set)
             self.fabric.add_fabric_event("warning", "version mismatch: %s" % ", ".join([
@@ -332,7 +342,8 @@ class eptSubscriber(object):
         # mismatch for controllers so warning is sufficient
         min_version = parse_apic_version(MINIMUM_SUPPORTED_VERSION)
         version = parse_apic_version(apic_version[0]["version"])
-        self.fabric.add_fabric_event(init_str, "apic version: %s" % apic_version[0]["version"])
+        self.fabric.add_fabric_event(init_str, "apic version: %s, apic count: %s" % (
+            apic_version[0]["version"], len(apic_version)))
         if version is None or min_version is None:
             logger.warn("failed to parse apic version: %s (min version: %s)", version, min_version)
             self.fabric.add_fabric_event("failed","unknown or unsupported apic version: %s" % (
@@ -356,6 +367,19 @@ class eptSubscriber(object):
             self.fabric.auto_start = False
             self.fabric.save()
             return
+        # if this is less than 4.0 then override session subscription_refresh_time to default or less
+        # we also need to check against every switch.
+        subscribe_check_ok = version["major"] >= 4
+        for v in [parse_apic_version(sv) for sv in switch_version_set]:
+            if v is not None and v["major"] < 4:
+                subscribe_check_ok = False
+                break
+        if not subscribe_check_ok:
+            if self.session.subscription_refresh_time > self.session.DEFAULT_SUBSCRIPTION_REFRESH:
+                logger.info("resetting subscription refresh from %s to %s", 
+                        self.session.subscription_refresh_time,
+                        self.session.DEFAULT_SUBSCRIPTION_REFRESH)
+                self.session.subscription_refresh_time = self.session.DEFAULT_SUBSCRIPTION_REFRESH
 
         # get overlay-vnid, fabricProtP (which requires hard reset on change), and tz
         overlay_attr = get_attributes(session=self.session, dn="uni/tn-infra/ctx-overlay-1")
@@ -467,6 +491,7 @@ class eptSubscriber(object):
         p = self.redis.pubsub(ignore_subscribe_messages=True)
         p.subscribe(**channels)
         self.subscribe_thread = p.run_in_thread(sleep_time=0.01, daemon=True)
+        self.subscribe_thread.name = "sub-redis"
         logger.debug("[%s] listening for events on channels: %s", self, channels.keys())
 
         # send EPM EOF to all workers lowest prority queue to track when initial processing is done
@@ -619,7 +644,7 @@ class eptSubscriber(object):
 
     def send_flush(self, collection, name=None):
         """ send flush message to workers for provided collection """
-        logger.info("flush %s (name:%s)", collection._classname, name)
+        logger.debug("flush %s (name:%s)", collection._classname, name)
         # node addr of 0 is broadcast to all nodes of provided role
         data = {"cache": collection._classname, "name": name}
         msg = eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE)
@@ -678,7 +703,6 @@ class eptSubscriber(object):
             ept objects is return and a flush is triggered for each to ensure workers refresh their
             cache for the objects.
         """
-        updates = []
         if self.stopped:
             logger.debug("ignoring event (subscriber stopped and waiting for reset)")
             return
@@ -695,26 +719,23 @@ class eptSubscriber(object):
                 if classname not in self.mo_classes or "dn" not in attr or "status" not in attr:
                     logger.warn("event received for unknown classname: %s, %s", classname, event)
                     continue
-
-                if classname in dependency_map:
-                    logger.debug("triggering sync_event for dependency %s", classname)
-                    updates+= dependency_map[classname].sync_event(self.fabric.fabric, attr, 
-                            self.session)
-                    logger.debug("updated objects: %s", len(updates))
+                # addr is a string for hashing however we will only support one watcher for now so 
+                # we will statically set it to an empty string. can make this dn in the future...
+                # note that integer 0 is a broadcast that is never sent as bulk.
+                addr = ""
+                msg = eptMsgWorkStdMo(addr, "watcher",{classname:attr}, WORK_TYPE.STD_MO)
+                if BG_EVENT_HANDLER_ENABLED:
+                    self.std_mo_event_queue.put(msg)
                 else:
-                    logger.warn("%s not defined in dependency_map", classname)
-
+                    self.send_msg(msg)
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
-        # send flush for each update
-        for u in updates:
-            self.send_flush(u, u.name if hasattr(u, "name") else None)
 
     def handle_epm_event(self, event, qnum=1):
         """ handle epm events received on epm_subscription
             this will parse the epm event and create and eptMsgWorkRaw msg for the event. Then it
             will do one of the following
-                if EPM_EVENT_HANDLER_ENABLED
+                if BG_EVENT_HANDLER_ENABLED
                     add raw msg to epm_event_queue for background process to batch
                 else:
                     send as a eptMsgWorkRaw event to manager to queue to an available worker.
@@ -738,21 +759,22 @@ class eptSubscriber(object):
                 #   rsmacEpToIpEpAtt-.../db-ep/ip-[10.1.1.74]]
                 addr = re.sub("[\[\]]","", attr["dn"].split("-")[-1])
                 msg = eptMsgWorkRaw(addr,"worker", {classname:attr}, WORK_TYPE.RAW, qnum=qnum)
-                if EPM_EVENT_HANDLER_ENABLED:
+                if BG_EVENT_HANDLER_ENABLED:
                     self.epm_event_queue.put(msg)
                 else:
                     self.send_msg(msg)
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 
-    def handle_epm_event_queue(self):
-        """ pull off all current msgs in epm_event_queue and send as a batch.
+    def handle_background_event_queue(self):
+        """ pull off all current msgs in epm_event_queue/std_mo_event_queue and send as a batch.
             The purpose of this is to create bulk eptMsg objects to improve redis performance
         """
-        msgs = []
-        while not self.epm_event_queue.empty():
-            msgs.append(self.epm_event_queue.get())
-        self.send_msg(msgs)
+        for q in [self.std_mo_event_queue, self.epm_event_queue]:
+            msgs = []
+            while not q.empty():
+                msgs.append(q.get())
+            self.send_msg(msgs)
 
     def build_mo(self):
         """ build managed objects for defined classes """
@@ -873,22 +895,55 @@ class eptSubscriber(object):
     def build_node_db(self):
         """ initialize node collection and vpc nodes. return bool success """
         logger.debug("initializing node db")
-        if not self.initialize_ept_collection(eptNode, "topSystem", attribute_map = {
+        if not self.initialize_ept_collection(eptNode, "fabricNode", attribute_map = {
                 "addr": "address",
                 "name": "name",
                 "node": "id",
-                "oob_addr": "oobMgmtAddr",
-                "pod_id": "podId",
+                "pod_id": "dn",
                 "role": "role",
-                "state": "state",
+            }, regex_map = {
+                "pod_id": "topology/pod-(?P<value>[0-9]+)/node-[0-9]+",
             }, flush=True):
-            logger.warn("failed to build node db from topSystem")
+            logger.warn("failed to build node db from fabricNode")
             return False
 
         # maintain list of all nodes for id to addr lookup 
         all_nodes = {}
         for n in eptNode.find(fabric=self.fabric.fabric):
             all_nodes[n.node] = n
+
+        # cross reference fabricNode (which includes inactive nodes) with topSystem which includes
+        # active nodes and accurate TEP for active nodes only.  Then merge firmware version
+        data1 = get_class(self.session, "topSystem")
+        data2 = get_class(self.session, "firmwareRunning")
+        if data1 is None or data2 is None or len(data1) == 0 or len(data2) == 0:
+            logger.warn("failed to read topSystem/firmwareRunning")
+            return False
+        for obj in data1:
+            attr = obj[obj.keys()[0]]["attributes"]
+            if "id" in attr and "address" in attr and "state" in attr:
+                node_id = int(attr["id"])
+                if node_id in all_nodes:
+                    all_nodes[node_id].addr = attr["address"]
+                    all_nodes[node_id].state = attr["state"]
+                else:
+                    logger.warn("ignorning unknown topSystem node id '%s'", node_id)
+            else:
+                logger.warn("invalid topSystem object (missing id or address): %s", attr)
+        for obj in data2:
+            attr = obj[obj.keys()[0]]["attributes"]
+            if "dn" in attr and "peVer" in attr:
+                r1 = re.search("topology/pod-[0-9]+/node-(?P<node_id>[0-9]+)", attr["dn"])
+                if r1 is not None:
+                    node_id = int(r1.group("node_id"))
+                    if node_id in all_nodes:
+                        all_nodes[node_id].version = attr["peVer"]
+                    else:
+                        logger.warn("ignoring unknown firmwareRunning node id %s", attr["dn"])
+                else:
+                    logger.warn("failed to parse node id from firmwareRunning dn %s", attr["dn"])
+            else:
+                logger.warn("invalid firmwareRunning object (missing dn or peVer): %s", attr)
 
         # create pseudo node for each vpc group from fabricAutoGEp and fabricExplicitGEp each of 
         # which contains fabricNodePEp
@@ -901,11 +956,10 @@ class eptSubscriber(object):
             data = get_class(self.session, vpc_type, rspSubtree="full", rspSubtreeClass=node_ep)
             if data is None or len(data) == 0:
                 logger.debug("no vpc configuration found")
-                return True
+                data = []
 
         # build all known vpc groups and set peer values with existing eptNodes that are members
         # of a vpc domain
-        bulk_objects = []
         for obj in data:
             if vpc_type in obj and "attributes" in obj[vpc_type]:
                 attr = obj[vpc_type]["attributes"]
@@ -934,9 +988,7 @@ class eptSubscriber(object):
                         )
                         child_nodes[0].peer = child_nodes[1].node
                         child_nodes[1].peer = child_nodes[0].node
-                        bulk_objects.append(child_nodes[0])
-                        bulk_objects.append(child_nodes[1])
-                        bulk_objects.append(eptNode(fabric=self.fabric.fabric,
+                        all_nodes[vpc_domain_id] = eptNode(fabric=self.fabric.fabric,
                             addr=addr,
                             name=name,
                             node=vpc_domain_id,
@@ -953,14 +1005,14 @@ class eptSubscriber(object):
                                     "addr": child_nodes[1].addr,
                                 },
                             ],
-                        ))
+                        )
                     else:
                         logger.warn("expected 2 %s child objects: %s", node_ep,obj)
                 else:
                     logger.warn("invalid %s object: %s", vpc_type, obj)
         
-        if len(bulk_objects)>0:
-            eptNode.bulk_save(bulk_objects, skip_validation=False)
+        # all nodes should have been updated (TEP info, version, and vpc updates)
+        eptNode.bulk_save([all_nodes[n] for n in all_nodes], skip_validation=False)
         return True
 
     def build_tunnel_db(self):
@@ -992,15 +1044,19 @@ class eptSubscriber(object):
                 t.remote = all_nodes[t.dst].node
                 bulk_objects.append(t)
             else:
-                # tunnel type of vxlan (instead of ivxlan), or flags of dci(multisite) or 
+                # tunnel type of vxlan (instead of ivxlan), or flags of dci(multisite)/golf/mcast or 
                 # proxy(spines) can be safely ignored, else print a warning
-                if t.encap == "vxlan" or "proxy" in t.flags or "dci" in t.flags:
+                if t.encap == "vxlan" or "proxy" in t.flags or "dci" in t.flags or \
+                    "golf" in t.flags or "fabric-ext" in t.flags or "underlay-mcast" in t.flags:
                     #logger.debug("failed to map tunnel to remote node: %s", t)
                     pass
-                else:
-                    logger.debug("failed to map tunnel to remote node: %s", t)
+                # if we are unable to map the tunnel for a spine, that is also ok to ignore
+                elif t.src in all_nodes and all_nodes[t.src].role == "leaf":
+                    logger.warn("failed to map tunnel for leaf to remote node: %s", t)
+
         if len(bulk_objects)>0:
             eptTunnel.bulk_save(bulk_objects, skip_validation=False)
+
         return True
 
     def build_vpc_db(self):

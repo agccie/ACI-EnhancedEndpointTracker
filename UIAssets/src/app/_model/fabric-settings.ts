@@ -49,6 +49,13 @@ export class FabricSettings {
     stale_no_local: boolean;
     syslog_port: number;
     syslog_server: string;
+    smtp_relay_enabled: boolean;
+    smtp_type: string;
+    smtp_server_port: number;
+    smtp_relay_server: string;
+    smtp_relay_authenticate: boolean;
+    smtp_relay_username: string;
+    smtp_relay_password: string;
 
     constructor(data: any = {}) {
         this.init();
@@ -87,6 +94,13 @@ export class FabricSettings {
         this.stale_no_local = false;
         this.syslog_port = 0;
         this.syslog_server = '';
+        this.smtp_relay_enabled = false;
+        this.smtp_type = 'direct';
+        this.smtp_server_port = 0;
+        this.smtp_relay_server = "";
+        this.smtp_relay_authenticate = false;
+        this.smtp_relay_username = "";
+        this.smtp_relay_password = "";
     }
 
     // sync Fabric object to provided JSON
@@ -96,11 +110,15 @@ export class FabricSettings {
                 this[attr] = data[attr];
             }
         }
+        this.smtp_relay_enabled = (this.smtp_type == "relay");
     }
+    
 
     // not all attributes of this object are used for create/update operatons, this function
     // will return a JSON object with writeable attributes only
     get_save_json(): object {
+        // set smtp_type to 'direct' or 'relay' based on whether smtp_relay_enabled is true
+        this.smtp_type = this.smtp_relay_enabled ? 'relay' : 'direct';
         let attr = [
             "analyze_move",
             "analyze_offsubnet",
@@ -130,11 +148,22 @@ export class FabricSettings {
             "stale_no_local",
             "syslog_port",
             "syslog_server",
+            "smtp_type",
+            "smtp_server_port",
+            "smtp_relay_server",
+            "smtp_relay_authenticate",
+            "smtp_relay_username",
+            "smtp_relay_password"
         ];
         let json = {};
         for (let i = 0; i < attr.length; i++) {
             let a = attr[i];
             if (a in this) {
+                if ((typeof this[a] === 'string' && this[a].length == 0)|| 
+                    (typeof this[a] === 'number' && this[a]==0)) {
+                    //skip string attributes that are not set
+                    continue;
+                }
                 json[a] = this[a];
             } else {
                 console.log("unknown fabricSettings attribute to save: " + a);

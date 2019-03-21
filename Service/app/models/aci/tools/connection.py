@@ -121,6 +121,7 @@ class Connection(object):
             no_verify = " -o StrictHostKeyChecking=no -o LogLevel=ERROR "
             no_verify+= " -o UserKnownHostsFile=/dev/null"
             no_verify+= " -o HostKeyAlgorithms=+ssh-dss"
+            no_verify+= " -c aes128-ctr,aes256-ctr,aes192-ctr,aes128-cbc,3des-cbc,aes192-cbc,aes256-cbc"
             if self.verify: no_verify = ""
             if self.bind is not None: no_verify = " -b %s" % self.bind
             self.child = pexpect.spawn("ssh %s %s@%s -p %d" % (no_verify, 

@@ -32,8 +32,11 @@ class Swarmer(object):
 
     def get_credentials(self):
         # prompt user for username/password if not previously provided
+        default_username = getpass.getuser()
         while self.username is None or len(self.username)==0:
-            self.username = raw_input("Enter ssh username: ").strip()
+            self.username = raw_input("Enter ssh username [%s]: " % default_username).strip()
+            if len(self.username) == 0:
+                self.username = default_username
         while self.password is None or len(self.password)==0:
             self.password = getpass.getpass("Enter ssh password: ").strip()
 
@@ -41,7 +44,9 @@ class Swarmer(object):
         # return ssh connection object to provided hostname, raise exception on error
         
         logger.debug("get connection to %s", hostname)
-        self.get_credentials()
+        # credentials only needed for ssh
+        if protocol == "ssh" or protocol == "scp":
+            self.get_credentials()
         c = Connection(hostname)
         c.username = self.username
         c.password = self.password
@@ -54,13 +59,15 @@ class Swarmer(object):
 
     def get_node_hostnames(self):
         # if node_count > 1 then need to prompt user for address/hostname of each node
+        credentials_required = False
         if self.config.node_count>0:
             for node_id in xrange(2, self.config.node_count+1):
                 # prompt user for hostname/ip address for this node
                 node_id = "%s" % node_id
                 hostname = self.node_hostnames.get(node_id, "") 
                 while hostname is None or len(hostname)==0: 
-                    hostname = raw_input("\nEnter hostname/ip address for node %s: "%node_id).strip()
+                    credentials_required = True
+                    hostname = raw_input("Enter hostname/ip address for node %s: "%node_id).strip()
                     if len(hostname) == 0:
                         logger.warn("invalid hostname for node %s, please try again", node_id)
                     elif hostname == self.node_addr:
@@ -68,6 +75,8 @@ class Swarmer(object):
                             hostname, node_id)
                         hostname = ""
                 self.node_hostnames[node_id] = hostname
+        if credentials_required:
+            self.get_credentials()
 
     def init_swarm(self):
         # determine the swarm status of this node. If in a swarm but not the manager, raise an error
@@ -334,7 +343,7 @@ class Swarmer(object):
         ts = "%s-%s" % (name, format_timestamp(time.time()))
         # get active nodes in the cluster
         self.get_nodes()
-        if len(self.nodes) > 0:
+        if len(self.nodes) > 1:
             logger.info("collecting techsupport %s from %s nodes", ts, len(self.nodes))
             # need ssh credentials to access other nodes before continuing...
             self.get_credentials()
@@ -447,9 +456,10 @@ class Swarmer(object):
 
     def wipe(self):
         """ remove current stack deployment and then clean up all volumes and stopped containers """
-        # to cleanup we will need ssh credentials if node count > 0 
+        js = self.get_swarm_info()
+        self.node_id = js["NodeID"]
         self.get_nodes()
-        if len(self.nodes) > 0:
+        if len(self.nodes) > 1:
             self.get_credentials()
         # validate credentials  by creating ssh connection to each node and saving to node object
         for node_id in self.nodes:

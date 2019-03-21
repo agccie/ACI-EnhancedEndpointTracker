@@ -18,6 +18,7 @@ from . common import SUPPRESS_WATCH_STALE
 from . common import SUBSCRIBER_CTRL_CHANNEL
 from . common import WATCH_INTERVAL
 from . common import WORKER_CTRL_CHANNEL
+from . common import MAX_SEND_MSG_LENGTH
 from . common import BackgroundThread
 from . common import db_alive
 from . common import get_addr_type
@@ -35,6 +36,7 @@ from . ept_move import eptMoveEvent
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
 from . ept_msg import eptMsg
+from . ept_msg import eptMsgBulk
 from . ept_msg import eptMsgHello
 from . ept_msg import eptMsgSubOp
 from . ept_msg import eptMsgWork
@@ -51,6 +53,7 @@ from . ept_queue_stats import eptQueueStats
 from . ept_stale import eptStale
 from . ept_stale import eptStaleEvent
 from . ept_worker_fabric import eptWorkerFabric
+from . mo_dependency_map import dependency_map
 
 import copy
 import json
@@ -69,12 +72,14 @@ class eptWorker(object):
     """
 
     def __init__(self, worker_id, role):
+        threading.currentThread().name = "main"
         logger.debug("init role %s id %s", role, worker_id)
         register_signal_handlers()
         self.worker_id = "%s" % worker_id
         self.role = role
         self.db = get_db(uniq=True, overwrite_global=True, write_concern=True)
         self.redis = get_redis()
+
         # dict of eptWorkerFabric objects
         self.fabrics = {}
         # broadcast hello for any managers (registration and keepalives)
@@ -94,6 +99,7 @@ class eptWorker(object):
         self.watch_stale_lock = threading.Lock()
         self.watch_offsubnet_lock = threading.Lock()
         self.watch_rapid_lock = threading.Lock()
+        self.manager_work_queue_lock = threading.Lock()
 
         # queues that this worker will listen on 
         self.queues = ["q0_%s" % self.worker_id, "q1_%s" % self.worker_id]
@@ -133,6 +139,7 @@ class eptWorker(object):
                 WORK_TYPE.SETTINGS_RELOAD: self.handle_settings_reload,
                 WORK_TYPE.FABRIC_WATCH_PAUSE: self.handle_watch_pause,
                 WORK_TYPE.FABRIC_WATCH_RESUME: self.handle_watch_resume,
+                WORK_TYPE.STD_MO: self.handle_std_mo_event,
             }
         else:
             self.work_type_handlers = {
@@ -155,22 +162,22 @@ class eptWorker(object):
             wait_for_redis(self.redis)
             wait_for_db(self.db)
             # start stats thread
-            self.stats_thread = BackgroundThread(func=self.update_stats, name="stats", count=0, 
-                                                interval= eptQueueStats.STATS_INTERVAL)
+            self.stats_thread = BackgroundThread(func=self.update_stats, name="worker-stats", 
+                                                count=0, interval= eptQueueStats.STATS_INTERVAL)
             self.stats_thread.daemon = True
             self.stats_thread.start()
             # start hello thread
-            self.hello_thread = BackgroundThread(func=self.send_hello, name="hello", count=0,
+            self.hello_thread = BackgroundThread(func=self.send_hello, name="worker-hello", count=0,
                                                 interval = HELLO_INTERVAL)
             self.hello_thread.daemon = True
             self.hello_thread.start()
             if self.role == "watcher":
-                self.execute_watch()
                 # watcher needs to trigger execute watch at regular interval
                 self.watch_thread = BackgroundThread(func=self.execute_watch, name="watch", count=0,
                                                 interval=WATCH_INTERVAL)
                 self.watch_thread.daemon = True
                 self.watch_thread.start()
+
             # start listening to redis channels/queues
             self._run()
         except (Exception, SystemExit, KeyboardInterrupt) as e:
@@ -254,18 +261,30 @@ class eptWorker(object):
 
     def send_msg(self, msg):
         """ send one or more eptMsgWork objects to worker via manager work queue 
-            note, only main thread uses this operation so no need for lock at this point
+            limit the number of messages sent at a time to MAX_SEND_MSG_LENGTH
         """
         if isinstance(msg, list):
-            work = [m.jsonify() for m in msg]
-            if len(work) == 0:
-                # rpush requires at least one event, if msg is empty list then just return
-                return
-            self.redis.rpush(MANAGER_WORK_QUEUE, *work)
-            self.increment_stats(MANAGER_WORK_QUEUE, tx=True, count=len(work))
+            # break up msg into multiple blocks and send as single eptMsgBulk
+            for i in range(0, len(msg), MAX_SEND_MSG_LENGTH):
+                bulk = eptMsgBulk()
+                bulk.msgs = [m for m in msg[i:i+MAX_SEND_MSG_LENGTH]]
+                if len(bulk.msgs)>0:
+                    with self.manager_work_queue_lock:
+                        self.redis.rpush(MANAGER_WORK_QUEUE, bulk.jsonify())
+                    self.increment_stats(MANAGER_WORK_QUEUE, tx=True, count=len(bulk.msgs))
         else:
-            self.redis.rpush(MANAGER_WORK_QUEUE, msg.jsonify())
+            with self.manager_work_queue_lock:
+                self.redis.rpush(MANAGER_WORK_QUEUE, msg.jsonify())
             self.increment_stats(MANAGER_WORK_QUEUE, tx=True)
+
+    def send_flush(self, collection, name=None):
+        """ send flush message to workers for provided collection """
+        logger.debug("flush %s (name:%s)", collection._classname, name)
+        # node addr of 0 is broadcast to all nodes of provided role
+        data = {"cache": collection._classname, "name": name}
+        msg = eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE)
+        msg.qnum = 0    # highest priority queue
+        self.send_msg(msg)
 
     def send_hello(self):
         """ send hello/keepalives at regular interval, this also serves as registration """
@@ -289,9 +308,12 @@ class eptWorker(object):
         """ start fabric to init cache and for watcher process, to set a start timestamp for the 
             fabric for extending transitory timers
         """
+        # need to trigger a graceful stop for worker process if already cached
+        self.fabric_stop(fabric)
         logger.debug("[%s] start fabric: %s", self, fabric)
-        self.fabrics.pop(fabric, None)
         self.fabrics[fabric] = eptWorkerFabric(fabric)
+        if self.role == "watcher":
+            self.fabrics[fabric].watcher_init()
 
     def fabric_stop(self, fabric):
         """ stop only requires removing fabric from local fabrics, manager will handle removing any
@@ -299,7 +321,9 @@ class eptWorker(object):
             for this fabric.
         """
         logger.debug("[%s] stop fabric: %s", self, fabric)
-        self.fabrics.pop(fabric, None)
+        old_wf = self.fabrics.pop(fabric, None)
+        if old_wf is not None:
+            old_wf.close()
         if self.role == "watcher":
             watches = [
                 ("offsubnet", self.watch_offsubnet_lock, self.watch_offsubnet),
@@ -1137,6 +1161,7 @@ class eptWorker(object):
             logger.debug("skipping stale analyze for mac event")
             return
 
+        logger.debug("analyze stale")
         if len(update_local_result.local_events) == 0 or \
                 update_local_result.local_events[0].node == 0:
             local_node = 0
@@ -1204,8 +1229,17 @@ class eptWorker(object):
                                         remote_node_event.remote)
                                     stale_nodes[node] = event
                             else:
-                                logger.debug("stale on %s to %s", node, h_event.remote)
-                                stale_nodes[node] = event
+                                # if XR node is 0 then there was a tunnel mapping error. 
+                                # Theoretically this could be an invalid/no longer existing tunnel
+                                # but it's more likely that the app/worker is behind or out of sync
+                                # with recent tunnel updates. This could also be transient issue for
+                                # vpc peer where local flag has not been set.
+                                if h_event.remote == 0:
+                                    logger.debug("skipping stale on %s with unresolved XR node %s", 
+                                            node, h_event.remote)
+                                else:
+                                    logger.debug("stale on %s to %s", node, h_event.remote)
+                                    stale_nodes[node] = event
                 else:
                     # non-deleted event when endpoint is not currently learned within the fabric
                     if msg.wf.settings.stale_no_local:
@@ -1346,7 +1380,7 @@ class eptWorker(object):
             eptMoveEvent(**msg.src).notify_string(include_rw=(msg.type!="mac")),
             eptMoveEvent(**msg.dst).notify_string(include_rw=(msg.type!="mac")),
         )
-        msg.wf.send_notification("move", subject, txt)
+        msg.wf.queue_notification("move", subject, txt)
 
     def handle_watch_rapid(self, msg):
         """ receive an eptMsgWorkRapid message and immediately performs notification action. If
@@ -1364,7 +1398,7 @@ class eptWorker(object):
             msg.addr,
             msg.rate
         )
-        msg.wf.send_notification("rapid", subject, txt)
+        msg.wf.queue_notification("rapid", subject, txt)
         if msg.wf.settings.refresh_rapid:
             key = "%s,%s,%s" % (msg.fabric, msg.vnid, msg.addr)
             msg.xts = msg.now + msg.wf.settings.rapid_holdtime + TRANSITORY_RAPID
@@ -1563,7 +1597,7 @@ class eptWorker(object):
                             msg.addr,
                             event.notify_string()
                         )
-                        msg.wf.send_notification(watch_type, subject, txt)
+                        msg.wf.queue_notification(watch_type, subject, txt)
 
                     # even if duplicate, add to clear list if remediation is enabled
                     if getattr(msg.wf.settings, remediate_attr):
@@ -1601,7 +1635,7 @@ class eptWorker(object):
                             event.vnid_name if len(event.vnid_name)>0 else "vnid:%d" % key["vnid"],
                             key["addr"],
                         )
-                        msg.wf.send_notification("clear", subject, txt)
+                        msg.wf.queue_notification("clear", subject, txt)
 
     def handle_endpoint_delete(self, msg):
         """ handle endpoint delete requests.  This needs to flush the local cache and delete all
@@ -1626,13 +1660,13 @@ class eptWorker(object):
         """ receive eptMsgWork with WORK_TYPE.TEST_EMAIL and send a test email """
         logger.debug("sending test email")
         txt = "%s test email" % msg.fabric
-        msg.wf.send_notification("any_email", txt, txt)
+        msg.wf.queue_notification("any_email", txt, txt)
 
     def handle_test_syslog(self, msg):
         """ receive eptMsgWork with WORK_TYPE.TEST_SYSLOG and send a test syslog """
         logger.debug("sending test syslog")
         txt = "%s test syslog" % msg.fabric
-        msg.wf.send_notification("any_syslog", txt, txt)
+        msg.wf.queue_notification("any_syslog", txt, txt)
 
     def handle_settings_reload(self, msg):
         """ receive eptMsgWork with WORK_TYPE.SETTINGS_RELOAD to reload local wf settings """
@@ -1660,6 +1694,21 @@ class eptWorker(object):
         """ receive eptMsgWork with WORK_TYPE.FABRIC_WATCH_RESUME and set local watcher_pause flag """
         logger.debug("receiving watch resume for fabric %s", msg.fabric)
         msg.wf.watcher_paused = False
+
+    def handle_std_mo_event(self, msg):
+        """ receive eptMsgWork with WORK_TYPE.STD_MO and """
+        classname = msg.data.keys()[0]
+        attr = msg.data[classname]
+        if classname in dependency_map:
+            logger.debug("triggering sync_event for dependency %s", classname)
+            updates = dependency_map[classname].sync_event(msg.wf.fabric, attr, msg.wf.session)
+            logger.debug("updated objects: %s", len(updates))
+            # send flush for each update
+            for u in updates:
+                self.send_flush(u, u.name if hasattr(u, "name") else None)
+        else:
+            logger.warn("%s not defined in dependency_map", classname)
+
 
 class eptWorkerUpdateLocalResult(object):
     """ return object for eptWorker.update_loal method """

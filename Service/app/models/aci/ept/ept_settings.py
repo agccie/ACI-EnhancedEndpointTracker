@@ -25,7 +25,6 @@ class eptSettings(Rest):
     """ fabric monitor settings which are automatically created/deleted with fabric objects. For 
         now, all ept.settings objects are keyed by fabric name and a settings value of 'default'.
     """
-
     logger = logger
 
     META_ACCESS = {
@@ -45,6 +44,47 @@ class eptSettings(Rest):
             "type":str,             
             "description": "email address for sending email based notifications",
             "regex":"(^$|^[a-zA-Z0-9\-_\.@\+]+$)",
+        },
+        "smtp_type": {
+            "type": str,
+            "values": ["direct", "relay"],
+            "default": "direct",
+            "description": """ send SMTP directly to email receipent based on MX records of address
+                or relay through configured smtp_relay server with optional login credentials
+                """
+        },
+        "smtp_server_port": {
+            "type": int,
+            "default": 587,
+            "description": """ SMTP server port for all smtp_types. Port 25 is often used for 
+                standard SMTP and port 456 and 587 used for SSL/TLS, respectively. This app will 
+                always try to negotiate TLS even if running on port 25.
+                """,
+        },
+        "smtp_relay_server": {
+            "type": str,
+            "default": "",
+            "regex": "(?i)^[a-z0-9_\.:\-]{0,512}$",
+            "description": """ SMTP relay server """,
+        },
+        "smtp_relay_authenticate": {
+            "type": bool,
+            "default": False,
+            "description": "enable authentication for SMTP relay",
+        },
+        "smtp_relay_username": {
+            "type": str,
+            "default": "",
+            "regex": "^[^ ;]{0,512}$",
+            "description": "SMTP relay username or email address used for relay authentication",
+        },
+        "smtp_relay_password": {
+            "type": str,
+            "default": "",
+            "encrypt": True,
+            "read": False,
+            "regex": "^.{0,512}$",
+            "description": "SMTP relay password used for relay authentication",
         },
         "syslog_server":{
             "type":str,
@@ -236,11 +276,19 @@ class eptSettings(Rest):
 
     @api_route(path="test/email", methods=["POST"], swag_ret=["success"])
     def test_email(self):
-        """ send a test email to ensure settings are valid and email notifications are successful
+        """ send a test email to ensure settings are valid and email notifications are successful.
+            will execute from web process since email is pure python implementation and we need to 
+            get any errors propagated to the user.
         """
         if len(self.email_address) == 0:
             abort(400, "no email address configured")
-        (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.TEST_EMAIL, qnum=0)
+
+        # on demand import of eptWorkerFabric to prevent import loop
+        from . ept_worker_fabric import eptWorkerFabric
+        txt = "%s test email" % self.fabric
+        worker_fabric = eptWorkerFabric(self.fabric)
+        (success, err_str) = worker_fabric.send_notification("any_email", txt, txt)
+        worker_fabric.close()
         if success:
             return jsonify({"success": True})
         abort(500, err_str)
@@ -248,10 +296,18 @@ class eptSettings(Rest):
     @api_route(path="test/syslog", methods=["POST"], swag_ret=["success"])
     def test_syslog(self):
         """ send a test syslog to ensure settings are valid and syslog notifications are successful
+            will execute from web process since syslog is via python logging library and we want to
+            propagate any errors to the user.
         """
         if len(self.syslog_server) == 0:
             abort(400, "no syslog server configured")
-        (success, err_str) = subscriber_op(self.fabric, MSG_TYPE.TEST_SYSLOG, qnum=0)
+
+        # on demand import of eptWorkerFabric to prevent import loop
+        from . ept_worker_fabric import eptWorkerFabric
+        txt = "%s test syslog" % self.fabric
+        worker_fabric = eptWorkerFabric(self.fabric)
+        (success, err_str) = worker_fabric.send_notification("any_syslog", txt, txt)
+        worker_fabric.close()
         if success:
             return jsonify({"success": True})
         abort(500, err_str)

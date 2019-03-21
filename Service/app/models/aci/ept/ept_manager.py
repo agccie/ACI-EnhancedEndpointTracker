@@ -45,6 +45,7 @@ class eptManager(object):
     REQUIRED_ROLES = ["worker", "watcher"]
 
     def __init__(self, worker_id):
+        threading.currentThread().name = "mgr-main"
         logger.debug("init role manager id %s", worker_id)
         register_signal_handlers()
         self.worker_id = "%s" % worker_id
@@ -110,7 +111,7 @@ class eptManager(object):
         self.redis.flushall()
         wait_for_db(self.db)
         self.worker_tracker = WorkerTracker(manager=self)
-        self.stats_thread = BackgroundThread(func=self.update_stats, name="stats", count=0, 
+        self.stats_thread = BackgroundThread(func=self.update_stats, name="mgr-stats", count=0, 
                                             interval= eptQueueStats.STATS_INTERVAL)
         self.stats_thread.daemon = True
         self.stats_thread.start()
@@ -122,6 +123,7 @@ class eptManager(object):
         p = self.redis.pubsub(ignore_subscribe_messages=True)
         p.subscribe(**channels)
         self.subscribe_thread = p.run_in_thread(sleep_time=0.01, daemon=True)
+        self.subscribe_thread.name = "mgr-redis"
         logger.debug("[%s] listening for events on channels: %s", self, channels.keys())
 
         # wait for minimum workers to be ready
@@ -154,13 +156,13 @@ class eptManager(object):
                     if q == MANAGER_WORK_QUEUE and msg.msg_type == MSG_TYPE.WORK:
                         self.increment_stats(MANAGER_WORK_QUEUE, tx=False)
                         if msg.addr == 0:
-                            # an addr of 0 is a broadcast to all workers of specified role
-                            # send now (note, broadcast may be out of order if received in BULK 
-                            # with unicast updates
+                            # an addr of 0 is a broadcast to all workers of specified role.
+                            # Send broadcast now, not within a batch.
+                            # Note, broadcast may be out of order if received in BULK with ucast msg
                             self.worker_tracker.broadcast(msg, qnum=msg.qnum, role=msg.role)
                         else:
                             # create hash based on address and send to specific worker
-                            # need to ensure that we has on ip for EPM_RS_IP_EVENT so it goes to the 
+                            # need to ensure that we hash on ip for EPM_RS_IP_EVENT so it goes to the 
                             # correct worker...
                             if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
                                 _hash = sum(ord(i) for i in msg.ip)
@@ -201,7 +203,7 @@ class eptManager(object):
             # note if brief is set to False, then this request can take significant time to read 
             # and analyze all requests queued.
             kwargs = {"seq": msg.seq, "brief": msg.data.get("brief", True)}
-            tmp = threading.Thread(target=self.publish_manager_status, name="status", kwargs=kwargs)
+            tmp = threading.Thread(target=self.publish_manager_status,name="mgr-status",kwargs=kwargs)
             tmp.daemon = True
             tmp.start()
 
@@ -254,6 +256,7 @@ class eptManager(object):
             start_ts = time.time()
             data = {
                 "manager": {
+                    "status": "running" if self.minimum_workers_ready() else "starting",
                     "manager_id": self.worker_id,
                     "queues": [MANAGER_WORK_QUEUE],
                     "queue_len":[get_queue_length(self.redis,MANAGER_WORK_QUEUE,accurate=not brief)],
@@ -411,7 +414,8 @@ class eptManager(object):
             # having worker perform the operation which could lead to race conditions. This needs
             # to happening in a different thread so it does not block hellos or other events 
             # received on the control thread.
-            tmp = threading.Thread(target=self.worker_tracker.flush_fabric, args=(fabric,))
+            tmp = threading.Thread(name="mgr-tmp", target=self.worker_tracker.flush_fabric,
+                                args=(fabric,))
             tmp.daemon = True
             tmp.start()
             return True
@@ -476,7 +480,7 @@ class WorkerTracker(object):
         self.active_workers = {}    # list of active workers indexed by role
         self.update_interval = WORKER_UPDATE_INTERVAL # interval to check for new/expired workers
         self.update_thread = BackgroundThread(func=self.update_active_workers, count=0, 
-                                            name="workerTracker", interval=self.update_interval)
+                                            name="mgr-tracker", interval=self.update_interval)
         self.update_thread.daemon = True
         self.update_thread.start()
 
@@ -530,17 +534,18 @@ class WorkerTracker(object):
         # running.
         ts = time.time()
         remove_workers = []
-        new_workers = False
+        new_workers = []
         for wid, w in self.known_workers.items():
             if w.last_hello + HELLO_TIMEOUT < ts:
                 logger.warn("worker timeout (last hello: %.3f) %s",ts-w.last_hello, w)
                 remove_workers.append(w)
             elif not w.active:
                 # new worker that needs to be added to active list
-                if w.role not in self.active_workers: self.active_workers[w.role] = []
+                if w.role not in self.active_workers: 
+                    self.active_workers[w.role] = []
                 self.active_workers[w.role].append(w)
                 w.active = True
-                new_workers = True
+                new_workers.append(w)
                 # sort active workers by worker_id for deterministic ordering
                 self.active_workers[w.role] = sorted(self.active_workers[w.role], 
                                                 key=lambda w: int(re.sub("[^0-9]","",w.worker_id)))
@@ -575,16 +580,19 @@ class WorkerTracker(object):
                 with w.queue_locks[i]:
                     self.redis.delete(q)
 
-        # if a worker has died, then trigger monitor restart for all fabrics
-        if len(remove_workers)>0:
-            inactive = "[%s]" % ", ".join([w.worker_id for w in remove_workers])
+        # if a worker has died or new worker comes online, then trigger monitor restart
+        stop_message = None
+        if len(new_workers)>0: 
+            stop_message = "[%s]" % ", ".join([w.worker_id for w in new_workers])
+            stop_message = "new worker detected %s" % stop_message
+        elif len(remove_workers)>0:
+            stop_message = "[%s]" % ", ".join([w.worker_id for w in remove_workers])
+            stop_message = "worker heartbeat timeout %s" % stop_message
+        if stop_message is not None:
+            logger.info("total workers: %s", len(self.known_workers))
             # stop fabric (manager will restart when ready)
             for f in self.manager.fabrics.keys():
-                self.manager.stop_fabric(f, reason="worker heartbeat timeout %s" % inactive)
-
-        if len(remove_workers)>0 or new_workers:
-            logger.info("total workers: %s", len(self.known_workers))
-
+                self.manager.stop_fabric(f, reason=stop_message)
 
         # check hello from each subscriber. If any have timedout, set to inactive (manager func 
         # will restart any subscribers that are inactive)

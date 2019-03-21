@@ -37,6 +37,9 @@ import re
 import time
 import traceback
 
+# default module level logging (override by each module that inherits the class)
+logger = logging.getLogger("app.models.rest")
+
 class Rest(object):
     """ generic REST object providing common rest functionality.  All other 
         REST model objects should inherit this class and overwrite 
@@ -277,7 +280,7 @@ class Rest(object):
         }
     """
 
-    logger = logging.getLogger("app.models.rest")
+    logger = logger
     META = {}
     META_ACCESS = {}
     DEFAULT_PAGE_SIZE = 10000
@@ -575,6 +578,7 @@ class Rest(object):
             
         except Exception as e:
             self.logger.warn("%s save failed: %s", self._classname, e)
+            self.logger.debug("Traceback:\n%s", traceback.format_exc())
         return result
 
     @classmethod
@@ -946,8 +950,8 @@ class Rest(object):
 
     @classmethod
     def validate_attribute(cls, attr, val):
-        """ receive attribute name and use provided value and return validated
-            value casted to the correct type with appropriate defaults.
+        """ receive attribute name and use provided value and return validated value casted to the 
+            correct type with appropriate defaults.
             If value is invalid then abort with 400 code and appropriate error
         """
 

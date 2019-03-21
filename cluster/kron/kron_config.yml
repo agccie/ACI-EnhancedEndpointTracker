@@ -2,8 +2,8 @@
 # this config is APIC app deployment only, do not alter in standalone deployment
 # this is yml file is used to auto-generate clusterMgrConfig
 
-name: "EnhancedEndpointTracker"
-short_name: "ept"
+name: "BaseApp"
+short_name: "base"
 # apiserver-service port
 https_port: 6443
 # redis info

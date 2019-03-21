@@ -7,17 +7,15 @@ source $BASE_DIR/build/build_common.sh
 TMP_DIR="/tmp/appbuild/"
 
 self=$0
-docker_image=""
 intro_video=""
 private_key=""
 app_mini="0"
-enable_proxy="0"
+enable_proxy="1"
 build_standalone="0"
-build_all_in_one="0"
+run_dev_standalone="0"
 standalone_http_port="5000"
 standalone_https_port="5001"
 docker_image_name=""            # set by build_standalone_container
-external_docker_image_name=""   # set by user arg when using -a option
 
 # create version.txt with commit info
 function add_version() {
@@ -31,65 +29,69 @@ function add_version() {
     git rev-parse --abbrev-ref HEAD >> ./version.txt
 }
 
-# build development standalone container
-function build_standalone_container() {
+# build container image including subset of source code and UI dist built
+function build_container_image(){
+    # allow user to set APP_MODE by prov-
+    # by default builds with APP_MODE=0 in container but can override with first arg
+    local app_mode="0"
+    if [ "$1" == "app_mode" ] ; then
+        app_mode="1"
+    fi
+
+    log "building standalone container $APP_VENDOR_DOMAIN/$APP_ID:$APP_VERSION (app_mode=$app_mode)"
     set -e
-    log "building standalone container $APP_VENDOR_DOMAIN/$APP_ID:$APP_VERSION"
     add_version
 
     # cp app.json to Service directory for consumption by config.py
     cp ./app.json ./Service/
     cp ./version.txt ./Service/
 
-    # build docker container
-    log "building container"
-    docker_image_name=`echo "aci/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
-    ba="--build-arg APP_MODE=0 "
+    # execute UI build outside of the container and copy dist to folder during image build
+    local bf_tmp="$TMP_DIR/$APP_ID.build/UIAssets/"
+    local bf_src="$BASE_DIR/UIAssets/"
+    local bf_dst="$TMP_DIR/$APP_ID/UIAssets/"
+    # need to make sure final build is available id UIAssets/dist folder
+    mkdir -p ./UIAssets/dist
+    if [ "$(ls -A ./UIAssets)" ] ; then
+        mkdir -p $TMP_DIR/$APP_ID.build/UIAssets
+        if [ "$SKIP_FRONTEND" == "1" ] ; then
+            log "skipping frontend build, adding minimum files to support packaging"
+            echo "hello" > $bf_dst/app.html
+            echo "hello" > $bf_dst/app-start.html
+            cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
+        else
+            if [ "$build_standalone" == "1" ] || [ "$run_dev_standalone" == "1" ] ; then
+                ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "standalone"
+                cp -p $BASE_DIR/UIAssets/logo.png $bf_dst/logo.png
+            elif [ "$app_mini" == "1" ] ; then
+                ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app-mini"
+                if [ -f "$BASE_DIR/UIAssets/logo_mini.png" ] ; then
+                    cp -p $BASE_DIR/UIAssets/logo_mini.png $bf_dst/logo.png
+                else
+                    cp -p $BASE_DIR/UIAssets/logo.png $bf_dst/logo.png
+                fi
+            else
+                ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
+                cp -p $BASE_DIR/UIAssets/logo.png $bf_dst/logo.png
+            fi
+        fi
+        cp -rf $bf_dst/* ./UIAssets/dist/
+    fi
+
+    # build tmp docker container directly from Dockerfile
+    log "building base container"
+    docker_image_name=`echo "$APP_CONTAINER_NAMESPACE/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
+    tmp_image="$docker_image_name-TMP"
+    ba="--build-arg APP_MODE=$app_mode "
     if [ "$enable_proxy" == "1" ] ; then
         if [ "$https_proxy" ] ; then ba="$ba --build-arg https_proxy=$https_proxy" ; fi
         if [ "$http_proxy" ] ; then ba="$ba --build-arg http_proxy=$http_proxy" ; fi
         if [ "$no_proxy" ] ; then ba="$ba --build-arg no_proxy=$no_proxy" ; fi
     fi
     log "cmd: docker build -t $docker_image_name $ba ./build/"
-    docker build -t $docker_image_name $ba ./build/
+    docker build -t $tmp_image $ba ./build/
 
-}
-
-# run container previously built by build_standalone_container
-function run_standalone_container() {
-
-    log "deploying standalone container $APP_VENDOR_DOMAIN/$APP_ID:$APP_VERSION"
-    container_name=`echo "$APP_ID\_$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
-    # run the container with volume mount based on BASE_DIR and user provided http and https ports
-    local cmd="docker run -dit --restart always --name $container_name "
-    cmd="$cmd -v $BASE_DIR/Service:/home/app/src/Service:ro "
-    cmd="$cmd -v $BASE_DIR/Service/instance:/home/app/src/Service/instance:rw "
-    cmd="$cmd -v $BASE_DIR/UIAssets:/home/app/src/UIAssets.src:ro "
-    cmd="$cmd -v $BASE_DIR/build:/home/app/src/build:ro "
-    if [ "$standalone_http_port" -gt "0" ] ; then
-        cmd="$cmd -p $standalone_http_port:80 "
-    fi
-    if [ "$standalone_https_port" -gt "0" ] ; then
-        cmd="$cmd -p $standalone_https_port:443 "
-    fi
-    cmd="$cmd $docker_image_name "
-    log "starting container: $cmd"
-    eval $cmd
-}
-
-# build_all_in_one_image function
-# used to prep container image with bundled src code - executed from within container after git pull
-# trigger build of container image that can be pushed to docker hub.  This first creates a docker
-# image with the required dependencies using the ./build/Dockerfile. Then, it creates a new
-# Dockerfile that references the new image, pulls the latest src within the container,
-# executes the local internal build, and saves the finally container.
-function build_all_in_one_image(){
-
-    log "building all-in-one container image"
-    set -e
-    dockerfile=".tmpDocker"
-    build_standalone_container
-
+    # create dynamic keys which will be added to container private config
     PRIVATE_CONFIG="/home/app/config.py"
     if [ `which md5sum` ] ; then
         EKEY=`dd if=/dev/urandom bs=1 count=32 2>/dev/null | md5sum | egrep -o "^[a-f0-9]+"`
@@ -102,39 +104,87 @@ function build_all_in_one_image(){
         EIV=`dd if=/dev/urandom bs=1 count=32 2>/dev/null | base64`
     fi
 
-    # create tmp dockerfile
-cat >$dockerfile <<EOL
-FROM $docker_image_name
-ENV SRC_DIR="/home/app/src"
+    # use base docker file and add addition commands to copy source code into it
+    # (will remove WORKDIR and CMD since they are in the tmpDocker file below)
+    dockerfile=".tmpDocker"
+    cat >$dockerfile <<EOL
+FROM $tmp_image
 # copy src into container
-RUN mkdir -p \$SRC_DIR/Service && mkdir -p \$SRC_DIR/UIAssets.src && mkdir -p \$SRC_DIR/build
-COPY ./Service/ \$SRC_DIR/Service/
-COPY ./UIAssets/ \$SRC_DIR/UIAssets.src/
-COPY ./build/ \$SRC_DIR/build/
-# set random key
-RUN echo "EKEY=\"$EKEY\"" > $PRIVATE_CONFIG; \
-    echo "EIV=\"$EIV\"" >> $PRIVATE_CONFIG
-# trigger frontend build
-RUN \$SRC_DIR/build/build_frontend.sh \
-    -s \$SRC_DIR/UIAssets.src \
-    -d \$SRC_DIR/UIAssets \
-    -t /tmp/build \
-    -m standalone && \
-    rm -rf /root/.npm && \
-    rm -rf /usr/lib/node_modules && \
-    rm -rf /tmp/build && \
-    rm -rf \$SRC_DIR/UIAssets.src/ && \
-    rm -rf \$SRC_DIR/Service/instance/config.py
+COPY ./Service/version.txt \$SRC_DIR/Service/
+COPY ./Service/start.sh \$SRC_DIR/Service/
+COPY ./Service/*.py \$SRC_DIR/Service/
+COPY ./Service/app.json \$SRC_DIR/Service/
+COPY ./Service/app.wsgi \$SRC_DIR/Service/
+COPY ./Service/app \$SRC_DIR/Service/app
+COPY ./UIAssets/dist/ \$SRC_DIR/UIAssets/
+# set random key and remove 
+RUN echo "EKEY=\"$EKEY\"" > $PRIVATE_CONFIG ; \
+    echo "EIV=\"$EIV\"" >> $PRIVATE_CONFIG ; 
 
 WORKDIR \$SRC_DIR/Service
 CMD \$SRC_DIR/Service/start.sh
 EXPOSE 443/tcp
 EOL
-    # build container image
-    local cmd="docker build --squash -t $external_docker_image_name -f $dockerfile ."
-    log "executing docker build: $cmd"
+
+    log "building final container"
+    log "cmd: docker build -t $docker_image_name -f $dockerfile ./"
+    docker build -t $docker_image_name -f $dockerfile ./
+}
+
+# run container previously built by build_standalone_container
+function run_standalone_container() {
+
+    log "deploying standalone container $APP_VENDOR_DOMAIN/$APP_ID:$APP_VERSION"
+    container_name=`echo "$APP_ID\_$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
+    # run the container with volume mount based on BASE_DIR and user provided http and https ports
+    local cmd="docker run -dit --restart always --name $container_name "
+    cmd="$cmd -v $BASE_DIR/Service:/home/app/src/Service:ro "
+    cmd="$cmd -v $BASE_DIR/Service/instance:/home/app/src/Service/instance:rw "
+    if [ "$standalone_http_port" -gt "0" ] ; then
+        cmd="$cmd -p $standalone_http_port:80 "
+    fi
+    if [ "$standalone_https_port" -gt "0" ] ; then
+        cmd="$cmd -p $standalone_https_port:443 "
+    fi
+    cmd="$cmd $docker_image_name "
+    log "starting container: $cmd"
     eval $cmd
-    rm -f $dockerfile
+}
+
+# build app.json mini config file and write to provided output directory
+function build_app_mini_json() {
+    outfile="$1/app.json"
+    log "write mini app.json to $outfile"
+    set +e
+out=`BASE_DIR="$BASE_DIR" python - <<END
+import os, sys, json, traceback
+fname = "%s/app.json" % os.environ["BASE_DIR"].strip()
+try:
+    if os.path.exists(fname):
+        with open(fname, "r") as f:
+            js = json.load(f)
+            # add "Mini" to appid and "-Mini" to name and (Mini) to shortdesc
+            js["appid"] = "%sMini" % js["appid"]
+            js["name"] = "%s-Mini" % js["name"]
+            js["shortdescr"] = "(Mini) %s" % js["shortdescr"]
+            # statically set apicversion to 2.2(1n)
+            js["apicversion"] = "2.2(1n)"
+            # remove clustermanager
+            js.pop("clustermanager", None)
+            # pretty print result to stdout
+            print json.dumps(js, sort_keys=True, indent=4, separators=(',', ':'))
+            sys.exit(0)
+except Exception as e:
+    print("\n%s" % traceback.format_exc())
+    sys.exit(1)
+END`
+    if [ "$?" == "1" ] ; then
+        log "failed to create app.json mini file: $out"
+        exit 1
+    fi   
+    set -e
+    log "$out"
+    echo -e "$out" > $outfile
 }
 
 # used to prep container image with bundled src code - executed from within container after git pull
@@ -159,46 +209,35 @@ function build_app() {
         mkdir -p $TMP_DIR/$APP_ID/ClusterMgrConfig
     fi
 
-    # build docker container
-    if [ "$docker_image" ] ; then
-        log "saving docker container image to application"
-        cp $docker_image > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
-        docker_image_name=$docker_image
-    else
-        log "building container"
-        docker_image_name=`echo "aci/$APP_ID:$APP_VERSION" | tr '[:upper:]' '[:lower:]'`
-        if [ "$enable_proxy" == "1" ] ; then
-            ba=""
-            if [ "$https_proxy" ] ; then ba="$ba --build-arg https_proxy=$https_proxy" ; fi
-            if [ "$http_proxy" ] ; then ba="$ba --build-arg http_proxy=$http_proxy" ; fi
-            if [ "$no_proxy" ] ; then ba="$ba --build-arg no_proxy=$no_proxy" ; fi
-            log "cmd: docker build -t $docker_image_name $ba --build-arg APP_MODE=1 ./"
-            docker build -t $docker_image_name $ba --build-arg APP_MODE=1 ./build/
-        else
-            log "cmd: docker build -t $docker_image_name --build-arg APP_MODE=1 ./"
-            docker build -t $docker_image_name --build-arg APP_MODE=1 ./build/
-        fi
-        log "saving docker container image to application"
-        docker save $docker_image_name | gzip -c > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
-    fi
+    # build docker container (this also builds frontend and already dropped into tmp_dir)
+    build_container_image "app_mode"
+    log "saving docker container image to application"
+    docker save $docker_image_name | gzip -c > $TMP_DIR/$APP_ID/Image/aci_appcenter_docker_image.tgz
 
     # copy source code to service
     cp -rp ./Service/* $TMP_DIR/$APP_ID/Service/
     cp -p ./app.json $TMP_DIR/$APP_ID/
-    # include app.json in Service directory for config.py to pick up required variables
     cp -p ./app.json $TMP_DIR/$APP_ID/Service/
     cp -p ./version.txt $TMP_DIR/$APP_ID/Service/
+
     # remove instance config if present
     rm -rf $TMP_DIR/$APP_ID/Service/instance/config.py
+    # remove tests folder from Service
+    rm -rf $TMP_DIR/$APP_ID/Service/tests
     if [ "$app_mini" == "0" ] ; then
         # dynamically create clusterMgrConfig
         conf=$TMP_DIR/$APP_ID/ClusterMgrConfig/clusterMgrConfig.json
-        python ./cluster/kron/create_config.py --image $docker_image_name > $conf
+        python ./cluster/kron/create_config.py \
+                --image $docker_image_name \
+                --name $APP_ID \
+                --short_name $APP_SHORT_NAME \
+                > $conf
     else
         # override app.json with app_mini
         log "overriding app.json with app_mini.json"
-        cp -p ./app_mini.json $TMP_DIR/$APP_ID/app.json
-        cp -p ./app_mini.json $TMP_DIR/$APP_ID/Service/app.json
+        build_app_mini_json "$TMP_DIR/$APP_ID/"
+        chmod 755 $TMP_DIR/$APP_ID/app.json
+        cp -p $TMP_DIR/$APP_ID/app.json $TMP_DIR/$APP_ID/Service/app.json
     fi
 
     # create media and legal files
@@ -238,30 +277,6 @@ function build_app() {
         chmod 777 $TMP_DIR/$APP_ID/Media/IntroVideo/IntroVideo.mp4
     fi
 
-    # this project performs frontend angular build from source in UIAssets
-    if [ "$(ls -A ./UIAssets)" ] ; then
-        mkdir -p $TMP_DIR/$APP_ID.build/UIAssets
-        local bf_tmp="$TMP_DIR/$APP_ID.build/UIAssets/"
-        local bf_src="$BASE_DIR/UIAssets/"
-        local bf_dst="$TMP_DIR/$APP_ID/UIAssets/"
-        if [ "$SKIP_FRONTEND" == "1" ] ; then
-            log "skipping frontend build, adding minimum files to support packaging"
-            echo "hello" > $bf_dst/app.html
-            echo "hello" > $bf_dst/app-start.html
-            cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
-        else
-            if [ "$app_mini" == "1" ] ; then
-                ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app-mini"
-            else
-                ./build/build_frontend.sh -s $bf_src -d $bf_dst -t $bf_tmp -m "app"
-            fi
-            # need to manually copy over logo.png into UIAssets folder
-            if [ -f "$BASE_DIR/UIAssets/logo.png" ] ; then
-                cp -p $BASE_DIR/UIAssets/logo.png $bf_dst
-            fi
-        fi
-    fi
-
     # execute packager
     log "packaging application"
     tar -zxf ./build/app_package/cisco_aci_app_tools-$app_pack.tar.gz -C $TMP_DIR/$APP_ID.build/ 
@@ -284,33 +299,22 @@ function build_app() {
 function display_help() {
     echo ""
     echo "Help documentation for $self"
-    echo "    -a [name] build all-in-one container image (used for creating docker hub image only)"
-    echo "    -i [image] docker image to bundled into app (.tgz format)"
     echo "    -h display this help message"
     echo "    -k [file] private key uses for signing app"
     echo "    -P [https] https port when running in standalone mode (use 0 to disable)"
     echo "    -p [http] http port when running in standalone mode (use 0 to disable)"
-    echo "    -s build and deploy container for standalone mode"
+    echo "    -s build standalone container"
+    echo "    -r run dev standalone container (this will trigger a standalone container build as well)"
     echo "    -v [file] path to intro video (.mp4 format)"
-    echo "    -x send local environment proxy settings to container during build"
     echo "    -m mini-app build (excludes clusterMgrConfig for support on APIC 2.2.1n and above)"
     echo ""
     exit 0
 }
 
 
-optspec=":i:v:k:p:P:a:hxsm"
+optspec=":v:k:p:P:hsrm"
 while getopts "$optspec" optchar; do
   case $optchar in
-    i)
-        docker_image=$OPTARG
-        if [ ! -f $docker_image ] ; then
-            echo "" >&2
-            echo "docker image '$docker_image' not found, aborting build" >&2
-            echo "" >&2
-            exit 1
-        fi
-        ;;
     v)
         intro_video=$OPTARG
         if [ ! -f $intro_video ] ; then
@@ -352,15 +356,11 @@ while getopts "$optspec" optchar; do
             exit 1
         fi
         ;;
-    x)
-        enable_proxy="1"
+    r)
+        run_dev_standalone="1"
         ;;
     s)
         build_standalone="1"
-        ;;
-    a)
-        build_all_in_one="1"
-        external_docker_image_name=$OPTARG
         ;;
     h)
         display_help
@@ -394,12 +394,12 @@ fi
 APP_VERSION=$APP_FULL_VERSION
 
 # check depedencies first and then execute build
-if [ "$build_standalone" == "1" ] ; then
+if [ "$build_standalone" == "1" ] || [ "$run_dev_standalone" == "1" ] ; then
     check_build_tools "backend"
-    build_standalone_container
-    run_standalone_container
-elif [ "$build_all_in_one" == "1" ] ; then
-    build_all_in_one_image
+    build_container_image
+    if [ "$run_dev_standalone" == "1" ] ; then
+        run_standalone_container
+    fi
 else
     check_build_tools
     build_app

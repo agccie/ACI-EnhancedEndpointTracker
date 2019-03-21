@@ -9,8 +9,6 @@ logger = logging.getLogger(__name__)
 class ClusterConfig(object):
     """ manage parsing user config.yml to swarm compose file """
 
-    BASE_APP_IMAGE = "agccie/enhancedendpointtracker"
-
     # limits to prevent accidental overprovisioning
     MAX_NODES = 10
     MAX_WORKERS = 128
@@ -25,14 +23,20 @@ class ClusterConfig(object):
     LOGGING_MAX_SIZE = "50m"
     LOGGING_MAX_FILE = "10"
 
-    def __init__(self, node_count=1, version="latest"):
-        # set version from base app image
-        self.version = "%s:%s" % (ClusterConfig.BASE_APP_IMAGE, version)
+    def __init__(self, image, node_count=1, app_name=None, worker_count=None, db_shard=None, 
+                db_replica=None, db_memory=None):
+        # set container image from base app image
+        self.image = image
         self.node_count = node_count
+        self.requested_app_name = app_name
+        self.requested_worker_count = worker_count
+        self.requested_db_shard = db_shard
+        self.requested_db_replica = db_replica
+        self.requested_db_memory = db_memory
         self.app_workers = 5
         self.app_watchers = 1
         self.app_subnet = "192.0.2.0/27"
-        self.app_name = "ept"
+        self.app_name = "base"
         # set http/https port to 0 to disable that service
         self.app_http_port = 80
         self.app_https_port = 443
@@ -71,14 +75,33 @@ class ClusterConfig(object):
                     logger.info("unexpected key '%s'", k)
                     raise Exception("invalid config file")
 
+        # override settings with user provided 'requested' state from cli 
+        if self.requested_app_name is not None:
+            logger.debug("overriding app_name with %s" % self.requested_app_name)
+            self.app_name = self.requested_app_name
+        if self.requested_worker_count is not None:
+            logger.debug("overriding worker_count with %s" % self.requested_worker_count)
+            self.app_workers = self.requested_worker_count
+        if self.requested_db_shard is not None:
+            logger.debug("overriding db shard count with %s" % self.requested_db_shard)
+            self.shardsvr_shards = self.requested_db_shard
+        if self.requested_db_replica is not None:
+            logger.debug("overriding db replica count with %s" % self.requested_db_replica)
+            self.shardsvr_replicas = self.requested_db_replica
+            self.configsvr_replicas = self.requested_db_replica
+        if self.requested_db_memory is not None:
+            logger.debug("overriding db memory with %s" % self.requested_db_memory)
+            self.shardsvr_memory = self.requested_db_memory
+            self.configsvr_memory = self.requested_db_memory
+
         # ensure that shardsvr_replicas is <= number of nodes
         if self.shardsvr_replicas > self.node_count:
-            logger.debug("overriding shardsvr replica count to %s", self.node_count)
+            logger.debug("(min node) overriding shardsvr replica count to %s", self.node_count)
             self.shardsvr_replicas = self.node_count
 
         # ensure that configsvr_replicas is <= number of nodes
         if self.configsvr_replicas > self.node_count:
-            logger.debug("overriding configsvr replica count to %s", self.node_count)
+            logger.debug("(min node) overriding configsvr replica count to %s", self.node_count)
             self.configsvr_replicas = self.node_count
 
     def add_app(self, config):
@@ -239,7 +262,7 @@ class ClusterConfig(object):
 
         # configure webservice (ports are configurable by user)
         web_service = {
-            "image": self.version,
+            "image": self.image,
             "command": "/home/app/src/Service/start.sh -r web -l %s" % stdout,
             "ports": [],
             "deploy": {"replicas": 1},
@@ -256,7 +279,7 @@ class ClusterConfig(object):
 
         # configure redis service (static)
         redis_service = {
-            "image": self.version,
+            "image": self.image,
             "command": "/home/app/src/Service/start.sh -r redis -l %s" % stdout,
             "deploy": {"replicas": 1, "endpoint_mode": "dnsrr"},
             "logging": copy.deepcopy(default_logging),
@@ -280,7 +303,7 @@ class ClusterConfig(object):
                 env.append("DB_ROLE=shardsvr")
                 cmd = "/home/app/src/Service/start.sh -r db -l %s" % stdout
                 config["services"][svc] = {
-                    "image": self.version,
+                    "image": self.image,
                     "command": cmd,
                     "logging": copy.deepcopy(default_logging),
                     "deploy": {
@@ -317,7 +340,7 @@ class ClusterConfig(object):
             env.append("DB_MEMORY=%s" % self.configsvr_memory)
             env.append("DB_ROLE=configsvr")
             config["services"][svc] = {
-                "image": self.version,
+                "image": self.image,
                 "command": cmd,
                 "logging": copy.deepcopy(default_logging),
                 "deploy": {
@@ -350,7 +373,7 @@ class ClusterConfig(object):
         env.append("DB_MEMORY=%s" % self.configsvr_memory)
         env.append("DB_ROLE=mongos")
         config["services"]["db"] = {
-            "image": self.version,
+            "image": self.image,
             "command": cmd,
             "logging": copy.deepcopy(default_logging),
             "deploy": {
@@ -364,7 +387,7 @@ class ClusterConfig(object):
 
         # configure manager, watcher, and workers
         config["services"]["mgr"] = {
-            "image": self.version,
+            "image": self.image,
             "command": "/home/app/src/Service/start.sh -r mgr -l -c 1 -i 0 %s" % stdout,
             "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
             "logging": copy.deepcopy(default_logging),
@@ -377,7 +400,7 @@ class ClusterConfig(object):
         for i in xrange(0, self.app_watchers):
             svc = "x%s" % i
             config["services"][svc] = {
-                "image": self.version,
+                "image": self.image,
                 "command": "/home/app/src/Service/start.sh -r watcher -l -c 1 -i %s %s"%(i, stdout),
                 "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
                 "logging": copy.deepcopy(default_logging),
@@ -392,7 +415,7 @@ class ClusterConfig(object):
         for i in xrange(0, self.app_workers):
             svc = "w%s" % i
             config["services"][svc] = {
-                "image": self.version,
+                "image": self.image,
                 "command": "/home/app/src/Service/start.sh -r worker -l -c 1 -i %s %s" % (i,stdout),
                 "deploy": {"replicas": 1, "endpoint_mode":"dnsrr"},
                 "logging": copy.deepcopy(default_logging),
@@ -404,7 +427,7 @@ class ClusterConfig(object):
             self.services[svc].set_service_type("worker")
 
         with open(self.compose_file, "w") as f:
-            yaml.dump(config, f, default_flow_style=False)
+            yaml.safe_dump(config, f, default_flow_style=False, allow_unicode=True)
             logger.info("compose file complete: %s", self.compose_file)
 
 class Service(object):

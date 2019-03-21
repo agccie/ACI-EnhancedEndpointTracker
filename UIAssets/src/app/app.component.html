@@ -88,7 +88,7 @@
 
     <div *ngIf="appLoading">
       <div class="loading">
-        <h4 class="text-center half-margin">Loading EndpointTracker</h4>
+        <h4 class="text-center half-margin">Loading App</h4>
         <h6 class="text-center">{{ appLoadingStatus }}</h6>
         <loading-dots></loading-dots>
         <br>
@@ -103,7 +103,7 @@
                 </a>
                 <div class="header-bar__main">
                     <div class="header-heading">
-                        <h1 class="page-title">Endpoint Tracker</h1>
+                        <h1 class="page-title">{{version.app_id}}</h1>
                     </div>
                 </div>
                 <div class="header-toolbar">
@@ -126,11 +126,9 @@
             </div>
         </header>
         <div class="content">
-            <div class="container-fluid center-xs">
-                <div class="row half-margin-bottom half-margin-top">
-                    <div class="col-md-12 ">
-                        <router-outlet></router-outlet>
-                    </div>
+            <div class="container-fluid center-xs ">
+                <div class="section">
+                    <router-outlet></router-outlet>
                 </div>
             </div>
         </div>

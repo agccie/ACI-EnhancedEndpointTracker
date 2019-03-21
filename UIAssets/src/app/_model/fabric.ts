@@ -57,6 +57,8 @@ export class Fabric {
     max_events: number;
     ssh_password: string;
     ssh_username: string;
+    session_timeout: number;
+    subscription_refresh_time: number;
     status: string;
     display_status: string;
     mac: number;
@@ -80,6 +82,8 @@ export class Fabric {
         this.max_events = 0;
         this.ssh_password = '';
         this.ssh_username = '';
+        this.session_timeout = 0;
+        this.subscription_refresh_time = 0;
         this.status = 'stopped';
         this.display_status = 'stopped';
         this.events = [];
@@ -129,7 +133,9 @@ export class Fabric {
             "apic_cert",
             "max_events",
             "ssh_username",
-            "ssh_password"
+            "ssh_password",
+            "session_timeout",
+            "subscription_refresh_time"
         ];
         let json = {};
         for (let i = 0; i < attr.length; i++) {

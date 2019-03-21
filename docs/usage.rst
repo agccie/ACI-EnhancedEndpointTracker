@@ -243,8 +243,13 @@ Notifications
 There are very flexible notification options. Users can choose to be notified via syslog and email 
 for each of the analysis and detection mechanisms available. **Once you've saved the settings** you 
 can test both syslog and email servers by clicking the *Send test syslog* and *send test email* 
-buttons, respectively. Ensure that the fabric monitor is actively running before attempting to test 
-notifications.
+buttons, respectively. 
+
+By default email notifications are sent directly to the mail server corresponding to configured
+email address. By default SMTP messages are sent on port **587** with TLS encryption but can be
+configured for standard port **25** or any required custom port. Many public mail exchanges will
+not accept email directly from unknown hosts. You can configure email notifications to be sent
+through an SMTP relay along with required SMTP authentication.
 
 In the example below, syslog notifications are generated for all events and an email is sent if a 
 stale endpoint is detected.
@@ -266,7 +271,8 @@ DNS lookups performed before the message is sent. The following ports need to be
 
 * DNS lookup (**UDP** port **53**) for MX-record of email servers to reach configured email domain
 * DNS lookup for corresponding A-record of each returned email server
-* SMTP (**TCP** port **25**) connection to send the email to the selected email server
+* SMTP (**TCP** port **587** or custom configured port) connection to send the email to the selected 
+  email server
 
 .. note:: When executing in app mode, the container is executed on the APIC and the source IP of 
           syslog/email notifications will be translated to the APIC inband or out-of-band address. 

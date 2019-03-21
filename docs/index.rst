@@ -10,6 +10,7 @@ ACI Enhanced Endpoint Tracker
    usage
    api
    components
+   releases
 
 
 Indices and tables

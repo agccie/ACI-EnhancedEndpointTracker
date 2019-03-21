@@ -204,6 +204,8 @@ the ntp servers.
 
 .. _swarm_config:
 
+.. _swarm_config:
+
 Configure the cluster and deploy the stack
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -273,6 +275,9 @@ with memory limits. The defaults are sufficient for most setups:
  
 To automatically configure the swarm and deploy the stack, use the ``app-deploy`` script. The 
 example below assumes a 3-node cluster.
+
+.. note:: The ``app-deploy`` script is simply an alias to ``/opt/cisco/src/cluster/deploy.py``
+        script with some auto-detection for which version to deploy based on the version of the OVA.
 
   .. code-block:: bash
 

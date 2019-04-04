@@ -93,7 +93,7 @@ class Fabric(Rest):
         },
         "session_timeout": {
             "type": int,
-            "default": 86400,
+            "default": 5400,
             "min": 900,
             "max": 86400,
             "description": """ maximum lifetime in seconds for the APIC session before the

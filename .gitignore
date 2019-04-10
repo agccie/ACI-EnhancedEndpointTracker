@@ -16,7 +16,6 @@ version.txt
 
 # ignore packager files and Media vidoes
 aci_app_packager.log
-cisco_aci_app_tools-1.2_min.tar.gz
 *.aci
 *.mp4
 .tmpDocker

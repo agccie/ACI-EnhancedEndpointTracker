@@ -12,11 +12,11 @@ ACI Application
 The application can be deployed on the APIC. There are two modes supported, both available on 
 `ACI Appcenter <https://aciappcenter.cisco.com>`_.
 
-* `mini <https://aciappcenter.cisco.com/enhancedendpointtracker-mini-2-2-1n-2-0-198.html>`_ is backwards 
+* `mini <https://aciappcenter.cisco.com/enhancedendpointtracker-mini-2-2-1n-2-1-230.html>`_ is backwards 
   compatible with APIC 2.x and 3.x. However, there are memory constraints that limit the supported 
   scale
 
-* `full <https://aciappcenter.cisco.com/enhancedendpointtracker-4-0-1g-2-0-196.html>`_ scale application 
+* `full <https://aciappcenter.cisco.com/enhancedendpointtracker-4-0-1g-2-1-228.html>`_ scale application 
   supported on APIC 4.x and above.
 
 After downloading the app, follow the directions for uploading and installing the app on the APIC:

@@ -56,6 +56,9 @@ function build_container_image(){
         mkdir -p $TMP_DIR/$APP_ID.build/UIAssets
         if [ "$SKIP_FRONTEND" == "1" ] ; then
             log "skipping frontend build, adding minimum files to support packaging"
+            if [ ! -d "$bf_dst" ] ; then
+                mkdir -p $bf_dst
+            fi
             echo "hello" > $bf_dst/app.html
             echo "hello" > $bf_dst/app-start.html
             cp -p $BASE_DIR/UIAssets/logo.png $bf_dst

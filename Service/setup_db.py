@@ -173,7 +173,7 @@ def get_args():
     parser.add_argument("--configsvr", action="store_true", dest="configsvr",
         help="combine with --init_rs to flag replica set as a configsvr")
     parser.add_argument("--app_name", action="store", dest="app_name",
-        help="application Name", default="ExampleApp")
+        help="application Name", default=app_config["APP_ID"])
     parser.add_argument("--force", action="store_true", dest="force",
         help="force db setup even if db currently exists")
     parser.add_argument("--hostname", action="store",

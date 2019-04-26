@@ -88,8 +88,10 @@ Cluster Mode - OVA
 ^^^^^^^^^^^^^^^^^^
 
 The EnhancedEndpointTracker app can be deployed in a distributed cluster. Users can deploy in their 
-own cluster or use a `prebuilt OVA <https://cisco.app.box.com/s/6us23gzr8nwplrmtjmpp5xaos1wywa22>`_.  
-This section will focus on the OVA.
+own cluster or use a prebuilt OVA. This section will focus on the OVA.
+
+.. note:: Please send an email to aciappcenter-support@external.cisco.com to request a temporary
+          download link for the EnhancedEndpointTracker OVA.
 
 The recommended sizing for the VM is as follows:
    * 8 vCPU
@@ -97,10 +99,9 @@ The recommended sizing for the VM is as follows:
    * 75G harddisk, thick provisioned
 
 The OVA contains the following components preinstalled:
-
+   * Ubuntu 18.04 LTS
    * Docker CE 18.09.02
    * Python 2.7
-   * ntpd
    * Network manager 
    * EnhancedEndpointTracker docker image specific to the version of the OVA 
    * A copy of the EnhancedEndpointTracker 
@@ -110,7 +111,7 @@ The OVA contains the following components preinstalled:
 To get started with the OVA, perform the following steps:
 
   * Configure host networking and hostname
-  * (Optional) Configure NTP and Timezone
+  * Configure NTP and Timezone
   * Configure the cluster and deploy the stack
   * Manage the app via the web GUI
 
@@ -153,8 +154,8 @@ network.  The example below uses network manager TUI which is preinstalled on th
 
 |standalone-console-nmtui-p9|
 
-(Optional) Configure NTP and Timezone
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Configure NTP and Timezone
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 All timestamps for the app are based on the timestamp of the server itself.  If you are running the 
 app on a cluster with more than 1 VM or if the time on the VM is unreliable, then timestamps for 

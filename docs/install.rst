@@ -235,8 +235,6 @@ is  no internet requirement to get the app deployed on the OVA.**
     port the web service is deployed, and enable/disable http. Additionally, you can pass in 
     arguments for worker count and db configuration which will override the swarm_config.
 
-    Use ``--help`` option to see all available arguments to the script.
-
     .. code-block:: bash
 
         # example deployment with large scale (default worker/shard/memory is sufficent for most setups)

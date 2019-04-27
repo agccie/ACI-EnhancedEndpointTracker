@@ -99,10 +99,10 @@ The recommended sizing for the VM is as follows:
    * 75G harddisk, thick provisioned
 
 The OVA contains the following components preinstalled:
-   * Ubuntu 18.04 LTS
+   * Ubuntu 18.04.2 LTS
    * OpenSSH
    * Docker CE 18.09.02
-   * Python 2.7
+   * Python 2.7.15rc1
    * Network manager 
    * EnhancedEndpointTracker docker image specific to the version of the OVA 
    * A copy of the EnhancedEndpointTracker 
@@ -111,13 +111,12 @@ The OVA contains the following components preinstalled:
 
 To get started with the OVA, perform the following steps:
 
-  * Configure host networking and hostname
-  * Configure NTP and Timezone
-  * Configure the cluster and deploy the stack
-  * Manage the app via the web GUI
+  * `Configure Host Networking`_
+  * `Configure NTP and Timezone`_
+  * `Configure the Cluster and Deploy the Stack`_
 
-Configure VM Networking
-~~~~~~~~~~~~~~~~~~~~~~~
+Configure Host Networking
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Once the OVA is deployed, access the console with the credentials below. Note, you will be required 
 to change the password on first login.
@@ -126,7 +125,7 @@ to change the password on first login.
 * password: **cisco**
 
 The OVA is simply a Ubuntu 18.04 install. Users can use any mechanism they prefer to initialize the 
-network.  The example below uses network manager TUI which is preinstalled on the VM.
+network.  The example below uses network manager TUI which is preinstalled on the host.
 
 * Enter **sudo nmtui**
 * Choose 'Edit a connection' 
@@ -148,7 +147,7 @@ network.  The example below uses network manager TUI which is preinstalled on th
 
 |standalone-console-nmtui-p6|
 
-* Ensure you also set the hostname for the VM.  You will need to logout and log back in to see the 
+* Ensure you also set the hostname for the host.  You will need to logout and log back in to see the 
   hostname updated.
 
 |standalone-console-nmtui-p8|
@@ -159,9 +158,9 @@ Configure NTP and Timezone
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 All timestamps for the app are based on the timestamp of the server itself.  If you are running the 
-app on a cluster with more than 1 VM or if the time on the VM is unreliable, then timestamps for 
-events and analysis may be incorrect.  You can use **timedatectl** to configure your timezone and
-the ntp servers.
+app on a cluster with more than 1 node or if the time on the host is unreliable, then timestamps for 
+events and analysis may be incorrect.  Use **timedatectl** to configure your timezone and the ntp 
+servers.
 
 * List the available options and set to the desired timezone.
 
@@ -206,7 +205,7 @@ the ntp servers.
 
 .. _swarm_config:
 
-Configure the cluster and deploy the stack
+Configure the Cluster and Deploy the Stack
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``cluster`` mode with the OVA uses docker swarm for the overlay and network orchestration. Even if 
@@ -222,7 +221,7 @@ is  no internet requirement to get the app deployed on the OVA.**
 
     The ``app-deploy`` script performs the following operations
 
-    * Configure the VM as a swarm leader
+    * Configure the host as a swarm leader
     * Export the manager token to all other nodes and add them to the swarm
     * Add a label called ‘node’ with the appropriate node number to each node in the cluster. The 
       docker compose file uses the node labels to ensure the db shards and replicas are properly 
@@ -318,8 +317,9 @@ Manually Deploying Cluster Mode with Docker Swarm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This section provides an example for manually deploying cluster mode with docker swarm. This example 
-uses a **ubuntu 18.04** VM with **docker 18.09.2**.  It could be extended to support other docker
-orchestration environments such as Kubernetes or Nomad.
+uses **ubuntu 18.04** with **docker 18.09.2**.  It could be extended to support other docker
+orchestration environments such as Kubernetes or Nomad. Refer to `Container Arguments`_ and 
+`Environmental Variables`_ for more info on required settings for manually deploying a container.
 
 .. note:: These steps assume a linux host or VM. Using docker swarm to deploy a stack on MACOS or
           Windows has not been tested and may not work as expected.
@@ -359,7 +359,7 @@ orchestration environments such as Kubernetes or Nomad.
 
     This step is only required if you are using the provided automation scripts to automate 
     deployment of the cluster and service stack.  If you are using your own docker orchestration,
-    then this step can be skipped.  Please refer to the 
+    then this step can be skipped.
 
     .. code-block:: bash
 
@@ -386,11 +386,10 @@ orchestration environments such as Kubernetes or Nomad.
 - Step 3: Configure the Docker Swarm
 
     Docker Swarm consist of one or more managers and one or more workers. For redundancy there 
-    should be multiple manager processes.  The manager process can also be used to execute
-    containers or detected for monitoring/managing the swarm. In this example, we will deploy on
+    should be multiple manager processes.  The manager process can also be used to run
+    containers or just for monitoring/managing the swarm. In this example, we will deploy on
     only three nodes which will all be managers. Note you can skip this step if you used the deploy
-    script in Step 2. Refer to `Container Arguments`_ and `Environmental Arguments`_ for more info 
-    on required settings for deployment.
+    script in Step 2.
 
     .. code-block:: bash
     
@@ -421,7 +420,7 @@ orchestration environments such as Kubernetes or Nomad.
         5flk9lvtppjoopugcp0ineo8l     ag-docker2          Ready               Active              Reachable           18.09.2
         oqcg9okajvgm2l0x74bqsh043     ag-docker3          Ready               Active              Reachable           18.09.2
 
-    The compose file used in this example will pin various `db` components to different nodes in the
+    The compose file used in this example will pin various db components to different nodes in the
     cluster using a docker 
     `placement constraint <https://docs.docker.com/compose/compose-file/#placement>`_. For this 
     functionality to be successful, we need add appropriate node labels to each node in the cluster.
@@ -445,8 +444,9 @@ orchestration environments such as Kubernetes or Nomad.
 - Step 3: Create the compose file to start the stack
 
     In this example will use the swarm_config.yml referenced in :ref:`swarm_config` combined with the 
-    automation scripts to create the compose file.  Again, refere to `Container Arguments`_ and 
-    `Environmental Arguments`_ if you are manually creating a swarm configuration file.
+    automation scripts to create the compose file.  Again, refer to `Container Arguments`_ and 
+    `Environmental Variables`_ for required settings if you are manually creating a swarm 
+    configuration file.
 
     .. code-block:: bash
 
@@ -547,6 +547,9 @@ orchestration environments such as Kubernetes or Nomad.
 Container Arguments
 ~~~~~~~~~~~~~~~~~~~
 
+This section lists the available arguments to the ``/home/app/src/Service/start.sh`` startup script
+which executed by default when starting the container.
+
 **-r** ``role``
 
     The role for the container to execute.  There are several different roles required for the app
@@ -611,7 +614,7 @@ enables log rotation within the container. If an external component is managing 
 are using stdout for all logging then this is not required. 
 
 .. warning:: the application can perform extensive logging. If there is no component performing the
-             log rotation then **-l** should be rpovided.
+             log rotation then **-l** should be provided.
 
 .. note:: all logs are saved to ``/home/app/log`` or a sub folder within this directory.
 

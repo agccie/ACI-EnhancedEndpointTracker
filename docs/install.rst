@@ -100,6 +100,7 @@ The recommended sizing for the VM is as follows:
 
 The OVA contains the following components preinstalled:
    * Ubuntu 18.04 LTS
+   * OpenSSH
    * Docker CE 18.09.02
    * Python 2.7
    * Network manager 
@@ -228,74 +229,41 @@ no internet requirement to get the app deployed on the OVA.
 
 There is a script already available on the OVA to assist with the deployment. Before executing the 
 script, ensure that you have set the desired number of workers, db shard and replica count along
-with memory limits. The defaults are sufficient for most setups:
+with memory limits. The defaults are sufficient for small/medium setups.
 
+The default swarm configuration is in the swarm-config.yml file as shown below. You can edit this
+file before deploying the stack.  Additionally, you can pass in arguments for worker count and db
+configuration which will override the swarm_config.
+
+Default swarm-configuration
 ``/opt/cisco/src/cluster/swarm/swarm_config.yml``
-
-  .. code-block:: bash
-
-      # app configuration (note, this is specific to container bring up, majority of app config is
-      # available within the app UI)
-      app:
-          # application service name
-          name: "ept"
-          # external ports for http and https.  Set to '0' to disable it.
-          http_port: 80
-          https_port: 443
-          # number of workers containers
-          workers: 10
-          # internal network for communication between app components. This subnet should only be changed
-          # if it overlaps with an existing network
-          subnet: "192.0.2.0/24"
-      
-      # mongodb cluster configuration
-      database:
-          # shards is the number of db shards.
-          #
-          # replicas are per-shard.  A replica count of 1 has no redundancy. Recommended replica count
-          # is 3 for full redundancy.  Note, the replica count must be <= total nodes configured in the
-          # cluster.
-          #
-          # memory is a float measured in GB and is a per shard/per replica limit.
-          # The aggregate memory of all containers running on a single node should be less than total
-          # memory on the node or the db may crash.
-          shardsvr:
-              shards: 3
-              replicas: 3
-              memory: 2.0
-      
-          # configsvr holds meta data for db shards.  The replica count here is per configsrv service.
-          # Again, the number of replicas should be less than or equal to the number of nodes.
-          #
-          # memory is a float measured in GB and is per instance
-          configsvr:
-              replicas: 3
-              memory: 2.0 
  
-To automatically configure the swarm and deploy the stack, use the ``app-deploy`` script. The 
-example below assumes a 3-node cluster.
+To automatically configure the swarm and deploy the stack, use the ``app-deploy`` script. Ensure
+that you execute this on node-1. Use ``--help`` option to see all available arguments to the script.
 
   .. code-block:: bash
 
-      eptracker@ept-node1:~$ app-deploy --deploy
-      Number of nodes in cluster [1]: 3
-      UTC 2019-02-16 23:38:25.229||INFO||loading config file: /opt/cisco/src/cluster/swarm/swarm_config.yml
-      UTC 2019-02-16 23:38:25.318||INFO||compose file complete: /tmp/compose.yml
-      UTC 2019-02-16 23:38:25.421||INFO||initializing swarm master
-       
-      Enter hostname/ip address for node 2: 192.168.4.112  <--- you will be prompted for each node IP
-      Enter hostname/ip address for node 3: 192.168.4.113
+        # example deployment with large scale (default worker/shard/memory is sufficent for most setups)
+        eptracker@ept-node1:~$ app-deploy --deploy --worker 64 --db_shard 16 --db_replica 3 --db_memory 3.0
+        Number of nodes in cluster [1]: 3
 
-      Enter ssh username: eptracker   <------ you will be prompted for ssh username/password
-      Enter ssh password:
+        UTC 2019-04-27 13:19:39.251||INFO||loading config file: /opt/cisco/src/cluster/swarm/swarm_config.yml
+        UTC 2019-04-27 13:19:40.018||INFO||compose file complete: /tmp/compose.yml
+        UTC 2019-04-27 13:19:41.038||INFO||initializing swarm master
 
-      UTC 2019-02-16 23:38:37.340||INFO||Adding worker to cluster (id:2, hostname:192.168.4.112)
-      UTC 2019-02-16 23:38:46.400||INFO||Adding worker to cluster (id:3, hostname:192.168.4.113)
-      UTC 2019-02-16 23:38:49.547||INFO||docker cluster initialized with 3 node(s)
-      UTC 2019-02-16 23:38:49.548||INFO||deploying app services, please wait...
-      UTC 2019-02-16 23:46:58.994||INFO||3 services pending, re-check in 60.0 seconds
-      UTC 2019-02-16 23:47:59.162||INFO||app services deployed
-      UTC 2019-02-16 23:48:14.168||INFO||deployment complete
+        Enter hostname/ip address for node 2: 192.168.4.117     <--- you will be prompted for node IP
+        Enter hostname/ip address for node 3: 192.168.4.118
+
+        Enter ssh username [eptracker]:                         <--- you will be prompted for credentials
+        Enter ssh password:
+
+        UTC 2019-04-27 13:19:59.752||INFO||Adding worker to cluster (id:2, hostname:192.168.4.117)
+        UTC 2019-04-27 13:20:02.670||INFO||Adding worker to cluster (id:3, hostname:192.168.4.118)
+        UTC 2019-04-27 13:20:04.540||INFO||docker cluster initialized with 3 node(s)
+        UTC 2019-04-27 13:20:04.541||INFO||deploying app services, please wait...
+        UTC 2019-04-27 13:30:07.130||INFO||2 services pending, re-check in 60.0 seconds
+        UTC 2019-04-27 13:31:07.483||INFO||app services deployed
+        UTC 2019-04-27 13:31:22.499||INFO||deployment complete
 
 .. note:: The ``app-deploy`` script requires that all nodes in the cluster have the same 
           username/password configured.  Once the deployment is complete, you can set unique 

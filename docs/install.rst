@@ -88,8 +88,10 @@ Cluster Mode - OVA
 ^^^^^^^^^^^^^^^^^^
 
 The EnhancedEndpointTracker app can be deployed in a distributed cluster. Users can deploy in their 
-own cluster or use a `prebuilt OVA <https://cisco.app.box.com/s/6us23gzr8nwplrmtjmpp5xaos1wywa22>`_.  
-This section will focus on the OVA.
+own cluster or use a prebuilt OVA. This section will focus on the OVA.
+
+.. note:: Please send an email to aciappcenter-support@external.cisco.com to request a temporary
+          download link for the EnhancedEndpointTracker OVA.
 
 The recommended sizing for the VM is as follows:
    * 8 vCPU
@@ -97,10 +99,10 @@ The recommended sizing for the VM is as follows:
    * 75G harddisk, thick provisioned
 
 The OVA contains the following components preinstalled:
-
+   * Ubuntu 18.04.2 LTS
+   * OpenSSH
    * Docker CE 18.09.02
-   * Python 2.7
-   * ntpd
+   * Python 2.7.15rc1
    * Network manager 
    * EnhancedEndpointTracker docker image specific to the version of the OVA 
    * A copy of the EnhancedEndpointTracker 
@@ -109,13 +111,12 @@ The OVA contains the following components preinstalled:
 
 To get started with the OVA, perform the following steps:
 
-  * Configure host networking and hostname
-  * (Optional) Configure NTP and Timezone
-  * Configure the cluster and deploy the stack
-  * Manage the app via the web GUI
+  * `Configure Host Networking`_
+  * `Configure NTP and Timezone`_
+  * `Configure the Cluster and Deploy the Stack`_
 
-Configure VM Networking
-~~~~~~~~~~~~~~~~~~~~~~~
+Configure Host Networking
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Once the OVA is deployed, access the console with the credentials below. Note, you will be required 
 to change the password on first login.
@@ -124,7 +125,7 @@ to change the password on first login.
 * password: **cisco**
 
 The OVA is simply a Ubuntu 18.04 install. Users can use any mechanism they prefer to initialize the 
-network.  The example below uses network manager TUI which is preinstalled on the VM.
+network.  The example below uses network manager TUI which is preinstalled on the host.
 
 * Enter **sudo nmtui**
 * Choose 'Edit a connection' 
@@ -146,20 +147,20 @@ network.  The example below uses network manager TUI which is preinstalled on th
 
 |standalone-console-nmtui-p6|
 
-* Ensure you also set the hostname for the VM.  You will need to logout and log back in to see the 
+* Ensure you also set the hostname for the host.  You will need to logout and log back in to see the 
   hostname updated.
 
 |standalone-console-nmtui-p8|
 
 |standalone-console-nmtui-p9|
 
-(Optional) Configure NTP and Timezone
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Configure NTP and Timezone
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 All timestamps for the app are based on the timestamp of the server itself.  If you are running the 
-app on a cluster with more than 1 VM or if the time on the VM is unreliable, then timestamps for 
-events and analysis may be incorrect.  You can use **timedatectl** to configure your timezone and
-the ntp servers.
+app on a cluster with more than 1 node or if the time on the host is unreliable, then timestamps for 
+events and analysis may be incorrect.  Use **timedatectl** to configure your timezone and the ntp 
+servers.
 
 * List the available options and set to the desired timezone.
 
@@ -204,117 +205,74 @@ the ntp servers.
 
 .. _swarm_config:
 
-.. _swarm_config:
-
-Configure the cluster and deploy the stack
+Configure the Cluster and Deploy the Stack
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``cluster`` mode with the OVA uses docker swarm for the overlay and network orchestration. Even if 
 there is only a single node, the swarm needs to be configured.  Before starting, ensure that 
 networking has been configured on all nodes and they are able to communicate on the ports previously 
-listed. The high level process for deploying the swarm is as follows:
-
-* Configure the VM as a swarm leader
-* Export the manager token to all other nodes and add them to the swarm
-* Add a label called ‘node’ with the appropriate node number to each node in the cluster. The 
-  docker compose file uses the node labels to ensure the db shards and replicas are properly 
-  distributed.
-* Create the docker compose file based on the desired number of shards, replicas, and workers 
-  distributed across the cluster nodes.
-* Deploy the stack.
+listed. 
 
 All containers deployed in the stack rely on the ``agccie/enhancedendpointtracker:<version>`` 
-container. This is available on docker hub and is also available pre-installed on the OVA. There is 
-no internet requirement to get the app deployed on the OVA.
+container. This is available on docker hub and is also available pre-installed on the OVA. **There 
+is  no internet requirement to get the app deployed on the OVA.**
 
-There is a script already available on the OVA to assist with the deployment. Before executing the 
-script, ensure that you have set the desired number of workers, db shard and replica count along
-with memory limits. The defaults are sufficient for most setups:
+- Step 1: Use the ``app-deploy`` script to initialize the cluster and deploy the app
 
-``/opt/cisco/src/cluster/swarm/swarm_config.yml``
+    The ``app-deploy`` script performs the following operations
 
-  .. code-block:: bash
+    * Configure the host as a swarm leader
+    * Export the manager token to all other nodes and add them to the swarm
+    * Add a label called ‘node’ with the appropriate node number to each node in the cluster. The 
+      docker compose file uses the node labels to ensure the db shards and replicas are properly 
+      distributed.
+    * Create the docker compose file based on the desired number of shards, replicas, and workers 
+      distributed across the cluster nodes.
+    * Deploy the stack.
 
-      # app configuration (note, this is specific to container bring up, majority of app config is
-      # available within the app UI)
-      app:
-          # application service name
-          name: "ept"
-          # external ports for http and https.  Set to '0' to disable it.
-          http_port: 80
-          https_port: 443
-          # number of workers containers
-          workers: 10
-          # internal network for communication between app components. This subnet should only be changed
-          # if it overlaps with an existing network
-          subnet: "192.0.2.0/24"
-      
-      # mongodb cluster configuration
-      database:
-          # shards is the number of db shards.
-          #
-          # replicas are per-shard.  A replica count of 1 has no redundancy. Recommended replica count
-          # is 3 for full redundancy.  Note, the replica count must be <= total nodes configured in the
-          # cluster.
-          #
-          # memory is a float measured in GB and is a per shard/per replica limit.
-          # The aggregate memory of all containers running on a single node should be less than total
-          # memory on the node or the db may crash.
-          shardsvr:
-              shards: 3
-              replicas: 3
-              memory: 2.0
-      
-          # configsvr holds meta data for db shards.  The replica count here is per configsrv service.
-          # Again, the number of replicas should be less than or equal to the number of nodes.
-          #
-          # memory is a float measured in GB and is per instance
-          configsvr:
-              replicas: 3
-              memory: 2.0 
- 
-To automatically configure the swarm and deploy the stack, use the ``app-deploy`` script. The 
-example below assumes a 3-node cluster.
+    The default swarm configuration is in the ``/opt/cisco/src/cluster/swarm/swarm_config.yml`` file. 
+    You can edit this file before deploying the stack to adjust worker count, db scale, adjust which 
+    port the web service is deployed, and enable/disable http. Additionally, you can pass in 
+    arguments for worker count and db configuration which will override the swarm_config.
 
-.. note:: The ``app-deploy`` script is simply an alias to ``/opt/cisco/src/cluster/deploy.py``
-        script with some auto-detection for which version to deploy based on the version of the OVA.
+    .. code-block:: bash
 
-  .. code-block:: bash
+        # example deployment with large scale (default worker/shard/memory is sufficent for most setups)
+        eptracker@ept-node1:~$ app-deploy --deploy --worker 64 --db_shard 16 --db_replica 3 --db_memory 3.0
+        Number of nodes in cluster [1]: 3
 
-      eptracker@ept-node1:~$ app-deploy --deploy
-      Number of nodes in cluster [1]: 3
-      UTC 2019-02-16 23:38:25.229||INFO||loading config file: /opt/cisco/src/cluster/swarm/swarm_config.yml
-      UTC 2019-02-16 23:38:25.318||INFO||compose file complete: /tmp/compose.yml
-      UTC 2019-02-16 23:38:25.421||INFO||initializing swarm master
-       
-      Enter hostname/ip address for node 2: 192.168.4.112  <--- you will be prompted for each node IP
-      Enter hostname/ip address for node 3: 192.168.4.113
+        UTC 2019-04-27 13:19:39.251||INFO||loading config file: /opt/cisco/src/cluster/swarm/swarm_config.yml
+        UTC 2019-04-27 13:19:40.018||INFO||compose file complete: /tmp/compose.yml
+        UTC 2019-04-27 13:19:41.038||INFO||initializing swarm master
 
-      Enter ssh username: eptracker   <------ you will be prompted for ssh username/password
-      Enter ssh password:
+        Enter hostname/ip address for node 2: 192.168.4.112     <--- you will be prompted for node IP
+        Enter hostname/ip address for node 3: 192.168.4.113
 
-      UTC 2019-02-16 23:38:37.340||INFO||Adding worker to cluster (id:2, hostname:192.168.4.112)
-      UTC 2019-02-16 23:38:46.400||INFO||Adding worker to cluster (id:3, hostname:192.168.4.113)
-      UTC 2019-02-16 23:38:49.547||INFO||docker cluster initialized with 3 node(s)
-      UTC 2019-02-16 23:38:49.548||INFO||deploying app services, please wait...
-      UTC 2019-02-16 23:46:58.994||INFO||3 services pending, re-check in 60.0 seconds
-      UTC 2019-02-16 23:47:59.162||INFO||app services deployed
-      UTC 2019-02-16 23:48:14.168||INFO||deployment complete
+        Enter ssh username [eptracker]:                         <--- you will be prompted for credentials
+        Enter ssh password:
+
+        UTC 2019-04-27 13:19:59.752||INFO||Adding worker to cluster (id:2, hostname:192.168.4.117)
+        UTC 2019-04-27 13:20:02.670||INFO||Adding worker to cluster (id:3, hostname:192.168.4.118)
+        UTC 2019-04-27 13:20:04.540||INFO||docker cluster initialized with 3 node(s)
+        UTC 2019-04-27 13:20:04.541||INFO||deploying app services, please wait...
+        UTC 2019-04-27 13:30:07.130||INFO||2 services pending, re-check in 60.0 seconds
+        UTC 2019-04-27 13:31:07.483||INFO||app services deployed
+        UTC 2019-04-27 13:31:22.499||INFO||deployment complete
 
 .. note:: The ``app-deploy`` script requires that all nodes in the cluster have the same 
-          username/password configured.  Once the deployment is complete, you can set unique 
-          credentials on each node.
+        username/password configured.  Once the deployment is complete, you can set unique 
+        credentials on each node.
+
 
 .. tip:: The ``app-deploy`` script is simply an alias to ``/opt/cisco/src/cluster/deploy.py``
         script with some auto-detection for which version to deploy based on the version of the OVA.
 
+- Step 2: Manager the App via the web-GUI
 
-Manager the App via the web-GUI
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-After deployment is complete, open a web browser to the IP address of any node in the cluster. Using
-the example above we could access the app on node-3 via to https://192.168.4.113/. The app can be 
-fully managed from the UI. See the usage section for further details regarding how to use the app.
+    After deployment is complete, open a web browser to the IP address of any node in the cluster. 
+    Using the example above we could access the app on node-3 via to https://192.168.4.113/. The app 
+    can be fully managed from the UI. See the usage section for further details regarding how to use 
+    the app.
 
 
 .. |standalone-console-nmtui-p1| image:: imgs/standalone-console-nmtui-p1.png
@@ -352,142 +310,17 @@ orchestration. Deploying each container requires the container image which can b
 Once built, the entry point for the container must be ``/home/app/src/Service/start.sh`` and 
 appropriate arguments and environmental variables are required.  
 
-Container arguments
-~~~~~~~~~~~~~~~~~~~
-
-**-r** ``role``
-
-    The role for the container to execute.  There are several different roles required for the app
-    to execute correctly.  See :ref:`components` for more details.  The allowed rows as follows:
-
-      ``all-in-one`` (default role)
-      all-in-one starts all required processes within the same container. This can be combined with 
-      ``count`` option to adjust the number of workers. This mode runs a single instance of mongo 
-      with no sharding support.
-
-      ``web`` 
-      web role will run the apache web process on port 80 and 443 with a self-signed certificate.
-      Additional docker arguments can be included to expose these ports on whatever external ports
-      are required.
-
-      ``redis``
-      will run a single instance of redis on **REDIS_PORT** which defaults to 6379
-
-      ``db``
-      runs a single instance of mongo v3.6.10. There are several **required** environmental
-      variables. If not provided the container will restart. 
-          - **DB_ROLE**
-          - **DB_SHARD_COUNT**
-          - **DB_CFG_SRV**
-          - **DB_MEMORY**
-          - **LOCAL_PORT**
-          - **LOCAL_REPLICA**
-          - **LOCAL_SHARD**
-
-    ``mgr``
-    runs an instance of manager process. There should only be a single instance of manager running 
-    for the entire application. The manager is also responsible for initializing the db cluster and 
-    therefore requires the following environment variables previously defined within ``db`` role:
-        * **DB_CFG_SRV**
-        * **DB_SHARD_COUNT**
-
-    ``watcher``
-    runs single instance of the watcher process with provided ``identity``. watcher will also start 
-    exim4 process used for sending email notifications, if configured.
-
-    ``worker``
-    runs one or more instances of worker process. The worker process uses ``count`` option to set the
-    number of worker instances running within the container. The ``identity`` assigned to each worker 
-    is relative to the initial ``identity`` provided.  For example, if an id of 5 is assigned to the 
-    worker and a count of 3 is provided, then there will be three workers started in the container
-    with id's 5, 6, and 7.
-
-    It is recommended to use ``-c 1`` when executing the worker role.
-
-**-i** ``identity``
-unique integer ``identity`` required for ``mgr``, ``watcher``, and ``worker`` components.
-
-.. note:: Ensure that there are no overlapping ``identities`` per role.  A duplicate id will result 
-        in race conditions that can trigger invalid analysis.
-
-**-c** ``count``
-count is an integer for the number of workers to run within a single container.  This is applicable 
-to ``all-in-one`` and ``worker`` roles only.
-
-**-l** ``log-rotation``
-enables log rotation within the container. If an external component is managing log rotation or you 
-are using stdout for all logging then this is not required. 
-
-.. warning:: the application can perform extensive logging. If there is no component performing the
-             log rotation then **-l** should be rpovided.
-
-.. note:: all logs are saved to ``/home/app/log`` or a sub folder within this directory.
-
-**-s** ``stdout``
-enables all logging to stdout. Note that stdout is not currently supported with ``web`` role.
-
-Environmental Variables
-~~~~~~~~~~~~~~~~~~~~~~~
-
-There are several required environmental variables depending on which ``role`` the container is
-executing.
-
-**HOSTED_PLATFORM**
-    Should be statically set to *SWARM*. This is required for proper creation of various config 
-    instance files. This should be set on all containers.
-
-**MONGO_HOST**
-	the hostname of the ``db`` role with **DB_ROLE** = *mongos*. This should be set on all containers.
-	
-**MONGO_PORT**
-    the **LOCAL_PORT** number of the ``db`` role with **DB_ROLE** = *mongos*. This should be set on all containers.
-	
-**REDIS_HOST**
-	the hostname of the redis role container. This should be set on all containers.
-	
-**REDIS_PORT**
-	the port number where redis is exposed. This should be set on all containers.
-
-**DB_ROLE**	  
-    The role can be ``mongos``, ``configsvr``, or ``shardsvr``. The application requires at 
-    least one instance of each. If running as configsvr, the replica set name is statically 
-    configured as **cfg**. If running as a sharsvr, the replcia set is statically configured as 'sh$LOCAL_SHARD' where shard number starts at 0.
-
-**DB_SHARD_COUNT**	  
-    the number of db shards. This is used by mgr process during db init.
-
-**DB_CFG_SRV**	  
-    used by mongos instance to connect to configsvr replica set. This will be in the format 
-    ``cfg/<configsvr0-hostname:configsvr0-port, ...>``. For example, if there is a replica 
-    set of 3 config servers each exposed on port 27019 with hostname db_cfg_0, db_cfg_1, 
-    db_cfg_2, then DB_CFG_SVR should be set to ``cfg/db_cfg_0:27019,db_cfg_1:27019,db_cfg_2:27019``
-
-**DB_MEMORY**	  
-    Amount of memory this instance of mongo is allowed to use. This is measured in GB and 
-    can be a float.  For example, 1.5 would limit mongo instance to 1.5 GB of memory.
-
-**LOCAL_PORT**	  
-    local tcp port to expose running instance of mongo
-
-**LOCAL_REPLICA**	  
-    replica number for this mongo instance. **LOCAL_REPLICA** should be set to 0 for mongos 
-    role. The configsvr and shardsvr are each deployed in replica sets so each instance will 
-    have a **LOCAL_REPLICA** starting at 0.
-
-**LOCAL_SHARD**	  
-    shard number for shardsvr instance. For mongos and configsvr this should be set to 0.
-
 
 Manually Deploying Cluster Mode with Docker Swarm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This section provides an example for manually deploying cluster mode with docker swarm. This along
-with the details in previous section regarding required arguments and environmental variables can be
-used to deploy the app in any docker enabled environment.  This example uses a **ubuntu 18.04** VM
-with **docker 18.09.2**. 
+This section provides an example for manually deploying cluster mode with docker swarm. This example 
+uses **ubuntu 18.04** with **docker 18.09.2**.  It could be extended to support other docker
+orchestration environments such as Kubernetes or Nomad. Refer to `Container Arguments`_ and 
+`Environmental Variables`_ for more info on required settings for manually deploying a container.
 
-.. note:: These steps assume a linux host or VM. Using docker swarm to deploy a stack on a MACOS
-          laptop may not work as expected.
+.. note:: These steps assume a linux host or VM. Using docker swarm to deploy a stack on MACOS or
+          Windows has not been tested and may not work as expected.
 
 - Step 1: Install Docker
     
@@ -522,6 +355,10 @@ with **docker 18.09.2**.
 
 - Step 2: Install python and pull automation scripts
 
+    This step is only required if you are using the provided automation scripts to automate 
+    deployment of the cluster and service stack.  If you are using your own docker orchestration,
+    then this step can be skipped.
+
     .. code-block:: bash
 
         # install python and python-pip
@@ -538,8 +375,7 @@ with **docker 18.09.2**.
 
     .. note:: If you installed python and build requirements you can automate all remaining steps.
             I.e., you can configure the swarm AND create the compose file AND deploy the 
-            full stack with a single command. Refer to :ref:`swarm_config` for more configuration 
-            options.
+            full stack with a single command. Refer to :ref:`swarm_config` for more info
 
             .. code-block:: bash
 
@@ -548,8 +384,8 @@ with **docker 18.09.2**.
 - Step 3: Configure the Docker Swarm
 
     Docker Swarm consist of one or more managers and one or more workers. For redundancy there 
-    should be multiple manager processes.  The manager process can also be used to execute
-    containers or detected for monitoring/managing the swarm. In this example, we will deploy on
+    should be multiple manager processes.  The manager process can also be used to run
+    containers or just for monitoring/managing the swarm. In this example, we will deploy on
     only three nodes which will all be managers. Note you can skip this step if you used the deploy
     script in Step 2.
 
@@ -582,7 +418,7 @@ with **docker 18.09.2**.
         5flk9lvtppjoopugcp0ineo8l     ag-docker2          Ready               Active              Reachable           18.09.2
         oqcg9okajvgm2l0x74bqsh043     ag-docker3          Ready               Active              Reachable           18.09.2
 
-    The compose file used in this example will pin various `db` components to different nodes in the
+    The compose file used in this example will pin various db components to different nodes in the
     cluster using a docker 
     `placement constraint <https://docs.docker.com/compose/compose-file/#placement>`_. For this 
     functionality to be successful, we need add appropriate node labels to each node in the cluster.
@@ -606,7 +442,9 @@ with **docker 18.09.2**.
 - Step 3: Create the compose file to start the stack
 
     In this example will use the swarm_config.yml referenced in :ref:`swarm_config` combined with the 
-    automation scripts to create the compose file.
+    automation scripts to create the compose file.  Again, refer to `Container Arguments`_ and 
+    `Environmental Variables`_ for required settings if you are manually creating a swarm 
+    configuration file.
 
     .. code-block:: bash
 
@@ -703,3 +541,133 @@ with **docker 18.09.2**.
         yvq6uunapsh1        ept_mgr.1           agccie/enhancedendpointtracker:latest   ag-docker2          Running             Running 5 minutes ago
 
     The application stack has successfully been deployed.
+
+Container Arguments
+~~~~~~~~~~~~~~~~~~~
+
+This section lists the available arguments to the ``/home/app/src/Service/start.sh`` startup script
+which executed by default when starting the container.
+
+**-r** ``role``
+
+    The role for the container to execute.  There are several different roles required for the app
+    to execute correctly.  See :ref:`components` for more details.  The allowed rows as follows:
+
+      ``all-in-one`` (default role)
+      all-in-one starts all required processes within the same container. This can be combined with 
+      ``count`` option to adjust the number of workers. This mode runs a single instance of mongo 
+      with no sharding support.
+
+      ``web`` 
+      web role will run the apache web process on port 80 and 443 with a self-signed certificate.
+      Additional docker arguments can be included to expose these ports on whatever external ports
+      are required.
+
+      ``redis``
+      will run a single instance of redis on **REDIS_PORT** which defaults to 6379
+
+      ``db``
+      runs a single instance of mongo v3.6.10. There are several **required** environmental
+      variables. If not provided the container will restart. 
+          - **DB_ROLE**
+          - **DB_SHARD_COUNT**
+          - **DB_CFG_SRV**
+          - **DB_MEMORY**
+          - **LOCAL_PORT**
+          - **LOCAL_REPLICA**
+          - **LOCAL_SHARD**
+
+    ``mgr``
+    runs an instance of manager process. There should only be a single instance of manager running 
+    for the entire application. The manager is also responsible for initializing the db cluster and 
+    therefore requires the following environment variables previously defined within ``db`` role:
+        * **DB_CFG_SRV**
+        * **DB_SHARD_COUNT**
+
+    ``watcher``
+    runs single instance of the watcher process with provided ``identity``. watcher will also start 
+    exim4 process used for sending email notifications, if configured.
+
+    ``worker``
+    runs one or more instances of worker process. The worker process uses ``count`` option to set the
+    number of worker instances running within the container. The ``identity`` assigned to each worker 
+    is relative to the initial ``identity`` provided.  For example, if an id of 5 is assigned to the 
+    worker and a count of 3 is provided, then there will be three workers started in the container
+    with id's 5, 6, and 7.
+
+    It is recommended to use ``-c 1`` when executing the worker role.
+
+**-i** ``identity``
+unique integer ``identity`` required for ``mgr``, ``watcher``, and ``worker`` components.
+
+.. note:: Ensure that there are no overlapping ``identities`` per role.  A duplicate id will result 
+        in race conditions that can trigger invalid analysis.
+
+**-c** ``count``
+count is an integer for the number of workers to run within a single container.  This is applicable 
+to ``all-in-one`` and ``worker`` roles only.
+
+**-l** ``log-rotation``
+enables log rotation within the container. If an external component is managing log rotation or you 
+are using stdout for all logging then this is not required. 
+
+.. warning:: the application can perform extensive logging. If there is no component performing the
+             log rotation then **-l** should be provided.
+
+.. note:: all logs are saved to ``/home/app/log`` or a sub folder within this directory.
+
+**-s** ``stdout``
+enables all logging to stdout. Note that stdout is not currently supported with ``web`` role.
+
+Environmental Variables
+~~~~~~~~~~~~~~~~~~~~~~~
+
+There are several required environmental variables depending on which ``role`` the container is
+executing.
+
+**HOSTED_PLATFORM**
+    Should be statically set to *SWARM*. This is required for proper creation of various config 
+    instance files. This should be set on all containers.
+
+**MONGO_HOST**
+	the hostname of the ``db`` role with **DB_ROLE** = *mongos*. This should be set on all containers.
+	
+**MONGO_PORT**
+    the **LOCAL_PORT** number of the ``db`` role with **DB_ROLE** = *mongos*. This should be set on all containers.
+	
+**REDIS_HOST**
+	the hostname of the redis role container. This should be set on all containers.
+	
+**REDIS_PORT**
+	the port number where redis is exposed. This should be set on all containers.
+
+**DB_ROLE**	  
+    The role can be ``mongos``, ``configsvr``, or ``shardsvr``. The application requires at 
+    least one instance of each. If running as configsvr, the replica set name is statically 
+    configured as **cfg**. If running as a sharsvr, the replcia set is statically configured as 'sh$LOCAL_SHARD' where shard number starts at 0.
+
+**DB_SHARD_COUNT**	  
+    the number of db shards. This is used by mgr process during db init.
+
+**DB_CFG_SRV**	  
+    used by mongos instance to connect to configsvr replica set. This will be in the format 
+    ``cfg/<configsvr0-hostname:configsvr0-port, ...>``. For example, if there is a replica 
+    set of 3 config servers each exposed on port 27019 with hostname db_cfg_0, db_cfg_1, 
+    db_cfg_2, then DB_CFG_SVR should be set to ``cfg/db_cfg_0:27019,db_cfg_1:27019,db_cfg_2:27019``
+
+**DB_MEMORY**	  
+    Amount of memory this instance of mongo is allowed to use. This is measured in GB and 
+    can be a float.  For example, 1.5 would limit mongo instance to 1.5 GB of memory.
+
+**LOCAL_PORT**	  
+    local tcp port to expose running instance of mongo
+
+**LOCAL_REPLICA**	  
+    replica number for this mongo instance. **LOCAL_REPLICA** should be set to 0 for mongos 
+    role. The configsvr and shardsvr are each deployed in replica sets so each instance will 
+    have a **LOCAL_REPLICA** starting at 0.
+
+**LOCAL_SHARD**	  
+    shard number for shardsvr instance. For mongos and configsvr this should be set to 0.
+
+

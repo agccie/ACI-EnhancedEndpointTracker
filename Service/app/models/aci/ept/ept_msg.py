@@ -228,13 +228,14 @@ class eptMsgWork(object):
         self.role = role
         self.qnum = qnum
         self.data = data
-        self.wt = wt            # WORK_TYPE enum
+        # WORK_TYPE enum
+        self.wt = wt
         self.seq = seq
         self.fabric = fabric
 
     def __repr__(self):
-        return "%s.0x%08x %s %s %s" % (self.msg_type.value, self.seq, self.fabric, self.wt.value, 
-                self.addr)
+        return "%s.0x%08x %s %s addr:%s" % (self.msg_type.value, self.seq, self.fabric, 
+                self.wt.value, self.addr)
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """
@@ -418,7 +419,6 @@ class eptMsgWorkWatchRapid(eptMsgWork):
     def __repr__(self):
         return "%s.0x%08x %s %s [0x%06x, %s, %s, rate %.3f]" % (self.msg_type.value, 
             self.seq, self.fabric, self.wt.value, self.vnid, self.type, self.addr, self.rate)
-
 
 class eptMsgWorkWatchOffSubnet(eptMsgWork):
     """ fixed message type for WATCH_OFFSUBNET """

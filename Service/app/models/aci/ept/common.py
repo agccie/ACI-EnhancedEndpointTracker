@@ -41,7 +41,8 @@ WORKER_UPDATE_INTERVAL              = 15.0
 RAPID_CALCULATE_INTERVAL            = 15.0
 MAX_SEND_MSG_LENGTH                 = 10240
 BG_EVENT_HANDLER_INTERVAL           = 0.01
-BG_EVENT_HANDLER_ENABLED            = True
+HASH_SHIFT                          = 128
+HASH_PRIME                          = 1000003
 
 # when API requests msg queue length, manager can read the full data off each queue and accurate
 # msgs within bulk messages for accurate count. There is a performance hit to this so the

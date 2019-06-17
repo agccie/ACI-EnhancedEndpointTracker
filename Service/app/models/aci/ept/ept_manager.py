@@ -60,8 +60,10 @@ class eptManager(object):
         self.queue_stats = {
             WORKER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, queue=WORKER_CTRL_CHANNEL),
             MANAGER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, queue=MANAGER_CTRL_CHANNEL),
-            MANAGER_CTRL_RESPONSE_CHANNEL: eptQueueStats.load(proc=self.worker_id, 
-                                                queue=MANAGER_CTRL_RESPONSE_CHANNEL),
+            MANAGER_CTRL_RESPONSE_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=MANAGER_CTRL_RESPONSE_CHANNEL
+            ),
             MANAGER_WORK_QUEUE: eptQueueStats.load(proc=self.worker_id, queue=MANAGER_WORK_QUEUE),
             "total": eptQueueStats.load(proc=self.worker_id, queue="total"),
         }
@@ -111,8 +113,12 @@ class eptManager(object):
         self.redis.flushall()
         wait_for_db(self.db)
         self.worker_tracker = WorkerTracker(manager=self)
-        self.stats_thread = BackgroundThread(func=self.update_stats, name="mgr-stats", count=0, 
-                                            interval= eptQueueStats.STATS_INTERVAL)
+        self.stats_thread = BackgroundThread(
+            func=self.update_stats,
+            name="mgr-stats",
+            count=0,
+            interval= eptQueueStats.STATS_INTERVAL
+        )
         self.stats_thread.daemon = True
         self.stats_thread.start()
 
@@ -518,7 +524,10 @@ class WorkerTracker(object):
                 self.known_workers[hello.worker_id].last_head.append(0)
                 self.known_workers[hello.worker_id].queue_locks.append(threading.Lock())
                 if q not in self.manager.queue_stats:
-                    self.manager.queue_stats[q] = eptQueueStats(proc=self.manager.worker_id,queue=q)
+                    self.manager.queue_stats[q] = eptQueueStats.load(
+                        proc=self.manager.worker_id,
+                        queue=q
+                    )
                     self.manager.queue_stats[q].init_queue()
             # wait until background thread picks up update and adds to available workers
             logger.debug("new worker(%s) detected, waiting for activation period (%s sec)",

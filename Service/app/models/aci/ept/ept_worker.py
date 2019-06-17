@@ -162,19 +162,31 @@ class eptWorker(object):
             wait_for_redis(self.redis)
             wait_for_db(self.db)
             # start stats thread
-            self.stats_thread = BackgroundThread(func=self.update_stats, name="worker-stats", 
-                                                count=0, interval= eptQueueStats.STATS_INTERVAL)
+            self.stats_thread = BackgroundThread(
+                func=self.update_stats,
+                name="worker-stats",
+                count=0,
+                interval= eptQueueStats.STATS_INTERVAL
+            )
             self.stats_thread.daemon = True
             self.stats_thread.start()
             # start hello thread
-            self.hello_thread = BackgroundThread(func=self.send_hello, name="worker-hello", count=0,
-                                                interval = HELLO_INTERVAL)
+            self.hello_thread = BackgroundThread(
+                func=self.send_hello,
+                name="worker-hello",
+                count=0,
+                interval = HELLO_INTERVAL
+            )
             self.hello_thread.daemon = True
             self.hello_thread.start()
             if self.role == "watcher":
                 # watcher needs to trigger execute watch at regular interval
-                self.watch_thread = BackgroundThread(func=self.execute_watch, name="watch", count=0,
-                                                interval=WATCH_INTERVAL)
+                self.watch_thread = BackgroundThread(
+                    func=self.execute_watch,
+                    name="watch",
+                    count=0,
+                    interval=WATCH_INTERVAL
+                )
                 self.watch_thread.daemon = True
                 self.watch_thread.start()
 
@@ -277,12 +289,12 @@ class eptWorker(object):
                 self.redis.rpush(MANAGER_WORK_QUEUE, msg.jsonify())
             self.increment_stats(MANAGER_WORK_QUEUE, tx=True)
 
-    def send_flush(self, collection, name=None):
+    def send_flush(self, fabric, collection, name=None):
         """ send flush message to workers for provided collection """
         logger.debug("flush %s (name:%s)", collection._classname, name)
         # node addr of 0 is broadcast to all nodes of provided role
         data = {"cache": collection._classname, "name": name}
-        msg = eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE)
+        msg = eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE, fabric=fabric)
         msg.qnum = 0    # highest priority queue
         self.send_msg(msg)
 
@@ -1696,7 +1708,7 @@ class eptWorker(object):
         msg.wf.watcher_paused = False
 
     def handle_std_mo_event(self, msg):
-        """ receive eptMsgWork with WORK_TYPE.STD_MO and """
+        """ receive eptMsgWork with WORK_TYPE.STD_MO and if an update occurs send flush """
         classname = msg.data.keys()[0]
         attr = msg.data[classname]
         if classname in dependency_map:
@@ -1705,10 +1717,9 @@ class eptWorker(object):
             logger.debug("updated objects: %s", len(updates))
             # send flush for each update
             for u in updates:
-                self.send_flush(u, u.name if hasattr(u, "name") else None)
+                self.send_flush(msg.wf.fabric, u, u.name if hasattr(u, "name") else None)
         else:
             logger.warn("%s not defined in dependency_map", classname)
-
 
 class eptWorkerUpdateLocalResult(object):
     """ return object for eptWorker.update_loal method """

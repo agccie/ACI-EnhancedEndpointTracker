@@ -332,7 +332,12 @@ class eptSubscriber(object):
                     # hashable, for these we will always derive worker index of 0. Alternatively, 
                     # if we cannot convert addr to integer then we will use 0.
                     if hasattr(m, "type") and m.type == "ip":
-                        (_addr, _mask) = get_ip_prefix(m.addr)
+                        # if this is an epmRsMacEpToIpEpAtt event, then must use the ip attribute
+                        # instead of the addr (which is the mac address)
+                        if len(m.ip)>0:
+                            (_addr, _mask) = get_ip_prefix(m.ip)
+                        else:
+                            (_addr, _mask) = get_ip_prefix(m.addr)
                         if _addr is None:
                             logger.error("failed to parse message ip(%s)", m.addr)
                             _addr = 0

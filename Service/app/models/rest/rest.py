@@ -1790,8 +1790,9 @@ class Rest(object):
         classname = cls._classname
         cls.logger.debug("%s delete request filters:%s, kwargs: %s",classname,_filters,kwargs)
         collection = get_db()[classname]
+        _api = kwargs.get("_api", False)
         callback_kwargs = {
-            "api": kwargs.get("_api", False),
+            "api": _api,
             "cls": cls,
             "data": {},
             "filters": {},
@@ -1815,10 +1816,9 @@ class Rest(object):
                     if "_id" in kwargs: filters["_id"]=ObjectId(kwargs["_id"])
                     else: write_one = False
                 except InvalidId as e:
-                    abort(400, "%s._id invalid value '%s" % (
-                        cls._classname,kwargs["_id"]))
+                    abort(400, "%s._id invalid value '%s" % (cls._classname,kwargs["_id"]))
             # additional filters via user params
-            if not write_one: 
+            if not write_one and _api:
                 filters = cls.filter(f=filters, params=_params)
                 # sanity check against bulk_delete
                 if not cls._access["bulk_delete"]:

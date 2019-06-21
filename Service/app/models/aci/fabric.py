@@ -9,9 +9,10 @@ from .. utils import get_app_config
 from .. utils import get_redis
 
 from . import utils as aci_utils
+from . ept.common import MANAGER_CTRL_CHANNEL
 from . ept.ept_msg import eptMsg
 from . ept.ept_msg import MSG_TYPE
-from . ept.common import MANAGER_CTRL_CHANNEL 
+from . ept.ept_queue_stats import eptQueueStats
 
 from flask import abort
 from flask import jsonify
@@ -182,11 +183,20 @@ class Fabric(Rest):
             single delete (no bulk delete).  
         """
         if "fabric" not in filters:
-            cls.logger.warn("skipping before delete operation on bulk delete")
+            cls.logger.warn("skipping before delete operation on bulk fabric delete")
             return filters
         f = Fabric.load(fabric=filters["fabric"])
         f.stop_fabric_monitor()
         return filters
+
+    @classmethod
+    @api_callback("after_delete")
+    def after_fabric_delete(cls, filters):
+        """ after fabric is deleted, remove any queue-stats for this fabric """
+        if "fabric" not in filters:
+            cls.logger.warn("skipping after delete operation on bulk fabric delete")
+            return filters
+        eptQueueStats.delete(proc="fab-%s" % filters["fabric"])
 
     @api_route(path="status", methods=["GET"], role=Role.USER, swag_ret=["status", "uptime"])
     def get_fabric_status(self, api=True):

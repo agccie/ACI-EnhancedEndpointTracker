@@ -300,7 +300,7 @@ class AppStatus(Rest):
 
     @staticmethod
     def check_fabric_is_alive(fabric):
-        """ check status of single fabric from manager perspective. If not response is received 
+        """ check status of single fabric from manager perspective. If no response is received
             after timeout then False is returned.  Else, corresponding alive status is returned.
         """
         seq = get_random_sequence()
@@ -311,10 +311,10 @@ class AppStatus(Rest):
         p.subscribe(MANAGER_CTRL_RESPONSE_CHANNEL)
         redis.publish(MANAGER_CTRL_CHANNEL, msg.jsonify())
         start_ts = time.time()
-        timeout = AppStatus.MANAGER_STATUS_TIMEOUT 
+        timeout = AppStatus.MANAGER_STATUS_BRIEF_TIMEOUT
         try:
             while start_ts + timeout > time.time():
-                data = p.get_message(timeout=1)
+                data = p.get_message(timeout=0.5)
                 if data is not None:
                     channel = data["channel"]
                     if channel == MANAGER_CTRL_RESPONSE_CHANNEL:

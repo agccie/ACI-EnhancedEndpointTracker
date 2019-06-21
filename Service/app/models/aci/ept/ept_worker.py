@@ -17,6 +17,8 @@ from . common import SUPPRESS_WATCH_OFFSUBNET
 from . common import SUPPRESS_WATCH_STALE
 from . common import SUBSCRIBER_CTRL_CHANNEL
 from . common import WATCH_INTERVAL
+from . common import WATCHER_BROADCAST_CHANNEL
+from . common import WORKER_BROADCAST_CHANNEL
 from . common import WORKER_CTRL_CHANNEL
 from . common import MAX_SEND_MSG_LENGTH
 from . common import BackgroundThread
@@ -86,8 +88,14 @@ class eptWorker(object):
         self.hello_thread = None
         # update stats db at regular interval
         self.stats_thread = None
+        # background thread to handle channel messages
+        self.channel_thread = None
         # check execute_ts for watch events at regular interval
         self.watch_thread = None
+
+        # keep a dummy seq for each supported broadcast channel
+        self.watcher_broadcast_seq = 0
+        self.worker_broadcast_seq = 0
 
         # watcher active keys where key is unique fabric+addr+vnid+node (rapid excludes node)
         self.watch_stale = {}
@@ -100,20 +108,40 @@ class eptWorker(object):
         self.watch_offsubnet_lock = threading.Lock()
         self.watch_rapid_lock = threading.Lock()
         self.manager_work_queue_lock = threading.Lock()
+        self.priority_lock = threading.Lock()
+        self.non_priority_lock = threading.Lock()
 
         # queues that this worker will listen on 
         self.queues = ["q0_%s" % self.worker_id, "q1_%s" % self.worker_id]
         self.queue_stats = {
-            "q0_%s" % self.worker_id: eptQueueStats.load(proc=self.worker_id, 
-                                                    queue="q0_%s" % self.worker_id),
-            "q1_%s" % self.worker_id: eptQueueStats.load(proc=self.worker_id, 
-                                                    queue="q1_%s" % self.worker_id),
-            WORKER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id,
-                                                    queue=WORKER_CTRL_CHANNEL),
-            MANAGER_WORK_QUEUE: eptQueueStats.load(proc=self.worker_id,
-                                                    queue=MANAGER_WORK_QUEUE),
-            SUBSCRIBER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, 
-                                                    queue=SUBSCRIBER_CTRL_CHANNEL),
+            "q0_%s" % self.worker_id: eptQueueStats.load(
+                proc=self.worker_id,
+                queue="q0_%s" % self.worker_id
+            ),
+            "q1_%s" % self.worker_id: eptQueueStats.load(
+                proc=self.worker_id,
+                queue="q1_%s" % self.worker_id
+            ),
+            WORKER_CTRL_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=WORKER_CTRL_CHANNEL
+            ),
+            WATCHER_BROADCAST_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=WATCHER_BROADCAST_CHANNEL,
+            ),
+            WORKER_BROADCAST_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=WORKER_BROADCAST_CHANNEL,
+            ),
+            MANAGER_WORK_QUEUE: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=MANAGER_WORK_QUEUE,
+            ),
+            SUBSCRIBER_CTRL_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=SUBSCRIBER_CTRL_CHANNEL
+            ),
             "total": eptQueueStats.load(proc=self.worker_id, queue="total"),
         }
         # initialize stats counters
@@ -127,6 +155,9 @@ class eptWorker(object):
 
         # handlers registered based on configured role
         if self.role == "watcher":
+            self.channels = {
+                WATCHER_BROADCAST_CHANNEL: self.handle_channel_msg,
+            }
             self.work_type_handlers = {
                 WORK_TYPE.FLUSH_CACHE: self.flush_cache,
                 WORK_TYPE.WATCH_NODE: self.handle_watch_node,
@@ -134,14 +165,15 @@ class eptWorker(object):
                 WORK_TYPE.WATCH_OFFSUBNET: self.handle_watch_offsubnet,
                 WORK_TYPE.WATCH_STALE: self.handle_watch_stale,
                 WORK_TYPE.WATCH_RAPID: self.handle_watch_rapid,
-                WORK_TYPE.TEST_EMAIL: self.handle_test_email,
-                WORK_TYPE.TEST_SYSLOG: self.handle_test_syslog,
                 WORK_TYPE.SETTINGS_RELOAD: self.handle_settings_reload,
                 WORK_TYPE.FABRIC_WATCH_PAUSE: self.handle_watch_pause,
                 WORK_TYPE.FABRIC_WATCH_RESUME: self.handle_watch_resume,
                 WORK_TYPE.STD_MO: self.handle_std_mo_event,
             }
-        else:
+        elif self.role == "worker":
+            self.channels = {
+                WORKER_BROADCAST_CHANNEL: self.handle_channel_msg,
+            }
             self.work_type_handlers = {
                 WORK_TYPE.FLUSH_CACHE: self.flush_cache,
                 WORK_TYPE.RAW: self.handle_raw_endpoint_event,
@@ -152,6 +184,8 @@ class eptWorker(object):
                 WORK_TYPE.SETTINGS_RELOAD: self.handle_settings_reload,
                 WORK_TYPE.FABRIC_EPM_EOF:  self.handle_epm_eof,
             }
+        else:
+            raise Exception("unknown role '%s'" % self.role)
 
     def __repr__(self):
         return self.worker_id
@@ -164,7 +198,7 @@ class eptWorker(object):
             # start stats thread
             self.stats_thread = BackgroundThread(
                 func=self.update_stats,
-                name="worker-stats",
+                name="wrk-stats",
                 count=0,
                 interval= eptQueueStats.STATS_INTERVAL
             )
@@ -173,14 +207,20 @@ class eptWorker(object):
             # start hello thread
             self.hello_thread = BackgroundThread(
                 func=self.send_hello,
-                name="worker-hello",
+                name="wrk-hello",
                 count=0,
                 interval = HELLO_INTERVAL
             )
             self.hello_thread.daemon = True
             self.hello_thread.start()
+            # setup pub/sub subscriptions
+            p = self.redis.pubsub(ignore_subscribe_messages=True)
+            p.subscribe(**self.channels)
+            self.channel_thread = p.run_in_thread(sleep_time=0.01, daemon=True)
+            self.channel_thread.name = "wrk-channel"
+            logger.debug("[%s] listening for events on channels: %s", self, self.channels.keys())
+            # watcher needs to trigger execute watch at regular interval
             if self.role == "watcher":
-                # watcher needs to trigger execute watch at regular interval
                 self.watch_thread = BackgroundThread(
                     func=self.execute_watch,
                     name="watch",
@@ -201,6 +241,8 @@ class eptWorker(object):
                 self.watch_thread.exit()
             if self.stats_thread is not None:
                 self.stats_thread.exit()
+            if self.channel_thread is not None:
+                self.channel_thread.stop()
             if self.db is not None:
                 self.db.client.close()
             if self.redis is not None and self.redis.connection_pool is not None:
@@ -212,41 +254,70 @@ class eptWorker(object):
         logger.debug("[%s] listening for jobs on queues: %s", self, self.queues)
         while True: 
             (q, data) = self.redis.blpop(self.queues)
-            # to support msg type BULK, assume an array of messages received
-            msg_list = []
-            try:
-                omsg = eptMsg.parse(data) 
-                if omsg.msg_type == MSG_TYPE.BULK:
-                    logger.debug("[%s] msg on q(%s): %s", self, q, omsg)
-                    msg_list = omsg.msgs
-                else:
-                    msg_list = [omsg]
-                # increment rx stats for received message
-                if q in self.queue_stats:
-                    self.increment_stats(q, tx=False, count=len(msg_list))
-                for msg in msg_list:
-                    # exception on one msg must not block processing of other messages in block
-                    try:
-                        logger.debug("[%s] msg on q(%s): %s", self, q, msg)
-                        if msg.msg_type == MSG_TYPE.WORK:
-                            if msg.wt in self.work_type_handlers:
-                                # set msg.wf to current fabric eptWorkerFabric object
-                                self.set_msg_worker_fabric(msg)
-                                self.work_type_handlers[msg.wt](msg)
-                            else:
-                                logger.warn("unsupported work type: %s", msg.wt)
-                        elif msg.msg_type == MSG_TYPE.FABRIC_START:
-                            self.fabric_start(fabric=msg.data["fabric"])
-                        elif msg.msg_type == MSG_TYPE.FABRIC_STOP:
-                            self.fabric_stop(fabric=msg.data["fabric"])
+            # need to grab both priority and non-priority locks but immediately release priority
+            # which will allow channel message to hold it and block non_priority
+            self.priority_lock.acquire()
+            with self.non_priority_lock:
+                self.priority_lock.release()
+                self.handle_redis_msgs(q, data)
+
+    def handle_channel_msg(self, msg):
+        """ handle msg received on subscribed channels """
+        # channel messages have top priority over blpop operations so we will grab priority
+        # lock and non_priority_lock. blpop cannot start until priority_lock is released and it
+        # will only hold non_priority lock for one execution. This ensure that at most only one
+        # in-flight non-priority operation can complete before channel message is handled.
+        with self.priority_lock:
+            with self.non_priority_lock:
+                try:
+                    if msg["type"] == "message":
+                        channel = msg["channel"]
+                        if channel == WORKER_BROADCAST_CHANNEL or \
+                            channel == WATCHER_BROADCAST_CHANNEL:
+                            self.handle_redis_msgs(channel, msg["data"])
                         else:
-                            logger.warn("unsupported worker msg type: %s", msg.msg_type)
-                    except Exception as e:
-                        logger.debug("failed to execute msg %s", msg)
-                        logger.error("Traceback:\n%s", traceback.format_exc())
-            except Exception as e:
-                logger.debug("failed to parse message from q: %s, data: %s", q, data)
-                logger.error("Traceback:\n%s", traceback.format_exc())
+                            logger.warn("[%s] unsupported channel: %s", self, channel)
+                except Exception as e:
+                    logger.error("[%s] failed to handle msg: %s", self, msg)
+                    logger.debug("Traceback:\n%s", traceback.format_exc())
+
+    def handle_redis_msgs(self, q, data):
+        """ process a message received from redis channel or queue """
+        # to support msg type BULK, assume an array of messages received
+        msg_list = []
+        try:
+            omsg = eptMsg.parse(data) 
+            if omsg.msg_type == MSG_TYPE.BULK:
+                logger.debug("[%s] msg on q(%s): %s", self, q, omsg)
+                msg_list = omsg.msgs
+            else:
+                msg_list = [omsg]
+            # increment rx stats for received message
+            if q in self.queue_stats:
+                self.increment_stats(q, tx=False, count=len(msg_list))
+            for msg in msg_list:
+                # exception on one msg must not block processing of other messages in block
+                try:
+                    logger.debug("[%s] msg on q(%s): %s", self, q, msg)
+                    if msg.msg_type == MSG_TYPE.WORK:
+                        if msg.wt in self.work_type_handlers:
+                            # set msg.wf to current fabric eptWorkerFabric object
+                            self.set_msg_worker_fabric(msg)
+                            self.work_type_handlers[msg.wt](msg)
+                        else:
+                            logger.warn("unsupported work type[%s] for role[%s]",msg.wt,self.role)
+                    elif msg.msg_type == MSG_TYPE.FABRIC_START:
+                        self.fabric_start(fabric=msg.data["fabric"])
+                    elif msg.msg_type == MSG_TYPE.FABRIC_STOP:
+                        self.fabric_stop(fabric=msg.data["fabric"])
+                    else:
+                        logger.warn("unsupported worker msg type: %s", msg.msg_type)
+                except Exception as e:
+                    logger.debug("failed to execute msg %s", msg)
+                    logger.error("Traceback:\n%s", traceback.format_exc())
+        except Exception as e:
+            logger.debug("failed to parse message from q: %s, data: %s", q, data)
+            logger.error("Traceback:\n%s", traceback.format_exc())
 
     def increment_stats(self, queue, tx=False, count=1):
         # update stats queue
@@ -271,6 +342,37 @@ class eptWorker(object):
             with self.queue_stats_lock:
                 q.collect(qlen = self.redis.llen(k))
 
+    def broadcast(self, msg):
+        """ broadcast one or more messages. Broadcast moved to pub/sub mechanism so simply need
+            to publish the original message onto broadcast channel. msg must be of type eptMsgWork
+            or child with role attribute to determine appropriate channel. If role is None or not
+            present then msg is broadcast to all channels
+            Note, broadcast does not currently use eptMsgBulk (no use case at this time...)
+        """
+        all_channels = [ WORKER_BROADCAST_CHANNEL, WATCHER_BROADCAST_CHANNEL]
+        if not isinstance(msg, list):
+            msg = [msg]
+        for m in msg:
+            role = getattr(m, "role", None)
+            if role == "watcher":
+                channels = [ WATCHER_BROADCAST_CHANNEL ]
+                self.watcher_broadcast_seq+=1
+                seq = [self.watcher_broadcast_seq]
+            elif role == "worker":
+                channels = [ WORKER_BROADCAST_CHANNEL ] 
+                self.worker_broadcast_seq+=1
+                seq = [self.worker_broadcast_seq ]
+            else:
+                channels = all_channels
+                self.watcher_broadcast_seq+=1
+                self.worker_broadcast_seq+=1
+                seq = [self.worker_broadcast_seq, self.watcher_broadcast_seq]
+            for i, channel in enumerate(channels):
+                m.seq = seq[i]
+                logger.debug("broadcast [q:%s] msg: %s", channel, m)
+                self.redis.publish(channel, m.jsonify())
+                self.increment_stats(channel, tx=True)
+
     def send_msg(self, msg):
         """ send one or more eptMsgWork objects to worker via manager work queue 
             limit the number of messages sent at a time to MAX_SEND_MSG_LENGTH
@@ -292,11 +394,8 @@ class eptWorker(object):
     def send_flush(self, fabric, collection, name=None):
         """ send flush message to workers for provided collection """
         logger.debug("flush %s (name:%s)", collection._classname, name)
-        # node addr of 0 is broadcast to all nodes of provided role
         data = {"cache": collection._classname, "name": name}
-        msg = eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE, fabric=fabric)
-        msg.qnum = 0    # highest priority queue
-        self.send_msg(msg)
+        self.broadcast(eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE, fabric=fabric))
 
     def send_hello(self):
         """ send hello/keepalives at regular interval, this also serves as registration """
@@ -1667,18 +1766,6 @@ class eptWorker(object):
             endpoint.remove()
         else:
             logger.debug("endpoint not found in db, no delete occurring")
-
-    def handle_test_email(self, msg):
-        """ receive eptMsgWork with WORK_TYPE.TEST_EMAIL and send a test email """
-        logger.debug("sending test email")
-        txt = "%s test email" % msg.fabric
-        msg.wf.queue_notification("any_email", txt, txt)
-
-    def handle_test_syslog(self, msg):
-        """ receive eptMsgWork with WORK_TYPE.TEST_SYSLOG and send a test syslog """
-        logger.debug("sending test syslog")
-        txt = "%s test syslog" % msg.fabric
-        msg.wf.queue_notification("any_syslog", txt, txt)
 
     def handle_settings_reload(self, msg):
         """ receive eptMsgWork with WORK_TYPE.SETTINGS_RELOAD to reload local wf settings """

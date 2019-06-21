@@ -29,8 +29,6 @@ class MSG_TYPE(Enum):
     DELETE_EPT          = "delete_ept"      # delete endpoint and all dependencies from db, also 
                                             # ensures worker cache for this endpoint are properly 
                                             # flushed.
-    TEST_EMAIL          = "test_email"      # send a test email
-    TEST_SYSLOG         = "test_syslog"     # send a test syslog
     SETTINGS_RELOAD     = "settings_reload" # request from API to subscriber/worker to flush+reload
                                             # current fabric settings
     FABRIC_EPM_EOF_ACK  = "epm_eof_ack"     # sent from worker to subscriber on subscriber channel 
@@ -53,8 +51,6 @@ class WORK_TYPE(Enum):
     EPM_RS_IP_EVENT     = "epmRsIp"         # epmRsMacEpToIpEpAtt event
     DELETE_EPT          = "delete_ept"      # work message to worker to delete endpoint from db and
                                             # flush info from cache
-    TEST_EMAIL          = "test_email"      # test email notification
-    TEST_SYSLOG         = "test_syslog"     # test syslog notification
     SETTINGS_RELOAD     = "settings_reload" # request from API to subscriber/worker to flush+reload
                                             # current fabric settings
     FABRIC_EPM_EOF      = "epm_eof"         # broadcast from subscriber to all workers as the last
@@ -97,10 +93,6 @@ class eptMsg(object):
             return eptMsgSubOp(MSG_TYPE.REFRESH_EPT, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.DELETE_EPT.value:
             return eptMsgSubOp(MSG_TYPE.DELETE_EPT, js["data"], js["seq"])
-        elif js["msg_type"] == MSG_TYPE.TEST_EMAIL.value:
-            return eptMsgSubOp(MSG_TYPE.TEST_EMAIL, js["data"], js["seq"])
-        elif js["msg_type"] == MSG_TYPE.TEST_SYSLOG.value:
-            return eptMsgSubOp(MSG_TYPE.TEST_SYSLOG, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.SETTINGS_RELOAD.value:
             return eptMsgSubOp(MSG_TYPE.SETTINGS_RELOAD, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.FABRIC_EPM_EOF_ACK.value:
@@ -143,8 +135,6 @@ class eptMsgSubOp(eptMsg):
     """ subscriber operation supporting following ops:
             - MSG_TYPE.REFRESH_EPT
             - MSG_TYPE.DELETE_EPT
-            - MSG_TYPE.TEST_EMAIL           (no ept required but fabric needed for worker)
-            - MSG_TYPE.TEST_SYSLOG          (no ept required but fabric needed for worker)
             - MSG_TYPE.SETTINGS_RELOAD      (no ept required but fabric needed for worker)
             - MSG_TYPE.FABRIC_EPM_EOF_ACK   sent from worker to subscriber with worker_id 
                                             embedded in addr field

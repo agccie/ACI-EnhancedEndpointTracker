@@ -5,6 +5,7 @@ from . ept_msg import MSG_TYPE
 from . ept_msg import eptMsg
 
 import logging
+import hashlib
 import os
 import re
 import threading
@@ -36,6 +37,8 @@ MANAGER_CTRL_CHANNEL                = "mctrl"
 MANAGER_CTRL_RESPONSE_CHANNEL       = "r_mctrl"
 MANAGER_WORK_QUEUE                  = "mq"
 SUBSCRIBER_CTRL_CHANNEL             = "sctrl"
+WATCHER_BROADCAST_CHANNEL           = "bcx"
+WORKER_BROADCAST_CHANNEL            = "bcw"
 WORKER_CTRL_CHANNEL                 = "wctrl"
 WORKER_UPDATE_INTERVAL              = 15.0
 RAPID_CALCULATE_INTERVAL            = 15.0
@@ -342,6 +345,38 @@ def parse_tz(tz):
     else:
         logger.warn("failed to parse timezone: %s", tz)
         return tz
+
+def get_msg_hash(msg):
+    """ receive eptMsg object with addr, vnid, and type attributes and return calculated hash """
+    # multiple types of work objects supported by each has an addr field. It may have a vnid
+    # attribute as well, if not we will force to 0 for the hash
+    m_vnid = getattr(msg, "vnid", 0)
+    # we also need an integer addr, the value is dependent on whether addr is mac or ip. there are
+    # some messages that are sent with dummy strings which are not hashable, for these we will
+    # always derive worker index of 0. Alternatively, if we cannot convert addr to integer then we
+    # will use 0.
+    m_addr = getattr(msg, "addr", "")
+    m_type = getattr(msg, "type", "")
+    m_ip = getattr(msg, "ip", "")
+    if m_type == "ip":
+        # if this is an epmRsMacEpToIpEpAtt event, then must use the ip attribute instead of
+        # the addr (which is the mac address)
+        if len(m_ip)>0:
+            (_addr, _mask) = get_ip_prefix(m_ip)
+        else:
+            (_addr, _mask) = get_ip_prefix(m_addr)
+        if _addr is None:
+            logger.warn("failed to parse message ip(%s), forcing to 0", m_addr)
+            _addr = 0
+    elif m_type == "mac":
+        # if mac parse fails then 0 is returned (not None)
+        _addr = get_mac_value(m_addr)
+    else:
+        # fall back to md5 hash of address if type is not set
+        _addr = int(hashlib.md5(m_addr).hexdigest(), base=16)
+    _hash = (((m_vnid << HASH_SHIFT ) + _addr ) ^ HASH_PRIME)
+    #logger.debug("addr(%s:0x%x), hash:0x%x", m_addr, _addr, _hash)
+    return _hash
 
 ###############################################################################
 #

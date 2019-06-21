@@ -7,6 +7,8 @@ from .. utils import register_signal_handlers
 from .. utils import terminate_process
 from . common import HELLO_INTERVAL
 from . common import HELLO_TIMEOUT
+from . common import WATCHER_BROADCAST_CHANNEL
+from . common import WORKER_BROADCAST_CHANNEL
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_CTRL_RESPONSE_CHANNEL
 from . common import MANAGER_WORK_QUEUE
@@ -16,6 +18,7 @@ from . common import WORKER_CTRL_CHANNEL
 from . common import WORKER_UPDATE_INTERVAL
 from . common import BackgroundThread
 from . common import db_alive
+from . common import get_msg_hash
 from . common import get_queue_length
 from . common import wait_for_db
 from . common import wait_for_redis
@@ -58,13 +61,29 @@ class eptManager(object):
 
         self.queue_stats_lock = threading.Lock()
         self.queue_stats = {
-            WORKER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, queue=WORKER_CTRL_CHANNEL),
-            MANAGER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, queue=MANAGER_CTRL_CHANNEL),
+            WATCHER_BROADCAST_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=WATCHER_BROADCAST_CHANNEL
+            ),
+            WORKER_BROADCAST_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=WORKER_BROADCAST_CHANNEL
+            ),
+            WORKER_CTRL_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=WORKER_CTRL_CHANNEL
+            ),
+            MANAGER_CTRL_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,queue=MANAGER_CTRL_CHANNEL
+            ),
             MANAGER_CTRL_RESPONSE_CHANNEL: eptQueueStats.load(
                 proc=self.worker_id,
                 queue=MANAGER_CTRL_RESPONSE_CHANNEL
             ),
-            MANAGER_WORK_QUEUE: eptQueueStats.load(proc=self.worker_id, queue=MANAGER_WORK_QUEUE),
+            MANAGER_WORK_QUEUE: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=MANAGER_WORK_QUEUE
+            ),
             "total": eptQueueStats.load(proc=self.worker_id, queue="total"),
         }
         # initialize stats counters
@@ -165,16 +184,10 @@ class eptManager(object):
                             # an addr of 0 is a broadcast to all workers of specified role.
                             # Send broadcast now, not within a batch.
                             # Note, broadcast may be out of order if received in BULK with ucast msg
-                            self.worker_tracker.broadcast(msg, qnum=msg.qnum, role=msg.role)
+                            self.worker_tracker.broadcast(msg) 
                         else:
                             # create hash based on address and send to specific worker
-                            # need to ensure that we hash on ip for EPM_RS_IP_EVENT so it goes to the 
-                            # correct worker...
-                            if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
-                                _hash = sum(ord(i) for i in msg.ip)
-                            else:
-                                _hash = sum(ord(i) for i in msg.addr)
-                            bulk.append((_hash, msg))
+                            bulk.append((get_msg_hash(msg), msg))
                 if len(bulk) > 0:
                     if not self.worker_tracker.send_bulk(bulk):
                         logger.warn("[%s] failed to enqueue one or more messages", self)
@@ -484,9 +497,15 @@ class WorkerTracker(object):
         self.known_subscribers = {} # indexed by fabric-id
         self.known_workers = {}     # indexed by worker_id
         self.active_workers = {}    # list of active workers indexed by role
+        self.watcher_broadcast_seq = 0
+        self.worker_broadcast_seq = 0
         self.update_interval = WORKER_UPDATE_INTERVAL # interval to check for new/expired workers
-        self.update_thread = BackgroundThread(func=self.update_active_workers, count=0, 
-                                            name="mgr-tracker", interval=self.update_interval)
+        self.update_thread = BackgroundThread(
+            func=self.update_active_workers,
+            count=0, 
+            name="mgr-tracker",
+            interval=self.update_interval
+        )
         self.update_thread.daemon = True
         self.update_thread.start()
 
@@ -663,22 +682,36 @@ class WorkerTracker(object):
                         all_success = False
         return all_success
 
-    def broadcast(self, msg, qnum=0, role=None):
-        # broadcast message to active workers on particular queue index.  Set role to limit the 
-        # broadcast to only workers of particular role
-        logger.debug("broadcast [q:%s, r:%s] msg: %s", qnum, role, msg)
-        for r in self.active_workers:
-            if role is None or r == role:
-                for i, worker in enumerate(self.active_workers[r]):
-                    if qnum > len(worker.queues):
-                        logger.warn("unable to broadcast msg on worker %s, qnum %s does not exist",
-                            worker.worker_id, qnum)
-                    else:
-                        with worker.queue_locks[qnum]:
-                            worker.last_seq[qnum]+= 1
-                            msg.seq = worker.last_seq[qnum]
-                            self.redis.rpush(worker.queues[qnum], msg.jsonify())
-                        self.manager.increment_stats(worker.queues[qnum], tx=True)
+    def broadcast(self, msg):
+        """ broadcast single message. Broadcast moved to pub/sub mechanism so simply need
+            to publish the original message onto broadcast channel. msg must be of type eptMsgWork
+            or child with role attribute to determine appropriate channel. If role is None or not
+            present then msg is broadcast to all channels
+            Note, broadcast does not currently use eptMsgBulk (no use case at this time...)
+        """
+        all_channels = [ WORKER_BROADCAST_CHANNEL, WATCHER_BROADCAST_CHANNEL]
+        if not isinstance(msg, list):
+            msg = [msg]
+        for m in msg:
+            role = getattr(m, "role", None)
+            if role == "watcher":
+                channels = [ WATCHER_BROADCAST_CHANNEL ]
+                self.watcher_broadcast_seq+=1
+                seq = [self.watcher_broadcast_seq]
+            elif role == "worker":
+                channels = [ WORKER_BROADCAST_CHANNEL ] 
+                self.worker_broadcast_seq+=1
+                seq = [self.worker_broadcast_seq ]
+            else:
+                channels = all_channels
+                self.watcher_broadcast_seq+=1
+                self.worker_broadcast_seq+=1
+                seq = [self.worker_broadcast_seq, self.watcher_broadcast_seq]
+            for i, channel in enumerate(channels):
+                m.seq = seq[i]
+                logger.debug("broadcast [q:%s] msg: %s", channel, m)
+                self.redis.publish(channel, m.jsonify())
+                self.manager.increment_stats(channel, tx=True)
 
     def flush_queue(self, fabric, q, lock=None):
         """ flush messages for provided fabric and redis queue """

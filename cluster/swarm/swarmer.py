@@ -373,7 +373,7 @@ class Swarmer(object):
                 # make a temporary directory for this ts and collect all commands
                 logger.debug("creating temporary directory for data collection: %s", tmp)
                 c.cmd("mkdir -p %s" % tmp)
-                commands = [
+                quick_commands = [
                     "mkdir -p %s" % tmp,
                     "cp /var/log/* %s/" % tmp,
                     "dmesg > %s/dmesg.log" % tmp,
@@ -389,6 +389,8 @@ class Swarmer(object):
                     "docker service inspect $(docker service ls -q) >> %s/docker_service.log" % tmp,
                     "docker inspect $(docker ps -q) > %s/docker_container_inspect.log" % tmp,
                     "docker volume inspect $(docker volume ls -q) > %s/docker_volume_inspect.log" % tmp,
+                ]
+                slow_commands = [
                     # bash script to collect the logs from all containers running on this host
                     "services=$(docker service ls --format {{.Name}})",
                     "for svc in $services ; do ",
@@ -407,16 +409,22 @@ class Swarmer(object):
                     'docker exec -it $cid bash -c "rm -rf /tmp/$name "',
                     "IFS=$'\\n'",
                     'done',
-                    # compress all the files in tmp to single file
-                    "cd %s ; tar -zcvf %s.tgz ./* ; mv %s.tgz /tmp/" % (otmp, label, label),
                 ]
-                for command in commands:
+                for command in quick_commands:
                     logger.debug("executing collection command: %s", command)
                     ret = c.cmd(command)
                     if ret != "prompt":
                         logger.warn("command failed with ret %s", ret)
-                        # quit on error
-                        break
+                for command in slow_commands:
+                    logger.debug("executing collection command: %s", command)
+                    ret = c.cmd(command, 900)
+                    if ret != "prompt":
+                        logger.warn("command failed with ret %s", ret)
+                # always collect/compress bundle files
+                command = "cd %s ; tar -zcvf %s.tgz ./* ; mv %s.tgz /tmp/" % (otmp, label, label)
+                ret = c.cmd(command, 300)
+                if ret != "prompt":
+                    logger.warn("failed to bundle results %s", ret)
 
                 # try to scp collected files
                 if node.node_id == self.node_id:

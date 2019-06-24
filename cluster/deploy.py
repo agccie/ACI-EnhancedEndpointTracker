@@ -59,7 +59,7 @@ def setup_logger(logger, loglevel="debug", logfile=None):
             logger.addHandler(fhandler) 
             # logger needs to have level set to DEBUG so debugs go to filehandler
             logger.setLevel(logging.DEBUG) 
-        except IOEerror as e:
+        except IOError as e:
             sys.stderr.write("failed to open logger handler: %s\n" % logfile)
     return logger
 

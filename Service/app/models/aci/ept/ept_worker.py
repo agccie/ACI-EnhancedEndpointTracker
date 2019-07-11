@@ -1025,7 +1025,8 @@ class eptWorker(object):
             # this is new cached object that has not yet been initialized, always false
             return False
         # should never see counter wrap but just in case...
-        if cached_rapid.rapid_count < 0: cached_rapid.rapid_count = 0
+        if cached_rapid.rapid_count < 0:
+            cached_rapid.rapid_count = 0
         force = False
         ts_delta = msg.now - cached_rapid.rapid_lts
         if cached_rapid.is_rapid:

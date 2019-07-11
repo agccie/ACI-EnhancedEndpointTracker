@@ -96,7 +96,3 @@ class ManagedObject(Rest):
             logger.debug("no objects of %s to insert", classname)
         return True
 
-
-
-
-

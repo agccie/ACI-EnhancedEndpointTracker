@@ -202,14 +202,15 @@ def get_attributes(session=None, dn=None, attribute=None, data=None):
 
     # handle case raw 'imdata' dict was received
     if type(data) is dict:
-        if "imdata" in data: data = data["imdata"]
+        if "imdata" in data:
+            data = data["imdata"]
 
     # always treat remaining result as list of objects
     ret = []
     if type(data) is not list: data = [data]
     for obj in data:
         if type(obj) is not dict or len(obj)==0:
-            logger.debug("unexpected format for obj: %s" % obj)
+            logger.warn("unexpected format for obj: %s" % obj)
             continue
         cname = obj.keys()[0]
         if "attributes" not in obj[cname]:
@@ -227,7 +228,8 @@ def get_attributes(session=None, dn=None, attribute=None, data=None):
 
     # if dn was set, then caller assumes get_dn execute and only one result
     # is present, so don't return list.
-    if dn is not None and len(ret)==1: return ret[0]
+    if dn is not None and len(ret)==1:
+        return ret[0]
     return ret
 
 def validate_session_role(session):

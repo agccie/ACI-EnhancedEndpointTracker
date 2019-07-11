@@ -967,8 +967,9 @@ class eptSubscriber(object):
         """
         # iterator over data from class query returning just dict attributes
         def raw_iterator(data):
-            for attr in get_attributes(data=data):
-                yield attr
+            for obj in data:
+                for attr in get_attributes(data=obj):
+                    yield attr
 
         # iterator over mo objects returning just dict attributes
         def mo_iterator(objects):
@@ -980,7 +981,7 @@ class eptSubscriber(object):
             data = self.mo_classes[mo_classname].find(fabric=self.fabric.fabric)
             iterator = mo_iterator
         else:
-            data = get_class(self.session, mo_classname)
+            data = get_class(self.session, mo_classname, orderBy="%s.dn"%mo_classname, stream=True)
             if data is None:
                 logger.warn("failed to get data for classname %s", mo_classname)
                 return False
@@ -1028,8 +1029,10 @@ class eptSubscriber(object):
             if len(db_obj)>0:
                 db_obj["fabric"] = self.fabric.fabric
                 if set_ts: 
-                    if "ts" in attr: db_obj["ts"] = attr["ts"]
-                    else: db_obj["ts"] = ts
+                    if "ts" in attr:
+                        db_obj["ts"] = attr["ts"]
+                    else:
+                        db_obj["ts"] = ts
                 bulk_objects.append(eptObject(**db_obj))
             else:
                 logger.warn("%s object not added from MO (no matching attributes): %s", 
@@ -1064,6 +1067,12 @@ class eptSubscriber(object):
         all_nodes = {}
         for n in eptNode.find(fabric=self.fabric.fabric):
             all_nodes[n.node] = n
+
+        # extra check here, fail if no eptNode objects were found. This is either a setup with no
+        # nodes present (just an APIC) or a build problem has occurred
+        if len(all_nodes) == 0:
+            logger.warn("no eptNode objects discovered")
+            return False
 
         # cross reference fabricNode (which includes inactive nodes) with topSystem which includes
         # active nodes and accurate TEP for active nodes only.  Then merge firmware version

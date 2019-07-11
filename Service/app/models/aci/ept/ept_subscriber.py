@@ -968,8 +968,12 @@ class eptSubscriber(object):
         # iterator over data from class query returning just dict attributes
         def raw_iterator(data):
             for obj in data:
-                for attr in get_attributes(data=obj):
-                    yield attr
+                if obj is not None:
+                    for attr in get_attributes(data=obj):
+                        yield attr
+                else:
+                    logger.warn("obj is none on streaming class query for %s", eptObject)
+                    return
 
         # iterator over mo objects returning just dict attributes
         def mo_iterator(objects):

@@ -417,12 +417,12 @@ class Swarmer(object):
                         logger.warn("command failed with ret %s", ret)
                 for command in slow_commands:
                     logger.debug("executing collection command: %s", command)
-                    ret = c.cmd(command, 900)
+                    ret = c.cmd(command, timeout=900)
                     if ret != "prompt":
                         logger.warn("command failed with ret %s", ret)
                 # always collect/compress bundle files
                 command = "cd %s ; tar -zcvf %s.tgz ./* ; mv %s.tgz /tmp/" % (otmp, label, label)
-                ret = c.cmd(command, 300)
+                ret = c.cmd(command, timeout=300)
                 if ret != "prompt":
                     logger.warn("failed to bundle results %s", ret)
 

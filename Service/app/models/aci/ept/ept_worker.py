@@ -1175,7 +1175,7 @@ class eptWorker(object):
                         logger.debug("skipping offsubnet analysis on node 0x%04x with flags: [%s]", 
                                 node, ",".join(event.flags))
                         continue
-                    #logger.debug("checking if [node:0x%04x 0x%06x, 0x%x, %s] is offsubnet", 
+                    #logger.debug("checking if [node:%d 0x%06x, 0x%x, %s] is offsubnet", 
                     #    node, msg.vnid, event.pctag, msg.addr)
                     if msg.wf.cache.ip_is_offsubnet(msg.vnid,event.pctag,msg.addr):
                         offsubnet_nodes[node] = eptOffSubnetEvent.from_history_event(event)

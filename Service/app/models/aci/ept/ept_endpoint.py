@@ -320,7 +320,7 @@ class eptEndpoint(Rest):
                     logger.debug("invalid role %s for node %s", obj.role, n)
                     error_rows.append("cannot clear endpoint on node %s, role %s" % (n,obj.role))
             else:
-                logger.debug("invalid/unknown node:0x%04x for fabric %s", n, self.fabric)
+                logger.debug("invalid/unknown node:%d for fabric %s", n, self.fabric)
                 error_rows.append("invalid/unknown node %s"  % n)
         if len(valid_nodes) == 0:
             error_rows.append("no valid nodes provided")
@@ -396,7 +396,7 @@ class eptEndpointEvent(object):
         self.vnid_name = kwargs.get("vnid_name", "")
 
     def __repr__(self):
-        return "[%.3f] %s node:0x%04x pod:%d, pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
+        return "[%.3f] %s node:%d pod:%d, pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
                 self.ts, self.status, self.node, self.pod, self.pctag, self.intf_id, self.encap, 
                 self.rw_bd, self.rw_mac
             )

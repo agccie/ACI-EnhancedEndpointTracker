@@ -332,7 +332,7 @@ class eptMsgWorkWatchNode(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f node:0x%04x, %s]" % (self.msg_type.value, self.seq, 
+        return "%s.0x%08x %s %s [ts:%.03f node:%d, %s]" % (self.msg_type.value, self.seq, 
                 self.fabric, self.wt.value, self.ts, self.node, self.status)
 
 class eptMsgWorkWatchMove(eptMsgWork):
@@ -445,7 +445,7 @@ class eptMsgWorkWatchOffSubnet(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
+        return "%s.0x%08x %s %s [ts:%.03f %s node:%d, 0x%06x, %s]" % (self.msg_type.value, 
             self.seq, self.fabric, self.wt.value, self.ts, self.type,self.node,self.vnid,self.addr)
 
 class eptMsgWorkWatchStale(eptMsgWork):
@@ -483,7 +483,7 @@ class eptMsgWorkWatchStale(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
+        return "%s.0x%08x %s %s [ts:%.03f %s node:%d, 0x%06x, %s]" % (self.msg_type.value, 
             self.seq, self.fabric, self.wt.value, self.ts,self.type,self.node,self.vnid,self.addr)
 
 ###############################################################################
@@ -660,7 +660,7 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.3f, node:0x%04x, 0x%06x, %s, %s] %s" % (self.msg_type.value, 
+        return "%s.0x%08x %s %s [ts:%.3f, node:%d, 0x%06x, %s, %s] %s" % (self.msg_type.value, 
             self.seq, self.fabric, self.wt.value, self.ts, self.node, self.vnid, self.addr, self.ip,
             "[force]" if self.force else "",
         )

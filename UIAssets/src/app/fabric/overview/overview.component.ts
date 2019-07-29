@@ -3,10 +3,10 @@ import {BackendService} from '../../_service/backend.service';
 import {PreferencesService} from '../../_service/preferences.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Fabric, FabricList} from "../../_model/fabric";
-import {forkJoin, interval} from "rxjs";
+import {forkJoin} from "rxjs";
 import {ModalService} from '../../_service/modal.service';
-import {switchMap, map} from "rxjs/operators";
-import {repeatWhen, delay, takeWhile} from "rxjs/operators";
+import {repeatWhen, retryWhen, tap, delay, takeUntil} from "rxjs/operators";
+import { Subject } from 'rxjs';
 
 @Component({
     selector: 'app-overview',
@@ -27,8 +27,7 @@ export class OverviewComponent implements OnInit , OnDestroy{
     queueLen: number = -1;
     managerRunning: boolean = true;
     fabricRunning: boolean;
-    backgroundPollEnable: boolean = false;
-    backgroundQlenPollEnable: boolean = false;
+    private onDestroy$ = new Subject<boolean>();
 
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
@@ -38,6 +37,7 @@ export class OverviewComponent implements OnInit , OnDestroy{
         this.rows = [];
         this.fabricRunning = true;
         this.fabricFound = false;
+        
     }
 
     ngOnInit() {
@@ -46,8 +46,8 @@ export class OverviewComponent implements OnInit , OnDestroy{
     }
 
     ngOnDestroy(){
-        this.backgroundPollEnable = false;
-        this.backgroundQlenPollEnable = false;
+        this.onDestroy$.next(true);
+        this.onDestroy$.complete();
     }
 
     refresh() {
@@ -82,6 +82,8 @@ export class OverviewComponent implements OnInit , OnDestroy{
                             this.fabricFound = true;
                             this.fabric.sync(fabric_list.objects[0]);
                             this.rows = this.fabric.events;
+                            this.backgroundPollFabric();
+                            this.backgroundPollQlen();
                             const fabricStatusObservable = this.backendService.getFabricStatus(this.fabric);
                             const macObservable = this.backendService.getActiveMacAndIps(this.fabric, 'mac');
                             const ipv4Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv4');
@@ -95,12 +97,6 @@ export class OverviewComponent implements OnInit , OnDestroy{
                                     this.fabric.ipv4 = ipv4Count['count'];
                                     this.fabric.ipv6 = ipv6Count['count'];
                                     this.loading = false;
-                                    if(!this.backgroundPollEnable){
-                                        this.backgroundPollFabric();
-                                    }
-                                    if(!this.backgroundQlenPollEnable){
-                                        this.backgroundPollQlen();
-                                    }
                                 },
                                 (error) => {
                                     this.modalService.setModalError({
@@ -174,12 +170,18 @@ export class OverviewComponent implements OnInit , OnDestroy{
 
     // sliently refresh status and fabric events at regular interval
     backgroundPollFabric(){
-        this.backgroundPollEnable = true;
         const fabricEventsObservable = this.backendService.getFabricByName(this.fabric.fabric);
         const fabricStatusObservable = this.backendService.getFabricStatus(this.fabric);
         forkJoin([fabricEventsObservable, fabricStatusObservable]).pipe(
             repeatWhen(delay(1000)),
-            takeWhile(()=> this.backgroundPollEnable)
+            takeUntil(this.onDestroy$),
+            retryWhen( error => error.pipe(
+                tap(val => {
+                    console.log("refresh error occurred");
+                    console.log(val)
+                }),
+                delay(1000)
+            ))
         ).subscribe(
             ([fabricEvents, fabricStatus]) => {
                 let fabricList = new FabricList(fabricEvents);
@@ -189,26 +191,26 @@ export class OverviewComponent implements OnInit , OnDestroy{
                 this.fabric.uptime = fabricStatus['uptime'];
                 this.fabric.status = fabricStatus['status'];
                 this.fabricRunning = (this.fabric.status == 'running');
-            },
-            (error) => {
-                console.log("refresh error occurred");
-                console.log(error)
-                this.backgroundPollEnable = false;
-                return this.backgroundPollFabric();
             }
-        )
+        );
     }
 
     // sliently refresh queue len at slower interval
     backgroundPollQlen(){
-        this.backgroundQlenPollEnable = true;
         const qlenObservable = this.backendService.getAppQueueLen();
         const macObservable = this.backendService.getActiveMacAndIps(this.fabric, 'mac');
         const ipv4Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv4');
         const ipv6Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv6');
         forkJoin([qlenObservable, macObservable, ipv4Observable, ipv6Observable]).pipe(
             repeatWhen(delay(15000)),
-            takeWhile(()=> this.backgroundPollEnable)
+            takeUntil(this.onDestroy$),
+            retryWhen( error => error.pipe(
+                tap(val => {
+                    console.log("refresh error occurred");
+                    console.log(val)
+                }),
+                delay(15000)
+            ))
         ).subscribe(
             ([qlen, macCount, ipv4Count, ipv6Count]) => {
                 this.queueLen = qlen['total_queue_len'];
@@ -219,10 +221,9 @@ export class OverviewComponent implements OnInit , OnDestroy{
             (error) => {
                 console.log("refresh qlen error occurred");
                 console.log(error)
-                this.backgroundQlenPollEnable = false;
-                return this.backgroundPollQlen();
+                //return this.backgroundPollQlen();
             }
-        )
+        );
     }
 
 }

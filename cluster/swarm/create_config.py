@@ -17,7 +17,8 @@ class ClusterConfig(object):
     MAX_PREFIX = 27
     MAX_SHARDS = 32
     MAX_REPLICAS = 9
-    MAX_MEMORY = 512
+    MIN_MEMORY = 0.256
+    MAX_MEMORY = 32
 
     # everything has the same logging limits for now
     LOGGING_MAX_SIZE = "50m"
@@ -85,17 +86,30 @@ class ClusterConfig(object):
         if self.requested_worker_count is not None:
             logger.debug("overriding worker_count with %s" % self.requested_worker_count)
             self.app_workers = self.requested_worker_count
+            if self.app_workers<1 or self.app_workers > ClusterConfig.MAX_WORKERS:
+                raise Exception("invalid worker count '%s', should be between 1 and %s" % (
+                    self.app_workers, ClusterConfig.MAX_WORKERS))
         if self.requested_db_shard is not None:
             logger.debug("overriding db shard count with %s" % self.requested_db_shard)
             self.shardsvr_shards = self.requested_db_shard
+            if self.shardsvr_shards<1 or self.shardsvr_shards > ClusterConfig.MAX_SHARDS:
+                raise Exception("invalid shard count '%s', expected between 1 and %s" % (
+                    self.shardsvr_shards, ClusterConfig.MAX_SHARDS))
         if self.requested_db_replica is not None:
             logger.debug("overriding db replica count with %s" % self.requested_db_replica)
             self.shardsvr_replicas = self.requested_db_replica
             self.configsvr_replicas = self.requested_db_replica
+            if self.requested_db_replica<1 or self.requested_db_replica>ClusterConfig.MAX_REPLICAS:
+                raise Exception("invalid shard replica count %s, expected between 1 and %s"%(
+                    self.requested_db_replica, ClusterConfig.MAX_REPLICAS))
         if self.requested_db_memory is not None:
             logger.debug("overriding db memory with %s" % self.requested_db_memory)
             self.shardsvr_memory = self.requested_db_memory
             self.configsvr_memory = self.requested_db_memory
+            if self.requested_db_memory<ClusterConfig.MIN_MEMORY \
+                or self.requested_db_memory>ClusterConfig.MAX_MEMORY:
+                raise Exception("invalid shard memory threshold %s, expected between %sG and %sG"%(
+                    self.requested_db_memory, ClusterConfig.MIN_MEMORY, ClusterConfig.MAX_MEMORY))
 
         # ensure that shardsvr_replicas is <= number of nodes
         if self.shardsvr_replicas > self.node_count:
@@ -164,9 +178,9 @@ class ClusterConfig(object):
                 self.shardsvr_shards = config[k]
             elif k == "memory":
                 if (type(config[k]) is not int and type(config[k]) is not float) or \
-                    config[k] <= 0 or config[k] > ClusterConfig.MAX_MEMORY:
-                    raise Exception("invalid shard memory threshold %s, expected between 1G and %sG"%(
-                        config[k], ClusterConfig.MAX_MEMORY))
+                    config[k] <= ClusterConfig.MIN_MEMORY or config[k] > ClusterConfig.MAX_MEMORY:
+                    raise Exception("invalid shard memory threshold %s, expected between %G and %sG"%(
+                        config[k], ClusterConfig.MIN_MEMORY, ClusterConfig.MAX_MEMORY))
                 self.shardsvr_memory = float(config[k])
             elif k == "replicas":
                 if type(config[k]) is not int or config[k]<1 or config[k]>ClusterConfig.MAX_REPLICAS:

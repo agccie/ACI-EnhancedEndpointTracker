@@ -178,7 +178,6 @@ export class OverviewComponent implements OnInit , OnDestroy{
             retryWhen( error => error.pipe(
                 tap(val => {
                     console.log("refresh error occurred");
-                    console.log(val)
                 }),
                 delay(1000)
             ))
@@ -207,7 +206,6 @@ export class OverviewComponent implements OnInit , OnDestroy{
             retryWhen( error => error.pipe(
                 tap(val => {
                     console.log("refresh error occurred");
-                    console.log(val)
                 }),
                 delay(15000)
             ))

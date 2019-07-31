@@ -24,7 +24,7 @@ class ClusterConfig(object):
     LOGGING_MAX_FILE = "10"
 
     def __init__(self, image, node_count=1, app_name=None, worker_count=None, db_shard=None, 
-                db_replica=None, db_memory=None):
+                db_replica=None, db_memory=None, compose_file=None):
         # set container image from base app image
         self.image = image
         self.node_count = node_count
@@ -50,8 +50,11 @@ class ClusterConfig(object):
         self.configsvr_memory = 2.0
         self.configsvr_replicas = 1
         self.logging_stdout = False
-        self.compose_file = "/tmp/compose.yml"
-        self.services = {}         # indexed by service name and contains node label or 0
+        self.compose_file = compose_file
+        if self.compose_file is None:
+            self.compose_file = "/tmp/compose.yml"
+        # indexed by service name and contains node label or 0
+        self.services = {}
 
     def import_config(self, configfile):
         """ import/parse and validate config file, raise exception on error """

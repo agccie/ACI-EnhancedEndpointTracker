@@ -42,8 +42,8 @@ class AppStatus(Rest):
     """ validate that all required backend services are running for this application """
 
     # timeout for manager status with accurate count to inspect all inflight msgs may be a while...
-    MANAGER_STATUS_TIMEOUT = 3.0
-    MANAGER_STATUS_BRIEF_TIMEOUT = 1.5
+    MANAGER_STATUS_TIMEOUT = 30
+    MANAGER_STATUS_BRIEF_TIMEOUT = 15
 
     META_ACCESS = {
         "read": False,

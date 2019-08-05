@@ -7,6 +7,7 @@ import {forkJoin} from "rxjs";
 import {ModalService} from '../../_service/modal.service';
 import {repeatWhen, retryWhen, tap, delay, takeUntil} from "rxjs/operators";
 import { Subject } from 'rxjs';
+import {FabricService} from "../../_service/fabric.service";
 
 @Component({
     selector: 'app-overview',
@@ -26,23 +27,18 @@ export class OverviewComponent implements OnInit , OnDestroy{
     fabricName: string;
     queueLen: number = -1;
     managerRunning: boolean = true;
-    fabricRunning: boolean;
     private onDestroy$ = new Subject<boolean>();
 
-
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
-                private activatedRoute: ActivatedRoute, public modalService: ModalService) {
+                private activatedRoute: ActivatedRoute, public fabricService: FabricService, public modalService: ModalService) {
         this.userRole = this.prefs.userRole;
         this.pageSize = this.prefs.pageSize;
         this.rows = [];
-        this.fabricRunning = true;
         this.fabricFound = false;
-        
     }
 
     ngOnInit() {
         this.getFabric();
-        this.getManagerStatus();
     }
 
     ngOnDestroy(){
@@ -51,23 +47,7 @@ export class OverviewComponent implements OnInit , OnDestroy{
     }
 
     refresh() {
-        this.getManagerStatus();
         this.getFabric();
-    }
-
-    getManagerStatus(){
-        this.backendService.getAppManagerStatus().subscribe(
-            (data) => {
-                if("manager" in data && "status" in data["manager"] && data["manager"]["status"] == "running"){
-                    this.managerRunning = true;
-                } else {
-                    this.managerRunning = false;
-                }
-            }, 
-            (error) => {
-                this.managerRunning = false;
-            }
-        );
     }
 
     getFabric() {
@@ -84,15 +64,11 @@ export class OverviewComponent implements OnInit , OnDestroy{
                             this.rows = this.fabric.events;
                             this.backgroundPollFabric();
                             this.backgroundPollQlen();
-                            const fabricStatusObservable = this.backendService.getFabricStatus(this.fabric);
                             const macObservable = this.backendService.getActiveMacAndIps(this.fabric, 'mac');
                             const ipv4Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv4');
                             const ipv6Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv6');
-                            forkJoin([fabricStatusObservable, macObservable, ipv4Observable, ipv6Observable]).subscribe(
-                                ([fabricStatus, macCount, ipv4Count, ipv6Count]) => {
-                                    this.fabric.uptime = fabricStatus['uptime'];
-                                    this.fabric.status = fabricStatus['status'];
-                                    this.fabricRunning = (this.fabric.status == 'running');
+                            forkJoin([macObservable, ipv4Observable, ipv6Observable]).subscribe(
+                                ([macCount, ipv4Count, ipv6Count]) => {
                                     this.fabric.mac = macCount['count'];
                                     this.fabric.ipv4 = ipv4Count['count'];
                                     this.fabric.ipv6 = ipv6Count['count'];
@@ -168,28 +144,24 @@ export class OverviewComponent implements OnInit , OnDestroy{
         )
     }
 
-    // sliently refresh status and fabric events at regular interval
+    // sliently refresh fabric events at regular interval
     backgroundPollFabric(){
         const fabricEventsObservable = this.backendService.getFabricByName(this.fabric.fabric);
-        const fabricStatusObservable = this.backendService.getFabricStatus(this.fabric);
-        forkJoin([fabricEventsObservable, fabricStatusObservable]).pipe(
-            repeatWhen(delay(1000)),
+        forkJoin([fabricEventsObservable]).pipe(
+            repeatWhen(delay(2500)),
             takeUntil(this.onDestroy$),
             retryWhen( error => error.pipe(
                 tap(val => {
                     console.log("refresh error occurred");
                 }),
-                delay(1000)
+                delay(5000)
             ))
         ).subscribe(
-            ([fabricEvents, fabricStatus]) => {
+            ([fabricEvents]) => {
                 let fabricList = new FabricList(fabricEvents);
                 if (fabricList.objects.length == 1) {
                     this.rows = fabricList.objects[0].events;
                 }
-                this.fabric.uptime = fabricStatus['uptime'];
-                this.fabric.status = fabricStatus['status'];
-                this.fabricRunning = (this.fabric.status == 'running');
             }
         );
     }

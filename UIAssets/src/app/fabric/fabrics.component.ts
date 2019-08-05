@@ -1,4 +1,4 @@
-import {Component, OnInit, ViewEncapsulation, ViewChild} from '@angular/core';
+import {Component, OnInit, OnDestroy, ViewEncapsulation, ViewChild} from '@angular/core';
 import {BackendService} from '../_service/backend.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {PreferencesService} from '../_service/preferences.service';
@@ -6,9 +6,11 @@ import {ModalService} from "../_service/modal.service";
 import {QueryBuilderConfig} from "angular2-query-builder";
 import {FormBuilder, FormControl} from "@angular/forms";
 import {concat, Observable, of, Subject} from "rxjs";
-import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
+import {catchError, debounceTime, distinctUntilChanged, switchMap} from "rxjs/operators";
+import {repeatWhen, retryWhen, tap, delay, takeUntil} from "rxjs/operators";
 import {NgSelectComponent} from '@ng-select/ng-select';
 import {EndpointList, Endpoint} from '../_model/endpoint';
+import {FabricService} from "../_service/fabric.service";
 
 @Component({
     encapsulation: ViewEncapsulation.None,
@@ -17,7 +19,8 @@ import {EndpointList, Endpoint} from '../_model/endpoint';
     styleUrls: ['./fabrics.component.css']
 })
 
-export class FabricsComponent implements OnInit {
+export class FabricsComponent implements OnInit, OnDestroy {
+    managerRunning: boolean = true;
     @ViewChild('endpointSearch') public ngSelect: NgSelectComponent;
     fabricName: string;
     currentConfig: QueryBuilderConfig;
@@ -58,10 +61,12 @@ export class FabricsComponent implements OnInit {
     endpointList = [];
     endpointMatchCount: number = 0;
     endpointHeader: boolean = false;
-
+    fabricRunning: boolean = true;
+    private onDestroy$ = new Subject<boolean>();
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService, 
-                private activatedRoute: ActivatedRoute, public modalService: ModalService, private formBuilder: FormBuilder) {
+                private activatedRoute: ActivatedRoute, public fabricService: FabricService, public modalService: ModalService, 
+                private formBuilder: FormBuilder) {
         this.queryText = '';
     }
 
@@ -70,8 +75,17 @@ export class FabricsComponent implements OnInit {
             this.fabricName = params.get('fabric');
             this.queryCtrl = this.formBuilder.control(this.query);
             this.currentConfig = this.config;
+            this.fabricService.fabric.init();
+            this.fabricService.fabric.fabric = this.fabricName;
+            this.backgroundPollFabricStatus();
         });
         this.searchEndpoint();
+        this.backgroundPollManagerStatus();
+    }
+
+    ngOnDestroy(): void {
+        this.onDestroy$.next(true);
+        this.onDestroy$.complete();
     }
 
     updateQueryText() {
@@ -174,5 +188,47 @@ export class FabricsComponent implements OnInit {
         );
     }
 
+    // sliently manager status at regular interval
+    private backgroundPollManagerStatus(){
+        this.backendService.getAppManagerStatus().pipe(
+            repeatWhen(delay(10000)),
+            takeUntil(this.onDestroy$),
+            retryWhen( error => error.pipe(
+                tap(val => {
+                    console.log("manager refresh error occurred");
+                }),
+                delay(1000)
+            ))
+        ).subscribe(
+            (data) => {
+                if("manager" in data && "status" in data["manager"] && data["manager"]["status"] == "running"){
+                    this.managerRunning = true;
+                } else {
+                    this.managerRunning = false;
+                }
+            }
+        );
+    }
 
+    // sliently update fabric service status at regular interval
+    private backgroundPollFabricStatus(){
+        this.backendService.getFabricStatus(this.fabricService.fabric).pipe(
+            repeatWhen(delay(2500)),
+            takeUntil(this.onDestroy$),
+            retryWhen( error => error.pipe(
+                tap(val => {
+                    console.log("fabric status refresh error occurred");
+                }),
+                delay(5000)
+            ))
+        ).subscribe(
+            (fabricStatus) => {
+                if("uptime" in fabricStatus && "status" in fabricStatus){
+                    this.fabricService.fabric.uptime = fabricStatus['uptime'];
+                    this.fabricService.fabric.status = fabricStatus['status'];
+                    this.fabricRunning = (this.fabricService.fabric.status == 'running');
+                }
+            }
+        );
+    }
 }

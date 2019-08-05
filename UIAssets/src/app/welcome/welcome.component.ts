@@ -6,7 +6,8 @@ import {PreferencesService} from "../_service/preferences.service";
 import {Fabric, FabricList} from "../_model/fabric";
 import {ModalService} from '../_service/modal.service';
 import {concat, Observable, of, Subject} from "rxjs";
-import {catchError, debounceTime, distinctUntilChanged, switchMap, tap} from "rxjs/operators";
+import {repeatWhen, retryWhen, tap, delay, takeUntil} from "rxjs/operators";
+import {catchError, debounceTime, distinctUntilChanged, switchMap} from "rxjs/operators";
 import {EndpointList, Endpoint} from '../_model/endpoint';
 import {NgSelectComponent} from '@ng-select/ng-select';
 
@@ -34,6 +35,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     endpointList = [];
     endpointMatchCount: number = 0;
     endpointHeader: boolean = false;
+    private onDestroy$ = new Subject<boolean>();
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
                 public modalService: ModalService) {
@@ -44,27 +46,34 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     }
 
     ngOnInit() {
-        localStorage.setItem('menuVisible', 'false');
         this.getFabrics();
-        this.getManagerStatus();
         this.searchEndpoint();
+        this.backgroundPollManagerStatus();
     }
 
     ngOnDestroy(): void {
-        localStorage.setItem('menuVisible', 'true');
+        this.onDestroy$.next(true);
+        this.onDestroy$.complete();
     }
 
-    getManagerStatus(){
-        this.backendService.getAppManagerStatus().subscribe(
+    // sliently manager status at regular interval
+    backgroundPollManagerStatus(){
+        this.backendService.getAppManagerStatus().pipe(
+            repeatWhen(delay(10000)),
+            takeUntil(this.onDestroy$),
+            retryWhen( error => error.pipe(
+                tap(val => {
+                    console.log("manager refresh error occurred");
+                }),
+                delay(1000)
+            ))
+        ).subscribe(
             (data) => {
                 if("manager" in data && "status" in data["manager"] && data["manager"]["status"] == "running"){
                     this.managerRunning = true;
                 } else {
                     this.managerRunning = false;
                 }
-            }, 
-            (error) => {
-                this.managerRunning = false;
             }
         );
     }

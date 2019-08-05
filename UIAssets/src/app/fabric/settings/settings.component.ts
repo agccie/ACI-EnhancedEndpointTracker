@@ -31,7 +31,6 @@ export class SettingsComponent implements OnInit {
             {name: 'Remediate', path: 'remediate'},
             {name: 'Advanced', path: 'advanced'}
         ];
-        this.fabricService.fabric.init();
         this.fabricService.fabricSettings.init();
     }
 
@@ -40,13 +39,11 @@ export class SettingsComponent implements OnInit {
             const fabricName = params.get('fabric');
             if (fabricName != null) {
                 this.isLoading = true;
-                this.fabricService.fabric.init();
                 this.fabricService.fabric.fabric = fabricName;
-                const fabricStatusObservable = this.backendService.getFabricStatus(this.fabricService.fabric);
                 const getFabricObservable = this.backendService.getFabricByName(fabricName);
                 const getFabricSettingsObservable = this.backendService.getFabricSettings(fabricName, 'default');
-                forkJoin(getFabricObservable, getFabricSettingsObservable, fabricStatusObservable).subscribe(
-                    ([fabricData, settingsData, fabricStatus]) => {
+                forkJoin(getFabricObservable, getFabricSettingsObservable).subscribe(
+                    ([fabricData, settingsData]) => {
                         this.isLoading = false;
                         let fabric_list = new FabricList(fabricData);
                         let settings_list = new FabricSettingsList(settingsData);
@@ -54,7 +51,6 @@ export class SettingsComponent implements OnInit {
                             this.fabricService.fabricSettings.init();
                             this.fabricService.fabric.sync(fabric_list.objects[0]);
                             this.fabricService.fabricSettings.sync(settings_list.objects[0]);
-                            this.fabricService.fabric.status = fabricStatus['status'];
                         } else {
                             this.modalService.setModalError({
                                 "body": 'Could not fetch fabric settings, invalid results returned.'

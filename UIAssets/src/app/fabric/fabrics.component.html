@@ -1,4 +1,22 @@
 
+<div *ngIf="!managerRunning">
+    <div class="base-margin-bottom alert alert--danger">
+        <div class="alert__icon icon-error-outline"></div>
+        <div class="alert__message text-left">
+            <strong>Error</strong> Manager process is not running.  You may be unable to start/stop/monitor the fabric until this is resolved.
+        </div>
+    </div>
+</div>
+
+<div *ngIf="!fabricRunning">
+    <div class="base-margin-bottom alert alert--warning">
+        <div class="alert__icon icon-warning-outline"></div>
+        <div class="alert__message text-left">
+            <strong>Warning</strong> Endpoint Tracker is not currently running for this fabric
+        </div>
+    </div>
+</div>
+
 <div class="base-margin-bottom row">
     <div class="col-md-12">
         <div class="form-group">

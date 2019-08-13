@@ -216,7 +216,7 @@ class eptManager(object):
             logger.error("Traceback:\n%s", traceback.format_exc())
 
     def handle_manager_ctrl(self, msg):
-        logger.debug("ctrl message: %s, seq:0x%x, %s", msg.msg_type.value, msg.seq, msg.data)
+        #logger.debug("ctrl message: %s, seq:0x%x, %s", msg.msg_type.value, msg.seq, msg.data)
         if msg.msg_type == MSG_TYPE.GET_MANAGER_STATUS:
             # publish manager status in background thread (to ensure we don't block other requests)
             # note if brief is set to False, then this request can take significant time to read 
@@ -292,11 +292,11 @@ class eptManager(object):
                 if "queue_len" in w:
                     total_queue_len+= sum(w["queue_len"])
             data["total_queue_len"] = total_queue_len
-            logger.debug("manager status (ts: %.3f, seq:0x%x, queue: %s, workers: %s, fabrics: %s)", 
-                    time.time()-start_ts, seq, total_queue_len, 
-                    len(data["workers"]),
-                    len(data["fabrics"])
-                )
+            #logger.debug("manager status (ts: %.3f, seq:0x%x, queue: %s, workers: %s, fabrics: %s)", 
+            #        time.time()-start_ts, seq, total_queue_len, 
+            #        len(data["workers"]),
+            #        len(data["fabrics"])
+            #    )
             ret = eptMsg(MSG_TYPE.MANAGER_STATUS, data=data, seq=seq)
             self.redis.publish(MANAGER_CTRL_RESPONSE_CHANNEL, ret.jsonify())
             self.increment_stats(MANAGER_CTRL_RESPONSE_CHANNEL, tx=True)
@@ -316,7 +316,7 @@ class eptManager(object):
                 "fabric": fabric,
                 "alive": alive
             }
-            logger.debug("fabric %s alive:%r (seq:0x%x)", fabric, alive, seq)
+            #logger.debug("fabric %s alive:%r (seq:0x%x)", fabric, alive, seq)
             ret = eptMsg(MSG_TYPE.FABRIC_STATUS, data=data, seq=seq)
             self.redis.publish(MANAGER_CTRL_RESPONSE_CHANNEL, ret.jsonify())
             self.increment_stats(MANAGER_CTRL_RESPONSE_CHANNEL, tx=True)

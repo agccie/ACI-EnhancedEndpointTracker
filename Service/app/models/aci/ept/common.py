@@ -306,7 +306,7 @@ def parse_vrf_name(dn):
         return None
 
 
-def subscriber_op(fabric, msg_type, data=None, qnum=1):
+def subscriber_op(fabric, msg_type, data=None, qnum=0):
     """ send msg to subscriber with provided msg_type and data. The message is only sent if fabric 
         is currently running, else an error is returned.
         returns a tuple (success, error_string)

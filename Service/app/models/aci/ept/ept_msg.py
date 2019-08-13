@@ -212,7 +212,7 @@ class eptMsgWork(object):
         with strict priority queuing on lowest queue index.
     """
 
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         self.msg_type = MSG_TYPE.WORK
         self.addr = addr
         self.role = role
@@ -263,19 +263,19 @@ class eptMsgWork(object):
 
 class eptMsgWorkRaw(eptMsgWork):
     """ raw/unparsed epm or standard mo event """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         super(eptMsgWorkRaw, self).__init__(addr, role, data, wt, qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.RAW
 
 class eptMsgWorkStdMo(eptMsgWork):
     """ raw/unparsed epm or standard mo event """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         super(eptMsgWorkStdMo, self).__init__(addr, role, data, wt, qnum=qnum,seq=seq,fabric=fabric)
         self.wt = WORK_TYPE.STD_MO
 
 class eptMsgWorkDeleteEpt(eptMsgWork):
     """ fixed message type for DELETE_EPT """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkDeleteEpt, self).__init__(addr, "worker", data, wt, 
                                                     qnum=qnum, seq=seq, fabric=fabric)
@@ -304,7 +304,7 @@ class eptMsgWorkDeleteEpt(eptMsgWork):
 
 class eptMsgWorkWatchNode(eptMsgWork):
     """ fixed message type for WATCH_NODE """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchNode, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -337,7 +337,7 @@ class eptMsgWorkWatchNode(eptMsgWork):
 
 class eptMsgWorkWatchMove(eptMsgWork):
     """ fixed message type for WATCH_MOVE """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchMove, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -372,7 +372,7 @@ class eptMsgWorkWatchMove(eptMsgWork):
 
 class eptMsgWorkWatchRapid(eptMsgWork):
     """ fixed message type for WATCH_RAPID """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchRapid, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -412,7 +412,7 @@ class eptMsgWorkWatchRapid(eptMsgWork):
 
 class eptMsgWorkWatchOffSubnet(eptMsgWork):
     """ fixed message type for WATCH_OFFSUBNET """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchOffSubnet, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -450,7 +450,7 @@ class eptMsgWorkWatchOffSubnet(eptMsgWork):
 
 class eptMsgWorkWatchStale(eptMsgWork):
     """ fixed message type for WATCH_STALE """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchStale, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -547,7 +547,7 @@ class eptMsgWorkEpmEvent(eptMsgWork):
     """ standardize parsed result for epmMacEp, epmIpEp, and epmRsMacEpToIpEpAtt objects to always
         include all attributes with default of empty string if not present
     """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set 
         super(eptMsgWorkEpmEvent, self).__init__(addr, "worker", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)

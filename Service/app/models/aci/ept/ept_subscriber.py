@@ -328,13 +328,16 @@ class eptSubscriber(object):
                 self.redis.publish(channel, m.jsonify())
                 self.increment_stats(channel, tx=True)
 
-    def send_msg(self, msg):
+    def send_msg(self, msg, prepend=False):
         """ prepare list of messages to dispatch to a worker. Messages are sent as a single message
             or via eptMsgBulk which can contain up to MAX_SEND_MSG_LENGTH messages. If the address
             is 0 then implied broadcast to all workers of role for provided msg.  Else, hash logic
             is applied to send to send specific worker based on vnid and address.
             Note, messages must be of type eptMsgWork (or inherited object) which contain addr, 
             qnum, and role.
+            prepend support added to support priority-like functionality with only a single queue.
+            When prepend is set to True, a lpush is executed instead of rpush to force the message
+            to the top of the queue.
         """
         # dict indexed by worker_id and qnum with a tuple (worker, worker-msgs), where worker-msgs 
         # is a list of eptBulkMsg objects with at most MAX_SEND_MSG_LENGTH per bulk message
@@ -381,7 +384,10 @@ class eptSubscriber(object):
                     with worker.queue_locks[qnum]:
                         try:
                             #logger.debug("enqueue %s: %s", worker.queues[qnum], bulk)
-                            self.redis.rpush(worker.queues[qnum], bulk.jsonify())
+                            if prepend:
+                                self.redis.lpush(worker.queues[qnum], bulk.jsonify())
+                            else:
+                                self.redis.rpush(worker.queues[qnum], bulk.jsonify())
                         except Exception as e:
                             logger.debug("Traceback:\n%s", traceback.format_exc())
                             logger.error("failed to enqueue msg on queue (%s) %s: %s", e,
@@ -684,7 +690,7 @@ class eptSubscriber(object):
                     logger.debug("epm eof tracking for worker %s", w.worker_id)
                     self.send_msg_direct(
                         worker=w,
-                        msg=eptMsgWork("","worker",{},WORK_TYPE.FABRIC_EPM_EOF,qnum=1),
+                        msg=eptMsgWork("","worker",{},WORK_TYPE.FABRIC_EPM_EOF,qnum=0),
                     )
 
         logger.debug("sending fabric epm eof to all workers")
@@ -887,7 +893,7 @@ class eptSubscriber(object):
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 
-    def handle_epm_event(self, event, qnum=1):
+    def handle_epm_event(self, event, qnum=0):
         """ handle epm events received on epm_subscription
             this will parse the epm event and create and eptMsgWorkRaw msg for the event. Then it
             will add msg to epm_event_queue for background process to batch
@@ -1572,11 +1578,11 @@ class eptSubscriber(object):
         self.fabric.add_fabric_event("initializing", overview)
         return True
 
-    def refresh_endpoint(self, vnid, addr, addr_type, qnum=1):
+    def refresh_endpoint(self, vnid, addr, addr_type, qnum=0):
         """ perform endpoint refresh. This triggers an API query for epmDb filtering on provided
             addr and vnid. The results are fed through handle_epm_event which is enqueued onto 
-            a worker. API can set qnum=0 to get 'strict priority' for refresh on worker. This allows
-            user to get immediate refresh even if high number of events are queued.
+            a worker. Since workers only have a single queue, will need to insert at the top of
+            thier queue.
         """
         logger.debug("refreshing [0x%06x %s]", vnid, addr)
         if addr_type == "mac":
@@ -1623,7 +1629,7 @@ class eptSubscriber(object):
                 msg.qnum = qnum
                 msg.force = True
 
-            self.send_msg(create_msgs+delete_msgs)
+            self.send_msg(create_msgs+delete_msgs, prepend=True)
         else:
             logger.debug("failed to get epm objects")
 

@@ -112,15 +112,11 @@ class eptWorker(object):
         self.non_priority_lock = threading.Lock()
 
         # queues that this worker will listen on 
-        self.queues = ["q0_%s" % self.worker_id, "q1_%s" % self.worker_id]
+        self.queues = [ "q0_%s" % self.worker_id ]
         self.queue_stats = {
             "q0_%s" % self.worker_id: eptQueueStats.load(
                 proc=self.worker_id,
                 queue="q0_%s" % self.worker_id
-            ),
-            "q1_%s" % self.worker_id: eptQueueStats.load(
-                proc=self.worker_id,
-                queue="q1_%s" % self.worker_id
             ),
             WORKER_CTRL_CHANNEL: eptQueueStats.load(
                 proc=self.worker_id,

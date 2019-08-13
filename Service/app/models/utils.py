@@ -56,27 +56,42 @@ def get_db(uniq=False, overwrite_global=False, write_concern=None, write_timeout
                 wtimeout = int(config.get("MONGO_WRITE_TIMEOUT_MS", 120000))
             else:
                 wtimeout = write_timeout
-        uri = "mongodb://%s:%s/%s?" % (
-            config.get("MONGO_HOST","localhost"),
-            config.get("MONGO_PORT", 27017),
-            db
-        )
+        # mongo_host can be a list of hosts (and corresponding ports) or single host with or
+        # without a port. Will unconditionally treat mongo_host as list of hosts and add port if
+        # not provided on a per hosts basis.
+        mongo_hosts = []
+        for host in config.get("MONGO_HOST", "localhost").split(","):
+            if ":" in host:
+                mongo_hosts.append(host)
+            else:
+                mongo_hosts.append("%s:%s" % (
+                    host,
+                    config.get("MONGO_PORT", 27017)
+                ))
+        uri = ["mongodb://%s/%s" % (",".join(mongo_hosts), db)]
+
+        # list of uri parameter strings
+        if len(mongo_hosts)>1 and "MONGO_LOCAL_THRESHOLD_MS" in config:
+            uri.append("localThresholdMS=%s" % config["MONGO_LOCAL_THRESHOLD_MS"])
         if "MONGO_SERVER_SELECTION_TIMEOUT_MS" in config:
-            uri+= "serverSelectionTimeoutMS=%s&" % (
-                    config["MONGO_SERVER_SELECTION_TIMEOUT_MS"])
+            uri.append("serverSelectionTimeoutMS=%s" % (
+                    config["MONGO_SERVER_SELECTION_TIMEOUT_MS"]))
         if "MONGO_CONNECT_TIMEOUT_MS" in config:
-            uri+= "connectTimeoutMS=%s&" % config["MONGO_CONNECT_TIMEOUT_MS"]
+            uri.append("connectTimeoutMS=%s" % config["MONGO_CONNECT_TIMEOUT_MS"])
         if "MONGO_SOCKET_TIMEOUT_MS" in config:
-            uri+= "socketTimeoutMS=%s&" % config["MONGO_SOCKET_TIMEOUT_MS"]
-        uri = re.sub("[\?&]+$","",uri)
+            uri.append("socketTimeoutMS=%s" % config["MONGO_SOCKET_TIMEOUT_MS"])
+
+        uri = "&".join(uri)
         if wtimeout is not None:
             logger.debug("starting mongo connection: %s, w=%s, wtimeout=%s", uri, w, wtimeout)
             client = MongoClient(uri, w=w, wtimeout=wtimeout)
         else:
             logger.debug("starting mongo connection: %s, w=%s", uri, w)
             client = MongoClient(uri, w=w)
-        if _g_db is None or overwrite_global: _g_db = client[db]
-        return client[db]
+        connection = client[db]
+        if _g_db is None or overwrite_global:
+            _g_db = connection
+        return connection
     return _g_db
 
 def get_redis():

@@ -16,7 +16,7 @@ class ClusterConfig(object):
     MIN_PREFIX = 8
     MAX_PREFIX = 27
     MAX_SHARDS = 32
-    MAX_REPLICAS = 9
+    MAX_REPLICAS = 3
     MIN_MEMORY = 0.256
     MAX_MEMORY = 32
 
@@ -229,19 +229,24 @@ class ClusterConfig(object):
             "REDIS_HOST": "redis",
             "REDIS_PORT": self.redis_port,
             "DB_SHARD_COUNT": self.shardsvr_shards,
-            "MONGO_HOST": "db",
             "MONGO_PORT": self.mongos_port,
         }
+        # build cfg server string (up to replica count)
         cfg_svr = []
         for i in xrange(0, self.configsvr_replicas):
             cfg_svr.append("db_cfg_%s:%s" % (i, self.configsvr_port))
         shared_environment["DB_CFG_SRV"] = "cfg/%s" % (",".join(cfg_svr))
-
+        # build shard server config for each shard up to number replica count
         for s in xrange(0, self.shardsvr_shards):
             rs = []
             for r in xrange(0, self.shardsvr_replicas):
                 rs.append("db_sh_%s_%s:%s" % (s, r, self.shardsvr_port))
             shared_environment["DB_RS_SHARD_%s" % s ] = "sh%s/%s" % (s, ",".join(rs))
+        # build comma separated list of mongos routers to set for MONGO_HOST
+        mongo_host = []
+        for i in xrange(0, self.node_count):
+            mongo_host.append("db_mongos_%s:%s" % (i, self.mongos_port))
+        shared_environment["MONGO_HOST"] = ",".join(mongo_host)
 
         return ["%s=%s" % (k, shared_environment[k]) for k in sorted(shared_environment)]
 
@@ -271,10 +276,8 @@ class ClusterConfig(object):
         config["volumes"] = {
             "web-log":{},
             "redis-log":{},
-            "db-log":{},
             "mgr-log":{},
         }
-
         stdout = "-s" if self.logging_stdout else ""
 
         # configure webservice (ports are configurable by user)
@@ -382,25 +385,39 @@ class ClusterConfig(object):
                     port_number=self.configsvr_port)
 
         # configure router (mongos = main db app will use) pointing to cfg replica
-        cmd = "/home/app/src/Service/start.sh -r db -l %s" % stdout
-        env = copy.copy(shared_environment)
-        env.append("LOCAL_REPLICA=0")
-        env.append("LOCAL_SHARD=0")
-        env.append("LOCAL_PORT=%s" % self.mongos_port)
-        env.append("DB_MEMORY=%s" % self.configsvr_memory)
-        env.append("DB_ROLE=mongos")
-        config["services"]["db"] = {
-            "image": self.image,
-            "command": cmd,
-            "logging": copy.deepcopy(default_logging),
-            "deploy": {
-                "mode": "global"        # each node has local db instance
-            },
-            "environment": env, 
-            "volumes":["db-log:/home/app/log"],
-        }
-        self.services["db"] = Service("db")
-        self.services["db"].set_service_type("db", port_number=self.mongos_port)
+        # will configure a single mongos instance per node with placement policy to tie to node
+        for i in xrange(0, self.node_count):
+            svc = "db_mongos_%s" % i
+            anchor = (i % self.node_count) + 1
+            cmd = "/home/app/src/Service/start.sh -r db -l %s" % stdout
+            env = copy.copy(shared_environment)
+            env.append("LOCAL_REPLICA=0")
+            env.append("LOCAL_SHARD=0")
+            env.append("LOCAL_PORT=%s" % self.mongos_port)
+            env.append("DB_MEMORY=%s" % self.configsvr_memory)
+            env.append("DB_ROLE=mongos")
+
+            config["services"][svc] = {
+                "image": self.image,
+                "command": cmd,
+                "logging": copy.deepcopy(default_logging),
+                "deploy": {
+                    "replicas": 1,
+                    "endpoint_mode": "dnsrr",
+                    "placement": {
+                        "constraints": [
+                            "node.labels.node == %s" % anchor
+                        ]
+                    }
+                },
+                "environment": env,
+                "volumes":[
+                    "%s-log:/home/app/log" % svc,
+                ],
+            }
+            config["volumes"]["%s-log" % svc] = {}
+            self.services[svc] = Service(svc, node=anchor, replica="cfg")
+            self.services[svc].set_service_type("db", port_number=self.mongos_port)
 
         # configure manager, watcher, and workers
         config["services"]["mgr"] = {

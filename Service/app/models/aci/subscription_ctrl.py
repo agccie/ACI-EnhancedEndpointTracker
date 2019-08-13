@@ -55,6 +55,7 @@ class SubscriptionCtrl(object):
         self.last_heartbeat = 0
         self.session = None
         self.alive = False
+        self.failure_reason = None
         self.lock = threading.Lock()
         self.ctrl = SubscriptionCtrl.CTRL_CONTINUE
 
@@ -91,6 +92,41 @@ class SubscriptionCtrl(object):
         for c in classname:
             self._unsubscribe_from_interest(c)
 
+    def set_failure(self, msg):
+        """ set a failure reason if no failure reason currently exists.  Note, the first failure
+            event is generally the most interesting to be propagated to the user and failure is
+            cleared when thread starts running. Here we also want to prefer session failures over
+            the provided failure
+        """
+        if self.failure_reason is None:
+            # first check if there are any more specific failures that might have occurred on
+            # session threads
+            if self.session is not None:
+                # prefer subscription_thread, then subscription_thread event_handler_thread, and
+                # finally check login_thread
+                if self.session.subscription_thread is not None:
+                    sub_thread = self.session.subscription_thread
+                    if sub_thread.failure_reason is not None:
+                        self.failure_reason = sub_thread.failure_reason
+                        logger.debug("setting failure reason from subscription thread: %s",
+                            self.failure_reason)
+                    elif sub_thread.event_handler_thread is not None and \
+                        sub_thread.event_handler_thread.failure_reason is not None:
+                        self.failure_reason = sub_thread.event_handler_thread.failure_reason
+                        logger.debug("setting failure reason from event handler thread: %s",
+                            self.failure_reason)
+                # check login_thread if no reason found
+                if self.failure_reason is None and self.session.login_thread is not None and \
+                    self.session.login_thread.failure_reason is not None:
+                    self.failure_reason = self.session.login_thread.failure_reason
+                    logger.debug("setting failure reason from login thread: %s", self.failure_reason)
+
+            # if nothing else has set failure reason, then use subscription_ctrl reason
+            if self.failure_reason is None:
+                self.failure_reason = msg
+                logger.debug("setting failure reason to subscription_ctrl reason: %s",
+                    self.failure_reason)
+
     def is_alive(self):
         """ determine if subscription is still alive """
         return self.alive
@@ -113,7 +149,7 @@ class SubscriptionCtrl(object):
 
     def resume(self, classname):
         """ resume (unpause) subscription callback for one or more classnames within interests
-            not this triggers callback of all pending events within event queue 
+            note this triggers callback of all pending events within event queue 
         """
         if type(classname) is not list:
             classname = [classname]
@@ -149,7 +185,7 @@ class SubscriptionCtrl(object):
         if not self.alive: 
             return
 
-        # should never call unsubscribe without worker (subscribe called with block=True), however 
+        # should never call unsubscribe without worker_thread (subscribe called with block=True)
         # as sanity check let's put it in there...
         if self.worker_thread is None:
             self._close_subscription()
@@ -208,14 +244,24 @@ class SubscriptionCtrl(object):
             
             # wait until subscription is alive or exceeds timeout
             ts = time.time()
-            while not self.alive:
+            while not self.alive and self.worker_thread.is_alive():
                 if time.time() - ts  > (self.subscribe_timeout * len(self.interests)):
-                    logger.warning("failed to start %s subscriptions within timeout: %.3f", 
-                            len(self.interests), len(self.interests)*self.subscribe_timeout)
+                    msg = "failed to start %s subscriptions within timeout: %.3f" % (
+                                len(self.interests), len(self.interests)*self.subscribe_timeout
+                            )
+                    logger.warn(msg)
+                    self.set_failure(msg)
                     self.unsubscribe()
                     return False
                 #logger.debug("waiting for subscription to start")
-                time.sleep(1) 
+                time.sleep(1)
+            # if worker_thread is no longer running or not alive, then failed to start one or more
+            # subscriptions
+            if not self.alive or not self.worker_thread.is_alive():
+                msg = "failed to start one or more subscriptions"
+                logger.warn(msg)
+                self.set_failure(msg)
+                return False
             logger.debug("subscription successfully started")
             return True
 
@@ -242,13 +288,18 @@ class SubscriptionCtrl(object):
         """ handle subscription within thread """
         logger.debug("subscription thread starting")
 
+        # clear any previously set failure_reason
+        self.failure_reason = None
+
         # initialize subscription is not alive unless in restarting status
         self.alive = restarting
 
         # dummy function that does nothing if no callback available for subscription
-        def noop(*args,**kwargs): pass
+        def noop(*args,**kwargs):
+            pass
     
-        try: self.heartbeat = float(self.heartbeat)
+        try:
+            self.heartbeat = float(self.heartbeat)
         except ValueError as e:
             logger.warn("invalid heartbeat '%s' setting to 60.0", self.heartbeat)
             self.heartbeat = 60.0
@@ -259,11 +310,13 @@ class SubscriptionCtrl(object):
             if self.session is None:
                 logger.error("subscription failed to connect to fabric")
                 self.alive = False
+                self.set_failure("failed to connect to apic")
                 return
         # manually init subscription thread so we can pause if needed
         self.session.init_subscription_thread()
         for classname in self.interests:
             if not self._subscribe_to_interest(classname):
+                self.set_failure("failed to subscribe to %s" % classname)
                 return
 
         # successfully subscribed to all objects
@@ -273,7 +326,8 @@ class SubscriptionCtrl(object):
         self.last_heartbeat = time.time()
         while True:
             # check ctrl flags and exit if set to quit
-            if not self._continue_subscription(): return
+            if not self._continue_subscription():
+                return
 
             ts = time.time()
             heartbeat = False
@@ -284,6 +338,7 @@ class SubscriptionCtrl(object):
                 heartbeat = True
             if not self.check_session_subscription_health(heartbeat=heartbeat):
                 logger.warn("session no longer alive")
+                self.set_failure("subscription session no longer alive")
                 self._close_subscription()
                 return
             # we could sleep for heartbeat interval but then would miss subscription close event
@@ -305,13 +360,15 @@ class SubscriptionCtrl(object):
             if self.session is None or \
                 not self.session.subscribe(url, callback, only_new=self.only_new, paused=paused):
                 logger.warn("failed to subscribe to %s",  classname)
+                self.set_failure("failed to subscribe to %s" % classname)
                 self._close_subscription()
                 return False
             else:
                 logger.debug("successfully subscribed to %s", classname)
                 return True
         else:
-            logger.debug("ignoring subscribe for unknown interest classname: %s", classname)
+            logger.warn("ignoring subscribe for unknown interest classname: %s", classname)
+            self.set_failure("failed to subscribe unknown interest %s" % classname)
             return False
 
     def _unsubscribe_from_interest(self, classname):
@@ -326,7 +383,7 @@ class SubscriptionCtrl(object):
     def _continue_subscription(self):
         # return true if ok to continue monitoring subscription, else cleanup and return false
         if self.ctrl != SubscriptionCtrl.CTRL_CONTINUE:
-            logger.debug("exiting subscription due to ctrl: %s",self.ctrl)
+            logger.debug("exiting subscription due to ctrl: %s", self.ctrl)
             self._close_subscription()
             return False
         return True
@@ -358,6 +415,8 @@ class SubscriptionCtrl(object):
                 self.session.subscription_thread.is_alive() and \
                 hasattr(self.session.subscription_thread, "_ws")
             )
+            if not alive:
+                self.set_failure("subscription thread is not running")
             # only check websocket health if subscription thread is not in graceful restart
             if alive and not self.session.subscription_thread.restarting:
                 alive = alive and (
@@ -365,9 +424,13 @@ class SubscriptionCtrl(object):
                     hasattr(self.session.subscription_thread.event_handler_thread, "is_alive") and \
                     self.session.subscription_thread.event_handler_thread.is_alive()
                 )
+                if not alive:
+                    self.set_failure("websocket is not connected or event handler thread has died")
 
             if alive and heartbeat:
                 alive = get_dn(self.session, "uni", timeout=10) is not None
+                if not alive:
+                    self.set_failure("apic heartbeat failure")
         except Exception as e: 
             logger.debug("Traceback:\n%s", traceback.format_exc())
         if heartbeat:

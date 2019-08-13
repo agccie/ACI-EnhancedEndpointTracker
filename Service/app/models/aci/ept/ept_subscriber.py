@@ -63,7 +63,8 @@ import traceback
 # module level logging
 logger = logging.getLogger(__name__)
 
-class eptSubscriberExitError(Exception): pass
+class eptSubscriberExitError(Exception):
+    pass
 
 class eptSubscriber(object):
     """ builds initial fabric state and subscribes to events to ensure db is in sync with fabric.
@@ -594,7 +595,15 @@ class eptSubscriber(object):
         if self.settings.queue_init_events:
             self.subscriber.pause(self.subscription_classes + self.ordered_mo_classes)
         if not self.subscriber.subscribe(blocking=False, session=self.session):
-            self.fabric.add_fabric_event("failed", "failed to start one or more subscriptions")
+            # see if subscriber died which will add specific reason. If not then add generic
+            # subscription error to fabric events
+            try:
+                if self.subscriber_is_alive():
+                    self.fabric.add_fabric_event("failed",
+                        "failed to start one or more subscriptions"
+                    )
+            except eptSubscriberExitError as e:
+                pass
             return
 
         # build mo db first as other objects rely on it
@@ -723,6 +732,9 @@ class eptSubscriber(object):
         """ check if subscriber is alive and raise exception if it has died """
         if not self.subscriber.is_alive():
             logger.warn("subscription no longer alive for %s", self.fabric.fabric)
+            # add a fabric event with specific reason for subscriber exist if set
+            if self.subscriber.failure_reason is not None:
+                self.fabric.add_fabric_event("failed", self.subscriber.failure_reason)
             raise eptSubscriberExitError("subscriber is not longer alive")
 
     def get_workers_with_pending_ack(self):

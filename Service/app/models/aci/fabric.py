@@ -103,6 +103,31 @@ class Fabric(Rest):
                 be used.
             """,
         },
+        "heartbeat_interval": {
+            "type": int,
+            "default": 300,
+            "min": 0,
+            "max": 86400,
+            "description": """ regular interval in seconds to perform heartbeat query to ensure
+                APIC connection is available and responsive. Set to 0 to disable heartbeat
+                """
+        },
+        "heartbeat_max_retries": {
+            "type": int,
+            "default": 3,
+            "min": 1,
+            "max": 1024,
+            "description": """ maximum number of successive heartbeat failures before APIC
+                connection is declared unusable and subscription thread is closed
+                """,
+        },
+        "heartbeat_timeout": {
+            "type": int,
+            "default": 10,
+            "min": 1,
+            "max": 120,
+            "description": """ timeout in seconds for a single heartbeat to complete """,
+        },
         "auto_start": {
             "type": bool,
             "write": False,

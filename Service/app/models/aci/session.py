@@ -682,15 +682,17 @@ class Subscriber(threading.Thread):
                         cb = self._subscription_ids.get(_id, None)
                         if cb is not None:
                             classname = self.get_url_classname(cb.url)
-                            self.set_failure("failed to refresh %s subscription id %s" % (
-                                    classname, _id))
+                            self.set_failure("failed to refresh %s id %s [status %s]" % (
+                                    classname, _id, resp.status_code))
                         else:
-                            self.set_failure("failed to refresh subscription id %s" % _id)
+                            self.set_failure("failed to refresh id %s [status %s]" % (
+                                _id, resp.status_code))
                         break
                     else:
                         refreshed_count+=1
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
                 logger.warn("requests exception on refresh of %s: %s", _id, e)
+                self.set_failure("connection error during subscription refresh")
                 refreshed_all = False
                 break
         logger.debug("refreshed %s subscriptions in %0.3f sec (next %0.3f sec)", refreshed_count,
@@ -770,7 +772,7 @@ class Subscriber(threading.Thread):
             resp = self._session.get(url)
             if not resp.ok:
                 logger.warn('could not send subscription to APIC for url %s', url)
-                self.set_failure("%s apic response %s" % (fmsg, resp.status_code))
+                self.set_failure("%s [status %s]" % (fmsg, resp.status_code))
                 return (None, None)
             resp_data = json.loads(resp.text)
             if 'subscriptionId' in resp_data and "imdata" in resp_data:

@@ -21,7 +21,8 @@ class SubscriptionCtrl(object):
     CTRL_CONTINUE   = 2
     CTRL_RESTART    = 3
 
-    def __init__(self, fabric, interests={}, only_new=True, heartbeat=60.0, subscribe_timeout=10):
+    def __init__(self, fabric, interests={}, only_new=True, subscribe_timeout=10,
+            heartbeat_interval=60, heartbeat_max_retries=3, heartbeat_timeout=10):
         """
             fabric (str or instance of Fabric object)
 
@@ -37,22 +38,32 @@ class SubscriptionCtrl(object):
 
             additional kwargs:
             only_new (bool)     do not return existing objects, only newly received events
-            heartbeat (int)     dead interval to check health of session
             subscribe_timeout(int) maximum amount of time to wait for non-blocking subscription to 
                                 start. If exceeded the subscription is aborted. This time is per
                                 subscription.  I.e., if there are 30 objects to subscribe to and
                                 the timeout is 10 seconds, then script will wait at most 300 secs.
+            heartbeat_interval (int)    regular interval to perform heartbeat check. Set to 0 to
+                                        disable heartbeat check and rely only on websocket health
+            heartbeat_max_retries (int) maximum number of failed heartbeats before apic is marked
+                                        as unreachable.
+            heartbeat_timeout (int)     timeout for single heartbeat query
         """
 
         self.fabric = fabric
         self.interests = {}
         self.only_new  = only_new 
-        self.heartbeat = heartbeat
         self.subscribe_timeout = subscribe_timeout
+        self.heartbeat_interval = heartbeat_interval
+        self.heartbeat_max_retries = heartbeat_max_retries
+        self.heartbeat_timeout = heartbeat_timeout
 
         # state of the session
         self.worker_thread = None
         self.last_heartbeat = 0
+        self.heartbeat_failures = 0
+        self.heartbeat_total_success = 0
+        self.heartbeat_total_failures = 0
+        self.heartbeat_total = 0
         self.session = None
         self.alive = False
         self.failure_reason = None
@@ -298,12 +309,6 @@ class SubscriptionCtrl(object):
         def noop(*args,**kwargs):
             pass
     
-        try:
-            self.heartbeat = float(self.heartbeat)
-        except ValueError as e:
-            logger.warn("invalid heartbeat '%s' setting to 60.0", self.heartbeat)
-            self.heartbeat = 60.0
-
         # create session to fabric if not already set
         if self.session is None:
             self.session = get_apic_session(self.fabric)
@@ -324,6 +329,11 @@ class SubscriptionCtrl(object):
 
         # monitor subscription health
         self.last_heartbeat = time.time()
+        self.heartbeat_failures = 0
+        heartbeat_enabled = self.heartbeat_interval > 0
+        logger.debug("heartbeat [enable: %r, interval: %s, timeout: %s, retries: %s]",
+            heartbeat_enabled, self.heartbeat_interval, self.heartbeat_timeout,
+            self.heartbeat_max_retries)
         while True:
             # check ctrl flags and exit if set to quit
             if not self._continue_subscription():
@@ -331,7 +341,7 @@ class SubscriptionCtrl(object):
 
             ts = time.time()
             heartbeat = False
-            if (ts-self.last_heartbeat) > self.heartbeat:
+            if heartbeat_enabled and (ts-self.last_heartbeat) > self.heartbeat_interval:
                 logger.debug("checking session status, last_heartbeat: %.3f (delta: %.3f)",
                     self.last_heartbeat, (ts-self.last_heartbeat))
                 self.last_heartbeat = ts
@@ -428,12 +438,29 @@ class SubscriptionCtrl(object):
                     self.set_failure("websocket is not connected or event handler thread has died")
 
             if alive and heartbeat:
-                alive = get_dn(self.session, "uni", timeout=10) is not None
-                if not alive:
-                    self.set_failure("apic heartbeat failure")
+                self.heartbeat_total+=1
+                hb = get_dn(self.session, "uni", timeout=self.heartbeat_timeout) is not None
+                if hb:
+                    self.heartbeat_failures = 0
+                    self.heartbeat_total_success+= 1
+                    logger.debug("heartbeat success [pass/fail/total]=[%s/%s/%s]", 
+                        self.heartbeat_total_success,
+                        self.heartbeat_total_failures,
+                        self.heartbeat_total,
+                    )
+                else:
+                    self.heartbeat_failures+= 1
+                    self.heartbeat_total_failures+= 1
+                    logger.warn("heartbeat failure(%s) [pass/fail/total]=[%s/%s/%s]", 
+                        self.heartbeat_failures,
+                        self.heartbeat_total_success,
+                        self.heartbeat_total_failures,
+                        self.heartbeat_total,
+                    )
+                    if self.heartbeat_failures >= self.heartbeat_max_retries:
+                        self.set_failure("apic heartbeat failure")
+                        alive = False
         except Exception as e: 
             logger.debug("Traceback:\n%s", traceback.format_exc())
-        if heartbeat:
-            logger.debug("heartbeat check to ensure session is still alive: %r",alive)
         return alive
 

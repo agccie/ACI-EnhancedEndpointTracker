@@ -209,8 +209,10 @@ class eptSubscriber(object):
         self.subscriber = SubscriptionCtrl(
             self.fabric,
             all_interests,
-            heartbeat=300,
             subscribe_timeout=30,
+            heartbeat_timeout=self.fabric.heartbeat_timeout,
+            heartbeat_interval=self.fabric.heartbeat_interval,
+            heartbeat_max_retries=self.fabric.heartbeat_max_retries,
         )
 
     def __repr__(self):
@@ -609,7 +611,8 @@ class eptSubscriber(object):
         # build mo db first as other objects rely on it
         self.fabric.add_fabric_event(init_str, "collecting base managed objects")
         if not self.build_mo():
-            self.fabric.add_fabric_event("failed", "failed to collect MOs")
+            # build_mo sets specific error message, no need to set a second one here
+            #self.fabric.add_fabric_event("failed", "failed to collect MOs")
             return
         # check if subscriptions died during previous step
         self.subscriber_is_alive() 
@@ -798,11 +801,17 @@ class eptSubscriber(object):
             self.fabric.add_fabric_event("failed", "failed to build node db")
             return self.hard_restart("failed to build node db")
         # need to rebuild vpc db which requires a rebuild of local mo vpcRsVpcConf mo first
-        success1 = self.mo_classes["vpcRsVpcConf"].rebuild(self.fabric, session=self.session)
-        success2 = self.mo_classes["pcAggrIf"].rebuild(self.fabric, session=self.session)
-        success3 = self.mo_classes["pcRsMbrIfs"].rebuild(self.fabric, session=self.session)
-        if not success1 or not success2 or not success3 or not self.build_vpc_db():
-            self.fabric.add_fabric_event("failed", "failed to build node pc to vpc db")
+        (s1, err1) = self.mo_classes["vpcRsVpcConf"].rebuild(self.fabric, session=self.session)
+        if not s1:
+            self.fabric.add_fabric_event("failed", err1)
+            return self.hard_restart("failed to build node pc to vpc db")
+        (s2, err2) = self.mo_classes["pcAggrIf"].rebuild(self.fabric, session=self.session)
+        if not s2:
+            self.fabric.add_fabric_event("failed", err2)
+            return self.hard_restart("failed to build node pc to vpc db")
+        (s3, err3) = self.mo_classes["pcRsMbrIfs"].rebuild(self.fabric, session=self.session)
+        if not s3:
+            self.fabric.add_fabric_event("failed", err3)
             return self.hard_restart("failed to build node pc to vpc db")
 
         # build tunnel db
@@ -950,7 +959,9 @@ class eptSubscriber(object):
     def build_mo(self):
         """ build managed objects for defined classes """
         for mo in self.ordered_mo_classes:
-            if not self.mo_classes[mo].rebuild(self.fabric, session=self.session):
+            (success, errmsg) = self.mo_classes[mo].rebuild(self.fabric, session=self.session)
+            if not success:
+                self.fabric.add_fabric_event("failed", errmsg)
                 return False
         return True
 

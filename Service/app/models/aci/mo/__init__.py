@@ -58,7 +58,7 @@ class ManagedObject(Rest):
     def rebuild(cls, fabric, session=None):
         """ rebuild collection 
             requires instance of Fabric object and optional session object for queries
-            return bool success
+            return tuple (bool success, error message)
         """
         classname = cls.__name__
         logger.debug("db rebuild of '%s'", classname)
@@ -67,14 +67,15 @@ class ManagedObject(Rest):
         if session is None:
             session = get_apic_session(fabric)
             if session is None:
-                logger.warn("failed to get apic session for fabric %s", fabric.fabric)
-                return False
-
+                errmsg = "failed to get apic session for fabric %s" % fabric.fabric
+                logger.warn("MO rebuild %s", errmsg)
+                return (False, errmsg)
 
         data = get_class(session, classname, orderBy="%s.dn" % classname, stream=True)
         if data is None:
-            logger.warn("failed to get data for classname %s", classname)
-            return False
+            errmsg = "failed to get data for classname %s" % classname
+            logger.warn("MO rebuild %s", errmsg)
+            return (False, errmsg)
 
         ts = time.time()
         bulk_objects = []
@@ -84,8 +85,9 @@ class ManagedObject(Rest):
                 if "attributes" in obj[cname]:
                     attr = obj[cname]["attributes"]
                     if "dn" not in attr:
-                        logger.warn("invalid %s object with no dn: %s", classname, attr)
-                        return False
+                        errmsg = "invalid %s object with no dn" % classname
+                        logger.warn("MO rebuild %s: %s", errmsg, attr)
+                        return (False, errmsg)
                     else:
                         db_obj = {"fabric": fabric.fabric, "ts": ts}
                         for a in cls._attributes:
@@ -93,11 +95,12 @@ class ManagedObject(Rest):
                                 db_obj[a] = attr[a]
                         bulk_objects.append(cls(**db_obj))
             else:
-                logger.warn("failed to get stream data from class query for %s", classname)
-                return False
+                errmsg = "failed to get stream data from class query for %s" % classname
+                logger.warn("MO rebuild %s", errmsg)
+                return (False, errmsg)
         if len(bulk_objects)>0:
             cls.bulk_save(bulk_objects, skip_validation=not cls.VALIDATE)
         else:
             logger.debug("no objects of %s to insert", classname)
-        return True
+        return (True, "")
 

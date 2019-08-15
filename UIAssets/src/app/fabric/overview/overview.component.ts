@@ -27,6 +27,7 @@ export class OverviewComponent implements OnInit , OnDestroy{
     fabricName: string;
     queueLen: number = -1;
     managerRunning: boolean = true;
+    polling_started: boolean = false;
     private onDestroy$ = new Subject<boolean>();
 
     constructor(public backendService: BackendService, private router: Router, private prefs: PreferencesService,
@@ -64,6 +65,8 @@ export class OverviewComponent implements OnInit , OnDestroy{
                             this.rows = this.fabric.events;
                             this.backgroundPollFabric();
                             this.backgroundPollQlen();
+                            //flag to prevent polling loop on each refresh.
+                            this.polling_started = true;
                             const macObservable = this.backendService.getActiveMacAndIps(this.fabric, 'mac');
                             const ipv4Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv4');
                             const ipv6Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv6');
@@ -146,6 +149,9 @@ export class OverviewComponent implements OnInit , OnDestroy{
 
     // sliently refresh fabric events at regular interval
     backgroundPollFabric(){
+        if(this.polling_started){
+            return;
+        }
         const fabricEventsObservable = this.backendService.getFabricByName(this.fabric.fabric);
         forkJoin([fabricEventsObservable]).pipe(
             repeatWhen(delay(2500)),
@@ -163,11 +169,14 @@ export class OverviewComponent implements OnInit , OnDestroy{
                     this.rows = fabricList.objects[0].events;
                 }
             }
-        );
+        )
     }
 
     // sliently refresh queue len at slower interval
     backgroundPollQlen(){
+        if(this.polling_started){
+            return;
+        }
         const qlenObservable = this.backendService.getAppQueueLen();
         const macObservable = this.backendService.getActiveMacAndIps(this.fabric, 'mac');
         const ipv4Observable = this.backendService.getActiveMacAndIps(this.fabric, 'ipv4');

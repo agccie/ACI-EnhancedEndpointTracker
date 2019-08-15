@@ -66,6 +66,9 @@ export class Fabric {
     ipv6: number;
     events: FabricEvent[];
     uptime: number;
+    heartbeat_interval: number;
+    heartbeat_max_retries: number;
+    heartbeat_timeout: number;
 
     constructor(data: any = {}) {
         this.init();
@@ -84,6 +87,9 @@ export class Fabric {
         this.ssh_username = '';
         this.session_timeout = 0;
         this.subscription_refresh_time = 0;
+        this.heartbeat_interval = 0;
+        this.heartbeat_max_retries = 0;
+        this.heartbeat_timeout = 0;
         this.status = 'stopped';
         this.display_status = 'stopped';
         this.events = [];
@@ -135,7 +141,10 @@ export class Fabric {
             "ssh_username",
             "ssh_password",
             "session_timeout",
-            "subscription_refresh_time"
+            "subscription_refresh_time",
+            "heartbeat_interval",
+            "heartbeat_max_retries",
+            "heartbeat_timeout"
         ];
         let json = {};
         for (let i = 0; i < attr.length; i++) {
@@ -143,8 +152,10 @@ export class Fabric {
             if (a in this) {
                 if ((typeof this[a] === 'string' && this[a].length == 0)|| 
                     (typeof this[a] === 'number' && this[a]==0)) {
-                    //skip string attributes that are not set
-                    continue;
+                    //skip string attributes that are not set with exception of heartbeat_interval
+                    if(a != "heartbeat_interval"){
+                        continue;
+                    }
                 }
                 json[a] = this[a];
             } else {

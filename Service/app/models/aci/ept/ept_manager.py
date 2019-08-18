@@ -21,6 +21,7 @@ from . common import db_alive
 from . common import flush_queue
 from . common import get_msg_hash
 from . common import get_queue_length
+from . common import log_version
 from . common import wait_for_db
 from . common import wait_for_redis
 from . ept_msg import MSG_TYPE
@@ -50,6 +51,7 @@ class eptManager(object):
 
     def __init__(self, worker_id):
         threading.currentThread().name = "mgr-main"
+        log_version()
         logger.debug("init role manager id %s", worker_id)
         register_signal_handlers()
         self.worker_id = "%s" % worker_id

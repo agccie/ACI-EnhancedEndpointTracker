@@ -26,6 +26,7 @@ from . common import db_alive
 from . common import flush_queue
 from . common import get_addr_type
 from . common import get_vpc_domain_id
+from . common import log_version
 from . common import parse_vrf_name
 from . common import split_vpc_domain_id
 from . common import wait_for_db
@@ -76,6 +77,7 @@ class eptWorker(object):
 
     def __init__(self, worker_id, role):
         threading.currentThread().name = "main"
+        log_version()
         logger.debug("init role %s id %s", role, worker_id)
         register_signal_handlers()
         self.worker_id = "%s" % worker_id

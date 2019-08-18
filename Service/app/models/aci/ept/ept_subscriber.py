@@ -27,6 +27,7 @@ from . common import BackgroundThread
 from . common import db_alive
 from . common import get_msg_hash
 from . common import get_vpc_domain_id
+from . common import log_version
 from . common import parse_tz
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
@@ -221,6 +222,7 @@ class eptSubscriber(object):
     def run(self):
         """ wrapper around run to handle interrupts/errors """
         threading.currentThread().name = "sub-main"
+        log_version()
         logger.info("starting eptSubscriber for fabric '%s'", self.fabric.fabric)
         try:
             # allocate a unique db connection as this is running in a new process

@@ -256,7 +256,9 @@ class eptSubscriber(object):
             self._run()
         except eptSubscriberExitError as e:
             logger.warn("subscriber exit: %s", e)
-        except (Exception, SystemExit, KeyboardInterrupt) as e:
+        except KeyboardInterrupt as e:
+            logger.debug("keyboard interupt: %s", e)
+        except (Exception, SystemExit) as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
         finally:
             self.subscriber.unsubscribe()

@@ -607,8 +607,8 @@ class Subscriber(threading.Thread):
         self._exit = True
         # close any open websockets
         self._close_web_socket()
-        # cleanup pointers
-        for (cb, _id) in self._subscription_ids.items():
+        # cleanup pointers (should be empty as subscriptions are removed during socket close)
+        for (_id, cb) in self._subscription_ids.items():
             cb.flush()
         self._subscription_ids = {}
         self._subscriptions = {}
@@ -798,7 +798,9 @@ class Subscriber(threading.Thread):
             with self._lock:
                 self._callbacks.pop(url, None)
                 _id = self._subscriptions.pop(url, None)
-                self._subscription_ids.pop(_id, None)
+                cb = self._subscription_ids.pop(_id, None)
+                if cb is not None:
+                    cb.flush()
             # APIC does not currently have support for unsubscribing (CSCvp07251)
             #unsubscribe_url = re.sub("subscription=yes", "subscription=no", url)
             #try:

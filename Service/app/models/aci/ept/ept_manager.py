@@ -18,6 +18,7 @@ from . common import WORKER_CTRL_CHANNEL
 from . common import WORKER_UPDATE_INTERVAL
 from . common import BackgroundThread
 from . common import db_alive
+from . common import flush_queue
 from . common import get_msg_hash
 from . common import get_queue_length
 from . common import wait_for_db
@@ -342,10 +343,10 @@ class eptManager(object):
         logger.debug("manager start fabric: %s (%s)", fabric, reason)
         if fabric not in self.fabrics:
             self.fabrics[fabric] = {
+                "fabric": None,
                 "process": None,
                 "subscriber": None,
                 "waiting_for_retry": False,
-                "fabric": None,
             }
         if self.fabrics[fabric]["process"] is None or not self.fabrics[fabric]["process"].is_alive():
             f = Fabric.load(fabric=fabric)
@@ -403,7 +404,8 @@ class eptManager(object):
         # if auto_start is disabled, then references to this fabric will be removed from manager. 
         # Else, if a new worker comes online the fabric may automatically restart.
         # return boolean success
-        if reason is None: reason = "generic stop"
+        if reason is None:
+            reason = "generic stop"
         logger.debug("manager stop fabric: %s (%s)", fabric, reason)
         f = Fabric.load(fabric=fabric)
         if f.exists():
@@ -416,9 +418,20 @@ class eptManager(object):
             return False
         elif self.fabrics[fabric]["process"] is not None:
             logger.debug("terminating fabric process '%s", fabric)
-            terminate_process(self.fabrics[fabric]["process"])
-            self.fabrics[fabric]["process"] = None
-            # need to force all workers to flush their caches for this fabric
+            # to prevent race condition with check_fabric_process, go ahead and pop fabric from
+            # self.fabrics before terminating and we can add it back if needed
+            fab = self.fabrics.pop(fabric)
+            terminate_process(fab["process"])
+            fab["process"] = None
+            # need to force all workers to flush their caches for this fabric AND flush their work
+            # queue for this fabric. There is an optimization we can make for the latter operation,
+            # if there is only one fabric being monitored, we can flush the full redis db instead
+            # of having each worker inspect ever pending work event. This could theoretically be
+            # done if there are multiple fabrics and all other fabrics are in waiting_for_retry as
+            # well but will not include that case for now.
+            if len(self.fabrics) == 0:
+                logger.info("flushing full redis db due to fabric stop with only one fabric")
+                self.redis.flushall()
             stop = eptMsg(MSG_TYPE.FABRIC_STOP, data={"fabric": fabric})
             self.worker_tracker.broadcast(stop)
             # remove subscriber id from worker tracker known_subscribers
@@ -426,13 +439,16 @@ class eptManager(object):
             # remove fabric from auto-start before flushing messages
             if not f.exists() or not f.auto_start: 
                 logger.debug("removing fabric '%s' from managed fabrics", fabric)
-                self.fabrics.pop(fabric, None)
+                # already removed from fabrics dict, do not add back
             else:
-                self.fabrics[fabric]["waiting_for_retry"] = True
-            # manager should flush all events from worker queues for the fabric instead of 
-            # having worker perform the operation which could lead to race conditions. This needs
-            # to happening in a different thread so it does not block hellos or other events 
-            # received on the control thread.
+                logger.debug("setting waiting_for_retry for fabric '%s'", fabric)
+                fab["waiting_for_retry"] = True
+                self.fabrics[fabric] = fab
+
+            # manager needs to flush local queue for fabric which should be relatively fast. Will
+            # do this in a background thread so it does not affect hello or other control events,
+            # but hopefully completes quickly since it is local queue only instead of every
+            # worker's queue.
             tmp = threading.Thread(name="mgr-tmp", target=self.worker_tracker.flush_fabric,
                                 args=(fabric,))
             tmp.daemon = True
@@ -463,8 +479,10 @@ class eptManager(object):
             elif fab["process"] is None and fab["waiting_for_retry"]:
                 self.start_fabric(f, reason="auto restarting", restarting=True)
 
-        # stop tracking fabrics in remove list
-        for f in remove_list: self.fabrics.pop(f, None)
+        # no need to remove fabric from self.fabrics since 'stop' was called and it handles
+        # updates to self.fabrics
+        #for f in remove_list:
+        #    self.fabrics.pop(f, None)
 
     def increment_stats(self, queue, tx=False, count=1):
         # update stats queue
@@ -750,24 +768,10 @@ class WorkerTracker(object):
                     self.redis.rpush(q, *repush)
                 logger.debug("repush completed")
 
-    def flush_fabric(self, fabric, qnum=-1, role=None):
-        # walk through all active workers and remove any work objects from queue for this fabric
-        # note, this is a costly operation if the queue is significantly backed up...
+    def flush_fabric(self, fabric):
+        # flush local queues for provided fabric. Note, moved per-worker flush to each worker
         logger.debug("flush fabric '%s'", fabric)
-
-        # flush work from this fabric for manager work queue if no specific role set
-        if role is None:
-            self.flush_queue(fabric, MANAGER_WORK_QUEUE)
-
-        # flush work from active workers
-        for r in self.active_workers:
-            if role is None or r == role:
-                for i, worker in enumerate(self.active_workers[r]):
-                    if abs(qnum) > len(worker.queues):
-                        logger.warn("unable to flush fabric for worker %s, qnum %s does not exist",
-                                worker.worker_id, qnum)
-                    else:
-                        self.flush_queue(fabric, worker.queues[qnum], lock=worker.queue_locks[qnum])
+        flush_queue(self.redis, fabric, MANAGER_WORK_QUEUE)
 
     def get_worker_status(self, brief=False):
         # return list of dict representation of TrackedWorker objects along with queue_len list 
@@ -778,7 +782,6 @@ class WorkerTracker(object):
             js["queue_len"] = [get_queue_length(self.redis, q, accurate=not brief) for q in w.queues]
             status.append(js)
         return status
-            
 
 class TrackedWorker(object):
     """ active worker tracker """

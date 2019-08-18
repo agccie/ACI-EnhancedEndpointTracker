@@ -378,6 +378,45 @@ def get_msg_hash(msg):
     #logger.debug("addr(%s:0x%x), hash:0x%x", m_addr, _addr, _hash)
     return _hash
 
+def flush_queue(redis_db, fabric, q, lock=None):
+    """ flush messages for provided fabric and redis queue """
+    logger.debug("flushing %s from queue %s", fabric, q)
+    # pull off all messages on the queue in single operation
+    pl = redis_db.pipeline()
+    pl.lrange(q, 0, -1)
+    pl.delete(q)
+    ret = []
+    repush = []
+    removed_count = 0
+    if lock is not None:
+        with lock:
+            ret = pl.execute()
+    else:
+        ret = pl.execute()
+    # inspect each message and if matching fabric discard, else push back onto queue
+    if len(ret) > 0 and type(ret[0]) is list:
+        logger.debug("inspecting %s msg from queue %s", len(ret[0]), q)
+        for data in ret[0]:
+            # need to reparse message and check fabric
+            msg = eptMsg.parse(data)
+            # for eptMsgBulk it is currently safe to assume if the first msg is our fabric
+            # then all messages will be our fabric
+            if msg.msg_type == MSG_TYPE.BULK and len(msg.msgs)>0 and hasattr(msg.msgs[0], "fabric")\
+                and msg.msgs[0].fabric == fabric:
+                removed_count+=len(msg.msgs)
+            elif hasattr(msg, "fabric") and msg.fabric == fabric:
+                removed_count+=1
+            else:
+                repush.append(data)
+        logger.debug("removed %s and repushing %s to queue %s", removed_count, len(repush), q)
+        if len(repush) > 0:
+            if lock is not None:
+                with lock:
+                    redis_db.rpush(q, *repush)
+            else:
+                redis_db.rpush(q, *repush)
+            logger.debug("repush completed")
+
 ###############################################################################
 #
 # common conversion functions

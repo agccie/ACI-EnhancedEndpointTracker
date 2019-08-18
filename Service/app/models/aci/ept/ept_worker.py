@@ -23,6 +23,7 @@ from . common import WORKER_CTRL_CHANNEL
 from . common import MAX_SEND_MSG_LENGTH
 from . common import BackgroundThread
 from . common import db_alive
+from . common import flush_queue
 from . common import get_addr_type
 from . common import get_vpc_domain_id
 from . common import parse_vrf_name
@@ -423,14 +424,16 @@ class eptWorker(object):
             self.fabrics[fabric].watcher_init()
 
     def fabric_stop(self, fabric):
-        """ stop only requires removing fabric from local fabrics, manager will handle removing any
-            pending work from queue. If this is a watcher, then also need to purge any watch events
-            for this fabric.
+        """ stop requires removing fabric from local fabrics, and flushing pending work from queues
+            for requested fabric.
+            If this is a watcher, then also need to purge any watch events for this fabric.
         """
         logger.debug("[%s] stop fabric: %s", self, fabric)
         old_wf = self.fabrics.pop(fabric, None)
         if old_wf is not None:
             old_wf.close()
+        for q in self.queues:
+            flush_queue(self.redis, fabric, q)
         if self.role == "watcher":
             watches = [
                 ("offsubnet", self.watch_offsubnet_lock, self.watch_offsubnet),

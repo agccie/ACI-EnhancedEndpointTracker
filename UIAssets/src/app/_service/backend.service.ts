@@ -208,7 +208,7 @@ export class BackendService {
     }
 
     createFabric(fabric: Fabric) {
-        return this.http.post(this.baseUrl + '/fabric', fabric.get_save_json());
+        return this.http.post(this.baseUrl + '/fabric', fabric.get_create_json());
     }
 
     updateFabricSettings(fabricSettings: FabricSettings) {

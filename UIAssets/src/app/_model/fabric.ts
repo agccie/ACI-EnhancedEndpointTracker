@@ -127,6 +127,14 @@ export class Fabric {
         }
     }
 
+    // for UI, we want fabric create to only be fabric name as that is only attribute customer
+    // will provide on create independent of default values
+    get_create_json(): object {
+        let json = {};
+        json["fabric"] = this.fabric;
+        return json;
+    }
+
     // not all attributes of this object are used for create/update operatons, this function
     // will return a JSON object with writeable attributes only. Additionally, only attributes
     // that are set (non-emptry string) are returned.

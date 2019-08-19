@@ -511,8 +511,11 @@ class DockerNode(object):
                 try:
                     logger.debug("inspect: %s", inspect)
                     js = json.loads(inspect)
+                    if "ManagerStatus" in js:
+                        if "Addr" in js["ManagerStatus"]:
+                            self.addr = js["ManagerStatus"]["Addr"].rsplit(":",1)[0]
                     if "Status" in js:
-                        if "Addr" in js["Status"]: 
+                        if "Addr" in js["Status"] and self.addr is not None:
                             self.addr = js["Status"]["Addr"]
                         if "State" in js["Status"]:
                             self.status = js["Status"]["State"]

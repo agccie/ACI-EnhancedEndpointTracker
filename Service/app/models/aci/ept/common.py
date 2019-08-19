@@ -390,10 +390,13 @@ def subscriber_op(fabric, msg_type, data=None, qnum=0):
         return (False, "Fabric '%s' is not running" % fabric)
 
 def parse_tz(tz):
-    # expect to be in the form n#_Region-Tz where we need to replace - with /
-    r1 = re.search("^n[0-9]+_(?P<region>[^\-]+)-(?P<tz>.+)$", tz)
+    # expect to be in the form p|n#_Region-Tz where we need to replace - with /
+    # it appears from model that p=positive and n=negative followed by the number of minutes
+    # representing the time offset. We could try and capture this info as well but could get
+    # tricky when including daylight savings time, will just try and capture the actual timezone
+    r1 = re.search("^[pn][0-9]+_(?P<tz>.+)$", tz)
     if r1 is not None:
-        return "%s/%s" % (r1.group("region"), re.sub("-","/", r1.group("tz")))
+        return re.sub("-", "/", r1.group("tz"))
     else:
         logger.warn("failed to parse timezone: %s", tz)
         return tz

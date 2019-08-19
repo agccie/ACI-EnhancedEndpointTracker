@@ -585,6 +585,7 @@ class eptSubscriber(object):
                     self.settings.tz = "UTC"
                 else:
                     self.settings.tz = parse_tz(tz_attr["tz"])
+                logger.debug("setting timezone from %s to %s", tz_attr["tz"], self.settings.tz)
                 self.settings.save()
             else:
                 logger.warn("failed to determine fabricProtPol pairT: %s (using default)",vpc_attr)

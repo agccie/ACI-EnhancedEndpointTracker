@@ -390,6 +390,7 @@ class Login(threading.Thread):
     """ Login thread responsible for refreshing the APIC login before timeout """
     def __init__(self, session):
         threading.Thread.__init__(self)
+        self.failure_reason = None
         self._session = session
         self._exit = False
 
@@ -431,6 +432,7 @@ class Login(threading.Thread):
                 return True
             else:
                 logger.warn("login attempt failed")
+                self.failure_reason = "login refresh connection error or timeout"
                 return False
         else:
             return True
@@ -442,13 +444,22 @@ class Login(threading.Thread):
         """
         logger.debug("login thread graceful restart")
         if self._session.subscription_thread is not None:
-            return self._session.graceful_resubscribe()
+            if self._session.graceful_resubscribe():
+                return True
+            else:
+                self.failure_reason = "graceful restart failure"
+                return False
         else:
-            return self._session._send_login().ok
+            if self._session._send_login().ok:
+                return True
+            else:
+                self.failure_reason = "login refresh connection error or timeout"
+                return False
 
     def run(self):
         threading.currentThread().name = "session-login"
         logger.debug("starting new login thread")
+        self.failure_reason = None
         while not self._exit:
             self.wait_until_next_cycle()
             try:
@@ -475,6 +486,7 @@ class EventHandler(threading.Thread):
     def __init__(self, subscriber):
         threading.Thread.__init__(self)
         self.subscriber = subscriber
+        self.failure_reason = None
         self._exit = False
 
     def exit(self):
@@ -484,11 +496,13 @@ class EventHandler(threading.Thread):
 
     def run(self):
         threading.currentThread().name = "session-event"
+        self.failure_reason = None
         while not self._exit:
             try:
                 event = self.subscriber._ws.recv()
             except Exception as e:
-                logger.info("websocket recv closed: %s", e)
+                logger.warn("websocket recv closed: %s", e)
+                self.failure_reason = "websocket unexpectedly closed"
                 return
             if len(event) > 0:
                 # parse event, determine subscription_ids and callback
@@ -554,6 +568,7 @@ class Subscriber(threading.Thread):
     """ thread responsible for event subscriptions """
     def __init__(self, session, resubscribe=True):
         threading.Thread.__init__(self)
+        self.failure_reason = None
         self._session = session
         # subscriptions indexed by url with pointer to subscription_id
         self._subscriptions = {}
@@ -570,14 +585,30 @@ class Subscriber(threading.Thread):
         self._lock = threading.Lock()
         self.restarting = False
 
+    def get_url_classname(self, url):
+        """ try to extract classname from url. Return empty string if unable to extract classname """
+        r1 = re.search("api/class/(?P<classname>[^\.]+)\.json", url)
+        if r1 is not None:
+            return r1.group("classname")
+        else:
+            return ""
+
+    def set_failure(self, msg):
+        """ set a failure reason if no failure reason currently exists.  Note, the first failure
+            event is generally the most interesting to be propagated to the user and failure is
+            cleared when thread starts running.
+        """
+        if self.failure_reason is None:
+            self.failure_reason = msg
+
     def exit(self):
         """ exit the thread and ensure event handler thread is also closed """
         logger.debug("exiting subscription thread")
         self._exit = True
         # close any open websockets
         self._close_web_socket()
-        # cleanup pointers
-        for (cb, _id) in self._subscription_ids.items():
+        # cleanup pointers (should be empty as subscriptions are removed during socket close)
+        for (_id, cb) in self._subscription_ids.items():
             cb.flush()
         self._subscription_ids = {}
         self._subscriptions = {}
@@ -586,12 +617,14 @@ class Subscriber(threading.Thread):
     def run(self):
         """ run subscriber thread, listening for new subscription requests """
         threading.currentThread().name = "session-subscriber"
+        self.failure_reason = None
         while not self._exit:
             # sleep for configured subscription refresh time
             time.sleep(self._session.subscription_refresh_time)
             try:
                 if not self.refresh_subscriptions():
                     logger.warn("failed to refresh one or more subscription")
+                    self.set_failure("failed to refresh one or more subscriptions")
                     return self.exit()
             except Exception as e:
                 logger.debug("Traceback:\n%s", traceback.format_exc())
@@ -641,13 +674,25 @@ class Subscriber(threading.Thread):
                 with self._lock:
                     resp = self._session.get("/api/subscriptionRefresh.json?id=%s%s"%(_id, refresh))
                     if not resp.ok:
-                        logger.debug("failed to refresh id %s: %s %s", _id, resp, resp.text)
+                        logger.warn("failed to refresh id %s: %s %s", _id, resp, resp.text)
                         refreshed_all = False
+                        # get useful information to add to failure_reason so user knows exactly
+                        # which subscription failed. Since we only support class subscriptions for
+                        # now we will try to extract the classname
+                        cb = self._subscription_ids.get(_id, None)
+                        if cb is not None:
+                            classname = self.get_url_classname(cb.url)
+                            self.set_failure("failed to refresh %s id %s [status %s]" % (
+                                    classname, _id, resp.status_code))
+                        else:
+                            self.set_failure("failed to refresh id %s [status %s]" % (
+                                _id, resp.status_code))
                         break
                     else:
                         refreshed_count+=1
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
                 logger.warn("requests exception on refresh of %s: %s", _id, e)
+                self.set_failure("connection error during subscription refresh")
                 refreshed_all = False
                 break
         logger.debug("refreshed %s subscriptions in %0.3f sec (next %0.3f sec)", refreshed_count,
@@ -669,10 +714,11 @@ class Subscriber(threading.Thread):
         """
         # if only_new is false then force page-size to 1
         if only_new and "page-size" not in url:
-            if "?" in url: url = "%s&page-size=1" % url
-            else: url = "%s?page-size=1" % url
+            if "?" in url:
+                url = "%s&page-size=1" % url
+            else:
+                url = "%s?page-size=1" % url
 
-        #logger.debug('subscribing to url: %s', url)
         if self._ws is None or not self._ws.connected:
             if not self._open_web_socket():
                 return False
@@ -710,6 +756,10 @@ class Subscriber(threading.Thread):
             return tuple (subscriptionId, data) on success, else return (None, None)
         """
         try:
+            classname = self.get_url_classname(url)
+            if not classname:
+                classname = url
+            fmsg = "failed to subscribe to %s," % classname
             refresh = ""
             if self._session.subscription_refresh_time > Session.DEFAULT_SUBSCRIPTION_REFRESH:
                 refresh = "refresh-timeout=%s" % (
@@ -722,6 +772,7 @@ class Subscriber(threading.Thread):
             resp = self._session.get(url)
             if not resp.ok:
                 logger.warn('could not send subscription to APIC for url %s', url)
+                self.set_failure("%s [status %s]" % (fmsg, resp.status_code))
                 return (None, None)
             resp_data = json.loads(resp.text)
             if 'subscriptionId' in resp_data and "imdata" in resp_data:
@@ -729,11 +780,14 @@ class Subscriber(threading.Thread):
                 return (resp_data['subscriptionId'], resp_data["imdata"])
             else:
                 logger.warn("invalid subscription response: %s", resp_data)
+                self.set_failure("%s invalid apic response" % fmsg)
         except ConnectionError:
             self._subscriptions.pop(url, None)
             logger.warn("connection error occurred")
+            self.set_failure("%s connection error occurred" % fmsg)
         except Exception as e:
             logger.debug("Traceback:\n%s", traceback.format_exc())
+            self.set_failure("%s unexpected exception occurred" % fmsg)
 
         logger.debug("failed to _send_subscription for url %s", url)
         return (None, None)
@@ -744,14 +798,17 @@ class Subscriber(threading.Thread):
             with self._lock:
                 self._callbacks.pop(url, None)
                 _id = self._subscriptions.pop(url, None)
-                self._subscription_ids.pop(_id, None)
-            unsubscribe_url = re.sub("subscription=yes", "subscription=no", url)
-            try:
-                resp = self._session.get(unsubscribe_url, timeout=5)
-                logger.debug("unsubscribe success: %r, url %s", resp.ok, unsubscribe_url)
-            except Exception as e:
-                logger.error("failed to unsubscribe while exiting subscription: %s", e)
-                logger.debug("Traceback:\n%s", traceback.format_exc())
+                cb = self._subscription_ids.pop(_id, None)
+                if cb is not None:
+                    cb.flush()
+            # APIC does not currently have support for unsubscribing (CSCvp07251)
+            #unsubscribe_url = re.sub("subscription=yes", "subscription=no", url)
+            #try:
+            #    resp = self._session.get(unsubscribe_url, timeout=5)
+            #    logger.debug("unsubscribe success: %r, url %s", resp.ok, unsubscribe_url)
+            #except Exception as e:
+            #    logger.error("failed to unsubscribe while exiting subscription: %s", e)
+            #    logger.debug("Traceback:\n%s", traceback.format_exc())
 
     def _close_web_socket(self):
         """ close websocket if connnected """
@@ -774,6 +831,7 @@ class Subscriber(threading.Thread):
         if self._session.token is None:
             if not self._session.login():
                 logger.warn("aborting web socket, unable to acquire login token")
+                self.set_failure("failed to acquire login token for websocket")
                 return None
         sslopt = {}
         if re.search("^https", self._session.api):
@@ -788,13 +846,16 @@ class Subscriber(threading.Thread):
                 return ws
             else:
                 logger.warn("failed to connect on new websocket")
+                self.set_failure("failed to connect on new websocket")
                 return None
-        except WebSocketException:
+        except WebSocketException as e:
             logger.debug("Traceback:\n%s", traceback.format_exc())
             logger.error('unable to open websocket connection due to WebSocketException')
-        except socket.error:
+            self.set_failure("failed to open websocket: %s" % e)
+        except socket.error as e:
             logger.debug("Traceback:\n%s", traceback.format_exc())
-            logger.error('unable to open websocket connection due to Socket Error')
+            logger.error('unable to open websocket connection due to Socket Error: %s', e)
+            self.set_failure("failed to open websocket due to socket error %s" % e)
         return None
 
     def _open_web_socket(self):
@@ -808,7 +869,7 @@ class Subscriber(threading.Thread):
             self.event_handler_thread.start()
             return True
         else:
-            logger.debug("failed to open new websocket")
+            logger.warn("failed to open new websocket")
             return False
 
     def _resubscribe(self):
@@ -860,10 +921,12 @@ class Subscriber(threading.Thread):
                 self.restarting = True
                 if not self._session.login():
                     logger.warn("failed to acquire new login token")
+                    self.set_failure("failed to acquire new login token during graceful restart")
                     return False
                 ws = self._get_web_socket()
                 if ws is None:
                     logger.warn("failed to get new web socket")
+                    self.set_failure("failed to get new web socket during graceful restart")
                     return False
                 subscriptions = {}
                 subscription_ids = {}
@@ -871,6 +934,7 @@ class Subscriber(threading.Thread):
                     (subscription_id, data) = self._send_subscription(url)
                     if subscription_id is None:
                         logger.warn("failed to start subscription for %s", url)
+                        self.set_failure("failed to start subscription for %s" % url)
                         return False
                     paused = False
                     # maintain previous callback handler if found with update to subscription_id

@@ -100,7 +100,7 @@ class eptMoveEvent(object):
         self.vnid_name = kwargs.get("vnid_name", "")
 
     def __repr__(self):
-        return "node:0x%04x %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
+        return "node:%d %.3f: pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
                 self.node, self.ts, self.pctag, self.intf_id, self.encap, 
                 self.rw_bd, self.rw_mac
             )

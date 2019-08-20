@@ -84,23 +84,29 @@ class eptSubnet(Rest):
         """ for ipv4 or ipv6 prefix, return tuple (addr_byte list, mask_byte list) """
         if prefix_type == "ipv4":
             (addr, mask) = get_ipv4_prefix(prefix)
-            return ([addr], [mask])
+            if addr is not None:
+                return ([addr], [mask])
+            else:
+                return ([], [])
         else:
             (addr, mask) = get_ipv6_prefix(prefix)
-            return (
-                [
-                    (addr & 0xffffffff000000000000000000000000 ) >> 96,
-                    (addr & 0x00000000ffffffff0000000000000000 ) >> 64,
-                    (addr & 0x0000000000000000ffffffff00000000 ) >> 32,
-                    (addr & 0x000000000000000000000000ffffffff )
-                ],
-                [
-                    (mask & 0xffffffff000000000000000000000000 ) >> 96,
-                    (mask & 0x00000000ffffffff0000000000000000 ) >> 64,
-                    (mask & 0x0000000000000000ffffffff00000000 ) >> 32,
-                    (mask & 0x000000000000000000000000ffffffff )
-                ]
-            )
+            if addr is not None:
+                return (
+                    [
+                        (addr & 0xffffffff000000000000000000000000 ) >> 96,
+                        (addr & 0x00000000ffffffff0000000000000000 ) >> 64,
+                        (addr & 0x0000000000000000ffffffff00000000 ) >> 32,
+                        (addr & 0x000000000000000000000000ffffffff )
+                    ],
+                    [
+                        (mask & 0xffffffff000000000000000000000000 ) >> 96,
+                        (mask & 0x00000000ffffffff0000000000000000 ) >> 64,
+                        (mask & 0x0000000000000000ffffffff00000000 ) >> 32,
+                        (mask & 0x000000000000000000000000ffffffff )
+                    ]
+                )
+            else:
+                return ([], [])
 
     @staticmethod
     def byte_list_to_long(byte_list):

@@ -29,8 +29,6 @@ class MSG_TYPE(Enum):
     DELETE_EPT          = "delete_ept"      # delete endpoint and all dependencies from db, also 
                                             # ensures worker cache for this endpoint are properly 
                                             # flushed.
-    TEST_EMAIL          = "test_email"      # send a test email
-    TEST_SYSLOG         = "test_syslog"     # send a test syslog
     SETTINGS_RELOAD     = "settings_reload" # request from API to subscriber/worker to flush+reload
                                             # current fabric settings
     FABRIC_EPM_EOF_ACK  = "epm_eof_ack"     # sent from worker to subscriber on subscriber channel 
@@ -53,8 +51,6 @@ class WORK_TYPE(Enum):
     EPM_RS_IP_EVENT     = "epmRsIp"         # epmRsMacEpToIpEpAtt event
     DELETE_EPT          = "delete_ept"      # work message to worker to delete endpoint from db and
                                             # flush info from cache
-    TEST_EMAIL          = "test_email"      # test email notification
-    TEST_SYSLOG         = "test_syslog"     # test syslog notification
     SETTINGS_RELOAD     = "settings_reload" # request from API to subscriber/worker to flush+reload
                                             # current fabric settings
     FABRIC_EPM_EOF      = "epm_eof"         # broadcast from subscriber to all workers as the last
@@ -97,10 +93,6 @@ class eptMsg(object):
             return eptMsgSubOp(MSG_TYPE.REFRESH_EPT, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.DELETE_EPT.value:
             return eptMsgSubOp(MSG_TYPE.DELETE_EPT, js["data"], js["seq"])
-        elif js["msg_type"] == MSG_TYPE.TEST_EMAIL.value:
-            return eptMsgSubOp(MSG_TYPE.TEST_EMAIL, js["data"], js["seq"])
-        elif js["msg_type"] == MSG_TYPE.TEST_SYSLOG.value:
-            return eptMsgSubOp(MSG_TYPE.TEST_SYSLOG, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.SETTINGS_RELOAD.value:
             return eptMsgSubOp(MSG_TYPE.SETTINGS_RELOAD, js["data"], js["seq"])
         elif js["msg_type"] == MSG_TYPE.FABRIC_EPM_EOF_ACK.value:
@@ -143,8 +135,6 @@ class eptMsgSubOp(eptMsg):
     """ subscriber operation supporting following ops:
             - MSG_TYPE.REFRESH_EPT
             - MSG_TYPE.DELETE_EPT
-            - MSG_TYPE.TEST_EMAIL           (no ept required but fabric needed for worker)
-            - MSG_TYPE.TEST_SYSLOG          (no ept required but fabric needed for worker)
             - MSG_TYPE.SETTINGS_RELOAD      (no ept required but fabric needed for worker)
             - MSG_TYPE.FABRIC_EPM_EOF_ACK   sent from worker to subscriber with worker_id 
                                             embedded in addr field
@@ -222,19 +212,20 @@ class eptMsgWork(object):
         with strict priority queuing on lowest queue index.
     """
 
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         self.msg_type = MSG_TYPE.WORK
         self.addr = addr
         self.role = role
         self.qnum = qnum
         self.data = data
-        self.wt = wt            # WORK_TYPE enum
+        # WORK_TYPE enum
+        self.wt = wt
         self.seq = seq
         self.fabric = fabric
 
     def __repr__(self):
-        return "%s.0x%08x %s %s %s" % (self.msg_type.value, self.seq, self.fabric, self.wt.value, 
-                self.addr)
+        return "%s.0x%08x %s %s addr:%s" % (self.msg_type.value, self.seq, self.fabric, 
+                self.wt.value, self.addr)
 
     def jsonify(self):
         """ jsonify for transport across messaging queue """
@@ -272,19 +263,19 @@ class eptMsgWork(object):
 
 class eptMsgWorkRaw(eptMsgWork):
     """ raw/unparsed epm or standard mo event """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         super(eptMsgWorkRaw, self).__init__(addr, role, data, wt, qnum=qnum, seq=seq, fabric=fabric)
         self.wt = WORK_TYPE.RAW
 
 class eptMsgWorkStdMo(eptMsgWork):
     """ raw/unparsed epm or standard mo event """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         super(eptMsgWorkStdMo, self).__init__(addr, role, data, wt, qnum=qnum,seq=seq,fabric=fabric)
         self.wt = WORK_TYPE.STD_MO
 
 class eptMsgWorkDeleteEpt(eptMsgWork):
     """ fixed message type for DELETE_EPT """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkDeleteEpt, self).__init__(addr, "worker", data, wt, 
                                                     qnum=qnum, seq=seq, fabric=fabric)
@@ -313,7 +304,7 @@ class eptMsgWorkDeleteEpt(eptMsgWork):
 
 class eptMsgWorkWatchNode(eptMsgWork):
     """ fixed message type for WATCH_NODE """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchNode, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -341,12 +332,12 @@ class eptMsgWorkWatchNode(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f node:0x%04x, %s]" % (self.msg_type.value, self.seq, 
+        return "%s.0x%08x %s %s [ts:%.03f node:%d, %s]" % (self.msg_type.value, self.seq, 
                 self.fabric, self.wt.value, self.ts, self.node, self.status)
 
 class eptMsgWorkWatchMove(eptMsgWork):
     """ fixed message type for WATCH_MOVE """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchMove, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -381,7 +372,7 @@ class eptMsgWorkWatchMove(eptMsgWork):
 
 class eptMsgWorkWatchRapid(eptMsgWork):
     """ fixed message type for WATCH_RAPID """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchRapid, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -419,10 +410,9 @@ class eptMsgWorkWatchRapid(eptMsgWork):
         return "%s.0x%08x %s %s [0x%06x, %s, %s, rate %.3f]" % (self.msg_type.value, 
             self.seq, self.fabric, self.wt.value, self.vnid, self.type, self.addr, self.rate)
 
-
 class eptMsgWorkWatchOffSubnet(eptMsgWork):
     """ fixed message type for WATCH_OFFSUBNET """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchOffSubnet, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -455,12 +445,12 @@ class eptMsgWorkWatchOffSubnet(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
+        return "%s.0x%08x %s %s [ts:%.03f %s node:%d, 0x%06x, %s]" % (self.msg_type.value, 
             self.seq, self.fabric, self.wt.value, self.ts, self.type,self.node,self.vnid,self.addr)
 
 class eptMsgWorkWatchStale(eptMsgWork):
     """ fixed message type for WATCH_STALE """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set
         super(eptMsgWorkWatchStale, self).__init__(addr, "watcher", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -493,7 +483,7 @@ class eptMsgWorkWatchStale(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.03f %s node: 0x%04x, 0x%06x, %s]" % (self.msg_type.value, 
+        return "%s.0x%08x %s %s [ts:%.03f %s node:%d, 0x%06x, %s]" % (self.msg_type.value, 
             self.seq, self.fabric, self.wt.value, self.ts,self.type,self.node,self.vnid,self.addr)
 
 ###############################################################################
@@ -557,7 +547,7 @@ class eptMsgWorkEpmEvent(eptMsgWork):
     """ standardize parsed result for epmMacEp, epmIpEp, and epmRsMacEpToIpEpAtt objects to always
         include all attributes with default of empty string if not present
     """
-    def __init__(self, addr, role, data, wt, qnum=1, seq=1, fabric=1):
+    def __init__(self, addr, role, data, wt, qnum=0, seq=1, fabric=1):
         # initialize as eptMsgWork with empty data set 
         super(eptMsgWorkEpmEvent, self).__init__(addr, "worker", data, wt, 
                 qnum=qnum, seq=seq, fabric=fabric)
@@ -670,7 +660,7 @@ class eptMsgWorkEpmEvent(eptMsgWork):
         return ret
 
     def __repr__(self):
-        return "%s.0x%08x %s %s [ts:%.3f, node:0x%04x, 0x%06x, %s, %s] %s" % (self.msg_type.value, 
+        return "%s.0x%08x %s %s [ts:%.3f, node:%d, 0x%06x, %s, %s] %s" % (self.msg_type.value, 
             self.seq, self.fabric, self.wt.value, self.ts, self.node, self.vnid, self.addr, self.ip,
             "[force]" if self.force else "",
         )

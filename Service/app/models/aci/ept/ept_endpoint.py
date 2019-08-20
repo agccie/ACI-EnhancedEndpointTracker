@@ -6,11 +6,14 @@ from ... rest import api_callback
 from .. utils import clear_endpoint
 from . common import common_event_attribute
 from . common import get_mac_value
+from . common import get_msg_hash
 from . common import parse_vrf_name
 from . common import subscriber_op
 from . ept_history import eptHistory
 from . ept_move import eptMove
 from . ept_msg import MSG_TYPE
+from . ept_msg import WORK_TYPE
+from . ept_msg import eptMsgWorkEpmEvent
 from . ept_node import eptNode
 from . ept_offsubnet import eptOffSubnet
 from . ept_rapid import eptRapid
@@ -181,6 +184,22 @@ class eptEndpoint(Rest):
             "subtype": int,
             "description": "list of node ids"
         },
+        "hash": {
+            "reference": True,
+            "type": int,
+            "description": "worker hash calculation for this endpoint",
+        },
+        "worker_count": {
+            "reference": True,
+            "type": int,
+            "min": 1,
+            "description": "total number of workers when calculating worker index",
+        },
+        "worker_index": {
+            "reference": True,
+            "type": int,
+            "description": "worker index which is simply hash modulo worker_count",
+        },
     }
 
     @classmethod
@@ -320,7 +339,7 @@ class eptEndpoint(Rest):
                     logger.debug("invalid role %s for node %s", obj.role, n)
                     error_rows.append("cannot clear endpoint on node %s, role %s" % (n,obj.role))
             else:
-                logger.debug("invalid/unknown node:0x%04x for fabric %s", n, self.fabric)
+                logger.debug("invalid/unknown node:%d for fabric %s", n, self.fabric)
                 error_rows.append("invalid/unknown node %s"  % n)
         if len(valid_nodes) == 0:
             error_rows.append("no valid nodes provided")
@@ -378,6 +397,19 @@ class eptEndpoint(Rest):
             "error": ". ".join(error_rows)
         })
 
+    @api_route(path="hash", methods=["POST"], swag_ret=["hash", "worker_index"])
+    def get_worker_hash(self, worker_count=10):
+        """ calculate and return worker hash integer for this endpoint """
+        # need a dummy eptMsgWorkEpmEvent to send through calculation
+        data = {"vnid": self.vnid}
+        if self.type == "mac":
+            wt = WORK_TYPE.EPM_MAC_EVENT
+            data["type"] = "mac"
+        else:
+            wt = WORK_TYPE.EPM_IP_EVENT
+            data["type"] = "ip"
+        _hash = get_msg_hash(eptMsgWorkEpmEvent(self.addr, "worker", data, wt))
+        return jsonify({"hash": _hash, "worker_index": _hash % worker_count})
 
 class eptEndpointEvent(object):
     # status will only be created or deleted, used for easy detection of deleted endpoints.
@@ -396,7 +428,7 @@ class eptEndpointEvent(object):
         self.vnid_name = kwargs.get("vnid_name", "")
 
     def __repr__(self):
-        return "[%.3f] %s node:0x%04x pod:%d, pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
+        return "[%.3f] %s node:%d pod:%d, pctag:0x%x, intf:%s, encap:%s, rw:[0x%06x, %s]" % (
                 self.ts, self.status, self.node, self.pod, self.pctag, self.intf_id, self.encap, 
                 self.rw_bd, self.rw_mac
             )

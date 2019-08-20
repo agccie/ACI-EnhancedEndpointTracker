@@ -7,11 +7,12 @@ from .. utils import get_attributes
 from .. utils import get_class
 from .. utils import get_fabric_version
 from .. utils import parse_apic_version
+from .. utils import raise_interrupt
 from .. utils import validate_session_role
 from .. subscription_ctrl import SubscriptionCtrl
 
 from . common import BG_EVENT_HANDLER_INTERVAL
-from . common import BG_EVENT_HANDLER_ENABLED
+from . common import HELLO_INTERVAL
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_WORK_QUEUE
 from . common import MAX_EPM_BUILD_TIME
@@ -19,10 +20,14 @@ from . common import MAX_SEND_MSG_LENGTH
 from . common import MINIMUM_SUPPORTED_VERSION
 from . common import MO_BASE
 from . common import SUBSCRIBER_CTRL_CHANNEL
+from . common import WATCHER_BROADCAST_CHANNEL
+from . common import WORKER_BROADCAST_CHANNEL
 from . common import WORKER_CTRL_CHANNEL
-from . common import HELLO_INTERVAL
 from . common import BackgroundThread
+from . common import db_alive
+from . common import get_msg_hash
 from . common import get_vpc_domain_id
+from . common import log_version
 from . common import parse_tz
 from . ept_msg import MSG_TYPE
 from . ept_msg import WORK_TYPE
@@ -39,6 +44,7 @@ from . ept_epg import eptEpg
 from . ept_history import eptHistory
 from . ept_node import eptNode
 from . ept_pc import eptPc
+from . ept_queue_stats import eptQueueStats
 from . ept_settings import eptSettings
 from . ept_subnet import eptSubnet
 from . ept_tunnel import eptTunnel
@@ -58,7 +64,8 @@ import traceback
 # module level logging
 logger = logging.getLogger(__name__)
 
-class eptSubscriberExitError(Exception): pass
+class eptSubscriberExitError(Exception):
+    pass
 
 class eptSubscriber(object):
     """ builds initial fabric state and subscribes to events to ensure db is in sync with fabric.
@@ -76,13 +83,15 @@ class eptSubscriber(object):
         self.redis = None
         self.session = None
         self.bg_thread = None           # background thread used to batch epm/std_mo event messages
+        self.stats_thread = None        # update stats at regular interval
         self.epm_event_queue = Queue()
         self.std_mo_event_queue = Queue()
         self.epm_parser = None  # initialized once overlay vnid is known
         self.soft_restart_ts = 0    # timestamp of last soft_restart
+        self.subscription_check_interval = 5.0   # interval to check subscription health
         self.manager_ctrl_channel_lock = threading.Lock()
         self.manager_work_queue_lock = threading.Lock()
-        self.subscription_check_interval = 5.0   # interval to check subscription health
+        self.queue_stats_lock = threading.Lock()
 
         # broadcast hello for any managers (registration and keepalives)
         self.hello_thread = None
@@ -94,7 +103,37 @@ class eptSubscriber(object):
         # at a later time and therefore should only be trusted during initial startup. If we want 
         # to support dynamic worker bringup/teardown in the future, then we will need to implement 
         # messaging between manager and subscriber with active worker updates to keep them in sync.
+        # for now, if active workers change then subscriber will be restarted by manager process
         self.active_workers = active_workers
+
+        # keep a dummy seq for each supported broadcast channel
+        self.watcher_broadcast_seq = 0
+        self.worker_broadcast_seq = 0
+
+        # keep stats per active worker queue
+        fab_id = "fab-%s" % self.fabric.fabric
+        self.queue_stats = {
+            WATCHER_BROADCAST_CHANNEL: eptQueueStats.load(
+                proc=fab_id,
+                queue=WATCHER_BROADCAST_CHANNEL,
+            ),
+            WORKER_BROADCAST_CHANNEL: eptQueueStats.load(
+                proc=fab_id,
+                queue=WORKER_BROADCAST_CHANNEL,
+            ),
+            WORKER_CTRL_CHANNEL: eptQueueStats.load(
+                proc=fab_id,
+                queue=WORKER_CTRL_CHANNEL,
+            ),
+            "total": eptQueueStats.load(proc=fab_id, queue="total"),
+        }
+        for role in self.active_workers:
+            for worker in self.active_workers[role]:
+                for q in worker.queues:
+                    self.queue_stats[q] = eptQueueStats.load(proc=fab_id, queue=q)
+        # initialize stats counters
+        for k, q in self.queue_stats.items():
+            q.init_queue()
 
         # track when fabric epm EOF was sent 
         self.epm_eof_tracking = None
@@ -171,8 +210,10 @@ class eptSubscriber(object):
         self.subscriber = SubscriptionCtrl(
             self.fabric,
             all_interests,
-            heartbeat=300,
             subscribe_timeout=30,
+            heartbeat_timeout=self.fabric.heartbeat_timeout,
+            heartbeat_interval=self.fabric.heartbeat_interval,
+            heartbeat_max_retries=self.fabric.heartbeat_max_retries,
         )
 
     def __repr__(self):
@@ -181,30 +222,45 @@ class eptSubscriber(object):
     def run(self):
         """ wrapper around run to handle interrupts/errors """
         threading.currentThread().name = "sub-main"
+        log_version()
         logger.info("starting eptSubscriber for fabric '%s'", self.fabric.fabric)
         try:
             # allocate a unique db connection as this is running in a new process
             self.db = get_db(uniq=True, overwrite_global=True, write_concern=True)
             self.redis = get_redis()
             # start hello thread
-            self.hello_thread = BackgroundThread(func=self.send_hello, name="sub-hello", count=0,
-                                                interval = HELLO_INTERVAL)
+            self.hello_thread = BackgroundThread(
+                func=self.send_hello,
+                name="sub-hello",
+                count=0,
+                interval = HELLO_INTERVAL
+            )
             self.hello_thread.daemon = True
             self.hello_thread.start()
+            # stats thread
+            self.stats_thread = BackgroundThread(
+                func=self.update_stats,
+                name="sub-stats",
+                count=0,
+                interval= eptQueueStats.STATS_INTERVAL
+            )
+            self.stats_thread.daemon = True
+            self.stats_thread.start()
             # start background event handler thread
-            if BG_EVENT_HANDLER_ENABLED:
-                self.bg_thread = BackgroundThread(
-                    func=self.handle_background_event_queue, 
-                    name="sub-event",
-                    count=0, 
-                    interval=BG_EVENT_HANDLER_INTERVAL
-                )
-                self.bg_thread.daemon = True
-                self.bg_thread.start()
+            self.bg_thread = BackgroundThread(
+                func=self.handle_background_event_queue,
+                name="sub-event",
+                count=0,
+                interval=BG_EVENT_HANDLER_INTERVAL
+            )
+            self.bg_thread.daemon = True
+            self.bg_thread.start()
             self._run()
         except eptSubscriberExitError as e:
             logger.warn("subscriber exit: %s", e)
-        except (Exception, SystemExit, KeyboardInterrupt) as e:
+        except KeyboardInterrupt as e:
+            logger.debug("keyboard interupt: %s", e)
+        except (Exception, SystemExit) as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
         finally:
             self.subscriber.unsubscribe()
@@ -214,12 +270,160 @@ class eptSubscriber(object):
                 self.hello_thread.exit()
             if self.bg_thread is not None:
                 self.bg_thread.exit()
+            if self.stats_thread is not None:
+                self.stats_thread.exit()
+
+    def increment_stats(self, queue, tx=False, count=1):
+        """ update queue stats for transmit/receive message """
+        # update stats queue
+        with self.queue_stats_lock:
+            if queue in self.queue_stats:
+                if tx:
+                    self.queue_stats[queue].total_tx_msg+= count
+                    self.queue_stats["total"].total_tx_msg+= count
+                else:
+                    self.queue_stats[queue].total_rx_msg+= count
+                    self.queue_stats["total"].total_rx_msg+= count
+
+    def update_stats(self):
+        """ update stats at regular interval """
+        # monitor db health prior to db updates
+        if not db_alive(self.db):
+            logger.error("db no longer reachable/alive")
+            raise_interrupt()
+            return
+        # update stats at regular interval for all queues
+        for k, q in self.queue_stats.items():
+            with self.queue_stats_lock:
+                q.collect(qlen = self.redis.llen(k))
 
     def send_hello(self):
-        """ send hello/keepalives at regular interval """
+        """ send hello/keepalives at regular interval to manager process """
         self.hello_msg.seq+= 1
-        #logger.debug(self.hello_msg)
         self.redis.publish(WORKER_CTRL_CHANNEL, self.hello_msg.jsonify())
+        self.increment_stats(WORKER_CTRL_CHANNEL, tx=True)
+
+    def broadcast(self, msg):
+        """ broadcast one or more messages. Broadcast moved to pub/sub mechanism so simply need
+            to publish the original message onto broadcast channel. msg must be of type eptMsgWork
+            or child with role attribute to determine appropriate channel. If role is None or not
+            present then msg is broadcast to all channels
+            Note, broadcast does not currently use eptMsgBulk (no use case at this time...)
+        """
+        all_channels = [ WORKER_BROADCAST_CHANNEL, WATCHER_BROADCAST_CHANNEL]
+        if not isinstance(msg, list):
+            msg = [msg]
+        for m in msg:
+            m.fabric = self.fabric.fabric
+            role = getattr(m, "role", None)
+            if role == "watcher":
+                channels = [ WATCHER_BROADCAST_CHANNEL ]
+                self.watcher_broadcast_seq+=1
+                seq = [self.watcher_broadcast_seq]
+            elif role == "worker":
+                channels = [ WORKER_BROADCAST_CHANNEL ] 
+                self.worker_broadcast_seq+=1
+                seq = [self.worker_broadcast_seq ]
+            else:
+                channels = all_channels
+                self.watcher_broadcast_seq+=1
+                self.worker_broadcast_seq+=1
+                seq = [self.worker_broadcast_seq, self.watcher_broadcast_seq]
+            for i, channel in enumerate(channels):
+                m.seq = seq[i]
+                logger.debug("broadcast [q:%s] msg: %s", channel, m)
+                self.redis.publish(channel, m.jsonify())
+                self.increment_stats(channel, tx=True)
+
+    def send_msg(self, msg, prepend=False):
+        """ prepare list of messages to dispatch to a worker. Messages are sent as a single message
+            or via eptMsgBulk which can contain up to MAX_SEND_MSG_LENGTH messages. If the address
+            is 0 then implied broadcast to all workers of role for provided msg.  Else, hash logic
+            is applied to send to send specific worker based on vnid and address.
+            Note, messages must be of type eptMsgWork (or inherited object) which contain addr, 
+            qnum, and role.
+            prepend support added to support priority-like functionality with only a single queue.
+            When prepend is set to True, a lpush is executed instead of rpush to force the message
+            to the top of the queue.
+        """
+        # dict indexed by worker_id and qnum with a tuple (worker, worker-msgs), where worker-msgs 
+        # is a list of eptBulkMsg objects with at most MAX_SEND_MSG_LENGTH per bulk message
+        work = {}
+        if not isinstance(msg, list):
+            msg = [msg]
+        for m in msg:
+            m.fabric = self.fabric.fabric
+            if m.role not in self.active_workers or len(self.active_workers[m.role]) == 0:
+                logger.warn("no available workers for role '%s'", m.role)
+            else:
+                _hash = get_msg_hash(m)
+                worker = self.active_workers[m.role][_hash % len(self.active_workers[m.role])]
+                if m.qnum >= len(worker.queues):
+                    logger.warn("unable to enqueue work on worker %s, queue %s does not exist", 
+                        worker.worker_id, m.qnum)
+                else:
+                    if worker.worker_id not in work:
+                        work[worker.worker_id] = {}
+                    if m.qnum not in work[worker.worker_id]:
+                        work[worker.worker_id][m.qnum] = (worker, [eptMsgBulk()])
+                    if len(work[worker.worker_id][m.qnum][1][-1].msgs) >= MAX_SEND_MSG_LENGTH:
+                        work[worker.worker_id][m.qnum][1].append(eptMsgBulk())
+                    work[worker.worker_id][m.qnum][1][-1].msgs.append(m)
+                    # increment seq number for this message and for worker
+                    with worker.queue_locks[m.qnum]:
+                        worker.last_seq[m.qnum]+= 1
+                        m.seq = worker.last_seq[m.qnum]
+                    self.increment_stats(worker.queues[m.qnum], tx=True)
+
+        # at this point work is dict indexed by worker-id and queue. Each queue contains a list of
+        # one or more eptMsgBulk objects that need to be transmitted individually.
+        for worker_id in work:
+            for qnum in work[worker_id]:
+                (worker, bulk_msgs) = work[worker_id][qnum]
+                for bulk in bulk_msgs:
+                    send_count = len(bulk.msgs)
+                    # if there's only one message, then send just that single message
+                    if len(bulk.msgs) == 1:
+                        bulk = bulk.msgs[0]
+                    else:
+                        # update bulk sequence number to last entry sent
+                        bulk.seq = bulk.msgs[-1].seq
+                    with worker.queue_locks[qnum]:
+                        try:
+                            #logger.debug("enqueue %s: %s", worker.queues[qnum], bulk)
+                            if prepend:
+                                self.redis.lpush(worker.queues[qnum], bulk.jsonify())
+                            else:
+                                self.redis.rpush(worker.queues[qnum], bulk.jsonify())
+                        except Exception as e:
+                            logger.debug("Traceback:\n%s", traceback.format_exc())
+                            logger.error("failed to enqueue msg on queue (%s) %s: %s", e,
+                                worker.queues[qnum],  bulk)
+
+    def send_msg_direct(self, worker, msg):
+        """ send one or more msgs directly to a single worker. msg must be of type eptMsgWork or 
+            child with addr, qnum, and role set
+        """
+        if not isinstance(msg, list):
+            msg = [msg]
+        for m in msg:
+            m.fabric = self.fabric.fabric
+            if m.qnum >= len(worker.queues):
+                logger.warn("unable to enqueue work on worker %s, queue %s does not exist", 
+                    worker.worker_id, m.qnum)
+            else:
+                # increment seq number for this message and for worker
+                with worker.queue_locks[m.qnum]:
+                    worker.last_seq[m.qnum]+= 1
+                    m.seq = worker.last_seq[m.qnum]
+                self.increment_stats(worker.queues[m.qnum], tx=True)
+                # send mesage
+                with worker.queue_locks[m.qnum]:
+                    try:
+                        self.redis.rpush(worker.queues[m.qnum], m.jsonify())
+                    except Exception as e:
+                        logger.debug("Traceback:\n%s", traceback.format_exc())
+                        logger.error("failed to enqueue msg on queue (%s) %s: %s", e, m.qnum, m)
 
     def handle_channel_msg(self, msg):
         """ handle msg received on subscribed channels """
@@ -249,25 +453,13 @@ class eptSubscriber(object):
             self.send_msg(eptMsgWorkDeleteEpt(msg.addr, "worker", {"vnid":msg.vnid},
                 WORK_TYPE.DELETE_EPT, qnum=msg.qnum,
             ))
-        elif msg.msg_type == MSG_TYPE.TEST_EMAIL:
-            # enqueue notification test to watcher
-            self.send_msg(eptMsgWork(msg.addr, "watcher", {},
-                WORK_TYPE.TEST_EMAIL, qnum=msg.qnum,
-            ))
-        elif msg.msg_type == MSG_TYPE.TEST_SYSLOG:
-            # enqueue notification test to watcher
-            self.send_msg(eptMsgWork(msg.addr, "watcher", {},
-                WORK_TYPE.TEST_SYSLOG, qnum=msg.qnum,
-            ))
         elif msg.msg_type == MSG_TYPE.SETTINGS_RELOAD:
             # reload local settings and send broadcast for settings reload to all workers
             logger.debug("reloading local ept settings")
             self.settings = eptSettings.load(fabric=self.fabric.fabric, settings="default")
             # node addr of 0 is broadcast to all nodes. set role to None to send to all roles
             logger.debug("broadcasting settings reload to all roles")
-            self.send_msg(eptMsgWork(0, None, {}, 
-                WORK_TYPE.SETTINGS_RELOAD, qnum=msg.qnum,
-            ))
+            self.broadcast(eptMsgWork(0, None, {}, WORK_TYPE.SETTINGS_RELOAD))
         elif msg.msg_type == MSG_TYPE.FABRIC_EPM_EOF_ACK:
             # received an ack from a worker for completion of work
             logger.debug("%s receiving EPM EOF ACK: %s", msg.fabric, msg.addr)
@@ -282,7 +474,7 @@ class eptSubscriber(object):
                     logger.debug("%s received epm ack from all workers", msg.fabric)
                     # unpause and stop tracking
                     logger.debug("%s broadcasting resume to all watchers", msg.fabric)
-                    self.send_msg(eptMsgWork(0, "watcher", {},WORK_TYPE.FABRIC_WATCH_RESUME,qnum=0))
+                    self.broadcast(eptMsgWork(0,"watcher",{},WORK_TYPE.FABRIC_WATCH_RESUME))
                     self.epm_eof_tracking = None
                     self.fabric.add_fabric_event("running")
             else:
@@ -393,6 +585,7 @@ class eptSubscriber(object):
                     self.settings.tz = "UTC"
                 else:
                     self.settings.tz = parse_tz(tz_attr["tz"])
+                logger.debug("setting timezone from %s to %s", tz_attr["tz"], self.settings.tz)
                 self.settings.save()
             else:
                 logger.warn("failed to determine fabricProtPol pairT: %s (using default)",vpc_attr)
@@ -403,19 +596,28 @@ class eptSubscriber(object):
       
         # trigger watch pause until initial build is complete
         logger.debug("broadcasting pause to all watchers")
-        self.send_msg(eptMsgWork(0, "watcher", {}, WORK_TYPE.FABRIC_WATCH_PAUSE, qnum=0))
+        self.broadcast(eptMsgWork(0, "watcher", {}, WORK_TYPE.FABRIC_WATCH_PAUSE))
 
         # setup slow subscriptions to catch events occurring during build 
         if self.settings.queue_init_events:
             self.subscriber.pause(self.subscription_classes + self.ordered_mo_classes)
         if not self.subscriber.subscribe(blocking=False, session=self.session):
-            self.fabric.add_fabric_event("failed", "failed to start one or more subscriptions")
+            # see if subscriber died which will add specific reason. If not then add generic
+            # subscription error to fabric events
+            try:
+                if self.subscriber_is_alive():
+                    self.fabric.add_fabric_event("failed",
+                        "failed to start one or more subscriptions"
+                    )
+            except eptSubscriberExitError as e:
+                pass
             return
 
         # build mo db first as other objects rely on it
         self.fabric.add_fabric_event(init_str, "collecting base managed objects")
         if not self.build_mo():
-            self.fabric.add_fabric_event("failed", "failed to collect MOs")
+            # build_mo sets specific error message, no need to set a second one here
+            #self.fabric.add_fabric_event("failed", "failed to collect MOs")
             return
         # check if subscriptions died during previous step
         self.subscriber_is_alive() 
@@ -503,9 +705,12 @@ class eptSubscriber(object):
                 for w in self.active_workers[role]:
                     self.epm_eof_tracking[w.worker_id] = False
                     logger.debug("epm eof tracking for worker %s", w.worker_id)
+                    self.send_msg_direct(
+                        worker=w,
+                        msg=eptMsgWork("","worker",{},WORK_TYPE.FABRIC_EPM_EOF,qnum=0),
+                    )
 
         logger.debug("sending fabric epm eof to all workers")
-        self.send_msg(eptMsgWork(0, "worker", {}, WORK_TYPE.FABRIC_EPM_EOF, qnum=1))
         self.fabric.add_fabric_event(init_str, "building endpoint db")
 
         while True:
@@ -524,7 +729,7 @@ class eptSubscriber(object):
                     self.fabric.add_fabric_event("warning", err)
                     # unpause and stop tracking
                     logger.debug("broadcasting resume to all watchers")
-                    self.send_msg(eptMsgWork(0, "watcher", {},WORK_TYPE.FABRIC_WATCH_RESUME,qnum=0))
+                    self.broadcast(eptMsgWork(0,"watcher",{},WORK_TYPE.FABRIC_WATCH_RESUME))
                     self.epm_eof_tracking = None
                     self.fabric.add_fabric_event("running")
 
@@ -535,6 +740,9 @@ class eptSubscriber(object):
         """ check if subscriber is alive and raise exception if it has died """
         if not self.subscriber.is_alive():
             logger.warn("subscription no longer alive for %s", self.fabric.fabric)
+            # add a fabric event with specific reason for subscriber exist if set
+            if self.subscriber.failure_reason is not None:
+                self.fabric.add_fabric_event("failed", self.subscriber.failure_reason)
             raise eptSubscriberExitError("subscriber is not longer alive")
 
     def get_workers_with_pending_ack(self):
@@ -598,11 +806,17 @@ class eptSubscriber(object):
             self.fabric.add_fabric_event("failed", "failed to build node db")
             return self.hard_restart("failed to build node db")
         # need to rebuild vpc db which requires a rebuild of local mo vpcRsVpcConf mo first
-        success1 = self.mo_classes["vpcRsVpcConf"].rebuild(self.fabric, session=self.session)
-        success2 = self.mo_classes["pcAggrIf"].rebuild(self.fabric, session=self.session)
-        success3 = self.mo_classes["pcRsMbrIfs"].rebuild(self.fabric, session=self.session)
-        if not success1 or not success2 or not success3 or not self.build_vpc_db():
-            self.fabric.add_fabric_event("failed", "failed to build node pc to vpc db")
+        (s1, err1) = self.mo_classes["vpcRsVpcConf"].rebuild(self.fabric, session=self.session)
+        if not s1:
+            self.fabric.add_fabric_event("failed", err1)
+            return self.hard_restart("failed to build node pc to vpc db")
+        (s2, err2) = self.mo_classes["pcAggrIf"].rebuild(self.fabric, session=self.session)
+        if not s2:
+            self.fabric.add_fabric_event("failed", err2)
+            return self.hard_restart("failed to build node pc to vpc db")
+        (s3, err3) = self.mo_classes["pcRsMbrIfs"].rebuild(self.fabric, session=self.session)
+        if not s3:
+            self.fabric.add_fabric_event("failed", err3)
             return self.hard_restart("failed to build node pc to vpc db")
 
         # build tunnel db
@@ -621,35 +835,12 @@ class eptSubscriber(object):
         self.initializing = False
         self.subscriber.resume(self.subscription_classes + self.ordered_mo_classes)
 
-    def send_msg(self, msg):
-        """ send one or more eptMsgWork objects to worker via manager work queue 
-            limit the number of messages sent at a time to MAX_SEND_MSG_LENGTH
-        """
-        if isinstance(msg, list):
-            for sub_msg in msg:
-                # validate that 'fabric' is ALWAYS set on any work
-                sub_msg.fabric = self.fabric.fabric
-            # break up msg into multiple blocks and send as single eptMsgBulk
-            for i in range(0, len(msg), MAX_SEND_MSG_LENGTH):
-                bulk = eptMsgBulk()
-                bulk.msgs = [m for m in msg[i:i+MAX_SEND_MSG_LENGTH]]
-                if len(bulk.msgs)>0:
-                    with self.manager_work_queue_lock:
-                        self.redis.rpush(MANAGER_WORK_QUEUE, bulk.jsonify())
-        else:
-            # validate that 'fabric' is ALWAYS set on any work
-            msg.fabric = self.fabric.fabric
-            with self.manager_work_queue_lock:
-                self.redis.rpush(MANAGER_WORK_QUEUE, msg.jsonify())
-
     def send_flush(self, collection, name=None):
         """ send flush message to workers for provided collection """
         logger.debug("flush %s (name:%s)", collection._classname, name)
         # node addr of 0 is broadcast to all nodes of provided role
         data = {"cache": collection._classname, "name": name}
-        msg = eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE)
-        msg.qnum = 0    # highest priority queue
-        self.send_msg(msg)
+        self.broadcast(eptMsgWork(0, "worker", data, WORK_TYPE.FLUSH_CACHE))
 
     def parse_event(self, event, verify_ts=True):
         """ iterarte list of (classname, attr) objects from subscription event including _ts 
@@ -724,21 +915,14 @@ class eptSubscriber(object):
                 # note that integer 0 is a broadcast that is never sent as bulk.
                 addr = ""
                 msg = eptMsgWorkStdMo(addr, "watcher",{classname:attr}, WORK_TYPE.STD_MO)
-                if BG_EVENT_HANDLER_ENABLED:
-                    self.std_mo_event_queue.put(msg)
-                else:
-                    self.send_msg(msg)
+                self.std_mo_event_queue.put(msg)
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 
-    def handle_epm_event(self, event, qnum=1):
+    def handle_epm_event(self, event, qnum=0):
         """ handle epm events received on epm_subscription
             this will parse the epm event and create and eptMsgWorkRaw msg for the event. Then it
-            will do one of the following
-                if BG_EVENT_HANDLER_ENABLED
-                    add raw msg to epm_event_queue for background process to batch
-                else:
-                    send as a eptMsgWorkRaw event to manager to queue to an available worker.
+            will add msg to epm_event_queue for background process to batch
         """
         if self.stopped:
             logger.debug("ignoring event (subscriber stopped and waiting for reset)")
@@ -752,17 +936,17 @@ class eptSubscriber(object):
             return
         try:
             for (classname, attr) in self.parse_event(event):
-                #msg = self.epm_parser.parse(classname, attr, attr["_ts"])
+                # raw ept message extracting address string purely from dn of object
                 # dn for each possible epm event:
                 #   .../db-ep/mac-00:AA:00:00:28:1A
                 #   .../db-ep/ip-[10.1.55.220]
                 #   rsmacEpToIpEpAtt-.../db-ep/ip-[10.1.1.74]]
-                addr = re.sub("[\[\]]","", attr["dn"].split("-")[-1])
-                msg = eptMsgWorkRaw(addr,"worker", {classname:attr}, WORK_TYPE.RAW, qnum=qnum)
-                if BG_EVENT_HANDLER_ENABLED:
-                    self.epm_event_queue.put(msg)
-                else:
-                    self.send_msg(msg)
+                # addr = re.sub("[\[\]]","", attr["dn"].split("-")[-1])
+                #msg = eptMsgWorkRaw(addr,"worker", {classname:attr}, WORK_TYPE.RAW, qnum=qnum)
+                # OR, full parse of event in subscriber module which extracts all required info 
+                # this is needed for address and vnid info for hash module
+                msg = self.epm_parser.parse(classname, attr, attr["_ts"])
+                self.epm_event_queue.put(msg)
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
 
@@ -774,12 +958,15 @@ class eptSubscriber(object):
             msgs = []
             while not q.empty():
                 msgs.append(q.get())
-            self.send_msg(msgs)
+            if len(msgs)>0:
+                self.send_msg(msgs)
 
     def build_mo(self):
         """ build managed objects for defined classes """
         for mo in self.ordered_mo_classes:
-            if not self.mo_classes[mo].rebuild(self.fabric, session=self.session):
+            (success, errmsg) = self.mo_classes[mo].rebuild(self.fabric, session=self.session)
+            if not success:
+                self.fabric.add_fabric_event("failed", errmsg)
                 return False
         return True
 
@@ -814,8 +1001,13 @@ class eptSubscriber(object):
         """
         # iterator over data from class query returning just dict attributes
         def raw_iterator(data):
-            for attr in get_attributes(data=data):
-                yield attr
+            for obj in data:
+                if obj is not None:
+                    for attr in get_attributes(data=obj):
+                        yield attr
+                else:
+                    logger.warn("obj is none on streaming class query for %s", eptObject)
+                    return
 
         # iterator over mo objects returning just dict attributes
         def mo_iterator(objects):
@@ -827,7 +1019,7 @@ class eptSubscriber(object):
             data = self.mo_classes[mo_classname].find(fabric=self.fabric.fabric)
             iterator = mo_iterator
         else:
-            data = get_class(self.session, mo_classname)
+            data = get_class(self.session, mo_classname, orderBy="%s.dn"%mo_classname, stream=True)
             if data is None:
                 logger.warn("failed to get data for classname %s", mo_classname)
                 return False
@@ -875,8 +1067,10 @@ class eptSubscriber(object):
             if len(db_obj)>0:
                 db_obj["fabric"] = self.fabric.fabric
                 if set_ts: 
-                    if "ts" in attr: db_obj["ts"] = attr["ts"]
-                    else: db_obj["ts"] = ts
+                    if "ts" in attr:
+                        db_obj["ts"] = attr["ts"]
+                    else:
+                        db_obj["ts"] = ts
                 bulk_objects.append(eptObject(**db_obj))
             else:
                 logger.warn("%s object not added from MO (no matching attributes): %s", 
@@ -911,6 +1105,12 @@ class eptSubscriber(object):
         all_nodes = {}
         for n in eptNode.find(fabric=self.fabric.fabric):
             all_nodes[n.node] = n
+
+        # extra check here, fail if no eptNode objects were found. This is either a setup with no
+        # nodes present (just an APIC) or a build problem has occurred
+        if len(all_nodes) == 0:
+            logger.warn("no eptNode objects discovered")
+            return False
 
         # cross reference fabricNode (which includes inactive nodes) with topSystem which includes
         # active nodes and accurate TEP for active nodes only.  Then merge firmware version
@@ -1302,8 +1502,7 @@ class eptSubscriber(object):
                             self.hard_restart(reason="leaf '%s' became active" % node.node)
                         else:
                             logger.debug("node %s '%s', sending watch_node event", node.node,status)
-                            msg = eptMsgWorkWatchNode("%s"%node.node,"watcher",{},
-                                                        WORK_TYPE.WATCH_NODE)
+                            msg = eptMsgWorkWatchNode("1","watcher",{},WORK_TYPE.WATCH_NODE)
                             msg.node = node.node
                             msg.ts = attr["_ts"]
                             msg.status = status
@@ -1407,11 +1606,11 @@ class eptSubscriber(object):
         self.fabric.add_fabric_event("initializing", overview)
         return True
 
-    def refresh_endpoint(self, vnid, addr, addr_type, qnum=1):
+    def refresh_endpoint(self, vnid, addr, addr_type, qnum=0):
         """ perform endpoint refresh. This triggers an API query for epmDb filtering on provided
             addr and vnid. The results are fed through handle_epm_event which is enqueued onto 
-            a worker. API can set qnum=0 to get 'strict priority' for refresh on worker. This allows
-            user to get immediate refresh even if high number of events are queued.
+            a worker. Since workers only have a single queue, will need to insert at the top of
+            thier queue.
         """
         logger.debug("refreshing [0x%06x %s]", vnid, addr)
         if addr_type == "mac":
@@ -1458,7 +1657,7 @@ class eptSubscriber(object):
                 msg.qnum = qnum
                 msg.force = True
 
-            self.send_msg(create_msgs+delete_msgs)
+            self.send_msg(create_msgs+delete_msgs, prepend=True)
         else:
             logger.debug("failed to get epm objects")
 

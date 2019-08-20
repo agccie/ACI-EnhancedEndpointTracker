@@ -154,7 +154,7 @@
 </div>
 <div class="row base-margin-bottom">
     <div class="col-md-12">
-        subscriptions are enabled for several MOs during the initial db build. If events are received on the
+        Subscriptions are enabled for several MOs during the initial db build. If events are received on the
         subscription before initialization has completed these events can be queued and serviced after initialization.
         The number of events queued is dependent on the rate of events and the build time. It may be desirable to
         ignore the events during initialization, in which case queue events should be disabled.
@@ -177,6 +177,43 @@
                 <span class="switch__input"></span>
                 <span class="switch__label">Queue initial endpoint events</span>
             </label>
+        </div>
+    </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-12">
+        The subscription process monitors the health of the websocket and manages login token and subscription refreshes.
+        It also polls the APIC at a regular interval to ensure that the nginx process is reachable and responsive.
+        There is a query sent with <strong>hearbeat timeout</strong> once per <strong>heartbeat interval</strong>.
+        If there are consecutive heartbeat failures, up to the configured
+        <strong>heartbeat retry</strong> count, then the APIC is marked as unreachable and the subscription process will restart.
+        Set the <strong>heartbeat interval</strong> to 0 to disable heartbeat functionality.
+        Note that the fabric monitor needs to be restarted for heartbeat settings to take affect.
+    </div>
+</div>
+<div class="row base-margin-bottom">
+    <div class="col-md-4">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" id="heartbeat_max_retries" [(ngModel)]="service.fabric.heartbeat_max_retries">
+                <label for="heartbeat_max_retries">Heartbeat Retries</label>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" id="heartbeat_interval" [(ngModel)]="service.fabric.heartbeat_interval">
+                <label for="heartbeat_interval">Heartbeat Interval (seconds)</label>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="form-group">
+            <div class="form-group__text">
+                <input type="number" id="heartbeat_timeout" [(ngModel)]="service.fabric.heartbeat_timeout">
+                <label for="heartbeat_timeout">Heartbeat Timeout (seconds)</label>
+            </div>
         </div>
     </div>
 </div>

@@ -6,8 +6,35 @@ Releases
 This page will track information about each new release along with new features and any known
 issues. 
 
+Version 2.1.2
+-------------
+*Released Aug 20 2019*
+
+* fix for #46 fabricNode parsing broken on recent build breaks all eptNode tables
+* update worker hash calculation for better load-balancing of work in scale setups
+* use pub/sub redis messaging for broadcast between subscriber and workers
+* reduce queue count and queue stat objects when using pub/sub broadcasts
+* address timeouts on techsupport collection in multi-node standalone cluster
+* reduce memory utilization on startup by streaming class queries
+* include sort on all concrete objects initializations to prevent out-of-order results during paging
+* use local user directory instead of global tmp for compose and deploy logs to prevent access
+  problems for multiuser deployments
+* additional user validation checks during docker swarm deployment
+* increase manager timeout on app-status to support scale setups
+* fix mongo cursor timeouts due to docker routed-mesh mongos load-balancing in multi-node standalone
+  cluster
+* propagate session/subscriber errors into fabric events so user can quickly isolate subscription
+  restart errors
+* added UI and backend support for configurable heartbeat interval, timeout, and retry count
+* improve queue cleanup on fabric restart
+* logrotate updates for apache logs
+* UI polling service fix to prevent rapid requests on 400/500 errors
+* UI optimize fabric status and manager polling mechanisms
+* UI fix for cascading polling events on refresh
+
 Version 2.1.1
 -------------
+*Released Mar 21 2019*
 
 * Configurable SMTP settings including custom SMTP port, TLS encryption, and support for SMTP relay
   with optional authentication
@@ -30,6 +57,7 @@ Version 2.1.1
 
 Version 2.0.x
 -------------
+*Released Feb 22 2019*
 
 Initial 2.0 release. This was a complete rewrite with focus on scalability while maintaining and 
 augmenting the feature set from the 1.x versions. Features include:

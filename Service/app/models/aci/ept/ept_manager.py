@@ -7,6 +7,8 @@ from .. utils import register_signal_handlers
 from .. utils import terminate_process
 from . common import HELLO_INTERVAL
 from . common import HELLO_TIMEOUT
+from . common import WATCHER_BROADCAST_CHANNEL
+from . common import WORKER_BROADCAST_CHANNEL
 from . common import MANAGER_CTRL_CHANNEL
 from . common import MANAGER_CTRL_RESPONSE_CHANNEL
 from . common import MANAGER_WORK_QUEUE
@@ -16,7 +18,10 @@ from . common import WORKER_CTRL_CHANNEL
 from . common import WORKER_UPDATE_INTERVAL
 from . common import BackgroundThread
 from . common import db_alive
+from . common import flush_queue
+from . common import get_msg_hash
 from . common import get_queue_length
+from . common import log_version
 from . common import wait_for_db
 from . common import wait_for_redis
 from . ept_msg import MSG_TYPE
@@ -46,6 +51,7 @@ class eptManager(object):
 
     def __init__(self, worker_id):
         threading.currentThread().name = "mgr-main"
+        log_version()
         logger.debug("init role manager id %s", worker_id)
         register_signal_handlers()
         self.worker_id = "%s" % worker_id
@@ -58,11 +64,29 @@ class eptManager(object):
 
         self.queue_stats_lock = threading.Lock()
         self.queue_stats = {
-            WORKER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, queue=WORKER_CTRL_CHANNEL),
-            MANAGER_CTRL_CHANNEL: eptQueueStats.load(proc=self.worker_id, queue=MANAGER_CTRL_CHANNEL),
-            MANAGER_CTRL_RESPONSE_CHANNEL: eptQueueStats.load(proc=self.worker_id, 
-                                                queue=MANAGER_CTRL_RESPONSE_CHANNEL),
-            MANAGER_WORK_QUEUE: eptQueueStats.load(proc=self.worker_id, queue=MANAGER_WORK_QUEUE),
+            WATCHER_BROADCAST_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=WATCHER_BROADCAST_CHANNEL
+            ),
+            WORKER_BROADCAST_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=WORKER_BROADCAST_CHANNEL
+            ),
+            WORKER_CTRL_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=WORKER_CTRL_CHANNEL
+            ),
+            MANAGER_CTRL_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,queue=MANAGER_CTRL_CHANNEL
+            ),
+            MANAGER_CTRL_RESPONSE_CHANNEL: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=MANAGER_CTRL_RESPONSE_CHANNEL
+            ),
+            MANAGER_WORK_QUEUE: eptQueueStats.load(
+                proc=self.worker_id,
+                queue=MANAGER_WORK_QUEUE
+            ),
             "total": eptQueueStats.load(proc=self.worker_id, queue="total"),
         }
         # initialize stats counters
@@ -111,8 +135,12 @@ class eptManager(object):
         self.redis.flushall()
         wait_for_db(self.db)
         self.worker_tracker = WorkerTracker(manager=self)
-        self.stats_thread = BackgroundThread(func=self.update_stats, name="mgr-stats", count=0, 
-                                            interval= eptQueueStats.STATS_INTERVAL)
+        self.stats_thread = BackgroundThread(
+            func=self.update_stats,
+            name="mgr-stats",
+            count=0,
+            interval= eptQueueStats.STATS_INTERVAL
+        )
         self.stats_thread.daemon = True
         self.stats_thread.start()
 
@@ -159,16 +187,10 @@ class eptManager(object):
                             # an addr of 0 is a broadcast to all workers of specified role.
                             # Send broadcast now, not within a batch.
                             # Note, broadcast may be out of order if received in BULK with ucast msg
-                            self.worker_tracker.broadcast(msg, qnum=msg.qnum, role=msg.role)
+                            self.worker_tracker.broadcast(msg) 
                         else:
                             # create hash based on address and send to specific worker
-                            # need to ensure that we hash on ip for EPM_RS_IP_EVENT so it goes to the 
-                            # correct worker...
-                            if msg.wt == WORK_TYPE.EPM_RS_IP_EVENT:
-                                _hash = sum(ord(i) for i in msg.ip)
-                            else:
-                                _hash = sum(ord(i) for i in msg.addr)
-                            bulk.append((_hash, msg))
+                            bulk.append((get_msg_hash(msg), msg))
                 if len(bulk) > 0:
                     if not self.worker_tracker.send_bulk(bulk):
                         logger.warn("[%s] failed to enqueue one or more messages", self)
@@ -197,7 +219,7 @@ class eptManager(object):
             logger.error("Traceback:\n%s", traceback.format_exc())
 
     def handle_manager_ctrl(self, msg):
-        logger.debug("ctrl message: %s, seq:0x%x, %s", msg.msg_type.value, msg.seq, msg.data)
+        #logger.debug("ctrl message: %s, seq:0x%x, %s", msg.msg_type.value, msg.seq, msg.data)
         if msg.msg_type == MSG_TYPE.GET_MANAGER_STATUS:
             # publish manager status in background thread (to ensure we don't block other requests)
             # note if brief is set to False, then this request can take significant time to read 
@@ -273,11 +295,11 @@ class eptManager(object):
                 if "queue_len" in w:
                     total_queue_len+= sum(w["queue_len"])
             data["total_queue_len"] = total_queue_len
-            logger.debug("manager status (ts: %.3f, seq:0x%x, queue: %s, workers: %s, fabrics: %s)", 
-                    time.time()-start_ts, seq, total_queue_len, 
-                    len(data["workers"]),
-                    len(data["fabrics"])
-                )
+            #logger.debug("manager status (ts: %.3f, seq:0x%x, queue: %s, workers: %s, fabrics: %s)", 
+            #        time.time()-start_ts, seq, total_queue_len, 
+            #        len(data["workers"]),
+            #        len(data["fabrics"])
+            #    )
             ret = eptMsg(MSG_TYPE.MANAGER_STATUS, data=data, seq=seq)
             self.redis.publish(MANAGER_CTRL_RESPONSE_CHANNEL, ret.jsonify())
             self.increment_stats(MANAGER_CTRL_RESPONSE_CHANNEL, tx=True)
@@ -297,7 +319,7 @@ class eptManager(object):
                 "fabric": fabric,
                 "alive": alive
             }
-            logger.debug("fabric %s alive:%r (seq:0x%x)", fabric, alive, seq)
+            #logger.debug("fabric %s alive:%r (seq:0x%x)", fabric, alive, seq)
             ret = eptMsg(MSG_TYPE.FABRIC_STATUS, data=data, seq=seq)
             self.redis.publish(MANAGER_CTRL_RESPONSE_CHANNEL, ret.jsonify())
             self.increment_stats(MANAGER_CTRL_RESPONSE_CHANNEL, tx=True)
@@ -323,10 +345,10 @@ class eptManager(object):
         logger.debug("manager start fabric: %s (%s)", fabric, reason)
         if fabric not in self.fabrics:
             self.fabrics[fabric] = {
+                "fabric": None,
                 "process": None,
                 "subscriber": None,
                 "waiting_for_retry": False,
-                "fabric": None,
             }
         if self.fabrics[fabric]["process"] is None or not self.fabrics[fabric]["process"].is_alive():
             f = Fabric.load(fabric=fabric)
@@ -384,7 +406,8 @@ class eptManager(object):
         # if auto_start is disabled, then references to this fabric will be removed from manager. 
         # Else, if a new worker comes online the fabric may automatically restart.
         # return boolean success
-        if reason is None: reason = "generic stop"
+        if reason is None:
+            reason = "generic stop"
         logger.debug("manager stop fabric: %s (%s)", fabric, reason)
         f = Fabric.load(fabric=fabric)
         if f.exists():
@@ -397,9 +420,20 @@ class eptManager(object):
             return False
         elif self.fabrics[fabric]["process"] is not None:
             logger.debug("terminating fabric process '%s", fabric)
-            terminate_process(self.fabrics[fabric]["process"])
-            self.fabrics[fabric]["process"] = None
-            # need to force all workers to flush their caches for this fabric
+            # to prevent race condition with check_fabric_process, go ahead and pop fabric from
+            # self.fabrics before terminating and we can add it back if needed
+            fab = self.fabrics.pop(fabric)
+            terminate_process(fab["process"])
+            fab["process"] = None
+            # need to force all workers to flush their caches for this fabric AND flush their work
+            # queue for this fabric. There is an optimization we can make for the latter operation,
+            # if there is only one fabric being monitored, we can flush the full redis db instead
+            # of having each worker inspect ever pending work event. This could theoretically be
+            # done if there are multiple fabrics and all other fabrics are in waiting_for_retry as
+            # well but will not include that case for now.
+            if len(self.fabrics) == 0:
+                logger.info("flushing full redis db due to fabric stop with only one fabric")
+                self.redis.flushall()
             stop = eptMsg(MSG_TYPE.FABRIC_STOP, data={"fabric": fabric})
             self.worker_tracker.broadcast(stop)
             # remove subscriber id from worker tracker known_subscribers
@@ -407,13 +441,16 @@ class eptManager(object):
             # remove fabric from auto-start before flushing messages
             if not f.exists() or not f.auto_start: 
                 logger.debug("removing fabric '%s' from managed fabrics", fabric)
-                self.fabrics.pop(fabric, None)
+                # already removed from fabrics dict, do not add back
             else:
-                self.fabrics[fabric]["waiting_for_retry"] = True
-            # manager should flush all events from worker queues for the fabric instead of 
-            # having worker perform the operation which could lead to race conditions. This needs
-            # to happening in a different thread so it does not block hellos or other events 
-            # received on the control thread.
+                logger.debug("setting waiting_for_retry for fabric '%s'", fabric)
+                fab["waiting_for_retry"] = True
+                self.fabrics[fabric] = fab
+
+            # manager needs to flush local queue for fabric which should be relatively fast. Will
+            # do this in a background thread so it does not affect hello or other control events,
+            # but hopefully completes quickly since it is local queue only instead of every
+            # worker's queue.
             tmp = threading.Thread(name="mgr-tmp", target=self.worker_tracker.flush_fabric,
                                 args=(fabric,))
             tmp.daemon = True
@@ -444,8 +481,10 @@ class eptManager(object):
             elif fab["process"] is None and fab["waiting_for_retry"]:
                 self.start_fabric(f, reason="auto restarting", restarting=True)
 
-        # stop tracking fabrics in remove list
-        for f in remove_list: self.fabrics.pop(f, None)
+        # no need to remove fabric from self.fabrics since 'stop' was called and it handles
+        # updates to self.fabrics
+        #for f in remove_list:
+        #    self.fabrics.pop(f, None)
 
     def increment_stats(self, queue, tx=False, count=1):
         # update stats queue
@@ -478,9 +517,15 @@ class WorkerTracker(object):
         self.known_subscribers = {} # indexed by fabric-id
         self.known_workers = {}     # indexed by worker_id
         self.active_workers = {}    # list of active workers indexed by role
+        self.watcher_broadcast_seq = 0
+        self.worker_broadcast_seq = 0
         self.update_interval = WORKER_UPDATE_INTERVAL # interval to check for new/expired workers
-        self.update_thread = BackgroundThread(func=self.update_active_workers, count=0, 
-                                            name="mgr-tracker", interval=self.update_interval)
+        self.update_thread = BackgroundThread(
+            func=self.update_active_workers,
+            count=0, 
+            name="mgr-tracker",
+            interval=self.update_interval
+        )
         self.update_thread.daemon = True
         self.update_thread.start()
 
@@ -518,7 +563,10 @@ class WorkerTracker(object):
                 self.known_workers[hello.worker_id].last_head.append(0)
                 self.known_workers[hello.worker_id].queue_locks.append(threading.Lock())
                 if q not in self.manager.queue_stats:
-                    self.manager.queue_stats[q] = eptQueueStats(proc=self.manager.worker_id,queue=q)
+                    self.manager.queue_stats[q] = eptQueueStats.load(
+                        proc=self.manager.worker_id,
+                        queue=q
+                    )
                     self.manager.queue_stats[q].init_queue()
             # wait until background thread picks up update and adds to available workers
             logger.debug("new worker(%s) detected, waiting for activation period (%s sec)",
@@ -654,22 +702,36 @@ class WorkerTracker(object):
                         all_success = False
         return all_success
 
-    def broadcast(self, msg, qnum=0, role=None):
-        # broadcast message to active workers on particular queue index.  Set role to limit the 
-        # broadcast to only workers of particular role
-        logger.debug("broadcast [q:%s, r:%s] msg: %s", qnum, role, msg)
-        for r in self.active_workers:
-            if role is None or r == role:
-                for i, worker in enumerate(self.active_workers[r]):
-                    if qnum > len(worker.queues):
-                        logger.warn("unable to broadcast msg on worker %s, qnum %s does not exist",
-                            worker.worker_id, qnum)
-                    else:
-                        with worker.queue_locks[qnum]:
-                            worker.last_seq[qnum]+= 1
-                            msg.seq = worker.last_seq[qnum]
-                            self.redis.rpush(worker.queues[qnum], msg.jsonify())
-                        self.manager.increment_stats(worker.queues[qnum], tx=True)
+    def broadcast(self, msg):
+        """ broadcast single message. Broadcast moved to pub/sub mechanism so simply need
+            to publish the original message onto broadcast channel. msg must be of type eptMsgWork
+            or child with role attribute to determine appropriate channel. If role is None or not
+            present then msg is broadcast to all channels
+            Note, broadcast does not currently use eptMsgBulk (no use case at this time...)
+        """
+        all_channels = [ WORKER_BROADCAST_CHANNEL, WATCHER_BROADCAST_CHANNEL]
+        if not isinstance(msg, list):
+            msg = [msg]
+        for m in msg:
+            role = getattr(m, "role", None)
+            if role == "watcher":
+                channels = [ WATCHER_BROADCAST_CHANNEL ]
+                self.watcher_broadcast_seq+=1
+                seq = [self.watcher_broadcast_seq]
+            elif role == "worker":
+                channels = [ WORKER_BROADCAST_CHANNEL ] 
+                self.worker_broadcast_seq+=1
+                seq = [self.worker_broadcast_seq ]
+            else:
+                channels = all_channels
+                self.watcher_broadcast_seq+=1
+                self.worker_broadcast_seq+=1
+                seq = [self.worker_broadcast_seq, self.watcher_broadcast_seq]
+            for i, channel in enumerate(channels):
+                m.seq = seq[i]
+                logger.debug("broadcast [q:%s] msg: %s", channel, m)
+                self.redis.publish(channel, m.jsonify())
+                self.manager.increment_stats(channel, tx=True)
 
     def flush_queue(self, fabric, q, lock=None):
         """ flush messages for provided fabric and redis queue """
@@ -708,24 +770,10 @@ class WorkerTracker(object):
                     self.redis.rpush(q, *repush)
                 logger.debug("repush completed")
 
-    def flush_fabric(self, fabric, qnum=-1, role=None):
-        # walk through all active workers and remove any work objects from queue for this fabric
-        # note, this is a costly operation if the queue is significantly backed up...
+    def flush_fabric(self, fabric):
+        # flush local queues for provided fabric. Note, moved per-worker flush to each worker
         logger.debug("flush fabric '%s'", fabric)
-
-        # flush work from this fabric for manager work queue if no specific role set
-        if role is None:
-            self.flush_queue(fabric, MANAGER_WORK_QUEUE)
-
-        # flush work from active workers
-        for r in self.active_workers:
-            if role is None or r == role:
-                for i, worker in enumerate(self.active_workers[r]):
-                    if abs(qnum) > len(worker.queues):
-                        logger.warn("unable to flush fabric for worker %s, qnum %s does not exist",
-                                worker.worker_id, qnum)
-                    else:
-                        self.flush_queue(fabric, worker.queues[qnum], lock=worker.queue_locks[qnum])
+        flush_queue(self.redis, fabric, MANAGER_WORK_QUEUE)
 
     def get_worker_status(self, brief=False):
         # return list of dict representation of TrackedWorker objects along with queue_len list 
@@ -736,7 +784,6 @@ class WorkerTracker(object):
             js["queue_len"] = [get_queue_length(self.redis, q, accurate=not brief) for q in w.queues]
             status.append(js)
         return status
-            
 
 class TrackedWorker(object):
     """ active worker tracker """

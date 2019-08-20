@@ -7,22 +7,6 @@
     </div>
 </div>
 <div *ngIf="fabricFound">
-    <div *ngIf="!managerRunning">
-        <div class="base-margin-bottom alert alert--danger">
-            <div class="alert__icon icon-error-outline"></div>
-            <div class="alert__message text-left">
-                <strong>Error</strong> Manager process is not running.  You may be unable to start/stop/monitor the fabric until this is resolved.
-            </div>
-        </div>
-    </div>
-    <div *ngIf="!fabricRunning">
-        <div class="base-margin-bottom alert alert--warning">
-            <div class="alert__icon icon-warning-outline"></div>
-            <div class="alert__message text-left">
-                <strong>Warning</strong> Endpoint Tracker is not currently running for this fabric
-            </div>
-        </div>
-    </div>
     <div class="base-margin-bottom row">
         <div class="col-md-4">
             <div class="panel panel--bordered">
@@ -89,7 +73,7 @@
                                     <span class="text-bold">Uptime:</span>
                                 </div>
                                 <div class="col-md-4 text-left">
-                                    {{ fabric.uptime | uptimeDays }}
+                                    {{ fabricService.fabric.uptime | uptimeDays }}
                                 </div>
                             </div>
                             <div class="row qtr-margin-top">

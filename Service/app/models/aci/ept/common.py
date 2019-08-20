@@ -1,10 +1,12 @@
 """
 common ept functions
 """
+from ... utils import get_app_config
 from . ept_msg import MSG_TYPE
 from . ept_msg import eptMsg
 
 import logging
+import hashlib
 import os
 import re
 import threading
@@ -36,12 +38,15 @@ MANAGER_CTRL_CHANNEL                = "mctrl"
 MANAGER_CTRL_RESPONSE_CHANNEL       = "r_mctrl"
 MANAGER_WORK_QUEUE                  = "mq"
 SUBSCRIBER_CTRL_CHANNEL             = "sctrl"
+WATCHER_BROADCAST_CHANNEL           = "bcx"
+WORKER_BROADCAST_CHANNEL            = "bcw"
 WORKER_CTRL_CHANNEL                 = "wctrl"
 WORKER_UPDATE_INTERVAL              = 15.0
 RAPID_CALCULATE_INTERVAL            = 15.0
 MAX_SEND_MSG_LENGTH                 = 10240
 BG_EVENT_HANDLER_INTERVAL           = 0.01
-BG_EVENT_HANDLER_ENABLED            = True
+HASH_SHIFT                          = 128
+HASH_PRIME                          = 1000003
 
 # when API requests msg queue length, manager can read the full data off each queue and accurate
 # msgs within bulk messages for accurate count. There is a performance hit to this so the
@@ -171,6 +176,17 @@ common_event_attribute = {
 #
 ###############################################################################
 
+def log_version():
+    """ get version string to logger for debugging purposes """
+    config = get_app_config()
+    logger.debug("version {version}[{vfull}], commit {commit}, built {date}[{timestamp}]".format(
+        version=config.get("APP_VERSION",""),
+        vfull=config.get("APP_FULL_VERSION",""),
+        commit=config.get("APP_COMMIT",""),
+        date=config.get("APP_COMMIT_DATE",""),
+        timestamp=config.get("APP_COMMIT_DATE_EPOCH",0),
+    ))
+
 def wait_for_redis(redis_db, check_interval=1):
     """ blocking function that waits until provided redis-db is available """
     while not redis_alive(redis_db):
@@ -227,7 +243,47 @@ def get_queue_length(rdb, queue, accurate=True):
                 count+=1
         return count
     else:
-        return rdb.llen(queue) 
+        return rdb.llen(queue)
+
+def flush_queue(redis_db, fabric, q, lock=None):
+    """ flush messages for provided fabric and redis queue """
+    logger.debug("flushing %s from queue %s", fabric, q)
+    # pull off all messages on the queue in single operation
+    pl = redis_db.pipeline()
+    pl.lrange(q, 0, -1)
+    pl.delete(q)
+    ret = []
+    repush = []
+    removed_count = 0
+    if lock is not None:
+        with lock:
+            ret = pl.execute()
+    else:
+        ret = pl.execute()
+    # inspect each message and if matching fabric discard, else push back onto queue
+    if len(ret) > 0 and type(ret[0]) is list:
+        logger.debug("inspecting %s msg from queue %s", len(ret[0]), q)
+        for data in ret[0]:
+            # need to reparse message and check fabric
+            msg = eptMsg.parse(data)
+            # for eptMsgBulk it is currently safe to assume if the first msg is our fabric
+            # then all messages will be our fabric
+            if msg.msg_type == MSG_TYPE.BULK and len(msg.msgs)>0 and hasattr(msg.msgs[0], "fabric")\
+                and msg.msgs[0].fabric == fabric:
+                removed_count+=len(msg.msgs)
+            elif hasattr(msg, "fabric") and msg.fabric == fabric:
+                removed_count+=1
+            else:
+                repush.append(data)
+        logger.debug("removed %s and repushing %s to queue %s", removed_count, len(repush), q)
+        if len(repush) > 0:
+            if lock is not None:
+                with lock:
+                    redis_db.rpush(q, *repush)
+            else:
+                redis_db.rpush(q, *repush)
+            logger.debug("repush completed")
+
 
 ###############################################################################
 #
@@ -302,7 +358,7 @@ def parse_vrf_name(dn):
         return None
 
 
-def subscriber_op(fabric, msg_type, data=None, qnum=1):
+def subscriber_op(fabric, msg_type, data=None, qnum=0):
     """ send msg to subscriber with provided msg_type and data. The message is only sent if fabric 
         is currently running, else an error is returned.
         returns a tuple (success, error_string)
@@ -334,13 +390,48 @@ def subscriber_op(fabric, msg_type, data=None, qnum=1):
         return (False, "Fabric '%s' is not running" % fabric)
 
 def parse_tz(tz):
-    # expect to be in the form n#_Region-Tz where we need to replace - with /
-    r1 = re.search("^n[0-9]+_(?P<region>[^\-]+)-(?P<tz>.+)$", tz)
+    # expect to be in the form p|n#_Region-Tz where we need to replace - with /
+    # it appears from model that p=positive and n=negative followed by the number of minutes
+    # representing the time offset. We could try and capture this info as well but could get
+    # tricky when including daylight savings time, will just try and capture the actual timezone
+    r1 = re.search("^[pn][0-9]+_(?P<tz>.+)$", tz)
     if r1 is not None:
-        return "%s/%s" % (r1.group("region"), re.sub("-","/", r1.group("tz")))
+        return re.sub("-", "/", r1.group("tz"))
     else:
         logger.warn("failed to parse timezone: %s", tz)
         return tz
+
+def get_msg_hash(msg):
+    """ receive eptMsg object with addr, vnid, and type attributes and return calculated hash """
+    # multiple types of work objects supported by each has an addr field. It may have a vnid
+    # attribute as well, if not we will force to 0 for the hash
+    m_vnid = getattr(msg, "vnid", 0)
+    # we also need an integer addr, the value is dependent on whether addr is mac or ip. there are
+    # some messages that are sent with dummy strings which are not hashable, for these we will
+    # always derive worker index of 0. Alternatively, if we cannot convert addr to integer then we
+    # will use 0.
+    m_addr = getattr(msg, "addr", "")
+    m_type = getattr(msg, "type", "")
+    m_ip = getattr(msg, "ip", "")
+    if m_type == "ip":
+        # if this is an epmRsMacEpToIpEpAtt event, then must use the ip attribute instead of
+        # the addr (which is the mac address)
+        if len(m_ip)>0:
+            (_addr, _mask) = get_ip_prefix(m_ip)
+        else:
+            (_addr, _mask) = get_ip_prefix(m_addr)
+        if _addr is None:
+            logger.warn("failed to parse message ip(%s), forcing to 0", m_addr)
+            _addr = 0
+    elif m_type == "mac":
+        # if mac parse fails then 0 is returned (not None)
+        _addr = get_mac_value(m_addr)
+    else:
+        # fall back to md5 hash of address if type is not set
+        _addr = int(hashlib.md5(m_addr).hexdigest(), base=16)
+    _hash = (((m_vnid << HASH_SHIFT ) + _addr ) ^ HASH_PRIME)
+    #logger.debug("addr(%s:0x%x), hash:0x%x", m_addr, _addr, _hash)
+    return _hash
 
 ###############################################################################
 #

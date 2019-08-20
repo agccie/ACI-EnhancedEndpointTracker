@@ -59,7 +59,7 @@ def setup_logger(logger, loglevel="debug", logfile=None):
             logger.addHandler(fhandler) 
             # logger needs to have level set to DEBUG so debugs go to filehandler
             logger.setLevel(logging.DEBUG) 
-        except IOEerror as e:
+        except IOError as e:
             sys.stderr.write("failed to open logger handler: %s\n" % logfile)
     return logger
 
@@ -187,8 +187,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "-l","--log", 
         dest="logfile", 
-        default="/tmp/deploy.log", 
+        default=os.path.realpath("%s/.deploy.log" % os.path.expanduser("~")),
         help="log file",
+    )
+    parser.add_argument(
+        "-c", "--compose",
+        dest="compose_file",
+        metavar="path",
+        default=os.path.realpath("%s/compose.yml" % os.path.expanduser("~")),
+        help="docker compose file location",
     )
     actions = parser.add_mutually_exclusive_group(required=True)
     actions.add_argument(
@@ -223,24 +230,6 @@ if __name__ == "__main__":
     setup_logger(logging.getLogger("swarm.connection"), loglevel="info", logfile=None)
     logger.debug("Logfile: %s", args.logfile)
 
-    # validate a few config arguments if provided
-    try:
-        if args.worker_count is not None and args.worker_count > ClusterConfig.MAX_WORKERS:
-            raise Exception("invalid worker count %s, must be <= %s" % (args.worker_count, 
-                            ClusterConfig.MAX_WORKERS))
-        if args.db_shard is not None and args.db_shard > ClusterConfig.MAX_SHARDS:
-            raise Exception("invalid shard count %s, must be <= %s" % (args.db_shard, 
-                            ClusterConfig.MAX_SHARDS))
-        if args.db_replica is not None and args.db_replica > ClusterConfig.MAX_REPLICAS:
-            raise Exception("invalid shard count %s, must be <= %s" % (args.db_replica, 
-                            ClusterConfig.MAX_REPLICAS))
-        if args.db_memory is not None and args.db_memory > ClusterConfig.MAX_MEMORY:
-            raise Exception("invalid shard count %s, must be <= %s" % (args.db_memory, 
-                            ClusterConfig.MAX_MEMORY))
-    except Exception as e:
-        logger.error("Invalid argument. %s", e)
-        sys.exit(1)
-
     try:
         image = "%s:%s" % (app_image_base, args.version)
         # for create config and deploy, we need to get the number of intended nodes.
@@ -257,7 +246,8 @@ if __name__ == "__main__":
                     worker_count=args.worker_count,
                     db_shard=args.db_shard,
                     db_replica=args.db_replica,
-                    db_memory=args.db_memory
+                    db_memory=args.db_memory,
+                    compose_file=args.compose_file,
                 )
 
         # all actions (techsupport/config/init/deploy) all required configuration to be parsed

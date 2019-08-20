@@ -305,7 +305,7 @@ There are several nerd knobs available to affect how the app is running. The def
 suitable for most deployments. However, there may be scenarios where this settings need to be 
 updated.  The following settings are available within the **Advanced** section. 
 
-If you are using the API then these settings would apply to the **eptSettings** object.
+If you are using the API then these settings would apply to **fabric** and **eptSettings** objects.
 
 |fabric-settings-advanced|
 
@@ -409,6 +409,27 @@ events can be disabled.
 
 * **Queue initial events** enables queueing of all standard MO events during build
 * **Queue initial endpoint events** enables queuing of all EPM events during endpoint build
+
+Subscription Heartbeats
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The subscription process monitors the health of the websocket and manages login token and 
+subscription refreshes. It also polls the APIC at a regular interval to ensure that the nginx
+process is reachable and responsive. There is a query sent with a **hearbeat timeout** once per 
+**heartbeat interval**. If there are consecutive heartbeat failures, up to the configured 
+**heartbeat retry** count, then the APIC is marked as unreachable and the subscription process will
+restart. Set the **heartbeat interval** to 0 to disable heartbeat functionality. 
+
+.. note:: The fabric monitor needs to be restarted for heartbeat settings to take affect.
+
+* **Heartbeat Retries** maximum number of successive heartbeat failures before APIC connection is
+  declared unusable and subscription thread is closed
+
+* **Heartbeat Interval** interval in seconds to perform heartbeat query to ensure APIC connection 
+  is available and responsive. Set to 0 to disable heartbeat.
+
+* **Heartbeat Timeout** timeout in seconds for a single heartbeat query to complete
+
 
 Session Handling
 ~~~~~~~~~~~~~~~~

@@ -248,8 +248,10 @@ class Fabric(Rest):
         """ stop fabric monitor """
         self.auto_start = False
         self.save()
+        if len(reason) == 0:
+            reason = "API requested stop"
+        redis = None
         try:
-            if len(reason) == 0: reason = "API requested stop"
             redis = get_redis()
             data={"fabric":self.fabric, "reason":reason}
             msg = eptMsg(MSG_TYPE.FABRIC_STOP,data=data)
@@ -258,14 +260,19 @@ class Fabric(Rest):
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
             abort(500, "failed to send message to redis db")
+        finally:
+            if redis is not None and hasattr(redis, "connection_pool"):
+                redis.connection_pool.disconnect()
 
     @api_route(path="start", methods=["POST"], swag_ret=["success"])
     def start_fabric_monitor(self, reason=""):
         """ start fabric monitor """
         self.auto_start = True
         self.save()
+        if len(reason) == 0:
+            reason = "API requested start"
+        redis = None
         try:
-            if len(reason) == 0: reason = "API requested start"
             redis = get_redis()
             data={"fabric":self.fabric, "reason":reason}
             msg = eptMsg(MSG_TYPE.FABRIC_START,data=data)
@@ -274,6 +281,9 @@ class Fabric(Rest):
         except Exception as e:
             logger.error("Traceback:\n%s", traceback.format_exc())
             abort(500, "failed to send message to redis db")
+        finally:
+            if redis is not None and hasattr(redis, "connection_pool"):
+                redis.connection_pool.disconnect()
 
     @api_route(path="verify", methods=["POST"], swag_ret=["success","apic_error","ssh_error"])
     def verify_credentials(self):

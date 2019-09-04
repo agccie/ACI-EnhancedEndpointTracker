@@ -280,7 +280,7 @@ class AppStatus(Rest):
         """
         seq = get_random_sequence()
         msg = eptMsg(MSG_TYPE.GET_FABRIC_STATUS, seq=seq, data={"fabric":fabric})
-        logger.debug("get fabric status (seq:0x%x) fabric: %s", seq, fabric)
+        #logger.debug("get fabric status (seq:0x%x) fabric: %s", seq, fabric)
         redis = get_redis()
         p = redis.pubsub(ignore_subscribe_messages=True)
         p.subscribe(MANAGER_CTRL_RESPONSE_CHANNEL)
@@ -298,7 +298,7 @@ class AppStatus(Rest):
                             # validate this is the addr and sequence number our user requested
                             if msg.seq == seq and "fabric" in msg.data and \
                                 msg.data["fabric"] == fabric:
-                                logger.debug("fabric status (0x%x) alive:%r", seq, msg.data["alive"])
+                                #logger.debug("fabric status (0x%x) alive:%r",seq,msg.data["alive"])
                                 if msg.data["alive"]: 
                                     return True
                                 else:
@@ -336,7 +336,7 @@ class AppStatus(Rest):
         }
         seq = get_random_sequence()
         msg = eptMsg(MSG_TYPE.GET_MANAGER_STATUS, seq=seq, data={"brief": brief})
-        logger.debug("get manager status (seq:0x%x) brief:%r", seq, brief)
+        #logger.debug("get manager status (seq:0x%x) brief:%r", seq, brief)
         redis = get_redis()
         p = redis.pubsub(ignore_subscribe_messages=True)
         p.subscribe(MANAGER_CTRL_RESPONSE_CHANNEL)
@@ -353,7 +353,7 @@ class AppStatus(Rest):
                     if channel == MANAGER_CTRL_RESPONSE_CHANNEL:
                         msg = eptMsg.parse(data["data"]) 
                         if msg.msg_type == MSG_TYPE.MANAGER_STATUS:
-                            logger.debug("received manager status (seq:0x%x)", msg.seq)
+                            #logger.debug("received manager status (seq:0x%x)", msg.seq)
                             ret["manager"] = msg.data["manager"]
                             ret["workers"] = msg.data["workers"]
                             ret["fabrics"] = msg.data["fabrics"]

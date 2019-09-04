@@ -383,7 +383,7 @@ def get_ssh_connection(fabric, pod_id, node_id, session=None):
     # remote switch or local apic
     if apic_id != node_id:
         opts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-        cmd = "ssh %s -b %s %s" % (opts, apic_tep, tep)
+        cmd = "ssh %s -b %s %s@%s" % (opts, apic_tep, f.ssh_username, tep)
         logger.debug("creating remote ssh session from %s: %s",apic_tep,cmd)
         if not c.remote_login(cmd):
             logger.warn("failed to login to node %s(%s)", node_id, tep)

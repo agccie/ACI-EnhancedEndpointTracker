@@ -361,19 +361,26 @@ class eptSubscriber(object):
                 if m.qnum >= len(worker.queues):
                     logger.warn("unable to enqueue work on worker %s, queue %s does not exist", 
                         worker.worker_id, m.qnum)
-                else:
-                    if worker.worker_id not in work:
-                        work[worker.worker_id] = {}
-                    if m.qnum not in work[worker.worker_id]:
-                        work[worker.worker_id][m.qnum] = (worker, [eptMsgBulk()])
-                    if len(work[worker.worker_id][m.qnum][1][-1].msgs) >= MAX_SEND_MSG_LENGTH:
-                        work[worker.worker_id][m.qnum][1].append(eptMsgBulk())
-                    work[worker.worker_id][m.qnum][1][-1].msgs.append(m)
-                    # increment seq number for this message and for worker
-                    with worker.queue_locks[m.qnum]:
-                        worker.last_seq[m.qnum]+= 1
-                        m.seq = worker.last_seq[m.qnum]
-                    self.increment_stats(worker.queues[m.qnum], tx=True)
+                    # force qnum to length of worker.queues assuming worker has at least one queue
+                    if len(worker.queues) > 0:
+                        m.qnum = len(worker.queues) - 1
+                        logger.debug("overwritting queue to %s", m.qnum)
+                    else:
+                        logger.warn("unable to send message to worker with 0 queues")
+                        continue
+
+                if worker.worker_id not in work:
+                    work[worker.worker_id] = {}
+                if m.qnum not in work[worker.worker_id]:
+                    work[worker.worker_id][m.qnum] = (worker, [eptMsgBulk()])
+                if len(work[worker.worker_id][m.qnum][1][-1].msgs) >= MAX_SEND_MSG_LENGTH:
+                    work[worker.worker_id][m.qnum][1].append(eptMsgBulk())
+                work[worker.worker_id][m.qnum][1][-1].msgs.append(m)
+                # increment seq number for this message and for worker
+                with worker.queue_locks[m.qnum]:
+                    worker.last_seq[m.qnum]+= 1
+                    m.seq = worker.last_seq[m.qnum]
+                self.increment_stats(worker.queues[m.qnum], tx=True)
 
         # at this point work is dict indexed by worker-id and queue. Each queue contains a list of
         # one or more eptMsgBulk objects that need to be transmitted individually.
@@ -447,7 +454,7 @@ class eptSubscriber(object):
             logger.debug("request not for this fabric")
             return
         if msg.msg_type == MSG_TYPE.REFRESH_EPT:
-            self.refresh_endpoint(msg.vnid, msg.addr, msg.type, msg.qnum)
+            self.refresh_endpoint(msg.vnid, msg.addr, msg.type)
         elif msg.msg_type == MSG_TYPE.DELETE_EPT:
             # enqueue work to available worker
             self.send_msg(eptMsgWorkDeleteEpt(msg.addr, "worker", {"vnid":msg.vnid},
@@ -1606,7 +1613,7 @@ class eptSubscriber(object):
         self.fabric.add_fabric_event("initializing", overview)
         return True
 
-    def refresh_endpoint(self, vnid, addr, addr_type, qnum=0):
+    def refresh_endpoint(self, vnid, addr, addr_type):
         """ perform endpoint refresh. This triggers an API query for epmDb filtering on provided
             addr and vnid. The results are fed through handle_epm_event which is enqueued onto 
             a worker. Since workers only have a single queue, will need to insert at the top of
@@ -1643,8 +1650,10 @@ class eptSubscriber(object):
                     msg = self.epm_parser.parse(classname, attr, attr["_ts"])
                     if msg is not None:
                         create_msgs.append(msg)
-                        if msg.node not in endpoints: endpoints[msg.node] = {}
-                        if msg.vnid not in endpoints[msg.node]: endpoints[msg.node][msg.vnid] = {}
+                        if msg.node not in endpoints:
+                            endpoints[msg.node] = {}
+                        if msg.vnid not in endpoints[msg.node]:
+                            endpoints[msg.node][msg.vnid] = {}
                         endpoints[msg.node][msg.vnid][msg.addr] = 1
                 else:
                     logger.debug("ignoring invalid epm object %s", obj)
@@ -1652,9 +1661,8 @@ class eptSubscriber(object):
             delete_msgs = [_ for _ in self.get_epm_delete_msgs(endpoints, addr=addr, vnid=vnid)]
             logger.debug("sending %s create and %s delete msgs from refresh", len(create_msgs),
                     len(delete_msgs))
-            # set force flag and qnum on each msg to trigger analysis update
+            # set force flag on each msg to trigger analysis update
             for msg in create_msgs+delete_msgs:
-                msg.qnum = qnum
                 msg.force = True
 
             self.send_msg(create_msgs+delete_msgs, prepend=True)

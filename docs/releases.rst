@@ -6,6 +6,16 @@ Releases
 This page will track information about each new release along with new features and any known
 issues. 
 
+Version 2.1.2a
+--------------
+*Released Sep 12 2019*
+
+* fix for Docker swarm node IP discovery
+* change default worker count from 10 to 23 for swarm
+* ensure web service is closing redis connections for each pub/sub message
+* ensure all messages are sent on support qnum (regression from queue count reduction fixes)
+* force username for ssh remote login procedures to ensure custom domain is maintained
+
 Version 2.1.2
 -------------
 *Released Aug 20 2019*

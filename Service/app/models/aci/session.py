@@ -330,7 +330,8 @@ class Session(object):
             self.login_thread.exit()
         if self.subscription_thread is not None:
             self.subscription_thread.exit()
-        self.session.close()
+        if self.session is not None:
+            self.session.close()
 
     def _send(self, method, url, data=None, timeout=None, retry=True):
         """ perform GET/POST/DELETE request to apic

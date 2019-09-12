@@ -383,7 +383,7 @@ def get_ssh_connection(fabric, pod_id, node_id, session=None):
     # remote switch or local apic
     if apic_id != node_id:
         opts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-        cmd = "ssh %s -b %s %s" % (opts, apic_tep, tep)
+        cmd = "ssh %s -b %s %s@%s" % (opts, apic_tep, f.ssh_username, tep)
         logger.debug("creating remote ssh session from %s: %s",apic_tep,cmd)
         if not c.remote_login(cmd):
             logger.warn("failed to login to node %s(%s)", node_id, tep)
@@ -843,80 +843,91 @@ def clear_endpoint(fabric, pod, node, vnid, addr, addr_type="ip", vrf_name=""):
     from . ept.common import get_mac_string
     from . ept.common import get_mac_value
     from . ept.ept_vnid import eptVnid
-    if isinstance(fabric, Fabric): f = fabric
-    else: f = Fabric.load(fabric=fabric)
+    if isinstance(fabric, Fabric):
+        f = fabric
+    else:
+        f = Fabric.load(fabric=fabric)
 
     logger.debug("clear endpoint [%s, node:%s, vnid:%s, addr:%s]", f.fabric, node, vnid, addr)
-    if not f.exists():
-        logger.warn("unknown fabric: %s", f.fabric)
-        return False
-    session = get_apic_session(f)
-    if session is None:
-        logger.warn("failed to get apic session for fabric: %s", f.fabric)
-        return False
-    ssh = get_ssh_connection(f, pod, node, session=session)
-    if ssh is None:
-        logger.warn("failed to ssh to pod:%s node:%s", pod, node)
-        return False
-
-    if addr_type == "ip":
-        ctype = "ipv6" if ":" in addr else "ip"
-        if len(vrf_name) == 0:
-            # try to determine vrf name from eptVnid table
-            v = eptVnid.find(fabric=f.fabric, vnid=vnid)
-            if len(v) > 0:
-                vrf_name = parse_vrf_name(v[0].name)
-                if vrf_name is None:
-                    logger.warn("failed to parse vrf name from ept vnid_name: %s", v.name)
-                    return False
-            else:
-                logger.warn("failed to determine vnid_name for fabric: %s, vnid: %s",f.fabric,vnid)
-                return False
-        cmd = "vsh -c 'clear system internal epm endpoint key vrf %s %s %s'" % (vrf_name,ctype,addr)
-        if ssh.cmd(cmd) == "prompt":
-            logger.debug("successfully cleared endpoint: %s", cmd)
-            return True
-        else:
-            logger.warn("failed to execute clear cmd: %s", cmd)
+    session = None
+    try:
+        if not f.exists():
+            logger.warn("unknown fabric: %s", f.fabric)
             return False
-    else:
-        # first cast mac into correct format
-        addr = get_mac_string(get_mac_value(addr),fmt="std")
-        
-        # to determine mac FD need to first verify mac exists and then use parent dn to query
-        # l2BD, vlanCktEp, vxlanCktEp object (good thing here is that we don't care which object 
-        # type, each will have id attribute that is the PI vlan)
-        # here we have two choices, first is APIC epmMacEp query which hits all nodes or, since ssh
-        # session is already up, we can execute directly on the leaf. For that latter case, it will
-        # be easier to use moquery with grep then parsing json with extra terminal characters...
-        cmd = "moquery -c epmMacEp -f 'epm.MacEp.addr==\"%s\"' | egrep '^dn' | egrep 'vxlan-%s'"%(
-                addr, vnid)
-        if ssh.cmd(cmd) == "prompt":
-            r1 = re.search("dn[ ]*:[ ]*(?P<dn>sys/.+)/db-ep", ssh.output)
-            if r1 is not None:
-                cmd = "moquery -d '%s' | egrep '^id'" % r1.group("dn")
-                if ssh.cmd(cmd) == "prompt":
-                    r2 = re.search("id[ ]*:[ ]*(?P<pi>[0-9]+)", ssh.output)
-                    if r2 is not None:
-                        cmd = "vsh -c 'clear system internal epm endpoint key vlan %s mac %s'" % (
-                            r2.group("pi"), addr)
-                        if ssh.cmd(cmd) == "prompt":
-                            logger.debug("successfully cleared endpoint: %s", cmd)
-                            return True
-                        else:
-                            logger.warn("failed to execute clear cmd: %s", cmd)
-                            return False
-                    else:
-                        logger.warn("failed to extract pi-vlan id from %s: %s", r1.group("dn"), 
-                            ssh.output)
+        session = get_apic_session(f)
+        if session is None:
+            logger.warn("failed to get apic session for fabric: %s", f.fabric)
+            return False
+        ssh = get_ssh_connection(f, pod, node, session=session)
+        if ssh is None:
+            logger.warn("failed to ssh to pod:%s node:%s", pod, node)
+            return False
+
+        if addr_type == "ip":
+            ctype = "ipv6" if ":" in addr else "ip"
+            if len(vrf_name) == 0:
+                # try to determine vrf name from eptVnid table
+                v = eptVnid.find(fabric=f.fabric, vnid=vnid)
+                if len(v) > 0:
+                    vrf_name = parse_vrf_name(v[0].name)
+                    if vrf_name is None:
+                        logger.warn("failed to parse vrf name from ept vnid_name: %s", v.name)
                         return False
                 else:
-                    logger.warn("failed to execute command: %s", cmd)
-            else:
-                logger.debug("failed to parse bd/cktEp from dn or endpoint not found: %s",ssh.output)
-                # assume parsing was fine and that endpoint is no longer present (so cleared!)
+                    logger.warn("failed to determine vnid_name for fabric:%s,vnid:%s",f.fabric,vnid)
+                    return False
+            cmd="vsh -c 'clear system internal epm endpoint key vrf %s %s %s'"%(vrf_name,ctype,addr)
+            if ssh.cmd(cmd) == "prompt":
+                logger.debug("successfully cleared endpoint: %s", cmd)
                 return True
+            else:
+                logger.warn("failed to execute clear cmd: %s", cmd)
+                return False
         else:
-            logger.warn("failed to execute moquery command to determine mac fd on leaf")
-            return False
+            # first cast mac into correct format
+            addr = get_mac_string(get_mac_value(addr),fmt="std")
+        
+            # to determine mac FD need to first verify mac exists and then use parent dn to query
+            # l2BD, vlanCktEp, vxlanCktEp object (good thing here is that we don't care which object 
+            # type, each will have id attribute that is the PI vlan)
+            # here we have two choices, first is APIC epmMacEp query which hits all nodes or, since
+            # ssh session is already up, we can execute directly on the leaf. For that latter case,
+            # it will be easier to use moquery with grep then parsing json with extra terminal
+            # characters...
+            cmd="moquery -c epmMacEp -f 'epm.MacEp.addr==\"%s\"' | egrep '^dn' | egrep 'vxlan-%s'"%(
+                    addr, vnid)
+            if ssh.cmd(cmd) == "prompt":
+                r1 = re.search("dn[ ]*:[ ]*(?P<dn>sys/.+)/db-ep", ssh.output)
+                if r1 is not None:
+                    cmd = "moquery -d '%s' | egrep '^id'" % r1.group("dn")
+                    if ssh.cmd(cmd) == "prompt":
+                        r2 = re.search("id[ ]*:[ ]*(?P<pi>[0-9]+)", ssh.output)
+                        if r2 is not None:
+                            cmd = "vsh -c 'clear system internal epm endpoint key vlan %s mac %s'"%(
+                                r2.group("pi"), addr)
+                            if ssh.cmd(cmd) == "prompt":
+                                logger.debug("successfully cleared endpoint: %s", cmd)
+                                return True
+                            else:
+                                logger.warn("failed to execute clear cmd: %s", cmd)
+                                return False
+                        else:
+                            logger.warn("failed to extract pi-vlan id from %s: %s", r1.group("dn"), 
+                                ssh.output)
+                            return False
+                    else:
+                        logger.warn("failed to execute command: %s", cmd)
+                else:
+                    logger.debug("failed to parse bd/cktEp from dn or endpoint not found: %s",
+                        ssh.output)
+                    # assume parsing was fine and that endpoint is no longer present (so cleared!)
+                    return True
+            else:
+                logger.warn("failed to execute moquery command to determine mac fd on leaf")
+                return False
+    finally:
+        if session is not None:
+            logger.debug("clossing session")
+            session.close()
+
         

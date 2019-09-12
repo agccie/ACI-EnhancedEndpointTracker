@@ -190,7 +190,8 @@ class Connection(object):
         logger.debug("logging into host")
 
         # successfully logged in at a different time
-        if not self.__connected(): self.connect()
+        if not self.__connected():
+            self.connect()
         # check for user provided 'prompt' which indicates successful login
         # else provide approriate username/password/enable_password
         matches = {
@@ -246,13 +247,14 @@ class Connection(object):
         logger.error("failed to login after multiple attempts")
         return False
 
-    def remote_login(self, command, **kwargs):
+    def remote_login(self, command, max_attempts=3, timeout=5):
         """ execute a remote ssh/telnet login command on an active connection
             object. This allows user to login to a device through a jump box.
         """
-        if not self.__connected(): self.connect()
+        if not self.__connected():
+            self.connect()
         self.child.sendline(command)
-        return self.login(**kwargs) 
+        return self.login(max_attempts=max_attempts, timeout=timeout) 
 
     def cmd(self, command, **kwargs):
         """

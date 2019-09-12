@@ -515,7 +515,7 @@ class DockerNode(object):
                         if "Addr" in js["ManagerStatus"]:
                             self.addr = js["ManagerStatus"]["Addr"].rsplit(":",1)[0]
                     if "Status" in js:
-                        if "Addr" in js["Status"] and self.addr is not None:
+                        if "Addr" in js["Status"] and self.addr is None:
                             self.addr = js["Status"]["Addr"]
                         if "State" in js["Status"]:
                             self.status = js["Status"]["State"]

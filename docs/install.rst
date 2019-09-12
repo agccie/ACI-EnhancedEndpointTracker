@@ -238,7 +238,7 @@ is  no internet requirement to get the app deployed on the OVA.**
     .. code-block:: bash
 
         # example deployment with large scale (default worker/shard/memory is sufficent for most setups)
-        eptracker@ept-node1:~$ app-deploy --deploy --worker 64 --db_shard 16 --db_replica 3 --db_memory 3.0
+        eptracker@ept-node1:~$ app-deploy --deploy --worker 23 --db_shard 3 --db_replica 3 --db_memory 2.0
         Number of nodes in cluster [1]: 3
 
         UTC 2019-04-27 13:19:39.251||INFO||loading config file: /opt/cisco/src/cluster/swarm/swarm_config.yml

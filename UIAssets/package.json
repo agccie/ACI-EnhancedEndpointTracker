@@ -30,7 +30,7 @@
     "@swimlane/ngx-datatable": "^14.0.0",
     "angular2-query-builder": "^0.4.0",
     "core-js": "^2.6.0",
-    "highcharts": "^6.2.0",
+    "highcharts": "^7.2.2",
     "highcharts-angular": "^2.3.1",
     "moment": "^2.22.2",
     "ngx-bootstrap": "^3.1.2",

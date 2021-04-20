@@ -27,7 +27,7 @@ natsort==5.3.2
 pexpect==4.2.1
 pluggy==0.6.0
 ptyprocess==0.5.2
-py==1.5.4
+py==1.10.0
 pycparser==2.18
 pycrypto==2.6.1
 pymongo==3.6.1

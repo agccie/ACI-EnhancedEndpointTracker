@@ -10,6 +10,8 @@ Introduction
         ></iframe>
     </div>
 
+The functionality of EnhancedEndpointTracker has merged to NI platform (NIR / Network Insights - Resources), hence this app has been deprecated. We hope that you benefit from this app in the spirit of goodwill by who designed this - our genius colleague Andy Gossett. His great soul will motivate us moving forward.
+
 The EnhancedEndpointTracker is a Cisco ACI application that maintains a database of endpoint 
 events on a per-node basis allowing for unique fabric-wide analysis. The application can be 
 configured to analyze, notify, and automatically remediate various endpoint events. This gives 

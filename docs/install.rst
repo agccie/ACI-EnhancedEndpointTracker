@@ -1,5 +1,7 @@
 .. _install:
 
+The functionality of EnhancedEndpointTracker has merged to NI platform (NIR / Network Insights - Resources), hence this app has been deprecated. We hope that you benefit from this app in the spirit of goodwill by who designed this - our genius colleague Andy Gossett. His great soul will motivate us moving forward.
+
 Install
 =======
 

@@ -1,5 +1,8 @@
 # EnhancedEndpointTracker
 
+| :exclamation: This application is no longer being developed or tested with new ACI releases. |
+|----------------------------------------------------------------------------------------------|
+
 The EnhancedEndpointTracker is a Cisco ACI application that maintains a database of endpoint
 events on a per-node basis allowing for unique fabric-wide analysis. The application can be
 configured to analyze, notify, and automatically remediate various endpoint events. This gives
